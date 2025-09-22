@@ -227,6 +227,7 @@ const Enrollment = sequelize.define('Enrollment', {
   timestamps: true
 });
 
+
 const RoomAllotment = sequelize.define('RoomAllotment', {
   id: {
     type: DataTypes.INTEGER,
@@ -263,7 +264,7 @@ const RoomAllotment = sequelize.define('RoomAllotment', {
     defaultValue: true
   }
 }, {
-  tableName: 'tbl_RoomAllottment',
+  tableName: 'tbl_RoomAllotment', // Corrected typo
   timestamps: true
 });
 

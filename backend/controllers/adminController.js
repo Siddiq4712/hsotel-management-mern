@@ -1,4 +1,3 @@
-// controllers/adminController.js - Complete version with all CRUD operations
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const { 
@@ -1648,7 +1647,6 @@ const deleteUOM = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-
 // DASHBOARD STATISTICS
 const getDashboardStats = async (req, res) => {
   try {
