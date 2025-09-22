@@ -228,29 +228,126 @@ const getSessions = async (req, res) => {
 
 // ATTENDANCE MANAGEMENT
 const markAttendance = async (req, res) => {
-    try {
-        const { student_id, date, status, from_date, to_date, reason, remarks } = req.body;
-        const marked_by = req.user.id;
-        const attendanceData = { student_id, date, status, marked_by, reason, remarks, from_date: status === 'OD' ? from_date : null, to_date: status === 'OD' ? to_date : null };
-        const [attendance, created] = await Attendance.findOrCreate({ where: { student_id, date }, defaults: attendanceData });
-        if (!created) await attendance.update(attendanceData);
+  const transaction = await sequelize.transaction();
+  try {
+    const { student_id, date, status, from_date, to_date, reason, remarks } = req.body;
+    const marked_by = req.user?.id;
 
-        if (status === 'OD' && from_date && to_date) {
-            const startDate = new Date(from_date);
-            const endDate = new Date(to_date);
-            for (let d = startDate; d <= endDate; d.setDate(d.getDate() + 1)) {
-                const currentDate = d.toISOString().split('T')[0];
-                if (currentDate === date) continue;
-                await Attendance.upsert({ student_id, date: currentDate, status: 'OD', from_date, to_date, marked_by, reason, remarks });
-            }
-        }
-        res.json({ success: true, data: attendance, message: 'Attendance marked successfully' });
-    } catch (error) {
-        console.error('Attendance marking error:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
+    // Validate inputs
+    if (!student_id || !date || !status) {
+      throw new Error('Missing required fields: student_id, date, and status are required');
     }
-};
+    if (!['P', 'A', 'OD'].includes(status)) {
+      throw new Error('Invalid status. Must be P, A, or OD');
+    }
+    if (status === 'OD' && (!from_date || !to_date)) {
+      throw new Error('from_date and to_date are required for OD status');
+    }
 
+    // Validate student
+    const student = await User.findOne({
+      where: { id: student_id, role: 'student', hostel_id: req.user.hostel_id, is_active: true },
+      transaction
+    });
+    if (!student) {
+      throw new Error('Student not found in this hostel');
+    }
+
+    // Validate marked_by
+    if (!marked_by) {
+      throw new Error('Invalid user authentication');
+    }
+
+    // Validate dates
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate)) {
+      throw new Error('Invalid date format. Use YYYY-MM-DD');
+    }
+    let startDate, endDate;
+    if (status === 'OD') {
+      startDate = new Date(from_date);
+      endDate = new Date(to_date);
+      if (isNaN(startDate) || isNaN(endDate)) {
+        throw new Error('Invalid from_date or to_date format. Use YYYY-MM-DD');
+      }
+      if (startDate > endDate) {
+        throw new Error('from_date cannot be later than to_date');
+      }
+    }
+
+    const attendanceData = {
+      student_id,
+      date,
+      status,
+      marked_by,
+      reason,
+      remarks,
+      from_date: status === 'OD' ? from_date : null,
+      to_date: status === 'OD' ? to_date : null
+    };
+
+    const [attendance, created] = await Attendance.findOrCreate({
+      where: { student_id, date },
+      defaults: attendanceData,
+      transaction
+    });
+    if (!created) await attendance.update(attendanceData, { transaction });
+
+    if (status === 'OD' && from_date && to_date) {
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const currentDate = d.toISOString().split('T')[0];
+        if (currentDate === date) continue;
+        await Attendance.upsert(
+          { student_id, date: currentDate, status: 'OD', from_date, to_date, marked_by, reason, remarks },
+          { transaction }
+        );
+      }
+    }
+
+    await transaction.commit();
+    res.json({ success: true, data: attendance, message: 'Attendance marked successfully' });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Attendance marking error:', {
+      message: error.message,
+      stack: error.stack,
+      requestBody: req.body,
+      user: req.user
+    });
+    res.status(error.message.includes('not found') ? 404 : 400).json({ success: false, message: error.message });
+  }
+};
+const updateAttendance = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, reason, remarks, from_date, to_date } = req.body;
+    const hostel_id = req.user.hostel_id;
+    const marked_by = req.user.id;
+
+    const attendance = await Attendance.findOne({
+      where: { id },
+      include: [{ model: User, as: 'Student', where: { hostel_id } }]
+    });
+
+    if (!attendance) {
+      return res.status(404).json({ success: false, message: 'Attendance record not found' });
+    }
+
+    await attendance.update({
+      status,
+      reason,
+      remarks,
+      from_date: status === 'OD' ? from_date : null,
+      to_date: status === 'OD' ? to_date : null,
+      marked_by
+    });
+
+    res.json({ success: true, data: attendance, message: 'Attendance updated successfully' });
+  } catch (error) {
+    console.error('Attendance update error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
 const bulkMarkAttendance = async (req, res) => {
     const { date, attendanceData } = req.body;
     const marked_by = req.user.id;
@@ -863,6 +960,8 @@ module.exports = {
   // Attendance Management
   markAttendance,
   getAttendance,
+  bulkMarkAttendance,
+  updateAttendance,
   // Leave Management - Updated
   getLeaveRequests,
   getPendingLeaves,

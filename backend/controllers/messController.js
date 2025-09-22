@@ -7,7 +7,7 @@ const {
   OtherItems, Supplier, PurchaseOrder, PurchaseOrderItem,
   SupplierBill, SupplierBillItem, MessFeesAllot, OtherExpense,
   UOM, ExpenseType, Attendance, Leave, DailyMessCharge,
-  Hostel, IncomeType,Store, ItemStore, InventoryTransaction,ConsumptionLog,InventoryBatch
+  Hostel, IncomeType,Store, ItemStore, InventoryTransaction,ConsumptionLog,InventoryBatch,SpecialFoodItem,FoodOrder,FoodOrderItem
 } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
@@ -3320,40 +3320,33 @@ const createSpecialFoodItem = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-
 const getSpecialFoodItems = async (req, res) => {
   try {
     const { category, is_available, search } = req.query;
-    
     let whereClause = {};
-    
     if (category) {
       whereClause.category = category;
     }
-    
     if (is_available !== undefined) {
       whereClause.is_available = is_available === 'true';
     }
-    
     if (search) {
       whereClause.name = { [Op.iLike]: `%${search}%` };
     }
-
     const foodItems = await SpecialFoodItem.findAll({
       where: whereClause,
-      order: [['category', 'ASC'], ['name', 'ASC']]
+      order: [['category', 'ASC'], ['name', 'ASC']],
     });
-
-    res.json({
-      success: true,
-      data: foodItems
-    });
+    res.json({ success: true, data: foodItems });
   } catch (error) {
     console.error('Special food items fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    });
   }
 };
-
 const getSpecialFoodItemById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -3966,18 +3959,17 @@ const getSummarizedConsumptionReport = async (req, res) => {
         consumption_date: { [Op.between]: [start_date, end_date] },
       },
       attributes: [
-        [sequelize.col('tbl_Item.name'), 'item_name'], // Use the correct alias
+        [sequelize.col('tbl_Item.name'), 'item_name'],
         [sequelize.col('DailyConsumption.unit'), 'unit'],
         [sequelize.fn('SUM', sequelize.col('DailyConsumption.quantity_consumed')), 'total_consumed'],
         [sequelize.fn('SUM', sequelize.col('ConsumptionLogs.cost')), 'total_cost'],
       ],
       include: [
-        // Use the alias defined in the model association
-        { model: Item, as: 'tbl_Item', attributes: []}, 
+        { model: Item, as: 'tbl_Item', attributes: []},
         { model: ConsumptionLog, as: 'ConsumptionLogs', attributes: []},
       ],
-      group: ['tbl_Item.id', 'tbl_Item.name', 'DailyConsumption.unit'], // Use the correct alias
-      order: [[sequelize.col('tbl_Item.name'), 'ASC']], // Use the correct alias
+      group: ['tbl_Item.id', 'tbl_Item.name', 'DailyConsumption.unit'],
+      order: [[sequelize.col('tbl_Item.name'), 'ASC']],
       raw: true,
     });
 
@@ -3987,7 +3979,6 @@ const getSummarizedConsumptionReport = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-// Export all functions
 module.exports = {
   // Menu Management
   createMenu,
