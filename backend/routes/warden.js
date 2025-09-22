@@ -11,9 +11,9 @@ const {
   // Suspension Management
   createSuspension, getSuspensions, updateSuspension,
   // Holiday Management
-  createHoliday, getHolidays, updateHoliday, deleteHoliday,
+  createHoliday, getHolidays, updateHoliday, deleteHoliday,bulkMarkAttendance,
   // Additional Collections
-  createAdditionalCollection, getAdditionalCollections, 
+  createAdditionalCollection, getAdditionalCollections,updateAttendance,
   //bulkMarkAttendance, 
   getRoomOccupants
 } = require('../controllers/wardenController');
@@ -38,8 +38,9 @@ router.post('/room-allotment', allotRoom);
 
 // Attendance Management
 router.post('/attendance', markAttendance);
+router.post('/attendance/bulk', bulkMarkAttendance);
 router.get('/attendance', getAttendance);
-
+router.put('/attendance/:id', updateAttendance);
 // Leave Management - Updated with new endpoints
 router.get('/leave-requests', getLeaveRequests);
 router.get('/leave-requests/pending', getPendingLeaves); // NEW - Get only pending leaves

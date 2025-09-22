@@ -146,10 +146,14 @@ const HostelRoom = sequelize.define('HostelRoom', {
     defaultValue: 0,
     allowNull: false
   },
-  // REMOVED: is_occupied is no longer needed.
+  
   is_active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
+  },
+  is_occupied: { // This field is likely present in the model
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   tableName: 'tbl_HostelRoom',

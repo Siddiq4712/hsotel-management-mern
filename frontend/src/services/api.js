@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = 'http://localhost:5001/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -131,6 +131,7 @@ export const wardenAPI = {
   // Attendance Management
   markAttendance: (data) => api.post('/warden/attendance', data),
   getAttendance: (params) => api.get('/warden/attendance', { params }),
+  updateAttendance: (id, data) => api.put(`/warden/attendance/${id}`, data),
 
   // Leave Management - Complete
   getLeaveRequests: (params) => api.get('/warden/leave-requests', { params }),
@@ -319,7 +320,7 @@ export const messAPI = {
   getExpenseReport: (params) => api.get('/mess/reports/expenses', { params }),
   getMenuPlanningReport: (params) => api.get('/mess/reports/menu-planning', { params }),
   recordBulkConsumption: (data) => api.post('/mess/consumption/bulk', data),
-   createStore: (data) => api.post('/mess/stores', data),
+  createStore: (data) => api.post('/mess/stores', data),
   getStores: (params) => api.get('/mess/stores', { params }),
   updateStore: (id, data) => api.put(`/mess/stores/${id}`, data),
   deleteStore: (id) => api.delete(`/mess/stores/${id}`),
@@ -332,7 +333,7 @@ export const messAPI = {
   // Inventory Transactions
   recordInventoryPurchase: (data) => api.post('/mess/inventory/purchases', data),
   getInventoryTransactions: (params) => api.get('/mess/inventory/transactions', { params }),
-    createSpecialFoodItem: (data) => api.post('/mess/special-food-items', data),
+  createSpecialFoodItem: (data) => api.post('/mess/special-food-items', data),
   getSpecialFoodItems: (params) => api.get('/mess/special-food-items', { params }),
   getSpecialFoodItemById: (id) => api.get(`/mess/special-food-items/${id}`),
   updateSpecialFoodItem: (id, data) => api.put(`/mess/special-food-items/${id}`, data),
