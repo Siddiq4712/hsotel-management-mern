@@ -1,59 +1,63 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Card, Table, Button, Space, Input, Select, Form, Modal, message,
-  Tag, List, Empty, Steps, Divider, Typography, InputNumber,
+import { 
+  Card, Table, Button, Tag, Space, message, Modal, 
+  Form, Input, Select, InputNumber, Typography, Tabs,
+  Drawer, DatePicker, Divider, List, Avatar
 } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, MenuOutlined, AppstoreAddOutlined } from '@ant-design/icons';
-import api from '../../services/api';
+import { 
+  PlusOutlined, EditOutlined, DeleteOutlined, 
+  EyeOutlined, CalendarOutlined, SearchOutlined 
+} from '@ant-design/icons';
+import { messAPI } from '../../services/api';
 import moment from 'moment';
 
 const { Option } = Select;
-const { Step } = Steps;
 const { TextArea } = Input;
 const { Title, Text } = Typography;
+const { TabPane } = Tabs;
 
 const EnhancedMenuManagement = () => {
-  const [menuDetailsForm] = Form.useForm();
-  const [itemSelectionForm] = Form.useForm();
-
   const [menus, setMenus] = useState([]);
-  const [items, setItems] = useState([]);
-  
   const [loading, setLoading] = useState(false);
-  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [drawerVisible, setDrawerVisible] = useState(false);
   const [editingMenu, setEditingMenu] = useState(null);
-  
-  const [currentStep, setCurrentStep] = useState(0);
-  const [menuDetails, setMenuDetails] = useState(null);
-  const [selectedItems, setSelectedItems] = useState([]);
-
-  // NEW: State to hold the total calculated cost of the menu being created/edited
-  const [totalMenuCost, setTotalMenuCost] = useState(0);
-
-  const [viewMenu, setViewMenu] = useState(null);
-  const [isViewModalVisible, setIsViewModalVisible] = useState(false);
-
+  const [currentMenu, setCurrentMenu] = useState(null);
+  const [items, setItems] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [form] = Form.useForm();
+  const [itemForm] = Form.useForm();
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedMealType, setSelectedMealType] = useState('all');
   const [searchText, setSearchText] = useState('');
-  const [mealTypeFilter, setMealTypeFilter] = useState('all');
+
+  // Get meal types
+  const mealTypes = [
+    { value: 'breakfast', label: 'Breakfast', color: 'blue' },
+    { value: 'lunch', label: 'Lunch', color: 'green' },
+    { value: 'dinner', label: 'Dinner', color: 'purple' },
+    { value: 'snacks', label: 'Snacks', color: 'orange' }
+  ];
 
   useEffect(() => {
     fetchMenus();
     fetchItems();
+    fetchCategories();
   }, []);
-
-  // NEW: Effect to recalculate total cost whenever the ingredients list changes
-  useEffect(() => {
-    const total = selectedItems.reduce((sum, item) => sum + (item.total_cost || 0), 0);
-    setTotalMenuCost(total);
-  }, [selectedItems]);
 
   const fetchMenus = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/mess/menus');
-      setMenus(response.data.data);
+      const params = {};
+      if (selectedCategory !== 'all') params.category_id = selectedCategory;
+      if (selectedMealType !== 'all') params.meal_type = selectedMealType;
+      if (searchText) params.search = searchText;
+      
+      const response = await messAPI.getMenus(params);
+      setMenus(response.data.data || []);
     } catch (error) {
-      message.error('Failed to load menus');
+      message.error('Failed to fetch menus');
     } finally {
       setLoading(false);
     }
@@ -61,242 +65,422 @@ const EnhancedMenuManagement = () => {
 
   const fetchItems = async () => {
     try {
-      const response = await api.get('/mess/items');
-      setItems(response.data.data); // This fetch must include unit_price for each item
+      const response = await messAPI.getItems();
+      setItems(response.data.data || []);
     } catch (error) {
-      message.error('Failed to load items');
+      message.error('Failed to fetch items');
     }
   };
 
-  const handleAddNewMenu = () => {
-    setCurrentStep(0);
+  const fetchCategories = async () => {
+    try {
+      const response = await messAPI.getItemCategories();
+      setCategories(response.data.data || []);
+    } catch (error) {
+      message.error('Failed to fetch categories');
+    }
+  };
+
+  const handleCreate = () => {
     setEditingMenu(null);
-    setMenuDetails(null);
-    setSelectedItems([]);
-    menuDetailsForm.resetFields();
-    setIsModalVisible(true);
+    form.resetFields();
+    setModalVisible(true);
   };
 
-  const handleEditMenu = (menu) => {
-    setCurrentStep(0);
+  const handleEdit = (menu) => {
     setEditingMenu(menu);
-    // NEW: We add price and calculate total cost when pre-filling the items
-    const itemsWithCost = (menu.tbl_Menu_Items || []).map(mi => {
-        const itemData = items.find(i => i.id === mi.item_id);
-        const unitPrice = parseFloat(itemData?.unit_price || 0);
-        return {
-            ...mi,
-            key: mi.item_id,
-            item_name: mi.tbl_Item?.name || 'Unknown',
-            unit_price: unitPrice,
-            total_cost: unitPrice * parseFloat(mi.quantity || 0)
-        }
+    form.setFieldsValue({
+      name: menu.name,
+      meal_type: menu.meal_type,
+      description: menu.description,
+      estimated_servings: menu.estimated_servings,
+      preparation_time: menu.preparation_time,
     });
-    setSelectedItems(itemsWithCost);
-    menuDetailsForm.setFieldsValue(menu);
-    setIsModalVisible(true);
+    setModalVisible(true);
   };
 
-  const handleNextStep = async () => {
-    try {
-      const values = await menuDetailsForm.validateFields();
-      setMenuDetails(values);
-      setCurrentStep(1);
-    } catch (error) {
-      console.log('Validation failed:', error);
-    }
+  const handleDelete = async (id) => {
+    Modal.confirm({
+      title: 'Are you sure you want to delete this menu?',
+      content: 'This action cannot be undone.',
+      onOk: async () => {
+        try {
+          await messAPI.deleteMenu(id);
+          message.success('Menu deleted successfully');
+          fetchMenus();
+        } catch (error) {
+          message.error('Failed to delete menu');
+        }
+      },
+    });
   };
 
-  const handlePrevStep = () => setCurrentStep(0);
-  const handleModalCancel = () => setIsModalVisible(false);
-
-  const handleFinalSubmit = async () => {
+  const handleSubmit = async (values) => {
+    setConfirmLoading(true);
     try {
-      const payload = { ...menuDetails, items: selectedItems.map(({ key, item_name, unit_price, total_cost, ...rest }) => rest) };
       if (editingMenu) {
-        await api.put(`/mess/menus/${editingMenu.id}`, menuDetails);
-        await api.put(`/mess/menus/${editingMenu.id}/items`, { items: payload.items });
+        await messAPI.updateMenu(editingMenu.id, values);
         message.success('Menu updated successfully');
       } else {
-        await api.post('/mess/menus', payload);
+        await messAPI.createMenu(values);
         message.success('Menu created successfully');
       }
-      setIsModalVisible(false);
+      setModalVisible(false);
       fetchMenus();
     } catch (error) {
       message.error('Failed to save menu');
+    } finally {
+      setConfirmLoading(false);
     }
   };
 
-  const handleAddItemToSelection = () => {
-    const values = itemSelectionForm.getFieldsValue();
-    if (!values.item_id) return message.error('Please select an item');
-    
-    const itemData = items.find(item => item.id === values.item_id);
-    if (selectedItems.find(item => item.item_id === values.item_id)) return message.warning('Item already added');
-    
-    const quantity = values.quantity || 1;
-    const unitPrice = parseFloat(itemData.unit_price || 0); // NEW: Get unit price
-    const totalCost = unitPrice * quantity; // NEW: Calculate cost for this item
-
-    setSelectedItems([...selectedItems, {
-      key: itemData.id,
-      item_id: itemData.id,
-      item_name: itemData.name,
-      quantity: quantity,
-      unit: itemData.UOM?.abbreviation || 'unit',
-      unit_price: unitPrice, // NEW: Store the price
-      total_cost: totalCost, // NEW: Store the calculated cost
-      preparation_notes: values.preparation_notes || ''
-    }]);
-    itemSelectionForm.resetFields({ quantity: 1 });
-  };
-  
-  const handleRemoveItem = (key) => {
-    setSelectedItems(selectedItems.filter(item => item.key !== key));
-  };
-  
-  const handleViewMenu = (menu) => {
-    setViewMenu(menu);
-    setIsViewModalVisible(true);
-  };
-
-  const handleDeleteMenu = async (id) => {
+  const handleViewMenu = async (menu) => {
+    setLoading(true);
     try {
-      await api.delete(`/mess/menus/${id}`);
-      message.success('Menu deleted successfully');
-      fetchMenus();
+      const response = await messAPI.getMenuWithItems(menu.id);
+      setCurrentMenu(response.data.data);
+      setDrawerVisible(true);
     } catch (error) {
-      message.error('Failed to delete menu');
+      message.error('Failed to load menu details');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const filteredMenus = menus.filter(menu => 
-    (mealTypeFilter === 'all' || menu.meal_type === mealTypeFilter) &&
-    menu.name.toLowerCase().includes(searchText.toLowerCase())
-  );
+  const handleAddItem = async (values) => {
+    try {
+      await messAPI.addItemsToMenu(currentMenu.menu.id, { 
+        items: [values]
+      });
+      message.success('Item added to menu');
+      // Refresh menu details
+      const response = await messAPI.getMenuWithItems(currentMenu.menu.id);
+      setCurrentMenu(response.data.data);
+      itemForm.resetFields();
+    } catch (error) {
+      message.error('Failed to add item');
+    }
+  };
 
-  const menuColumns = [
-    { title: 'Name', dataIndex: 'name', sorter: (a, b) => a.name.localeCompare(b.name) },
+  const handleRemoveItem = async (itemId) => {
+    try {
+      await messAPI.removeItemFromMenu(currentMenu.menu.id, itemId);
+      message.success('Item removed from menu');
+      // Refresh menu details
+      const response = await messAPI.getMenuWithItems(currentMenu.menu.id);
+      setCurrentMenu(response.data.data);
+    } catch (error) {
+      message.error('Failed to remove item');
+    }
+  };
+
+  const handleScheduleMenu = async (menu) => {
+    // Navigate to menu scheduler with this menu pre-selected
+    // This would typically be handled by react-router or similar
+    message.info('Redirecting to scheduler...');
+  };
+
+  const handleFilterChange = () => {
+    fetchMenus();
+  };
+
+  const columns = [
     {
-      title: 'Meal Type', dataIndex: 'meal_type',
-      render: type => <Tag color={type === 'breakfast' ? 'blue' : type === 'lunch' ? 'green' : 'purple'}>{type.toUpperCase()}</Tag>
+      title: 'Name',
+      dataIndex: 'name',
+      key: 'name',
+      sorter: (a, b) => a.name.localeCompare(b.name),
     },
-    { title: 'Items', dataIndex: 'tbl_Menu_Items', render: items => items?.length || 0 },
     {
-      title: 'Actions', key: 'actions',
+      title: 'Meal Type',
+      dataIndex: 'meal_type',
+      key: 'meal_type',
+      render: (text) => {
+        const mealType = mealTypes.find(type => type.value === text) || {};
+        return <Tag color={mealType.color}>{text.toUpperCase()}</Tag>;
+      },
+      filters: mealTypes.map(type => ({ text: type.label, value: type.value })),
+      onFilter: (value, record) => record.meal_type === value,
+    },
+    {
+      title: 'Items',
+      key: 'items',
+      render: (_, record) => {
+        const itemCount = record.tbl_Menu_Items?.length || 0;
+        return itemCount > 0 ? itemCount : <Text type="secondary">No items</Text>;
+      },
+    },
+    {
+      title: 'Est. Servings',
+      dataIndex: 'estimated_servings',
+      key: 'estimated_servings',
+      render: (text) => text || 'N/A',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
       render: (_, record) => (
-        <Space>
-          <Button icon={<SearchOutlined />} size="small" onClick={() => handleViewMenu(record)}>View</Button>
-          <Button icon={<EditOutlined />} size="small" onClick={() => handleEditMenu(record)}>Edit</Button>
-          <Button icon={<DeleteOutlined />} size="small" danger onClick={() => Modal.confirm({
-              title: 'Confirm Delete',
-              content: `Are you sure you want to delete "${record.name}"?`,
-              onOk: () => handleDeleteMenu(record.id)
-          })}/>
+        <Space size="small">
+          <Button 
+            icon={<EyeOutlined />} 
+            onClick={() => handleViewMenu(record)} 
+            size="small"
+            type="primary"
+            ghost
+          />
+          <Button 
+            icon={<EditOutlined />} 
+            onClick={() => handleEdit(record)} 
+            size="small"
+          />
+          <Button 
+            icon={<DeleteOutlined />} 
+            onClick={() => handleDelete(record.id)} 
+            size="small"
+            danger
+          />
+          <Button 
+            icon={<CalendarOutlined />} 
+            onClick={() => handleScheduleMenu(record)} 
+            size="small"
+            type="primary"
+          >
+            Schedule
+          </Button>
         </Space>
       ),
     },
   ];
 
-  const itemSelectionColumns = [
-    { title: 'Item', dataIndex: 'item_name' },
-    { title: 'Quantity', dataIndex: 'quantity' },
-    { title: 'Unit', dataIndex: 'unit' },
-    // NEW: Column to display the calculated amount for each ingredient
-    { 
-      title: 'Amount',
-      dataIndex: 'total_cost',
-      render: (cost) => `₹${(cost || 0).toFixed(2)}`
-    },
-    { title: 'Notes', dataIndex: 'preparation_notes', ellipsis: true },
-    {
-      title: 'Action', key: 'action',
-      render: (_, record) => <Button danger size="small" onClick={() => handleRemoveItem(record.key)}>Remove</Button>
-    },
-  ];
-
   return (
-    <Card title="Menu Management (Recipe Book)" bordered={false}>
+    <Card title="Menu Management">
       <Space style={{ marginBottom: 16 }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddNewMenu}>Create New Menu</Button>
-        <Input placeholder="Search menus" prefix={<SearchOutlined />} onChange={e => setSearchText(e.target.value)} style={{ width: 200 }}/>
-        <Select defaultValue="all" onChange={setMealTypeFilter} style={{ width: 150 }}>
+        <Select
+          placeholder="Filter by meal type"
+          style={{ width: 160 }}
+          value={selectedMealType}
+          onChange={(value) => {
+            setSelectedMealType(value);
+            setTimeout(handleFilterChange, 0);
+          }}
+        >
           <Option value="all">All Meal Types</Option>
-          <Option value="breakfast">Breakfast</Option>
-          <Option value="lunch">Lunch</Option>
-          <Option value="dinner">Dinner</Option>
-          <Option value="snacks">Snacks</Option>
+          {mealTypes.map(type => (
+            <Option key={type.value} value={type.value}>
+              {type.label}
+            </Option>
+          ))}
         </Select>
+
+        <Input 
+          placeholder="Search menu name" 
+          allowClear 
+          value={searchText} 
+          onChange={e => setSearchText(e.target.value)} 
+          onPressEnter={handleFilterChange}
+          style={{ width: 200 }}
+          prefix={<SearchOutlined />}
+        />
+
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+          Create Menu
+        </Button>
       </Space>
 
-      <Table columns={menuColumns} dataSource={filteredMenus} rowKey="id" loading={loading} />
+      <Table
+        columns={columns}
+        dataSource={menus}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+      />
 
-      <Modal title={editingMenu ? "Edit Menu" : "Create New Menu"} visible={isModalVisible} onCancel={handleModalCancel} footer={null} width={900} destroyOnClose>
-        <Steps current={currentStep} style={{ marginBottom: 24 }}>
-          <Step title="Menu Details" />
-          <Step title="Add Ingredients" />
-        </Steps>
+      {/* Create/Edit Menu Modal */}
+      <Modal
+        title={editingMenu ? 'Edit Menu' : 'Create Menu'}
+        visible={modalVisible}
+        onCancel={() => setModalVisible(false)}
+        footer={null}
+        confirmLoading={confirmLoading}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSubmit}
+        >
+          <Form.Item
+            name="name"
+            label="Menu Name"
+            rules={[{ required: true, message: 'Please enter menu name' }]}
+          >
+            <Input />
+          </Form.Item>
 
-        <div style={{ display: currentStep === 0 ? 'block' : 'none', minHeight: '300px' }}>
-          <Form form={menuDetailsForm} layout="vertical" initialValues={{ meal_type: 'breakfast' }}>
-            <Form.Item name="name" label="Menu Name" rules={[{ required: true }]}><Input /></Form.Item>
-            <Form.Item name="meal_type" label="Meal Type" rules={[{ required: true }]}>
-              <Select>
-                <Option value="breakfast">Breakfast</Option>
-                <Option value="lunch">Lunch</Option>
-                <Option value="dinner">Dinner</Option>
-                <Option value="snacks">Snacks</Option>
-              </Select>
-            </Form.Item>
-            <Form.Item name="description" label="Description"><TextArea rows={2} /></Form.Item>
-            <Form.Item name="estimated_servings" label="Default Estimated Servings"><InputNumber min={1} style={{ width: '100%' }} /></Form.Item>
-            <Form.Item name="preparation_time" label="Preparation Time (minutes)"><InputNumber min={0} style={{ width: '100%' }} /></Form.Item>
-          </Form>
-        </div>
+          <Form.Item
+            name="meal_type"
+            label="Meal Type"
+            rules={[{ required: true, message: 'Please select meal type' }]}
+          >
+            <Select>
+              {mealTypes.map(type => (
+                <Option key={type.value} value={type.value}>
+                  {type.label}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
 
-        <div style={{ display: currentStep === 1 ? 'block' : 'none', minHeight: '300px' }}>
-            <Form form={itemSelectionForm} layout="inline" style={{ marginBottom: 16 }} onFinish={handleAddItemToSelection}>
-              <Form.Item name="item_id" rules={[{ required: true }]} style={{flex: 1}}>
-                  <Select showSearch placeholder="Search and select an item" optionFilterProp="children">
-                      {items.map(item => <Option key={item.id} value={item.id}>{`${item.name} (@ ₹${item.unit_price}/${item.UOM?.abbreviation || 'unit'})`}</Option>)}
-                  </Select>
-              </Form.Item>
-              <Form.Item name="quantity" initialValue={1}><InputNumber min={0.1} step={0.1} /></Form.Item>
-              <Form.Item><Button type="primary" htmlType="submit">Add Item</Button></Form.Item>
-            </Form>
-            <Table columns={itemSelectionColumns} dataSource={selectedItems} rowKey="key" pagination={false} size="small"/>
-            {/* NEW: Display the total estimated cost */}
-            <Title level={4} style={{ textAlign: 'right', marginTop: '16px' }}>
-              Total Estimated Cost: <Text type="success">₹{totalMenuCost.toFixed(2)}</Text>
-            </Title>
-        </div>
-        
-        <Divider />
-        <div style={{ textAlign: 'right' }}>
-          {currentStep > 0 && <Button style={{ margin: '0 8px' }} onClick={handlePrevStep}>Previous</Button>}
-          {currentStep < 1 && <Button type="primary" onClick={handleNextStep}>Next</Button>}
-          {currentStep === 1 && <Button type="primary" onClick={handleFinalSubmit}>{editingMenu ? 'Update Menu' : 'Create Menu'}</Button>}
-        </div>
+          <Form.Item
+            name="description"
+            label="Description"
+          >
+            <TextArea rows={4} />
+          </Form.Item>
+
+          <Form.Item
+            name="estimated_servings"
+            label="Estimated Servings"
+            rules={[{ required: true, message: 'Please enter estimated servings' }]}
+          >
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="preparation_time"
+            label="Preparation Time (minutes)"
+          >
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item>
+            <Space>
+              <Button type="primary" htmlType="submit" loading={confirmLoading}>
+                Save
+              </Button>
+              <Button onClick={() => setModalVisible(false)}>
+                Cancel
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
       </Modal>
 
-      <Modal title={viewMenu?.name || 'Menu Details'} visible={isViewModalVisible} onCancel={() => setIsViewModalVisible(false)} footer={<Button onClick={() => setIsViewModalVisible(false)}>Close</Button>}>
-        {viewMenu && (
+      {/* Menu Details Drawer */}
+      <Drawer
+        title={currentMenu?.menu?.name || 'Menu Details'}
+        placement="right"
+        width={600}
+        onClose={() => setDrawerVisible(false)}
+        visible={drawerVisible}
+      >
+        {currentMenu && (
           <>
-            <p><strong>Meal Type:</strong> {viewMenu.meal_type}</p>
-            <p><strong>Description:</strong> {viewMenu.description || 'N/A'}</p>
-            <Divider>Ingredients</Divider>
-            {viewMenu.tbl_Menu_Items?.length > 0 ? (
-              <List dataSource={viewMenu.tbl_Menu_Items} renderItem={item => (
-                  <List.Item>
-                    <List.Item.Meta title={item.tbl_Item?.name || 'Unknown'}/>
-                    <div>{item.quantity} {item.unit}</div>
-                  </List.Item>
-                )}/>
-            ) : <Empty description="No ingredients added to this menu." />}
+            <div style={{ marginBottom: 16 }}>
+              <div><Text strong>Meal Type:</Text> {currentMenu.menu.meal_type}</div>
+              {currentMenu.menu.description && (
+                <div><Text strong>Description:</Text> {currentMenu.menu.description}</div>
+              )}
+              <div>
+                <Text strong>Estimated Servings:</Text> {currentMenu.menu.estimated_servings || 'N/A'}
+              </div>
+              <div>
+                <Text strong>Preparation Time:</Text> {currentMenu.menu.preparation_time ? `${currentMenu.menu.preparation_time} minutes` : 'N/A'}
+              </div>
+            </div>
+
+            <Tabs defaultActiveKey="1">
+              <TabPane tab="Menu Items" key="1">
+                {currentMenu.menu_items?.length > 0 ? (
+                  <List
+                    itemLayout="horizontal"
+                    dataSource={currentMenu.menu_items}
+                    renderItem={item => (
+                      <List.Item
+                        actions={[
+                          <Button 
+                            type="link" 
+                            danger
+                            onClick={() => handleRemoveItem(item.item_id)}
+                          >
+                            Remove
+                          </Button>
+                        ]}
+                      >
+                        <List.Item.Meta
+                          title={item.tbl_Item?.name}
+                          description={`Quantity: ${item.quantity} ${item.unit}`}
+                        />
+                      </List.Item>
+                    )}
+                  />
+                ) : (
+                  <div style={{ textAlign: 'center', padding: 20 }}>
+                    <Text type="secondary">No items in this menu</Text>
+                  </div>
+                )}
+                
+                <Divider orientation="left">Add Item</Divider>
+                
+                <Form
+                  form={itemForm}
+                  layout="vertical"
+                  onFinish={handleAddItem}
+                >
+                  <Form.Item
+                    name="item_id"
+                    label="Item"
+                    rules={[{ required: true, message: 'Please select an item' }]}
+                  >
+                    <Select
+                      showSearch
+                      placeholder="Select an item"
+                      optionFilterProp="children"
+                      filterOption={(input, option) =>
+                        option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                      }
+                    >
+                      {items.map(item => (
+                        <Option key={item.id} value={item.id}>
+                          {item.name}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                  
+                  <Form.Item
+                    name="quantity"
+                    label="Quantity"
+                    rules={[{ required: true, message: 'Please enter quantity' }]}
+                  >
+                    <InputNumber min={0.01} step={0.1} style={{ width: '100%' }} />
+                  </Form.Item>
+                  
+                  <Form.Item
+                    name="unit"
+                    label="Unit"
+                    rules={[{ required: true, message: 'Please specify unit' }]}
+                  >
+                    <Input />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="preparation_notes"
+                    label="Preparation Notes"
+                  >
+                    <TextArea rows={2} />
+                  </Form.Item>
+                  
+                  <Form.Item>
+                    <Button type="primary" htmlType="submit">
+                      Add Item
+                    </Button>
+                  </Form.Item>
+                </Form>
+              </TabPane>
+            </Tabs>
           </>
         )}
-      </Modal>
+      </Drawer>
     </Card>
   );
 };

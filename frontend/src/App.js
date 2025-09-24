@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { StockProvider } from './context/StockContext'; // Import StockProvider
 import Layout from './components/common/Layout';
 import Login from './components/auth/Login';
 
@@ -39,6 +40,8 @@ import ViewBills from './components/student/ViewBills';
 import MyMessCharges from './components/student/MyMessCharges';
 import FacilityUsage from './components/student/FacilityUsage';
 import TransactionHistory from './components/student/TransactionHistory';
+import FoodOrderForm from './components/student/FoodOrderForm';
+import MyFoodOrders from './components/student/MyFoodOrders';
 
 // Mess Components
 import MessDashboard from './components/mess/MessDashboard';
@@ -48,24 +51,17 @@ import MenuScheduleManagement from './components/mess/MenuScheduleManagement';
 import StockManagement from './components/mess/StockManagement';
 import DailyConsumption from './components/mess/DailyConsumption';
 import DailyOperations from './components/mess/DailyOperations';
-import ManageBills from './components/mess/ManageBills';
-import SupplierManagement from './components/mess/SupplierManagement';
-import GroceryManagement from './components/mess/GroceryManagement';
 import UOMManagement from './components/mess/UOMManagement';
-import PurchaseOrderForm from './components/mess/PurchaseOrderForm';
-import MessReportsPage from './pages/MessReportsPage';
-
+// import MessReportsPage from './components/mess/MessReportsPage';
 import InventoryManagement from './components/mess/InventoryManagement';
 import InventoryTransactions from './components/mess/InventoryTransactions';
 import StoreManagement from './components/mess/StoreManagement';
-
 import SpecialFoodItemsManagement from './components/mess/SpecialFoodItemsManagement';
 import FoodOrdersManagement from './components/mess/FoodOrdersManagement';
-import FoodOrderForm from './components/student/FoodOrderForm';
-import MyFoodOrders from './components/student/MyFoodOrders';
-import PurchaseByStore from './components/mess/PurchaseByStore';
 import ItemStoreMapping from './components/mess/ItemStoreMapping';
 import ConsumptionReport from './components/mess/ConsumptionReport';
+import MenuPlanner from './components/mess/MenuPlanner';
+import CreateMenu from './components/mess/CreateMenu';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -123,8 +119,6 @@ const DashboardRouter = () => {
             return <ManageExpenseTypes />;
           case 'uoms':
             return <UOMManagement />;
-          case 'suppliers':
-            return <SupplierManagement />;
           default:
             return <AdminDashboard />;
         }
@@ -181,57 +175,47 @@ const DashboardRouter = () => {
             return <StudentDashboard />;
         }
       
-         case 'mess':
-          switch (currentView) {
-            case 'dashboard':
-              return <MessDashboard />;
-            case 'menus':
-              return <EnhancedMenuManagement />;
-            case 'items':
-              return <ItemManagement />;
-            case 'menu-schedule':
-              return <MenuScheduleManagement />;
-            case 'stock':
-              return <StockManagement />;
-            case 'consumption':
-              return <DailyConsumption />;
-            case 'bills':
-              return <ManageBills />;
-            case 'daily-operations':
-              return <DailyOperations />;
-            case 'consumption-report':
-              return <ConsumptionReport />;
-            case 'groceries':
-              return <GroceryManagement />;
-            case 'suppliers':
-              return <SupplierManagement />;
-            case 'purchase-orders':
-              return <PurchaseOrderForm />;
-            case 'uoms':
-              return <UOMManagement />;
-            case 'reports':
-              return <MessReportsPage />;
-            
-            // NEW: Add the case for our new component
-            case 'purchase-by-store':
-              return <PurchaseByStore />;
-
-            // Old 'inventory-management' case can be removed if not used elsewhere
-            case 'inventory-management':
-              return <InventoryManagement />;
-            case 'inventory-transactions':
-              return <InventoryTransactions />;
-            case 'item-store-mapping':
-              return <ItemStoreMapping />;
-            case 'stores':
-              return <StoreManagement />;
-            case 'special-food-items':
-              return <SpecialFoodItemsManagement />;
-            case 'food-orders':
-              return <FoodOrdersManagement />;
-            default:
-              return <MessDashboard />;
-          }
+      case 'mess':
+        switch (currentView) {
+          case 'dashboard':
+            return <MessDashboard />;
+          case 'menus':
+            return <EnhancedMenuManagement />;
+          case 'items':
+            return <ItemManagement />;
+          case 'menu-schedule':
+            return <MenuScheduleManagement />;
+          case 'menu-planner':
+            return <MenuPlanner />;
+          case 'stock':
+            return <StockManagement />;
+          case 'consumption':
+            return <DailyConsumption />;
+          case 'daily-operations':
+            return <DailyOperations />;
+          case 'consumption-report':
+            return <ConsumptionReport />;
+          case 'create-menu':
+            return <CreateMenu />;
+          case 'uoms':
+            return <UOMManagement />;
+          // case 'reports':
+          //   return <MessReportsPage />;
+          case 'inventory':
+            return <InventoryManagement />;
+          case 'inventory-transactions':
+            return <InventoryTransactions />;
+          case 'item-store-mapping':
+            return <ItemStoreMapping />;
+          case 'stores':
+            return <StoreManagement />;
+          case 'special-food-items':
+            return <SpecialFoodItemsManagement />;
+          case 'food-orders':
+            return <FoodOrdersManagement />;
+          default:
+            return <MessDashboard />;
+        }
       
       default:
         return <div>Unknown role</div>;
@@ -248,22 +232,24 @@ const DashboardRouter = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <div className="App">
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            
-            <Route
-              path="/*"
-              element={
-                <ProtectedRoute>
-                  <DashboardRouter />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </div>
-      </Router>
+      <StockProvider> {/* Wrap the app with StockProvider */}
+        <Router>
+          <div className="App">
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              
+              <Route
+                path="/*"
+                element={
+                  <ProtectedRoute>
+                    <DashboardRouter />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </div>
+        </Router>
+      </StockProvider>
     </AuthProvider>
   );
 }

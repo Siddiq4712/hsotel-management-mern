@@ -1,249 +1,361 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Table, List, Tag, Divider, Spin, Button, Empty } from 'antd';
 import { 
-  ShoppingCartOutlined, 
-  CoffeeOutlined, 
-  WarningOutlined, 
-  CheckOutlined,
-  ClockCircleOutlined,
-  FileTextOutlined,
-  CalendarOutlined,
-  DollarOutlined
+  Card, Row, Col, Statistic, List, Table, Tag, Button, Calendar, Badge,
+  Tabs, Typography, Space, Divider, Spin, Alert, Empty
+} from 'antd';
+import {
+  AppstoreOutlined, FileTextOutlined, ScheduleOutlined, 
+  UserOutlined, WarningOutlined, CheckCircleOutlined, ClockCircleOutlined,
+  CalendarOutlined, ForkOutlined, CoffeeOutlined
 } from '@ant-design/icons';
-import api from '../../services/api';
+import { messAPI } from '../../services/api';
 import moment from 'moment';
+import { useNavigate } from 'react-router-dom';
+
+const { TabPane } = Tabs;
+const { Title, Text, Link } = Typography;
 
 const MessDashboard = () => {
+  const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState(null);
   const [todayMenus, setTodayMenus] = useState([]);
-  const [lowStockItems, setLowStockItems] = useState([]);
-  const [recentExpenses, setRecentExpenses] = useState([]);
-  const [pendingOrders, setPendingOrders] = useState([]);
+  const [menusLoading, setMenusLoading] = useState(true);
+  const [specialOrders, setSpecialOrders] = useState([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchDashboardData();
+    fetchTodayMenus();
+    fetchSpecialOrders();
   }, []);
 
   const fetchDashboardData = async () => {
-    setLoading(true);
     try {
-      // Fetch dashboard stats
-      const statsResponse = await api.get('/mess/dashboard-stats');
-      setStats(statsResponse.data.data);
-
-      // Fetch today's menus
-      const today = moment().format('YYYY-MM-DD');
-      const menusResponse = await api.get(`/mess/menu-schedule?date=${today}`);
-      setTodayMenus(menusResponse.data.data);
-
-      // Fetch low stock items
-      const stockResponse = await api.get('/mess/stock?low_stock=true');
-      setLowStockItems(stockResponse.data.data);
-
-      // Fetch recent expenses
-      const expensesResponse = await api.get('/mess/expenses');
-      setRecentExpenses(expensesResponse.data.data.slice(0, 5));
-
-      // Fetch pending orders
-      const ordersResponse = await api.get('/mess/purchase-orders?status=draft,sent,confirmed');
-      setPendingOrders(ordersResponse.data.data);
+      const response = await messAPI.getMessDashboardStats();
+      setDashboardData(response.data.data);
     } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
+      console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
+  const fetchTodayMenus = async () => {
+    setMenusLoading(true);
+    try {
+      const today = moment().format('YYYY-MM-DD');
+      const params = { start_date: today, end_date: today };
+      const response = await messAPI.getMenuSchedule(params);
+      setTodayMenus(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching today\'s menus:', error);
+    } finally {
+      setMenusLoading(false);
+    }
+  };
+
+  const fetchSpecialOrders = async () => {
+    setOrdersLoading(true);
+    try {
+      const today = moment().format('YYYY-MM-DD');
+      const params = { 
+        from_date: today, 
+        to_date: today,
+        status: 'pending,confirmed,preparing'
+      };
+      const response = await messAPI.getFoodOrders(params);
+      setSpecialOrders(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching special orders:', error);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    const colors = {
+      pending: 'orange',
+      confirmed: 'blue',
+      preparing: 'purple',
+      ready: 'green',
+      delivered: 'green',
+      cancelled: 'red'
+    };
+    return colors[status] || 'default';
+  };
+
+  const getNextMealTime = () => {
+    const currentHour = moment().hour();
+    
+    if (currentHour < 9) return 'breakfast';
+    if (currentHour < 14) return 'lunch';
+    if (currentHour < 17) return 'snacks';
+    if (currentHour < 22) return 'dinner';
+    return 'breakfast'; // After 10pm, next meal is tomorrow's breakfast
+  };
+
+  const getMealColor = (mealType) => {
+    const colors = {
+      breakfast: 'blue',
+      lunch: 'green',
+      dinner: 'purple',
+      snacks: 'orange'
+    };
+    return colors[mealType] || 'blue';
+  };
+
+  const getUpcomingMenu = () => {
+    const nextMeal = getNextMealTime();
+    return todayMenus.find(menu => menu.meal_time === nextMeal);
+  };
+
+  const upcomingMenu = getUpcomingMenu();
 
   return (
-    <div className="dashboard-container">
+    <div>
+      <Title level={2}>Mess Dashboard</Title>
+      
       <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} md={6}>
+        <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Total Menus"
-              value={stats?.totalMenus || 0}
-              prefix={<CoffeeOutlined />}
+              value={loading ? '-' : dashboardData?.totalMenus || 0}
+              prefix={<AppstoreOutlined />}
+              loading={loading}
             />
+            <div style={{ marginTop: 8 }}>
+              <Link href="/mess/menu-management">Manage Menus</Link>
+            </div>
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={6}>
+        
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="Scheduled Meals Today"
+              value={menusLoading ? '-' : todayMenus.length}
+              prefix={<ScheduleOutlined />}
+              loading={menusLoading}
+            />
+            <div style={{ marginTop: 8 }}>
+              <Link href="/mess/menu-planner">Plan Menu</Link>
+            </div>
+          </Card>
+        </Col>
+        
+        <Col xs={24} sm={12} lg={6}>
+          <Card>
+            <Statistic
+              title="Special Orders Today"
+              value={ordersLoading ? '-' : specialOrders.length}
+              prefix={<FileTextOutlined />}
+              loading={ordersLoading}
+            />
+            <div style={{ marginTop: 8 }}>
+              <Link href="/mess/food-orders">Manage Orders</Link>
+            </div>
+          </Card>
+        </Col>
+        
+        <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
               title="Low Stock Items"
-              value={stats?.lowStockCount || 0}
+              value={loading ? '-' : dashboardData?.lowStockCount || 0}
+              valueStyle={{ color: (dashboardData?.lowStockCount > 0) ? '#cf1322' : undefined }}
               prefix={<WarningOutlined />}
-              valueStyle={{ color: stats?.lowStockCount > 0 ? '#cf1322' : undefined }}
+              loading={loading}
             />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Pending Orders"
-              value={stats?.pendingOrders || 0}
-              prefix={<ShoppingCartOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Monthly Expenses"
-              value={stats?.monthlyExpenses || 0}
-              precision={2}
-              prefix={<DollarOutlined />}
-              suffix="₹"
-            />
+            <div style={{ marginTop: 8 }}>
+              <Link href="/mess/inventory">Check Inventory</Link>
+            </div>
           </Card>
         </Col>
       </Row>
-
+      
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} md={12}>
-          <Card title="Today's Menu" extra={<CalendarOutlined />}>
-            {todayMenus.length > 0 ? (
+        <Col xs={24} lg={16}>
+          <Card title="Today's Schedule" extra={<Link href="/mess/menu-schedule">View All</Link>}>
+            {menusLoading ? (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <Spin />
+              </div>
+            ) : todayMenus.length === 0 ? (
+              <Empty description="No meals scheduled for today" />
+            ) : (
               <List
-                itemLayout="horizontal"
                 dataSource={todayMenus}
                 renderItem={item => (
+                  <List.Item
+                    actions={[
+                      item.status === 'scheduled' ? (
+                        <Button 
+                          size="small" 
+                          type="primary" 
+                          onClick={() => {
+                            messAPI.updateMenuSchedule(item.id, { status: 'served' });
+                            fetchTodayMenus();
+                          }}
+                        >
+                          Mark as Served
+                        </Button>
+                      ) : (
+                        <Tag color="green">Served</Tag>
+                      )
+                    ]}
+                  >
+                    <List.Item.Meta
+                      avatar={
+                        <Tag color={getMealColor(item.meal_time)} style={{ fontSize: '14px', padding: '4px 8px' }}>
+                          {item.meal_time.toUpperCase()}
+                        </Tag>
+                      }
+                      title={item.Menu?.name || 'Unknown Menu'}
+                      description={
+                        <Space direction="vertical" size={0}>
+                          <Text>Servings: {item.estimated_servings}</Text>
+                          <Text type="secondary">Cost per serving: ₹{parseFloat(item.cost_per_serving || 0).toFixed(2)}</Text>
+                        </Space>
+                      }
+                    />
+                  </List.Item>
+                )}
+              />
+            )}
+          </Card>
+        </Col>
+        
+        <Col xs={24} lg={8}>
+          <Card title="Upcoming Meal" extra={<CalendarOutlined />}>
+            {menusLoading ? (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <Spin />
+              </div>
+            ) : !upcomingMenu ? (
+              <Empty description="No upcoming meals scheduled" />
+            ) : (
+              <div>
+                <div style={{ marginBottom: 16 }}>
+                  <Tag color={getMealColor(upcomingMenu.meal_time)} style={{ fontSize: '14px', padding: '4px 8px' }}>
+                    {upcomingMenu.meal_time.toUpperCase()}
+                  </Tag>
+                </div>
+                
+                <Title level={4}>{upcomingMenu.Menu?.name || 'Unknown Menu'}</Title>
+                
+                <div style={{ marginBottom: 16 }}>
+                  <Text>Servings: {upcomingMenu.estimated_servings}</Text>
+                  <br />
+                  <Text>Total Cost: ₹{parseFloat(upcomingMenu.total_cost || 0).toFixed(2)}</Text>
+                </div>
+                
+                <Divider style={{ margin: '12px 0' }} />
+                
+                <Title level={5}>Menu Items:</Title>
+                {upcomingMenu.Menu?.tbl_Menu_Items?.length > 0 ? (
+                  <List
+                    size="small"
+                    dataSource={upcomingMenu.Menu.tbl_Menu_Items}
+                    renderItem={item => (
+                      <List.Item>
+                        <Text>{item.tbl_Item?.name}: {item.quantity} {item.unit}</Text>
+                      </List.Item>
+                    )}
+                  />
+                ) : (
+                  <Text type="secondary">No items in this menu</Text>
+                )}
+                
+                <div style={{ marginTop: 16 }}>
+                  <Button 
+                    type="primary" 
+                    href={`/mess/menu-management?id=${upcomingMenu.Menu?.id}`}
+                  >
+                    View Full Menu
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+          
+          <Card title="Special Orders" style={{ marginTop: 16 }} extra={<Link href="/mess/food-orders">View All</Link>}>
+            {ordersLoading ? (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <Spin />
+              </div>
+            ) : specialOrders.length === 0 ? (
+              <Empty description="No special orders for today" />
+            ) : (
+              <List
+                dataSource={specialOrders.slice(0, 3)} // Only show first 3
+                renderItem={order => (
                   <List.Item>
                     <List.Item.Meta
                       title={
-                        <div>
-                          <Tag color={
-                            item.meal_time === 'breakfast' ? 'blue' :
-                            item.meal_time === 'lunch' ? 'green' :
-                            item.meal_time === 'dinner' ? 'purple' : 'orange'
-                          }>
-                            {item.meal_time.charAt(0).toUpperCase() + item.meal_time.slice(1)}
+                        <Space>
+                          <Text>Order #{order.id}</Text>
+                          <Tag color={getStatusColor(order.status)}>
+                            {order.status.toUpperCase()}
                           </Tag>
-                          <span style={{ marginLeft: 8 }}>{item.Menu?.name || 'Unknown Menu'}</span>
-                        </div>
+                        </Space>
                       }
                       description={
-                        item.Menu?.tbl_Menu_Items && item.Menu.tbl_Menu_Items.length > 0 ? 
-                        item.Menu.tbl_Menu_Items.map(menuItem => 
-                          menuItem.tbl_Item?.name
-                        ).join(', ') : 
-                        'No items in this menu'
+                        <Space direction="vertical" size={0}>
+                          <Text>{order.Student?.username}</Text>
+                          <Text type="secondary">
+                            {moment(order.requested_time).format('HH:mm')} • 
+                            ₹{parseFloat(order.total_amount).toFixed(2)}
+                          </Text>
+                        </Space>
                       }
                     />
-                    <div>
-                      <Tag color={
-                        item.status === 'scheduled' ? 'blue' :
-                        item.status === 'served' ? 'green' : 'red'
-                      }>
-                        {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
-                      </Tag>
-                    </div>
+                    <Button 
+                      size="small"
+                      onClick={() => navigate(`/mess/food-orders?id=${order.id}`)}
+                    >
+                      Details
+                    </Button>
                   </List.Item>
                 )}
-              />
-            ) : (
-              <Empty description="No menus scheduled for today" />
-            )}
-          </Card>
-        </Col>
-        
-        <Col xs={24} md={12}>
-          <Card title="Low Stock Items" extra={<WarningOutlined style={{ color: '#cf1322' }} />}>
-            {lowStockItems.length > 0 ? (
-              <List
-                itemLayout="horizontal"
-                dataSource={lowStockItems}
-                renderItem={item => (
-                  <List.Item>
-                    <List.Item.Meta
-                      title={item.Item?.name}
-                      description={`Category: ${item.Item?.tbl_ItemCategory?.name || 'N/A'}`}
-                    />
-
-                    <div>
-                      <div style={{ color: '#cf1322' }}>
-                        {item.current_stock} / {item.minimum_stock} {item.Item.UOM?.abbreviation || 'units'}
-                      </div>
+                footer={
+                  specialOrders.length > 3 ? (
+                    <div style={{ textAlign: 'center' }}>
+                      <Link href="/mess/food-orders">
+                        {specialOrders.length - 3} more orders
+                      </Link>
                     </div>
-                  </List.Item>
-                )}
+                  ) : null
+                }
               />
-            ) : (
-              <Empty description="No low stock items" />
             )}
-            <Divider style={{ margin: '12px 0' }} />
-            <div style={{ textAlign: 'center' }}>
-              <Button type="primary" href="#/stock">Manage Stock</Button>
-            </div>
           </Card>
         </Col>
       </Row>
-
+      
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} md={12}>
-          <Card title="Recent Expenses" extra={<FileTextOutlined />}>
-            {recentExpenses.length > 0 ? (
-              <List
-                itemLayout="horizontal"
-                dataSource={recentExpenses}
-                renderItem={item => (
-                  <List.Item>
-                    <List.Item.Meta
-                      title={item.ExpenseType?.name || 'Other Expense'}
-                      description={`Date: ${moment(item.expense_date).format('DD MMM YYYY')}`}
-                    />
-                    <div>₹{parseFloat(item.amount).toFixed(2)}</div>
-                  </List.Item>
-                )}
-              />
-            ) : (
-              <Empty description="No recent expenses" />
-            )}
-            <Divider style={{ margin: '12px 0' }} />
-            <div style={{ textAlign: 'center' }}>
-              <Button type="primary" href="#/daily-operations">Record Expense</Button>
-            </div>
-          </Card>
-        </Col>
-        
-        <Col xs={24} md={12}>
-          <Card title="Pending Orders" extra={<ClockCircleOutlined />}>
-            {pendingOrders.length > 0 ? (
-              <List
-                itemLayout="horizontal"
-                dataSource={pendingOrders}
-                renderItem={item => (
-                  <List.Item>
-                    <List.Item.Meta
-                      title={`Order #${item.id}`}
-                      description={`Supplier: ${item.Supplier?.name || 'Unknown'}`}
-                    />
-                    <div>
-                      <div>₹{parseFloat(item.total_amount).toFixed(2)}</div>
-                      <Tag color={
-                        item.status === 'draft' ? 'default' :
-                        item.status === 'sent' ? 'blue' :
-                        item.status === 'confirmed' ? 'green' : 'red'
-                      }>
-                        {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
-                      </Tag>
-                    </div>
-                  </List.Item>
-                )}
-              />
-            ) : (
-              <Empty description="No pending orders" />
-            )}
-            <Divider style={{ margin: '12px 0' }} />
-            <div style={{ textAlign: 'center' }}>
-              <Button type="primary" href="#/purchase-orders">Manage Orders</Button>
+        <Col span={24}>
+          <Card title="Quick Actions">
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+              <Button type="primary" size="large" icon={<CoffeeOutlined />} onClick={() => navigate('/mess/menu-planner')}>
+                Schedule Menu
+              </Button>
+              <Button size="large" icon={<ForkOutlined />} onClick={() => navigate('/mess/daily-operations')}>
+                Record Consumption
+              </Button>
+              <Button size="large" icon={<WarningOutlined />} onClick={() => navigate('/mess/inventory')}>
+                Update Inventory
+              </Button>
+              <Button size="large" icon={<FileTextOutlined />} onClick={() => navigate('/mess/food-orders')}>
+                Manage Orders
+              </Button>
+              <Button size="large" icon={<AppstoreOutlined />} onClick={() => navigate('/mess/menu-management')}>
+                Manage Menus
+              </Button>
+              <Button size="large" icon={<ScheduleOutlined />} onClick={() => navigate('/mess/reports/consumption')}>
+                View Reports
+              </Button>
             </div>
           </Card>
         </Col>

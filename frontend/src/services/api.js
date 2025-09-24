@@ -194,6 +194,8 @@ export const studentAPI = {
 };
 
 // Mess API - Complete with all CRUD operations
+// messAPI in api.js
+
 export const messAPI = {
   // Dashboard
   getMessDashboardStats: () => api.get('/mess/dashboard-stats'),
@@ -226,113 +228,43 @@ export const messAPI = {
 
   // Cost and Analytics
   calculateMenuCost: (menuId) => api.get(`/mess/menus/${menuId}/cost`),
-
-  // Supplier Management - Complete CRUD
-  createSupplier: (data) => api.post('/mess/suppliers', data),
-  getSuppliers: (params) => api.get('/mess/suppliers', { params }),
-  updateSupplier: (id, data) => api.put(`/mess/suppliers/${id}`, data),
-  deleteSupplier: (id) => api.delete(`/mess/suppliers/${id}`),
-
+  
   // UOM Management - Complete CRUD
   createUOM: (data) => api.post('/mess/uoms', data),
   getUOMs: (params) => api.get('/mess/uoms', { params }),
   updateUOM: (id, data) => api.put(`/mess/uoms/${id}`, data),
   deleteUOM: (id) => api.delete(`/mess/uoms/${id}`),
 
-  // Grocery Type Management - Complete CRUD
-  createGroceryType: (data) => api.post('/mess/grocery-types', data),
-  getGroceryTypes: (params) => api.get('/mess/grocery-types', { params }),
-  updateGroceryType: (id, data) => api.put(`/mess/grocery-types/${id}`, data),
-  deleteGroceryType: (id) => api.delete(`/mess/grocery-types/${id}`),
-
-  // Grocery Management - Complete CRUD
-  createGrocery: (data) => api.post('/mess/groceries', data),
-  getGroceries: (params) => api.get('/mess/groceries', { params }),
-  updateGrocery: (id, data) => api.put(`/mess/groceries/${id}`, data),
-  deleteGrocery: (id) => api.delete(`/mess/groceries/${id}`),
-
-  // Expense Type Management
-  createExpenseType: (data) => api.post('/mess/expense-types', data),
-  getExpenseTypes: (params) => api.get('/mess/expense-types', { params }),
+  // Stock Management
+  updateItemStock: (data) => api.post('/mess/stock', data),
+  getItemStock: (params) => api.get('/mess/stock', { params }),
+  
+  // Consumption Management
+  recordBulkConsumption: (data) => api.post('/mess/consumption/bulk', data),
+  getDailyConsumption: (params) => api.get('/mess/consumption', { params }),
 
   // Menu Scheduling
   scheduleMenu: (data) => api.post('/mess/menu-schedule', data),
   getMenuSchedule: (params) => api.get('/mess/menu-schedule', { params }),
   updateMenuSchedule: (id, data) => api.put(`/mess/menu-schedule/${id}`, data),
   deleteMenuSchedule: (id) => api.delete(`/mess/menu-schedule/${id}`),
-  updateMenuScheduleStatus: (id, data) => api.put(`/mess/menu-schedule/${id}/status`, data),
-
-  // Stock and Inventory Management
-  updateItemStock: (data) => api.post('/mess/stock', data),
-  getItemStock: (params) => api.get('/mess/stock', { params }),
-
-  // Daily Consumption
-  recordConsumption: (data) => api.post('/mess/consumption', data),
-  getDailyConsumption: (params) => api.get('/mess/consumption', { params }),
-
-  // Purchase Orders
-  createPurchaseOrder: (data) => api.post('/mess/purchase-orders', data),
-  getPurchaseOrders: (params) => api.get('/mess/purchase-orders', { params }),
-  getPurchaseOrderById: (id) => api.get(`/mess/purchase-orders/${id}`),
-  updatePurchaseOrder: (id, data) => api.put(`/mess/purchase-orders/${id}`, data),
-  deletePurchaseOrder: (id) => api.delete(`/mess/purchase-orders/${id}`),
-  updatePurchaseOrderStatus: (id, status) => api.put(`/mess/purchase-orders/${id}/status`, { status }),
-
-  // Supplier Bills
-  createSupplierBill: (data) => api.post('/mess/supplier-bills', data),
-  getSupplierBills: (params) => api.get('/mess/supplier-bills', { params }),
-  getSupplierBillById: (id) => api.get(`/mess/supplier-bills/${id}`),
-  updateSupplierBill: (id, data) => api.put(`/mess/supplier-bills/${id}`, data),
-  deleteSupplierBill: (id) => api.delete(`/mess/supplier-bills/${id}`),
-  updateSupplierBillStatus: (id, status) => api.put(`/mess/supplier-bills/${id}/status`, { status }),
-
-  // Bills and Finances
-  generateMessBills: (data) => api.post('/mess/bills/generate', data),
-  getMessBills: (params) => api.get('/mess/bills', { params }),
-  getMessBillById: (id) => api.get(`/mess/bills/${id}`),
-  updateMessBill: (id, data) => api.put(`/mess/bills/${id}`, data),
-  deleteMessBill: (id) => api.delete(`/mess/bills/${id}`),
-
-  // Other Expenses
-  createOtherExpense: (data) => api.post('/mess/expenses', data),
-  getOtherExpenses: (params) => api.get('/mess/expenses', { params }),
-  getOtherExpenseById: (id) => api.get(`/mess/expenses/${id}`),
-  updateOtherExpense: (id, data) => api.put(`/mess/expenses/${id}`, data),
-  deleteOtherExpense: (id) => api.delete(`/mess/expenses/${id}`),
-
-  // Token Management
-  generateTokens: (data) => api.post('/mess/tokens/generate', data),
-  getTokens: (params) => api.get('/mess/tokens', { params }),
-
-  // Mess Fees Allotment
-  allocateMessFees: (data) => api.post('/mess/fees/allocate', data),
-  getMessFeesAllocation: (params) => api.get('/mess/fees/allocation', { params }),
-
-  // Attendance and Daily Charges
-  getAttendanceStatsForDate: (params) => api.get('/mess/attendance-stats', { params }),
-  calculateAndApplyDailyCharges: (data) => api.post('/mess/charges/calculate-daily', data),
-  getMessCharges: (params) => api.get('/mess/mess-charges', { params }),
-
-  // Reports and Analytics
-  getMonthlyReport: (params) => api.get('/mess/reports/monthly', { params }),
-  getInventoryReport: (params) => api.get('/mess/reports/inventory', { params }),
-  getConsumptionReport: (params) => api.get('/mess/reports/consumption', { params }),
-  getExpenseReport: (params) => api.get('/mess/reports/expenses', { params }),
-  getMenuPlanningReport: (params) => api.get('/mess/reports/menu-planning', { params }),
-  recordBulkConsumption: (data) => api.post('/mess/consumption/bulk', data),
+  
+  // Store Management
   createStore: (data) => api.post('/mess/stores', data),
   getStores: (params) => api.get('/mess/stores', { params }),
   updateStore: (id, data) => api.put(`/mess/stores/${id}`, data),
   deleteStore: (id) => api.delete(`/mess/stores/${id}`),
+
+  serveMenu: (id) => api.put(`/mess/menu-schedule/${id}/serve`),
   
   // Item-Store Mapping
   mapItemToStore: (data) => api.post('/mess/item-stores', data),
   getItemStores: (params) => api.get('/mess/item-stores', { params }),
   removeItemStoreMapping: (id) => api.delete(`/mess/item-stores/${id}`),
+  getItemsByStoreId: (storeId) => api.get(`/mess/stores/${storeId}/items`),
+  getStoresByItemId: (itemId) => api.get(`/mess/items/${itemId}/stores`),
   
-  // Inventory Transactions
-  recordInventoryPurchase: (data) => api.post('/mess/inventory/purchases', data),
-  getInventoryTransactions: (params) => api.get('/mess/inventory/transactions', { params }),
+  // Special Food Items
   createSpecialFoodItem: (data) => api.post('/mess/special-food-items', data),
   getSpecialFoodItems: (params) => api.get('/mess/special-food-items', { params }),
   getSpecialFoodItemById: (id) => api.get(`/mess/special-food-items/${id}`),
@@ -349,6 +281,7 @@ export const messAPI = {
   
   // Reports
   getMonthlyFoodOrderReport: (params) => api.get('/mess/reports/monthly-food-orders', { params }),
+  getSummarizedConsumptionReport: (params) => api.get('/mess/reports/consumption-summary', { params }),
 };
 
 export default api;

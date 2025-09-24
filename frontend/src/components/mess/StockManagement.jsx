@@ -1,335 +1,206 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Input, Button, Tag, Space, Select, message, Modal, Form, InputNumber } from 'antd';
-import { SearchOutlined, PlusOutlined, WarningOutlined, EditOutlined, ReloadOutlined } from '@ant-design/icons';
-import api from '../../services/api';
+import { Card, Table, Button, Select, message, Space, Typography, Tag, Switch, Modal, Form, InputNumber, DatePicker, Select as AntSelect } from 'antd';
+import { ReloadOutlined, PlusOutlined } from '@ant-design/icons';
+import { messAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext'; // Assuming you have an AuthContext for user data
 
-const { Option } = Select;
+const { Title, Text } = Typography;
+const { Option } = AntSelect;
 
 const StockManagement = () => {
-  const [form] = Form.useForm();
-  const [stock, setStock] = useState([]);
+  const [stocks, setStocks] = useState([]);
+  const [items, setItems] = useState([]); // For item selection in modal
   const [loading, setLoading] = useState(false);
-  const [searchText, setSearchText] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [categories, setCategories] = useState([]);
-  const [items, setItems] = useState([]);
-  const [visible, setVisible] = useState(false);
-  const [editingStock, setEditingStock] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [showLowStock, setShowLowStock] = useState(false);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [form] = Form.useForm();
+  const { user } = useAuth(); // Get user data including hostel_id
 
   useEffect(() => {
-    fetchStock();
-    fetchCategories();
+    fetchStocks();
     fetchItems();
-  }, []);
+  }, [showLowStock]);
 
-  const fetchStock = async () => {
+  const fetchStocks = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/mess/stock');
-      setStock(response.data.data);
+      const response = await messAPI.getItemStock({ low_stock: showLowStock });
+      const formattedStocks = (response.data.data || []).map(stock => ({
+        ...stock,
+        key: `${stock.item_id}-${stock.hostel_id}`,
+        item_name: stock.Item?.name,
+        category_name: stock.Item?.tbl_ItemCategory?.name || 'N/A',
+        unit: stock.Item?.UOM?.abbreviation || 'unit',
+      }));
+      setStocks(formattedStocks);
     } catch (error) {
-      console.error('Failed to fetch stock:', error);
-      message.error('Failed to load stock data. Please try again.');
+      message.error('Failed to fetch stock: ' + (error.response?.data?.message || error.message));
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchCategories = async () => {
-    try {
-      const response = await api.get('/mess/item-categories');
-      setCategories(response.data.data);
-    } catch (error) {
-      console.error('Failed to fetch categories:', error);
-    }
-  };
-
   const fetchItems = async () => {
     try {
-      const response = await api.get('/mess/items');
-      setItems(response.data.data);
+      const response = await messAPI.getItems();
+      setItems(response.data.data || []);
     } catch (error) {
-      console.error('Failed to fetch items:', error);
+      message.error('Failed to fetch items: ' + (error.response?.data?.message || error.message));
     }
   };
 
-  const handleUpdateStock = (record) => {
-    setEditingStock(record);
-    form.setFieldsValue({
-      item_id: record.item_id,
-      current_stock: record.current_stock,
-      minimum_stock: record.minimum_stock
-    });
-    setVisible(true);
+  const showAddStockModal = () => {
+    setIsModalVisible(true);
   };
 
-  const handleAddStock = () => {
-    setEditingStock(null);
-    form.resetFields();
-    setVisible(true);
-  };
-
-  const handleSubmit = async (values) => {
-    setSubmitting(true);
+  const handleAddStock = async (values) => {
     try {
-      await api.post('/mess/stock', values);
-      message.success('Stock updated successfully');
-      setVisible(false);
-      fetchStock();
+      const payload = {
+        item_id: values.item_id,
+        hostel_id: user.hostel_id, // Use hostel_id from user context
+        quantity: values.quantity,
+        unit_price: values.unit_price,
+        purchase_date: values.purchase_date ? values.purchase_date.format('YYYY-MM-DD') : undefined,
+      };
+
+      await messAPI.updateItemStock(payload);
+      message.success('Stock added successfully');
+      setIsModalVisible(false);
+      form.resetFields();
+      fetchStocks(); // Refresh stock table
     } catch (error) {
-      console.error('Failed to update stock:', error);
-      message.error('Failed to update stock. Please try again.');
-    } finally {
-      setSubmitting(false);
+      message.error('Failed to add stock: ' + (error.response?.data?.message || error.message));
     }
   };
 
-  const handleViewLowStock = () => {
-    setLoading(true);
-    api.get('/mess/stock?low_stock=true')
-      .then(response => {
-        setStock(response.data.data);
-        message.info(`Found ${response.data.data.length} items with low stock`);
-      })
-      .catch(error => {
-        console.error('Failed to fetch low stock:', error);
-        message.error('Failed to fetch low stock data');
-      })
-      .finally(() => setLoading(false));
+  const handleCancel = () => {
+    setIsModalVisible(false);
+    form.resetFields();
   };
-
-  const getStockStatus = (current, minimum) => {
-    const currentNum = parseFloat(current);
-    const minimumNum = parseFloat(minimum);
-    
-    if (currentNum <= 0) return 'out_of_stock';
-    if (currentNum <= minimumNum) return 'low_stock';
-    return 'in_stock';
-  };
-
-  const filteredStock = stock.filter(item => {
-    const matchesCategory = categoryFilter === 'all' || 
-      item.Item.category_id.toString() === categoryFilter;
-    
-    const matchesSearch = item.Item.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      (item.Item.tbl_ItemCategory?.name || '').toLowerCase().includes(searchText.toLowerCase());
-    
-    return matchesCategory && matchesSearch;
-  });
 
   const columns = [
     {
-      title: 'Item',
-      dataIndex: ['Item', 'name'],
-      key: 'name',
-      sorter: (a, b) => a.Item.name.localeCompare(b.Item.name),
+      title: 'Item Name',
+      dataIndex: 'item_name',
+      key: 'item_name',
+      render: (text, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{text}</Text>
+          <Text type="secondary">{record.category_name}</Text>
+        </Space>
+      ),
     },
     {
-      title: 'Category',
-      dataIndex: ['Item', 'tbl_ItemCategory', 'name'],
-      key: 'category',
-      render: (text) => text || 'N/A',
-      filters: categories.map(cat => ({ text: cat.name, value: cat.name })),
-      onFilter: (value, record) => record.Item.tbl_ItemCategory?.name === value,
+      title: 'Unit',
+      dataIndex: 'unit',
+      key: 'unit',
     },
     {
       title: 'Current Stock',
       dataIndex: 'current_stock',
       key: 'current_stock',
-      render: (text, record) => (
-        <span>
-          {text} {record.Item.UOM?.abbreviation || 'units'}
-        </span>
+      render: (stock, record) => (
+        <Space>
+          <Text>{`${stock} ${record.unit}`}</Text>
+          {stock <= record.minimum_stock && stock > 0 && <Tag color="warning">Low Stock</Tag>}
+          {stock === 0 && <Tag color="error">Out of Stock</Tag>}
+        </Space>
       ),
-      sorter: (a, b) => parseFloat(a.current_stock) - parseFloat(b.current_stock),
     },
     {
-      title: 'Min. Stock',
+      title: 'Minimum Stock',
       dataIndex: 'minimum_stock',
       key: 'minimum_stock',
-      render: (text, record) => (
-        <span>
-          {text} {record.Item.UOM?.abbreviation || 'units'}
-        </span>
-      ),
-    },
-    {
-      title: 'Status',
-      key: 'status',
-      render: (_, record) => {
-        const status = getStockStatus(record.current_stock, record.minimum_stock);
-        
-        let color = 'green';
-        let text = 'In Stock';
-        
-        if (status === 'low_stock') {
-          color = 'orange';
-          text = 'Low Stock';
-        } else if (status === 'out_of_stock') {
-          color = 'red';
-          text = 'Out of Stock';
-        }
-        
-        return <Tag color={color}>{text}</Tag>;
-      },
-      filters: [
-        { text: 'In Stock', value: 'in_stock' },
-        { text: 'Low Stock', value: 'low_stock' },
-        { text: 'Out of Stock', value: 'out_of_stock' },
-      ],
-      onFilter: (value, record) => 
-        getStockStatus(record.current_stock, record.minimum_stock) === value,
-    },
-    {
-      title: 'Last Updated',
-      dataIndex: 'last_updated',
-      key: 'last_updated',
-      render: text => new Date(text).toLocaleString(),
-      sorter: (a, b) => new Date(a.last_updated) - new Date(b.last_updated),
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_, record) => (
-        <Button 
-          type="primary" 
-          icon={<EditOutlined />}
-          onClick={() => handleUpdateStock(record)}
-          size="small"
-        >
-          Update
-        </Button>
-      ),
+      render: (stock, record) => `${stock} ${record.unit}`,
     },
   ];
 
   return (
-    <>
-      <Card 
-        title="Inventory Management" 
-        bordered={false}
-        extra={
-          <Space>
-            <Button 
-              type="primary" 
-              icon={<PlusOutlined />}
-              onClick={handleAddStock}
-            >
-              Add/Update Stock
-            </Button>
-            <Button 
-              type="default" 
-              icon={<ReloadOutlined />}
-              onClick={fetchStock}
-            >
-              Refresh
-            </Button>
-            <Button 
-              type="danger" 
-              icon={<WarningOutlined />}
-              onClick={handleViewLowStock}
-            >
-              Low Stock
-            </Button>
-          </Space>
-        }
-      >
-        <Space style={{ marginBottom: 16 }}>
-          <Input
-            placeholder="Search items..."
-            prefix={<SearchOutlined />}
-            onChange={e => setSearchText(e.target.value)}
-            style={{ width: 200 }}
-            allowClear
+    <Card
+      title={<Title level={3}>Stock Management</Title>}
+      extra={
+        <Space>
+          <Switch
+            checkedChildren="Low Stock Only"
+            unCheckedChildren="All Stock"
+            checked={showLowStock}
+            onChange={setShowLowStock}
           />
-          <Select
-            placeholder="Filter by category"
-            style={{ width: 200 }}
-            onChange={value => setCategoryFilter(value)}
-            defaultValue="all"
-          >
-            <Option value="all">All Categories</Option>
-            {categories.map(category => (
-              <Option key={category.id} value={category.id.toString()}>
-                {category.name}
-              </Option>
-            ))}
-          </Select>
+          <Button icon={<ReloadOutlined />} onClick={fetchStocks}>
+            Refresh
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={showAddStockModal}>
+            Add Stock
+          </Button>
         </Space>
-
-        <Table
-          columns={columns}
-          dataSource={filteredStock}
-          rowKey="id"
-          loading={loading}
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: 'max-content' }}
-        />
-      </Card>
-
+      }
+    >
+      <Table
+        dataSource={stocks}
+        columns={columns}
+        rowKey="key"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+      />
       <Modal
-        title={editingStock ? "Update Stock" : "Add/Update Stock"}
-        visible={visible}
-        onCancel={() => setVisible(false)}
-        footer={null}
+        title="Add Stock"
+        visible={isModalVisible}
+        onOk={form.submit}
+        onCancel={handleCancel}
+        okText="Add Stock"
+        cancelText="Cancel"
       >
         <Form
           form={form}
           layout="vertical"
-          onFinish={handleSubmit}
+          onFinish={handleAddStock}
+          initialValues={{
+            quantity: 0,
+            unit_price: 0,
+          }}
         >
           <Form.Item
             name="item_id"
             label="Item"
             rules={[{ required: true, message: 'Please select an item' }]}
           >
-            <Select 
-              placeholder="Select item"
-              showSearch
-              optionFilterProp="children"
-              disabled={!!editingStock}
-            >
+            <Select placeholder="Select an item">
               {items.map(item => (
                 <Option key={item.id} value={item.id}>
-                  {item.name} ({item.UOM?.abbreviation || 'units'})
+                  {item.name} ({item.UOM?.abbreviation || 'unit'})
                 </Option>
               ))}
             </Select>
           </Form.Item>
-
           <Form.Item
-            name="current_stock"
-            label="Current Stock"
-            rules={[{ required: true, message: 'Please enter current stock' }]}
+            name="quantity"
+            label="Quantity"
+            rules={[
+              { required: true, message: 'Please enter quantity' },
+              { type: 'number', min: 0.01, message: 'Quantity must be greater than 0' },
+            ]}
           >
-            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+            <InputNumber min={0.01} step={0.1} precision={2} style={{ width: '100%' }} />
           </Form.Item>
-
           <Form.Item
-            name="minimum_stock"
-            label="Minimum Stock"
-            rules={[{ required: true, message: 'Please enter minimum stock' }]}
+            name="unit_price"
+            label="Unit Price"
+            rules={[
+              { required: true, message: 'Please enter unit price' },
+              { type: 'number', min: 0, message: 'Unit price cannot be negative' },
+            ]}
           >
-            <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
+            <InputNumber min={0} step={0.01} precision={2} style={{ width: '100%' }} />
           </Form.Item>
-
-          <Form.Item>
-            <Button 
-              type="primary" 
-              htmlType="submit" 
-              loading={submitting}
-              style={{ marginRight: 8 }}
-            >
-              {editingStock ? "Update" : "Add/Update"}
-            </Button>
-            <Button htmlType="button" onClick={() => setVisible(false)}>
-              Cancel
-            </Button>
+          <Form.Item
+            name="purchase_date"
+            label="Purchase Date"
+          >
+            <DatePicker style={{ width: '100%' }} />
           </Form.Item>
         </Form>
       </Modal>
-    </>
+    </Card>
   );
 };
 
