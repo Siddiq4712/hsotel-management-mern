@@ -57,41 +57,39 @@ const Sidebar = ({ currentView, setCurrentView }) => {
           { id: 'food-order', label: 'Order Special Food', icon: Coffee },
           { id: 'my-food-orders', label: 'My Food Orders', icon: ShoppingBag },
         ];
-      case 'mess':
-        return [
-          { id: 'dashboard', label: 'Dashboard', icon: Home },
-          { id: 'section-menu', label: 'Menu Management', type: 'section' },
-          { id: 'menus', label: 'Manage Menus', icon: ChefHat },
-          { id: 'items', label: 'Manage Items', icon: Coffee },
-          { id: 'menu-schedule', label: 'Menu Schedule', icon: Calendar },
+      // Update the mess menu items to match our simplified workflow:
 
-          { id: 'section-inventory', label: 'Inventory & Purchases', type: 'section' }, // Renamed Section
-          
-          // NEW: Replaced 'inventory-management' with our new component's ID
-          { id: 'purchase-by-store', label: 'Purchase by Store', icon: ShoppingBag }, 
-          
-          { id: 'item-store-mapping', label: 'Item-Store Mapping', icon: Building }, 
-          { id: 'inventory-transactions', label: 'All Transactions', icon: List }, // Renamed for clarity
-          { id: 'stock', label: 'Current Stock', icon: Database }, // Renamed for clarity
-          { id: 'consumption', label: 'Daily Consumption', icon: ClipboardCheck },
-          { id: 'uoms', label: 'Units of Measure', icon: Settings },
-          
-          { id: 'section-supplier', label: 'Supplier & Orders', type: 'section' }, // Renamed Section
-          { id: 'suppliers', label: 'Suppliers', icon: Truck },
-          { id: 'purchase-orders', label: 'Purchase Orders', icon: Clipboard },
-
-          { id: 'section-finance', label: 'Financial Management', type: 'section' },
-          { id: 'bills', label: 'Mess Bills', icon: Receipt },
-          { id: 'daily-operations', label: 'Daily Operations', icon: Clock },
-
-          { id: 'section-reports', label: 'Reports & Analytics', type: 'section' },
-          { id: 'consumption-report', label: 'Consumption Report', icon: BarChart2 },
-          { id: 'reports', label: 'Reports', icon: BarChart2 },
-
-          { id: 'section-special', label: 'Special Orders', type: 'section' }, // New Section
-          { id: 'special-food-items', label: 'Special Food Items', icon: Coffee },
-          { id: 'food-orders', label: 'Food Orders', icon: ShoppingBag },
-        ];
+case 'mess':
+  return [
+    { id: 'dashboard', label: 'Dashboard', icon: Home },
+    
+    { id: 'section-menu', label: 'Menu Management', type: 'section' },
+    { id: 'menus', label: 'Manage Menus', icon: ChefHat },
+    { id: 'items', label: 'Manage Items', icon: Coffee },
+    { id: 'menu-planner', label: 'Menu Planner', icon: Calendar }, // New item
+    { id: 'menu-schedule', label: 'Menu Schedule', icon: ClipboardCheck },
+    { id: 'create-menu', label: 'Create Menu', icon: ChefHat },
+    
+    { id: 'section-inventory', label: 'Inventory Management', type: 'section' },
+    { id: 'uoms', label: 'Units of Measure', icon: Settings },
+    { id: 'stock', label: 'Stock Management', icon: Database },
+    { id: 'inventory', label: 'Inventory', icon: Package },
+    { id: 'consumption', label: 'Daily Consumption', icon: ClipboardCheck },
+    
+    { id: 'section-store', label: 'Store Management', type: 'section' },
+    { id: 'stores', label: 'Manage Stores', icon: Building },
+    { id: 'item-store-mapping', label: 'Item-Store Mapping', icon: List },
+    
+    { id: 'section-operations', label: 'Daily Operations', type: 'section' },
+    { id: 'daily-operations', label: 'Mess Operations', icon: Clock },
+    
+    { id: 'section-special', label: 'Special Food Orders', type: 'section' },
+    { id: 'special-food-items', label: 'Special Food Items', icon: Coffee },
+    { id: 'food-orders', label: 'Food Orders', icon: ShoppingBag },
+    
+    { id: 'section-reports', label: 'Reports', type: 'section' },
+    { id: 'consumption-report', label: 'Consumption Report', icon: BarChart2 },
+  ];
       default:
         return [];
     }

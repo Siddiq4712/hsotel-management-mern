@@ -1,21 +1,14 @@
-// controllers/messController.js - COMPLETE VERSION
-
 const { 
-  Menu, Item, ItemCategory, MessBill, User, MenuItem,
-  MenuSchedule, Token, Groceries, GroceriesType, ItemStock,
-  DailyConsumption, DailyConsumptionReturn, NonConsumables,
-  OtherItems, Supplier, PurchaseOrder, PurchaseOrderItem,
-  SupplierBill, SupplierBillItem, MessFeesAllot, OtherExpense,
-  UOM, ExpenseType, Attendance, Leave, DailyMessCharge,
-  Hostel, IncomeType,Store, ItemStore, InventoryTransaction,ConsumptionLog,InventoryBatch,SpecialFoodItem,FoodOrder,FoodOrderItem
+  Menu, Item, ItemCategory, User, MenuItem,Hostel,
+  MenuSchedule, UOM, ItemStock, DailyConsumption,
+  Store, ItemStore, InventoryTransaction, ConsumptionLog,
+  InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem
 } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
-const { get } = require('../routes/mess');
 
 // MENU MANAGEMENT - Complete CRUD
 const createMenu = async (req, res) => {
-  // Use a transaction to ensure both menu and items are created or neither are.
   const transaction = await sequelize.transaction(); 
   try {
     const { name, meal_type, description, estimated_servings, preparation_time, items } = req.body;
@@ -37,7 +30,7 @@ const createMenu = async (req, res) => {
       description,
       estimated_servings,
       preparation_time,
-      date: new Date() // date field seems required by your model
+      date: new Date()
     }, { transaction });
 
     // Step 2: If ingredients (items) are provided, create them
@@ -52,7 +45,6 @@ const createMenu = async (req, res) => {
       await MenuItem.bulkCreate(menuItems, { transaction });
     }
 
-    // If everything is successful, commit the transaction
     await transaction.commit();
 
     res.status(201).json({ 
@@ -61,15 +53,13 @@ const createMenu = async (req, res) => {
       message: 'Menu and its items created successfully' 
     });
   } catch (error) {
-    // If any step fails, roll back the entire transaction
     await transaction.rollback();
     console.error('Menu creation error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-
-// getMenus
+// GET MENUS
 const getMenus = async (req, res) => {
   try {
     const { meal_type, search } = req.query;
@@ -90,17 +80,17 @@ const getMenus = async (req, res) => {
       include: [
         {
           model: MenuItem,
-          as: 'tbl_Menu_Items', // ✅ matches your associations
+          as: 'tbl_Menu_Items',
           required: false,
           include: [
             {
               model: Item,
-              as: 'tbl_Item', // ✅ matches your associations
+              as: 'tbl_Item',
               required: false,
               include: [
                 { 
                   model: ItemCategory,
-                  as: 'tbl_ItemCategory', // ✅ matches your associations
+                  as: 'tbl_ItemCategory',
                   required: false,
                 }
               ]
@@ -128,11 +118,11 @@ const getMenuById = async (req, res) => {
       include: [
         {
           model: MenuItem,
-          // as: 'tbl_Menu_Items',
+          as: 'tbl_Menu_Items',
           include: [
             {
               model: Item,
-              // as: 'tbl_Item',
+              as: 'tbl_Item',
               include: [{ 
                 model: ItemCategory,
                 as: 'tbl_ItemCategory'
@@ -599,11 +589,11 @@ const getMenuWithItems = async (req, res) => {
       include: [
         {
           model: MenuItem,
-          // as: 'tbl_Menu_Items',
+          as: 'tbl_Menu_Items',
           include: [
             {
               model: Item,
-              // as: 'tbl_Item',
+              as: 'tbl_Item',
               include: [{ 
                 model: ItemCategory,
                 as: 'tbl_ItemCategory'
@@ -724,115 +714,6 @@ const removeItemFromMenu = async (req, res) => {
   }
 };
 
-// MESS BILLS MANAGEMENT
-const generateMessBills = async (req, res) => {
-  try {
-    const { month, year } = req.body;
-    const hostel_id = req.user.hostel_id;
-
-    if (!month || !year) {
-      return res.status(400).json({
-        success: false,
-        message: 'Month and year are required'
-      });
-    }
-
-    // Get all students in the hostel
-    const students = await User.findAll({
-      where: { 
-        hostel_id,
-        role: 'student'
-      }
-    });
-
-    // Calculate total mess expenses for the month
-    const totalExpenses = await OtherExpense.sum('amount', {
-      where: {
-        hostel_id,
-        [Op.and]: [
-          sequelize.where(sequelize.fn('EXTRACT', sequelize.literal('MONTH FROM expense_date')), month),
-          sequelize.where(sequelize.fn('EXTRACT', sequelize.literal('YEAR FROM expense_date')), year)
-        ]
-      }
-    });
-
-    const totalStudents = students.length;
-    const amountPerStudent = totalExpenses / totalStudents || 0;
-
-    // Generate bills for each student
-    const bills = await Promise.all(
-      students.map(async (student) => {
-        // Check if bill already exists
-        const existingBill = await MessBill.findOne({
-          where: {
-            student_id: student.id,
-            month,
-            year
-          }
-        });
-
-        if (existingBill) {
-          return existingBill;
-        }
-
-        // Create new bill
-        return await MessBill.create({
-          student_id: student.id,
-          hostel_id,
-          month,
-          year,
-          amount: amountPerStudent,
-          due_date: new Date(year, month, 15), // 15th of next month
-          status: 'pending'
-        });
-      })
-    );
-
-    res.json({
-      success: true,
-      data: bills,
-      message: 'Mess bills generated successfully'
-    });
-  } catch (error) {
-    console.error('Generate mess bills error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getMessBills = async (req, res) => {
-  try {
-    const { month, year, status, student_id } = req.query;
-    const hostel_id = req.user.hostel_id;
-
-    let whereClause = { hostel_id };
-
-    if (month) whereClause.month = month;
-    if (year) whereClause.year = year;
-    if (status) whereClause.status = status;
-    if (student_id) whereClause.student_id = student_id;
-
-    const bills = await MessBill.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: User,
-          // as: 'MessBillStudent',
-          attributes: ['id', 'username', 'email']
-        }
-      ],
-      order: [['createdAt', 'DESC']]
-    });
-
-    res.json({
-      success: true,
-      data: bills
-    });
-  } catch (error) {
-    console.error('Get mess bills error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
 // MENU SCHEDULING
 const scheduleMenu = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -878,7 +759,7 @@ const scheduleMenu = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Menu not found' });
     }
 
-    // --- COST CALCULATION LOGIC ---
+    // Calculate total cost
     let total_cost = 0;
     if (menu.tbl_Menu_Items && menu.tbl_Menu_Items.length > 0) {
       total_cost = menu.tbl_Menu_Items.reduce((sum, menuItem) => {
@@ -897,9 +778,9 @@ const scheduleMenu = async (req, res) => {
       scheduled_date,
       meal_time,
       status: 'scheduled',
-      estimated_servings, // This field needs to be in your MenuSchedule model
-      total_cost,         // This field needs to be in your MenuSchedule model
-      cost_per_serving,   // This field needs to be in your MenuSchedule model
+      estimated_servings,
+      total_cost,
+      cost_per_serving,
     }, { transaction });
 
     await transaction.commit();
@@ -935,22 +816,20 @@ const getMenuSchedule = async (req, res) => {
       include: [
         {
           model: Menu, 
-          // no alias was defined for MenuSchedule → Menu
-          required: false,
           include: [
             {
               model: MenuItem,
-              as: 'tbl_Menu_Items', // ✅ alias from associations
+              as: 'tbl_Menu_Items',
               required: false,
               include: [
                 {
                   model: Item,
-                  as: 'tbl_Item', // ✅ alias
+                  as: 'tbl_Item',
                   required: false,
                   include: [
                     {
                       model: ItemCategory,
-                      as: 'tbl_ItemCategory', // ✅ alias
+                      as: 'tbl_ItemCategory',
                       required: false,
                     }
                   ]
@@ -971,7 +850,6 @@ const getMenuSchedule = async (req, res) => {
 };
 
 const updateMenuSchedule = async (req, res) => {
-    // This function is needed for the frontend's edit functionality
     try {
         const { id } = req.params;
         const { menu_id, meal_time, estimated_servings, status } = req.body;
@@ -1014,7 +892,6 @@ const updateMenuSchedule = async (req, res) => {
 };
 
 const deleteMenuSchedule = async (req, res) => {
-    // This function is needed for the frontend's delete functionality
     try {
         const { id } = req.params;
         const hostel_id = req.user.hostel_id;
@@ -1029,1250 +906,6 @@ const deleteMenuSchedule = async (req, res) => {
         console.error('Delete schedule error:', error);
         res.status(500).json({ success: false, message: 'Server error' });
     }
-};
-
-// TOKEN MANAGEMENT
-const generateTokens = async (req, res) => {
-  try {
-    const { date, meal_type } = req.body;
-    const hostel_id = req.user.hostel_id;
-
-    if (!date || !meal_type) {
-      return res.status(400).json({
-        success: false,
-        message: 'Date and meal type are required'
-      });
-    }
-
-    // Get all students in the hostel
-    const students = await User.findAll({
-      where: {
-        hostel_id,
-        role: 'student'
-      }
-    });
-
-    // Generate tokens for each student
-    const tokens = await Promise.all(
-      students.map(async (student) => {
-        // Check if token already exists
-        const existingToken = await Token.findOne({
-          where: {
-            student_id: student.id,
-            token_date: date,
-            meal_type
-          }
-        });
-
-        if (existingToken) {
-          return existingToken;
-        }
-
-        // Create new token
-        return await Token.create({
-          student_id: student.id,
-          token_date: date,
-          meal_type,
-          status: 'active'
-        });
-      })
-    );
-
-    res.json({
-      success: true,
-      data: tokens,
-      message: 'Tokens generated successfully'
-    });
-  } catch (error) {
-    console.error('Generate tokens error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-// GROCERY MANAGEMENT
-const createGroceryType = async (req, res) => {
-  try {
-    const { name, description } = req.body;
-
-    if (!name) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name is required'
-      });
-    }
-
-    const groceryType = await GroceriesType.create({
-      name,
-      description
-    });
-
-    res.status(201).json({
-      success: true,
-      data: groceryType,
-      message: 'Grocery type created successfully'
-    });
-  } catch (error) {
-    console.error('Grocery type creation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-const getGroceryTypes = async (req, res) => {
-  try {
-    const { search } = req.query;
-    
-    let whereClause = {};
-    
-    if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
-    }
-
-    const groceryTypes = await GroceriesType.findAll({
-      where: whereClause,
-      order: [['name', 'ASC']]
-    });
-
-    res.json({
-      success: true,
-      data: groceryTypes
-    });
-  } catch (error) {
-    console.error('Grocery types fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-
-const updateGroceryType = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, description } = req.body;
-
-    const groceryType = await GroceriesType.findByPk(id);
-    if (!groceryType) {
-      return res.status(404).json({
-        success: false,
-        message: 'Grocery type not found'
-      });
-    }
-
-    await groceryType.update({ name, description });
-
-    res.json({
-      success: true,
-      data: groceryType,
-      message: 'Grocery type updated successfully'
-    });
-  } catch (error) {
-    console.error('Grocery type update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const deleteGroceryType = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const groceryType = await GroceriesType.findByPk(id);
-    if (!groceryType) {
-      return res.status(404).json({
-        success: false,
-        message: 'Grocery type not found'
-      });
-    }
-
-    // Check if grocery type is being used
-    const groceryCount = await Groceries.count({ where: { grocery_type_id: id } });
-    if (groceryCount > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete grocery type that is being used'
-      });
-    }
-
-    await groceryType.destroy();
-    res.json({
-      success: true,
-      message: 'Grocery type deleted successfully'
-    });
-  } catch (error) {
-    console.error('Grocery type deletion error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const createGrocery = async (req, res) => {
-  try {
-    const { name, grocery_type_id, unit, current_stock, minimum_stock, unit_price } = req.body;
-
-    if (!name || !grocery_type_id || !unit) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name, grocery type, and unit are required'
-      });
-    }
-
-    const grocery = await Groceries.create({
-      name,
-      grocery_type_id,
-      unit,
-      current_stock: current_stock || 0,
-      minimum_stock: minimum_stock || 0,
-      unit_price: unit_price || 0
-    });
-
-    const groceryWithType = await Groceries.findByPk(grocery.id, {
-      include: [{
-        model: GroceriesType,
-        as:'type',
-        attributes: ['id', 'name']
-      }]
-    });
-
-    res.status(201).json({
-      success: true,
-      data: groceryWithType,
-      message: 'Grocery created successfully'
-    });
-  } catch (error) {
-    console.error('Grocery creation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getGroceries = async (req, res) => {
-  try {
-    const { grocery_type_id, search } = req.query;
-    
-    let whereClause = {};
-    
-    if (grocery_type_id && grocery_type_id !== 'all') {
-      whereClause.grocery_type_id = grocery_type_id;
-    }
-    
-    if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
-    }
-
-    const groceries = await Groceries.findAll({
-      where: whereClause,
-      include: [{
-        model: GroceriesType,
-        as:'type',
-        attributes: ['id', 'name']
-      }],
-      order: [['name', 'ASC']]
-    });
-
-    res.json({
-      success: true,
-      data: groceries
-    });
-  } catch (error) {
-    console.error('Groceries fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const updateGrocery = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, grocery_type_id, unit, current_stock, minimum_stock, unit_price } = req.body;
-
-    const grocery = await Groceries.findByPk(id);
-    if (!grocery) {
-      return res.status(404).json({
-        success: false,
-        message: 'Grocery not found'
-      });
-    }
-
-    await grocery.update({
-      name,
-      grocery_type_id,
-      unit,
-      current_stock,
-      minimum_stock,
-      unit_price
-    });
-
-    const updatedGrocery = await Groceries.findByPk(id, {
-      include: [{
-        model: GroceriesType,
-        as:'type',
-        attributes: ['id', 'name']
-      }]
-    });
-
-    res.json({
-      success: true,
-      data: updatedGrocery,
-      message: 'Grocery updated successfully'
-    });
-  } catch (error) {
-    console.error('Grocery update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const deleteGrocery = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const grocery = await Groceries.findByPk(id);
-    if (!grocery) {
-      return res.status(404).json({
-        success: false,
-        message: 'Grocery not found'
-      });
-    }
-
-    await grocery.destroy();
-    res.json({
-      success: true,
-      message: 'Grocery deleted successfully'
-    });
-  } catch (error) {
-    console.error('Grocery deletion error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-// ITEM STOCK MANAGEMENT
-const updateItemStock = async (req, res) => {
-  try {
-    const { item_id, current_stock, minimum_stock } = req.body;
-    const hostel_id = req.user.hostel_id;
-
-    if (!item_id || current_stock === undefined) {
-      return res.status(400).json({
-        success: false,
-        message: 'Item ID and current stock are required'
-      });
-    }
-
-    let itemStock = await ItemStock.findOne({
-      where: { item_id, hostel_id }
-    });
-
-    if (itemStock) {
-      await itemStock.update({
-        current_stock,
-        minimum_stock: minimum_stock || itemStock.minimum_stock,
-        last_updated: new Date()
-      });
-    } else {
-      itemStock = await ItemStock.create({
-        item_id,
-        hostel_id,
-        current_stock,
-        minimum_stock: minimum_stock || 0,
-        last_updated: new Date()
-      });
-    }
-
-    const stockWithItem = await ItemStock.findByPk(itemStock.id, {
-      include: [{
-        model: Item,
-        include: [{
-          model: ItemCategory,
-          as: 'tbl_ItemCategory'
-        }]
-      }]
-    });
-
-    res.json({
-      success: true,
-      data: stockWithItem,
-      message: 'Item stock updated successfully'
-    });
-  } catch (error) {
-    console.error('Item stock update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getItemStock = async (req, res) => {
-  try {
-    const hostel_id = req.user.hostel_id;
-    const { low_stock } = req.query;
-
-    let whereClause = { hostel_id };
-    
-    if (low_stock === 'true') {
-      whereClause = {
-        ...whereClause,
-        [Op.where]: sequelize.where(
-          sequelize.col('current_stock'), 
-          Op.lte, 
-          sequelize.col('minimum_stock')
-        )
-      };
-    }
-
-    const itemStocks = await ItemStock.findAll({
-      where: whereClause,
-      include: [{
-        model: Item,
-        include: [{
-          model: ItemCategory,
-          as: 'tbl_ItemCategory'
-        }]
-      }],
-      order: [['last_updated', 'DESC']]
-    });
-
-    res.json({
-      success: true,
-      data: itemStocks
-    });
-  } catch (error) {
-    console.error('Item stock fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getDailyConsumption = async (req, res) => {
-  try {
-    const { date, meal_type, item_id } = req.query;
-    const hostel_id = req.user.hostel_id;
-
-    let whereClause = { hostel_id };
-
-    if (date) whereClause.consumption_date = date;
-    if (meal_type) whereClause.meal_type = meal_type;
-    if (item_id) whereClause.item_id = item_id;
-
-    const consumptions = await DailyConsumption.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: Item,
-          include: [{
-            model: ItemCategory,
-            as: 'tbl_ItemCategory'
-          }]
-        },
-        {
-          model: User,
-          as: 'ConsumptionRecordedBy',
-          attributes: ['id', 'username']
-        }
-      ],
-      order: [['consumption_date', 'DESC'], ['createdAt', 'DESC']]
-    });
-
-    res.json({
-      success: true,
-      data: consumptions
-    });
-  } catch (error) {
-    console.error('Daily consumption fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-
-// SUPPLIER MANAGEMENT
-const createSupplier = async (req, res) => {
-  try {
-    const { name, contact_person, phone, email, address, supplier_type } = req.body;
-
-    if (!name || !supplier_type) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name and supplier type are required'
-      });
-    }
-
-    const supplier = await Supplier.create({
-      name,
-      contact_person,
-      phone,
-      email,
-      address,
-      supplier_type,
-      is_active: true
-    });
-
-    res.status(201).json({
-      success: true,
-      data: supplier,
-      message: 'Supplier created successfully'
-    });
-  } catch (error) {
-    console.error('Supplier creation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getSuppliers = async (req, res) => {
-  try {
-    const { supplier_type, search, is_active } = req.query;
-    
-    let whereClause = {};
-    
-    if (supplier_type && supplier_type !== 'all') {
-      whereClause.supplier_type = supplier_type;
-    }
-    
-    if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
-    }
-
-    if (is_active !== undefined) {
-      whereClause.is_active = is_active === 'true';
-    }
-
-    const suppliers = await Supplier.findAll({
-      where: whereClause,
-      order: [['name', 'ASC']]
-    });
-
-    res.json({
-      success: true,
-      data: suppliers
-    });
-  } catch (error) {
-    console.error('Suppliers fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const updateSupplier = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, contact_person, phone, email, address, supplier_type, is_active } = req.body;
-
-    const supplier = await Supplier.findByPk(id);
-    if (!supplier) {
-      return res.status(404).json({
-        success: false,
-        message: 'Supplier not found'
-      });
-    }
-
-    await supplier.update({
-      name,
-      contact_person,
-      phone,
-      email,
-      address,
-      supplier_type,
-      is_active
-    });
-
-    res.json({
-      success: true,
-      data: supplier,
-      message: 'Supplier updated successfully'
-    });
-  } catch (error) {
-    console.error('Supplier update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const deleteSupplier = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const supplier = await Supplier.findByPk(id);
-    if (!supplier) {
-      return res.status(404).json({
-        success: false,
-        message: 'Supplier not found'
-      });
-    }
-
-    // Check if supplier has orders or bills
-    const orderCount = await PurchaseOrder.count({ where: { supplier_id: id } });
-    const billCount = await SupplierBill.count({ where: { supplier_id: id } });
-
-    if (orderCount > 0 || billCount > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete supplier with existing orders or bills'
-      });
-    }
-
-    await supplier.destroy();
-    res.json({
-      success: true,
-      message: 'Supplier deleted successfully'
-    });
-  } catch (error) {
-    console.error('Supplier deletion error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-// PURCHASE ORDER MANAGEMENT
-const createPurchaseOrder = async (req, res) => {
-  try {
-    const { supplier_id, expected_delivery, items } = req.body;
-    const hostel_id = req.user.hostel_id;
-
-    if (!supplier_id || !items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Supplier ID and items are required'
-      });
-    }
-
-    const transaction = await sequelize.transaction();
-
-    try {
-      // Calculate total amount
-      const total_amount = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
-
-      // Create purchase order
-      const purchaseOrder = await PurchaseOrder.create({
-        hostel_id,
-        supplier_id,
-        expected_delivery,
-        total_amount,
-        status: 'draft',
-        created_by: req.user.id,
-        order_date: new Date()
-      }, { transaction });
-
-      // Create purchase order items
-      const orderItems = await PurchaseOrderItem.bulkCreate(
-        items.map(item => ({
-          purchase_order_id: purchaseOrder.id,
-          item_id: item.item_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total_price: item.quantity * item.unit_price
-        })),
-        { transaction }
-      );
-
-      await transaction.commit();
-
-      const orderWithDetails = await PurchaseOrder.findByPk(purchaseOrder.id, {
-        include: [
-          {
-            model: Supplier,
-            attributes: ['id', 'name', 'contact_person', 'phone']
-          },
-          {
-            model: PurchaseOrderItem,
-            include: [{
-              model: Item,
-              include: [{
-                model: ItemCategory,
-                as: 'tbl_ItemCategory'
-              }]
-            }]
-          }
-        ]
-      });
-
-      res.status(201).json({
-        success: true,
-        data: orderWithDetails,
-        message: 'Purchase order created successfully'
-      });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
-  } catch (error) {
-    console.error('Purchase order creation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getPurchaseOrders = async (req, res) => {
-  try {
-    const { status, supplier_id, from_date, to_date } = req.query;
-    const hostel_id = req.user.hostel_id;
-
-    let whereClause = { hostel_id };
-
-    if (status) whereClause.status = status;
-    if (supplier_id) whereClause.supplier_id = supplier_id;
-    
-    if (from_date && to_date) {
-      whereClause.order_date = {
-        [Op.between]: [from_date, to_date]
-      };
-    }
-
-    const orders = await PurchaseOrder.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: Supplier,
-          attributes: ['id', 'name', 'contact_person', 'phone']
-        },
-        {
-          model: User,
-          // as: 'PurchaseOrderCreatedBy',
-          attributes: ['id', 'username']
-        }
-      ],
-      order: [['order_date', 'DESC']]
-    });
-
-    res.json({
-      success: true,
-      data: orders
-    });
-  } catch (error) {
-    console.error('Purchase orders fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-// SUPPLIER BILL MANAGEMENT
-const createSupplierBill = async (req, res) => {
-  try {
-    const { supplier_id, purchase_order_id, bill_number, bill_date, due_date, items } = req.body;
-    const hostel_id = req.user.hostel_id;
-
-    if (!supplier_id || !bill_number || !bill_date || !due_date || !items || !Array.isArray(items)) {
-      return res.status(400).json({
-        success: false,
-        message: 'All required fields must be provided'
-      });
-    }
-
-    const transaction = await sequelize.transaction();
-
-    try {
-      // Calculate total amount
-      const total_amount = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
-
-      // Create supplier bill
-      const supplierBill = await SupplierBill.create({
-        supplier_id,
-        hostel_id,
-        purchase_order_id,
-        bill_number,
-        bill_date,
-        total_amount,
-        due_date,
-        status: 'pending'
-      }, { transaction });
-
-      // Create supplier bill items
-      await SupplierBillItem.bulkCreate(
-        items.map(item => ({
-          supplier_bill_id: supplierBill.id,
-          item_id: item.item_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total_price: item.quantity * item.unit_price
-        })),
-        { transaction }
-      );
-
-      await transaction.commit();
-
-      const billWithDetails = await SupplierBill.findByPk(supplierBill.id, {
-        include: [
-          {
-            model: Supplier,
-            attributes: ['id', 'name', 'contact_person']
-          },
-          {
-            model: SupplierBillItem,
-            include: [{
-              model: Item,
-              include: [{
-                model: ItemCategory,
-                as: 'tbl_ItemCategory'
-              }]
-            }]
-          }
-        ]
-      });
-
-      res.status(201).json({
-        success: true,
-        data: billWithDetails,
-        message: 'Supplier bill created successfully'
-      });
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
-    }
-  } catch (error) {
-    console.error('Supplier bill creation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getSupplierBills = async (req, res) => {
-  try {
-    const { status, supplier_id, from_date, to_date } = req.query;
-    const hostel_id = req.user.hostel_id;
-
-    let whereClause = { hostel_id };
-
-    if (status) whereClause.status = status;
-    if (supplier_id) whereClause.supplier_id = supplier_id;
-    
-    if (from_date && to_date) {
-      whereClause.bill_date = {
-        [Op.between]: [from_date, to_date]
-      };
-    }
-
-    const bills = await SupplierBill.findAll({
-      where: whereClause,
-      include: [{
-        model: Supplier,
-        attributes: ['id', 'name', 'contact_person']
-      }],
-      order: [['bill_date', 'DESC']]
-    });
-
-    res.json({
-      success: true,
-      data: bills
-    });
-  } catch (error) {
-    console.error('Supplier bills fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-// EXPENSE TYPE MANAGEMENT
-const createExpenseType = async (req, res) => {
-  try {
-    const { name, description } = req.body;
-
-    if (!name) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name is required'
-      });
-    }
-
-    const expenseType = await ExpenseType.create({
-      name,
-      description,
-      is_active: true
-    });
-
-    res.status(201).json({
-      success: true,
-      data: expenseType,
-      message: 'Expense type created successfully'
-    });
-  } catch (error) {
-    console.error('Expense type creation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getExpenseTypes = async (req, res) => {
-  try {
-    const { is_active } = req.query;
-    
-    let whereClause = {};
-    
-    if (is_active !== undefined) {
-      whereClause.is_active = is_active === 'true';
-    }
-
-    const expenseTypes = await ExpenseType.findAll({
-      where: whereClause,
-      order: [['name', 'ASC']]
-    });
-
-    res.json({
-      success: true,
-      data: expenseTypes
-    });
-  } catch (error) {
-    console.error('Expense types fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-// OTHER EXPENSE MANAGEMENT
-const createOtherExpense = async (req, res) => {
-  try {
-    const { expense_type_id, amount, description, expense_date } = req.body;
-    const hostel_id = req.user.hostel_id;
-
-    if (!expense_type_id || !amount) {
-      return res.status(400).json({
-        success: false,
-        message: 'Expense type and amount are required'
-      });
-    }
-
-    const expense = await OtherExpense.create({
-      hostel_id,
-      expense_type_id,
-      amount,
-      description,
-      expense_date: expense_date || new Date(),
-      approved_by: req.user.id
-    });
-
-    const expenseWithType = await OtherExpense.findByPk(expense.id, {
-      include: [{
-        model: ExpenseType,
-        attributes: ['id', 'name']
-      }]
-    });
-
-    res.status(201).json({
-      success: true,
-      data: expenseWithType,
-      message: 'Expense recorded successfully'
-    });
-  } catch (error) {
-    console.error('Other expense creation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getOtherExpenses = async (req, res) => {
-  try {
-    const { expense_type_id, from_date, to_date, month, year } = req.query;
-    const hostel_id = req.user.hostel_id;
-
-    let whereClause = { hostel_id };
-
-    if (expense_type_id) whereClause.expense_type_id = expense_type_id;
-    
-    if (from_date && to_date) {
-      whereClause.expense_date = {
-        [Op.between]: [from_date, to_date]
-      };
-    }
-
-    if (month && year) {
-      whereClause[Op.and] = [
-        sequelize.where(sequelize.fn('EXTRACT', sequelize.literal('MONTH FROM expense_date')), month),
-        sequelize.where(sequelize.fn('EXTRACT', sequelize.literal('YEAR FROM expense_date')), year)
-      ];
-    }
-
-    const expenses = await OtherExpense.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: ExpenseType,
-          attributes: ['id', 'name']
-        },
-        {
-          model: User,
-          as: 'ExpenseApprovedBy',
-          attributes: ['id', 'username']
-        }
-      ],
-      order: [['expense_date', 'DESC']]
-    });
-
-    res.json({
-      success: true,
-      data: expenses
-    });
-  } catch (error) {
-    console.error('Other expenses fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-// MESS FEES ALLOCATION
-const allocateMessFees = async (req, res) => {
-  try {
-    const { month, year } = req.body;
-    const hostel_id = req.user.hostel_id;
-
-    if (!month || !year) {
-      return res.status(400).json({
-        success: false,
-        message: 'Month and year are required'
-      });
-    }
-
-    // Get all students in the hostel
-    const students = await User.findAll({
-      where: { hostel_id, role: 'student' }
-    });
-
-    // Calculate total mess costs for the month
-    const totalMessCost = await OtherExpense.sum('amount', {
-      where: {
-        hostel_id,
-        [Op.and]: [
-          sequelize.where(sequelize.fn('EXTRACT', sequelize.literal('MONTH FROM expense_date')), month),
-          sequelize.where(sequelize.fn('EXTRACT', sequelize.literal('YEAR FROM expense_date')), year)
-        ]
-      }
-    });
-
-    const totalStudents = students.length;
-    const individualShare = totalMessCost / totalStudents || 0;
-
-    // Create allocations for each student
-    const allocations = await Promise.all(
-      students.map(async (student) => {
-        // Check if allocation already exists
-        const existingAllocation = await MessFeesAllot.findOne({
-          where: {
-            student_id: student.id,
-            month,
-            year
-          }
-        });
-
-        if (existingAllocation) {
-          return existingAllocation;
-        }
-
-        return await MessFeesAllot.create({
-          student_id: student.id,
-          month,
-          year,
-          total_mess_cost: totalMessCost,
-          total_students: totalStudents,
-          individual_share: individualShare,
-          adjustments: 0,
-          final_amount: individualShare
-        });
-      })
-    );
-
-    res.json({
-      success: true,
-      data: allocations,
-      message: 'Mess fees allocated successfully'
-    });
-  } catch (error) {
-    console.error('Mess fees allocation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getMessFeesAllocation = async (req, res) => {
-  try {
-    const { month, year, student_id } = req.query;
-
-    let whereClause = {};
-
-    if (month) whereClause.month = month;
-    if (year) whereClause.year = year;
-    if (student_id) whereClause.student_id = student_id;
-
-    const allocations = await MessFeesAllot.findAll({
-      where: whereClause,
-      include: [{
-        model: User,
-        // as: 'MessFeesAllotStudent',
-        attributes: ['id', 'username', 'email']
-      }],
-      order: [['createdAt', 'DESC']]
-    });
-
-    res.json({
-      success: true,
-      data: allocations
-    });
-  } catch (error) {
-    console.error('Mess fees allocation fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-// ATTENDANCE AND CHARGES
-const getAttendanceStatsForDate = async (req, res) => {
-  try {
-    const { date } = req.query;
-    const hostel_id = req.user.hostel_id;
-
-    if (!date) {
-      return res.status(400).json({
-        success: false,
-        message: 'Date is required'
-      });
-    }
-
-    // Get attendance stats
-    const attendanceStats = await Attendance.findAll({
-      where: {
-        date,
-        '$AttendanceStudent.hostel_id$': hostel_id
-      },
-      include: [{
-        model: User,
-        // as: 'AttendanceStudent',
-        attributes: ['id', 'username', 'hostel_id']
-      }],
-      attributes: ['status', [sequelize.fn('count', sequelize.col('status')), 'count']],
-      group: ['status'],
-      raw: true
-    });
-
-    // Get leave stats
-    const leaveStats = await Leave.findAll({
-      where: {
-        from_date: { [Op.lte]: date },
-        to_date: { [Op.gte]: date },
-        status: 'approved',
-        '$LeaveStudent.hostel_id$': hostel_id
-      },
-      include: [{
-        model: User,
-        // as: 'LeaveStudent',
-        attributes: ['id', 'username', 'hostel_id']
-      }],
-      attributes: [[sequelize.fn('count', sequelize.col('Leave.id')), 'count']],
-      raw: true
-    });
-
-    res.json({
-      success: true,
-      data: {
-        attendance: attendanceStats,
-        onLeave: leaveStats[0]?.count || 0,
-        date
-      }
-    });
-  } catch (error) {
-    console.error('Attendance stats fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const calculateAndApplyDailyCharges = async (req, res) => {
-  try {
-    const { date, daily_rate } = req.body;
-    const hostel_id = req.user.hostel_id;
-
-    if (!date || !daily_rate) {
-      return res.status(400).json({
-        success: false,
-        message: 'Date and daily rate are required'
-      });
-    }
-
-    // Get all students in the hostel
-    const students = await User.findAll({
-      where: { hostel_id, role: 'student' }
-    });
-
-    const charges = await Promise.all(
-      students.map(async (student) => {
-        // Check attendance status
-        const attendance = await Attendance.findOne({
-          where: {
-            student_id: student.id,
-            date
-          }
-        });
-
-        // Check if on leave
-        const onLeave = await Leave.findOne({
-          where: {
-            student_id: student.id,
-            from_date: { [Op.lte]: date },
-            to_date: { [Op.gte]: date },
-            status: 'approved'
-          }
-        });
-
-        let attendanceStatus = 'not_marked';
-        let isCharged = true;
-
-        if (onLeave) {
-          attendanceStatus = 'leave';
-          isCharged = false;
-        } else if (attendance) {
-          attendanceStatus = attendance.status;
-          isCharged = attendance.status === 'present';
-        }
-
-        // Create or update daily mess charge
-        const [charge, created] = await DailyMessCharge.findOrCreate({
-          where: {
-            student_id: student.id,
-            date
-          },
-          defaults: {
-            hostel_id,
-            amount: isCharged ? daily_rate : 0,
-            attendance_status: attendanceStatus,
-            is_charged: isCharged
-          }
-        });
-
-        if (!created) {
-          await charge.update({
-            amount: isCharged ? daily_rate : 0,
-            attendance_status: attendanceStatus,
-            is_charged: isCharged
-          });
-        }
-
-        return charge;
-      })
-    );
-
-    res.json({
-      success: true,
-      data: charges,
-      message: 'Daily charges calculated and applied successfully'
-    });
-  } catch (error) {
-    console.error('Daily charges calculation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getMyMessCharges = async (req, res) => {
-  try {
-    const { month, year, from_date, to_date } = req.query;
-    const student_id = req.user.id;
-
-    let whereClause = { student_id };
-
-    if (month && year) {
-      whereClause[Op.and] = [
-        sequelize.where(sequelize.fn('EXTRACT', sequelize.literal('MONTH FROM date')), month),
-        sequelize.where(sequelize.fn('EXTRACT', sequelize.literal('YEAR FROM date')), year)
-      ];
-    } else if (from_date && to_date) {
-      whereClause.date = {
-        [Op.between]: [from_date, to_date]
-      };
-    }
-
-    const charges = await DailyMessCharge.findAll({
-      where: whereClause,
-      order: [['date', 'DESC']]
-    });
-
-    // Calculate summary
-    const totalAmount = charges.reduce((sum, charge) => sum + parseFloat(charge.amount), 0);
-    const chargedDays = charges.filter(charge => charge.is_charged).length;
-    const totalDays = charges.length;
-
-    res.json({
-      success: true,
-      data: {
-        charges,
-        summary: {
-          totalAmount,
-          chargedDays,
-          totalDays,
-          averageDailyCharge: totalDays > 0 ? totalAmount / totalDays : 0
-        }
-      }
-    });
-  } catch (error) {
-    console.error('My mess charges fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
 };
 
 // UOM MANAGEMENT
@@ -2369,9 +1002,8 @@ const deleteUOM = async (req, res) => {
 
     // Check if UOM is being used
     const itemCount = await Item.count({ where: { unit_id: id } });
-    const groceryCount = await Groceries.count({ where: { unit_id: id } });
     
-    if (itemCount > 0 || groceryCount > 0) {
+    if (itemCount > 0) {
       return res.status(400).json({
         success: false,
         message: 'Cannot delete UOM that is being used'
@@ -2400,11 +1032,11 @@ const calculateMenuCost = async (req, res) => {
       include: [
         {
           model: MenuItem,
-          // as: 'tbl_Menu_Items',
+          as: 'tbl_Menu_Items',
           include: [
             {
               model: Item,
-              // as: 'tbl_Item',
+              as: 'tbl_Item',
               attributes: ['id', 'name', 'unit_price']
             }
           ]
@@ -2460,28 +1092,7 @@ const getMessDashboardStats = async (req, res) => {
 
     const totalMenus = await Menu.count({ where: { hostel_id } });
     const totalItems = await Item.count();
-    const totalSuppliers = await Supplier.count({ where: { is_active: true } });
-    const pendingOrders = await PurchaseOrder.count({ 
-      where: { 
-        hostel_id, 
-        status: ['draft', 'sent', 'confirmed'] 
-      } 
-    });
-
-    // Monthly expenses
-    const currentMonth = new Date().getMonth() + 1;
-    const currentYear = new Date().getFullYear();
-
-    const monthlyExpenses = await OtherExpense.sum('amount', {
-      where: {
-        hostel_id,
-        [Op.and]: [
-          sequelize.where(sequelize.fn('EXTRACT', sequelize.literal('MONTH FROM expense_date')), currentMonth),
-          sequelize.where(sequelize.fn('EXTRACT', sequelize.literal('YEAR FROM expense_date')), currentYear)
-        ]
-      }
-    });
-
+    
     // Low stock items
     const lowStockCount = await ItemStock.count({
       where: {
@@ -2494,24 +1105,12 @@ const getMessDashboardStats = async (req, res) => {
       }
     });
 
-    // Pending bills
-    const pendingBills = await SupplierBill.count({
-      where: {
-        hostel_id,
-        status: 'pending'
-      }
-    });
-
     res.json({
       success: true,
       data: {
         totalMenus,
         totalItems,
-        totalSuppliers,
-        pendingOrders,
-        monthlyExpenses: monthlyExpenses || 0,
-        lowStockCount,
-        pendingBills
+        lowStockCount
       }
     });
   } catch (error) {
@@ -2519,373 +1118,263 @@ const getMessDashboardStats = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-// Add these functions in messController.js
 
-const getInventoryReport = async (req, res) => {
+const updateItemStock = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const { category_id, low_stock, date_range } = req.query;
-    const hostel_id = req.user.hostel_id;
+    const { item_id, hostel_id, quantity, unit_price, purchase_date } = req.body;
 
-    let whereClause = { hostel_id };
-
-    if (category_id) {
-      whereClause["$Item.category_id$"] = category_id;
+    // Validate inputs
+    if (!item_id || !hostel_id || !quantity || !unit_price) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Missing required fields: item_id, hostel_id, quantity, unit_price' });
     }
 
-    if (low_stock === "true") {
+    // Ensure Item and Hostel exist
+    const item = await Item.findByPk(item_id, { transaction });
+    if (!item) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'Item not found' });
+    }
+    const hostel = await Hostel.findByPk(hostel_id, { transaction });
+    if (!hostel) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'Hostel not found' });
+    }
+
+    // Update or create ItemStock
+    let itemStock = await ItemStock.findOne({ where: { item_id, hostel_id }, transaction });
+    if (itemStock) {
+      await itemStock.update(
+        { current_stock: parseFloat(itemStock.current_stock) + parseFloat(quantity) },
+        { transaction }
+      );
+    } else {
+      itemStock = await ItemStock.create(
+        { item_id, hostel_id, current_stock: quantity, minimum_stock: 0 },
+        { transaction }
+      );
+    }
+
+    // Create InventoryBatch
+    const batch = await InventoryBatch.create(
+      {
+        item_id,
+        hostel_id,
+        quantity_remaining: parseFloat(quantity),
+        unit_price: parseFloat(unit_price),
+        purchase_date: purchase_date || new Date(),
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+    res.json({ success: true, message: 'Stock and batch updated', data: { itemStock, batch } });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Update stock error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const getItemStock = async (req, res) => {
+  try {
+    const hostel_id = req.user.hostel_id;
+    const { low_stock } = req.query;
+
+    let whereClause = { hostel_id };
+    
+    if (low_stock === 'true') {
       whereClause = {
         ...whereClause,
-        [Op.and]: [
-          where(col("current_stock"), { [Op.lte]: col("minimum_stock") })
-        ]
+        [Op.where]: sequelize.where(
+          sequelize.col('current_stock'), 
+          Op.lte, 
+          sequelize.col('minimum_stock')
+        )
       };
     }
 
-    if (date_range) {
-      const [startDate, endDate] = date_range.split(",");
-      whereClause.updatedAt = {
-        [Op.between]: [
-          new Date(startDate + " 00:00:00"),
-          new Date(endDate + " 23:59:59"),
-        ],
-      };
-    }
-
-    const stocks = await ItemStock.findAll({
+    const itemStocks = await ItemStock.findAll({
       where: whereClause,
-      include: [
-        {
-          model: Item,
-          include: [
-            { model: ItemCategory, as: "tbl_ItemCategory" },
-            { model: UOM, as: "UOM" }
-          ]
-        }
-      ],
-    });
-
-    res.json({ success: true, data: stocks });
-  } catch (error) {
-    console.error("Inventory Report Error:", error);
-    res.status(500).json({ success: false, message: "Error fetching inventory report" });
-  }
-};
-
-// ---------------- Consumption Report ----------------
-const getConsumptionReport = async (req, res) => {
-  try {
-    const { start_date, end_date } = req.query;
-    const hostel_id = req.user.hostel_id;
-
-    if (!start_date || !end_date) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Start date and end date are required' 
-      });
-    }
-
-    let whereClause = { hostel_id };
-    whereClause.consumption_date = {
-      [Op.between]: [start_date, end_date]
-    };
-
-    const consumptions = await DailyConsumption.findAll({
-      where: whereClause,
-      include: [
-        { 
-          model: Item, 
-          include: [{ model: ItemCategory, as: "tbl_ItemCategory" }] 
-        },
-        // Remove the UOM relationship if it doesn't exist
-        { model: User, as: "ConsumptionRecordedBy" }
-      ],
-    });
-
-    res.json({ success: true, data: consumptions });
-  } catch (error) {
-    console.error("Consumption Report Error:", error);
-    res.status(500).json({ success: false, message: "Error fetching consumption report" });
-  }
-};
-
-// ---------------- Expense Report ----------------
-const getExpenseReport = async (req, res) => {
-  try {
-    const { date_range } = req.query;
-    const hostel_id = req.user.hostel_id;
-
-    let whereClause = { hostel_id };
-
-    if (date_range) {
-      const [startDate, endDate] = date_range.split(",");
-      whereClause.expense_date = {
-        [Op.between]: [
-          new Date(startDate + " 00:00:00"),
-          new Date(endDate + " 23:59:59"),
-        ],
-      };
-    }
-
-    const expenses = await Expense.findAll({
-      where: whereClause,
-      include: [{ model: ExpenseType, as: "ExpenseType" }],
-      attributes: [
-        "expense_type_id",
-        [fn("SUM", col("amount")), "total_amount"]
-      ],
-      group: ["ExpenseType.id", "ExpenseType.name"],
-    });
-
-    res.json({ success: true, data: expenses });
-  } catch (error) {
-    console.error("Expense Report Error:", error);
-    res.status(500).json({ success: false, message: "Error fetching expense report" });
-  }
-};
-
-// ---------------- Menu Planning Report ----------------
-const getMenuPlanningReport = async (req, res) => {
-  try {
-    const { date_range } = req.query;
-    const hostel_id = req.user.hostel_id;
-
-    let whereClause = { hostel_id };
-
-    if (date_range) {
-      const [startDate, endDate] = date_range.split(",");
-      whereClause.schedule_date = {
-        [Op.between]: [
-          new Date(startDate + " 00:00:00"),
-          new Date(endDate + " 23:59:59"),
-        ],
-      };
-    }
-
-    const menus = await MenuSchedule.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: Menu,
-          include: [
-            {
-              model: MenuItem,
-              as: "MenuItems",
-              include: [
-                { model: Item, include: [{ model: ItemCategory, as: "tbl_ItemCategory" }] }
-              ]
-            }
-          ]
-        }
-      ],
-    });
-
-    res.json({ success: true, data: menus });
-  } catch (error) {
-    console.error("Menu Planning Report Error:", error);
-    res.status(500).json({ success: false, message: "Error fetching menu planning report" });
-  }
-};
-
-// ---------------- Monthly Report ----------------
-const getMonthlyReport = async (req, res) => {
-  try {
-    const { month, year } = req.query;
-    const hostel_id = req.user.hostel_id;
-
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
-
-    // Expenses
-    const expenses = await Expense.findAll({
-      where: {
-        hostel_id,
-        expense_date: { [Op.between]: [startDate, endDate] },
-      },
-      attributes: [[fn("SUM", col("amount")), "total_expenses"]],
-    });
-
-    // Consumptions
-    const consumptions = await Consumption.findAll({
-      where: {
-        hostel_id,
-        consumption_date: { [Op.between]: [startDate, endDate] },
-      },
-      attributes: [[fn("SUM", col("quantity")), "total_consumed"]],
-    });
-
-    // Purchase Orders
-    const purchaseOrders = await PurchaseOrder.findAll({
-      where: {
-        hostel_id,
-        createdAt: { [Op.between]: [startDate, endDate] },
-        status: { [Op.in]: ["draft", "sent", "confirmed"] },
-      },
-      include: [{ model: Supplier, as: "Supplier" }],
+      include: [{
+        model: Item,
+        include: [{
+          model: ItemCategory,
+          as: 'tbl_ItemCategory'
+        }]
+      }],
+      order: [['last_updated', 'DESC']]
     });
 
     res.json({
       success: true,
-      data: {
-        expenses: expenses[0],
-        consumptions: consumptions[0],
-        purchaseOrders,
-      },
+      data: itemStocks
     });
   } catch (error) {
-    console.error("Monthly Report Error:", error);
-    res.status(500).json({ success: false, message: "Error fetching monthly report" });
+    console.error('Item stock fetch error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
+const getDailyConsumption = async (req, res) => {
+  try {
+    const { date, meal_type, item_id } = req.query;
+    const hostel_id = req.user.hostel_id;
+
+    let whereClause = { hostel_id };
+
+    if (date) whereClause.consumption_date = date;
+    if (meal_type) whereClause.meal_type = meal_type;
+    if (item_id) whereClause.item_id = item_id;
+
+    const consumptions = await DailyConsumption.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: Item,
+          include: [{
+            model: ItemCategory,
+            as: 'tbl_ItemCategory'
+          }]
+        },
+        {
+          model: User,
+          as: 'ConsumptionRecordedBy',
+          attributes: ['id', 'username']
+        }
+      ],
+      order: [['consumption_date', 'DESC'], ['createdAt', 'DESC']]
+    });
+
+    res.json({
+      success: true,
+      data: consumptions
+    });
+  } catch (error) {
+    console.error('Daily consumption fetch error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_id, transaction) => {
+  const createdConsumptions = [];
+  const lowStockItems = [];
+
+  for (const consumption of consumptions) {
+    const { item_id, quantity_consumed, unit, consumption_date, meal_type } = consumption;
+    
+    // Check available stock
+    const itemStock = await ItemStock.findOne({ where: { item_id, hostel_id }, transaction });
+    if (!itemStock || parseFloat(itemStock.current_stock) < parseFloat(quantity_consumed)) {
+      throw new Error(`Insufficient stock for item ID ${item_id}. Available: ${itemStock?.current_stock || 0}, Required: ${quantity_consumed}`);
+    }
+
+    let remaining_to_consume = parseFloat(quantity_consumed);
+    let total_cost_for_consumption = 0;
+
+    // Create DailyConsumption record
+    const dailyConsumptionRecord = await DailyConsumption.create({
+      hostel_id,
+      item_id,
+      consumption_date: consumption_date || new Date(),
+      quantity_consumed,
+      unit,
+      meal_type: meal_type || 'dinner',
+      recorded_by: user_id
+    }, { transaction });
+    
+    // Consume from inventory batches using FIFO
+    const batches = await InventoryBatch.findAll({
+      where: {
+        item_id,
+        hostel_id,
+        quantity_remaining: { [Op.gt]: 0 }
+      },
+      order: [['purchase_date', 'ASC']],
+      transaction
+    });
+
+    if (batches.length === 0) {
+      // Log consumption without a batch (cost will be 0)
+      await ConsumptionLog.create({
+        daily_consumption_id: dailyConsumptionRecord.id,
+        batch_id: null,
+        quantity_consumed: quantity_consumed,
+        cost: 0,
+      }, { transaction });
+    } else {
+      for (const batch of batches) {
+        if (remaining_to_consume <= 0) break;
+        
+        const consumed_from_batch = Math.min(remaining_to_consume, parseFloat(batch.quantity_remaining));
+        const cost_from_batch = consumed_from_batch * parseFloat(batch.unit_price);
+        
+        remaining_to_consume -= consumed_from_batch;
+        total_cost_for_consumption += cost_from_batch;
+
+        await batch.update({
+          quantity_remaining: parseFloat(batch.quantity_remaining) - consumed_from_batch
+        }, { transaction });
+
+        await ConsumptionLog.create({
+          daily_consumption_id: dailyConsumptionRecord.id,
+          batch_id: batch.id,
+          quantity_consumed: consumed_from_batch,
+          cost: cost_from_batch,
+        }, { transaction });
+      }
+    }
+
+    // Update ItemStock
+    const newStock = Math.max(0, parseFloat(itemStock.current_stock) - parseFloat(quantity_consumed));
+    await itemStock.update({ current_stock: newStock }, { transaction });
+
+    // Check if stock is now low
+    if (newStock <= parseFloat(itemStock.minimum_stock)) {
+      const item = await Item.findByPk(item_id, { transaction });
+      lowStockItems.push({
+        item_id,
+        item_name: item.name,
+        current_stock: newStock,
+        minimum_stock: itemStock.minimum_stock,
+      });
+    }
+
+    createdConsumptions.push(dailyConsumptionRecord);
+  }
+
+  return { createdConsumptions, lowStockItems };
+};
+
+// Update the `recordBulkConsumption` API handler to use the new logic
 const recordBulkConsumption = async (req, res) => {
   const { consumptions } = req.body;
   const hostel_id = req.user.hostel_id;
+  const user_id = req.user.id;
   const transaction = await sequelize.transaction();
 
   try {
-    console.log('Starting bulk consumption record with data:', JSON.stringify(consumptions));
-    console.log('Hostel ID:', hostel_id, 'User ID:', req.user.id);
-    
     if (!consumptions || !Array.isArray(consumptions) || consumptions.length === 0) {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Consumptions array is required' });
     }
 
-    const createdConsumptions = [];
-    const createdLogs = [];
-    const errors = [];
-
-    for (const consumption of consumptions) {
-      try {
-        console.log('Processing consumption:', JSON.stringify(consumption));
-        const { item_id, quantity_consumed, unit, consumption_date } = consumption;
-        
-        if (!item_id || !quantity_consumed) {
-          errors.push(`Missing required fields for consumption: ${JSON.stringify(consumption)}`);
-          continue;
-        }
-        
-        let remaining_to_consume = parseFloat(quantity_consumed);
-        console.log(`Need to consume ${remaining_to_consume} ${unit} of item ${item_id}`);
-
-        // 1. Create a record in the DailyConsumption table
-        const dailyConsumptionRecord = await DailyConsumption.create({
-          hostel_id,
-          item_id,
-          consumption_date: consumption_date || new Date(),
-          quantity_consumed,
-          unit,
-          meal_type: consumption.meal_type || 'dinner',
-          recorded_by: req.user.id
-        }, { transaction });
-        
-        console.log('Created DailyConsumption record:', JSON.stringify(dailyConsumptionRecord.toJSON()));
-        createdConsumptions.push(dailyConsumptionRecord);
-
-        // 2. Consume from inventory batches using FIFO
-        const batches = await InventoryBatch.findAll({
-          where: {
-            item_id,
-            hostel_id,
-            quantity_remaining: { [Op.gt]: 0 } // Only get batches with stock
-          },
-          order: [['purchase_date', 'ASC']], // Oldest batches first
-          transaction
-        });
-        
-        console.log(`Found ${batches.length} batches with remaining stock`);
-        
-        if (batches.length === 0) {
-          console.warn(`No inventory batches found for item ${item_id}. Creating consumption log with zero cost.`);
-          // Create a dummy consumption log with zero cost
-          const dummyLog = await ConsumptionLog.create({
-            daily_consumption_id: dailyConsumptionRecord.id,
-            batch_id: null, // This will likely fail if batch_id has NOT NULL constraint
-            quantity_consumed: quantity_consumed,
-            cost: 0,
-          }, { transaction });
-          createdLogs.push(dummyLog);
-          
-          // Update ItemStock directly if no batches found
-          const itemStock = await ItemStock.findOne({ where: { item_id, hostel_id }, transaction });
-          if (itemStock) {
-            const newStock = Math.max(0, parseFloat(itemStock.current_stock) - parseFloat(quantity_consumed));
-            await itemStock.update({ current_stock: newStock }, { transaction });
-            console.log(`Updated ItemStock: ${itemStock.current_stock} -> ${newStock}`);
-          }
-          
-          continue; // Skip to next consumption
-        }
-
-        for (const batch of batches) {
-          if (remaining_to_consume <= 0) break;
-          
-          console.log(`Processing batch ${batch.id}: ${batch.quantity_remaining} remaining at price ${batch.unit_price}`);
-
-          const consumed_from_batch = Math.min(remaining_to_consume, parseFloat(batch.quantity_remaining));
-          const cost_from_batch = consumed_from_batch * parseFloat(batch.unit_price);
-          
-          remaining_to_consume -= consumed_from_batch;
-          
-          console.log(`Consuming ${consumed_from_batch} from batch ${batch.id}, cost: ${cost_from_batch}`);
-          console.log(`Remaining to consume: ${remaining_to_consume}`);
-
-          // Update the batch's remaining quantity
-          const newRemainingQuantity = parseFloat(batch.quantity_remaining) - consumed_from_batch;
-          await batch.update({
-            quantity_remaining: newRemainingQuantity
-          }, { transaction });
-          
-          console.log(`Updated batch ${batch.id} remaining quantity: ${batch.quantity_remaining} -> ${newRemainingQuantity}`);
-
-          // 3. Create a record in the ConsumptionLog table for each batch consumed
-          try {
-            const consumptionLog = await ConsumptionLog.create({
-              daily_consumption_id: dailyConsumptionRecord.id,
-              batch_id: batch.id,
-              quantity_consumed: consumed_from_batch,
-              cost: cost_from_batch,
-            }, { transaction });
-            
-            console.log('Created ConsumptionLog:', JSON.stringify(consumptionLog.toJSON()));
-            createdLogs.push(consumptionLog);
-          } catch (logError) {
-            console.error(`Error creating consumption log for batch ${batch.id}:`, logError);
-            errors.push(`Failed to create consumption log: ${logError.message}`);
-            throw logError; // Rethrow to trigger transaction rollback
-          }
-        }
-
-        // Check if there's still quantity to consume but no more batches
-        if (remaining_to_consume > 0) {
-          console.warn(`Insufficient inventory. Still need to consume ${remaining_to_consume} but no more batches available.`);
-        }
-
-        // 4. Update the total stock in ItemStock
-        const itemStock = await ItemStock.findOne({ where: { item_id, hostel_id }, transaction });
-        if (itemStock) {
-          const newStock = Math.max(0, parseFloat(itemStock.current_stock) - parseFloat(quantity_consumed));
-          await itemStock.update({ current_stock: newStock }, { transaction });
-          console.log(`Updated ItemStock: ${itemStock.current_stock} -> ${newStock}`);
-        } else {
-          console.warn(`No ItemStock record found for item ${item_id}`);
-        }
-      } catch (consumptionError) {
-        console.error('Error processing consumption:', consumptionError);
-        errors.push(`Error processing consumption: ${consumptionError.message}`);
-        throw consumptionError; // Rethrow to trigger transaction rollback
-      }
-    }
+    const { createdConsumptions, lowStockItems } = await _recordBulkConsumptionLogic(
+      consumptions, 
+      hostel_id, 
+      user_id, 
+      transaction
+    );
 
     await transaction.commit();
-    console.log(`Successfully recorded ${createdConsumptions.length} consumptions with ${createdLogs.length} consumption logs`);
     
     res.status(201).json({ 
       success: true, 
-      message: 'Consumptions recorded successfully', 
+      message: 'Consumptions recorded successfully',
       data: {
         consumptions: createdConsumptions,
-        logs: createdLogs,
-        errors: errors.length > 0 ? errors : undefined
+        lowStockItems, // Include low stock items in response
       }
     });
   } catch (error) {
@@ -2893,39 +1382,182 @@ const recordBulkConsumption = async (req, res) => {
     console.error('Bulk consumption record error:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Server error: ' + (error.sqlMessage || error.message),
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: 'Server error: ' + (error.message || 'Unknown error')
     });
   }
 };
-const createStore = async (req, res) => {
-try {
-const { name, address, contact_number } = req.body;
+// ... (existing controllers)
 
-if (!name) {
-  return res.status(400).json({ 
-    success: false, 
-    message: 'Store name is required' 
-  });
-}
+// Modify markMenuAsServed to use the helper
 
-const store = await Store.create({
-  name,
-  address,
-  contact_number,
-  is_active: true
-});
+// INVENTORY PURCHASE
+const recordInventoryPurchase = async (req, res) => {
+  const { items } = req.body;
+  const hostel_id = req.user.hostel_id;
+  const transaction = await sequelize.transaction();
 
-res.status(201).json({
-  success: true,
-  data: store,
-  message: 'Store created successfully'
-});
-} catch (error) {
-console.error('Store creation error:', error);
-res.status(500).json({ success: false, message: 'Server error' });
-}
+  try {
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      throw new Error('Items array is required');
+    }
+
+    const createdBatches = [];
+
+    for (const item of items) {
+      if (!item.item_id) {
+        console.error('Missing item_id for inventory item');
+        continue;
+      }
+
+      try {
+        // Create a new inventory batch for this purchase
+        const newBatch = await InventoryBatch.create({
+          item_id: item.item_id,
+          hostel_id,
+          quantity_remaining: item.quantity,
+          unit_price: item.unit_price,
+          purchase_date: item.transaction_date || new Date(),
+        }, { transaction });
+        
+        createdBatches.push(newBatch);
+
+        // Update or create the ItemStock record
+        let itemStock = await ItemStock.findOne({ 
+          where: { item_id: item.item_id, hostel_id },
+          transaction
+        });
+        
+        if (itemStock) {
+          // Calculate the new weighted average unit price
+          const existingStock = parseFloat(itemStock.current_stock);
+          const existingPrice = parseFloat(itemStock.unit_price || 0);
+          const newQuantity = parseFloat(item.quantity);
+          const newPrice = parseFloat(item.unit_price);
+          
+          const newAveragePrice = ((existingStock * existingPrice) + (newQuantity * newPrice)) / (existingStock + newQuantity);
+          
+          await itemStock.update({
+            current_stock: existingStock + newQuantity,
+            unit_price: newAveragePrice,
+          }, { transaction });
+        } else {
+          itemStock = await ItemStock.create({
+            item_id: item.item_id,
+            hostel_id,
+            current_stock: item.quantity,
+            unit_price: item.unit_price,
+            minimum_stock: 0,
+          }, { transaction });
+        }
+      } catch (itemError) {
+        throw itemError;
+      }
+    }
+
+    await transaction.commit();
+    res.status(201).json({ 
+      success: true, 
+      message: 'Purchases recorded and inventory batches created.',
+      data: createdBatches
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Inventory purchase error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error: ' + error.message
+    });
+  }
 };
+
+const getInventoryTransactions = async (req, res) => {
+  try {
+    const { transaction_type, item_id, store_id, from_date, to_date } = req.query;
+    const hostel_id = req.user.hostel_id;
+
+    let whereClause = { hostel_id };
+
+    if (transaction_type) {
+      whereClause.transaction_type = transaction_type;
+    }
+    
+    if (item_id) {
+      whereClause.item_id = item_id;
+    }
+    
+    if (store_id) {
+      whereClause.store_id = store_id;
+    }
+    
+    if (from_date && to_date) {
+      whereClause.transaction_date = {
+        [Op.between]: [from_date, to_date]
+      };
+    }
+
+    const transactions = await InventoryTransaction.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: Item,
+          include: [{ 
+            model: ItemCategory, 
+            as: 'tbl_ItemCategory' 
+          }]
+        },
+        {
+          model: Store,
+          attributes: ['id', 'name']
+        },
+        {
+          model: User,
+          as: 'RecordedBy',
+          attributes: ['id', 'username']
+        }
+      ],
+      order: [['transaction_date', 'DESC'], ['createdAt', 'DESC']]
+    });
+
+    res.json({
+      success: true,
+      data: transactions
+    });
+  } catch (error) {
+    console.error('Inventory transactions fetch error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// STORE MANAGEMENT
+const createStore = async (req, res) => {
+  try {
+    const { name, address, contact_number } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Store name is required' 
+      });
+    }
+
+    const store = await Store.create({
+      name,
+      address,
+      contact_number,
+      is_active: true
+    });
+
+    res.status(201).json({
+      success: true,
+      data: store,
+      message: 'Store created successfully'
+    });
+  } catch (error) {
+    console.error('Store creation error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 const getStores = async (req, res) => {
   try {
     const { search, is_active } = req.query;
@@ -3129,165 +1761,6 @@ const removeItemStoreMapping = async (req, res) => {
   }
 };
 
-// Inventory Transactions
-const recordInventoryPurchase = async (req, res) => {
-  const { items } = req.body;
-  const hostel_id = req.user.hostel_id;
-  const transaction = await sequelize.transaction();
-
-  try {
-    console.log('Starting inventory purchase with items:', JSON.stringify(items));
-    console.log('Hostel ID:', hostel_id);
-    
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      throw new Error('Items array is required');
-    }
-
-    const createdBatches = [];
-
-    for (const item of items) {
-      console.log('Processing item:', JSON.stringify(item));
-      
-      // Validate the required fields
-      if (!item.item_id) {
-        console.error('Missing item_id for inventory item');
-        continue;
-      }
-
-      try {
-        // 1. Create a new inventory batch for this purchase
-        const newBatch = await InventoryBatch.create({
-          item_id: item.item_id,
-          hostel_id,
-          quantity_remaining: item.quantity,
-          unit_price: item.unit_price,
-          purchase_date: item.transaction_date || new Date(),
-        }, { transaction });
-        
-        console.log('Created inventory batch:', JSON.stringify(newBatch.toJSON()));
-        createdBatches.push(newBatch);
-
-        // 2. Update or create the ItemStock record
-        let itemStock = await ItemStock.findOne({ 
-          where: { item_id: item.item_id, hostel_id },
-          transaction
-        });
-        
-        if (itemStock) {
-          console.log('Found existing ItemStock:', JSON.stringify(itemStock.toJSON()));
-          // Calculate the new weighted average unit price
-          const existingStock = parseFloat(itemStock.current_stock);
-          const existingPrice = parseFloat(itemStock.unit_price || 0);
-          const newQuantity = parseFloat(item.quantity);
-          const newPrice = parseFloat(item.unit_price);
-          
-          const newAveragePrice = ((existingStock * existingPrice) + (newQuantity * newPrice)) / (existingStock + newQuantity);
-          
-          // Update both current_stock and unit_price
-          await itemStock.update({
-            current_stock: existingStock + newQuantity,
-            unit_price: newAveragePrice,
-          }, { transaction });
-          
-          console.log('Updated ItemStock:', {
-            id: itemStock.id,
-            new_stock: existingStock + newQuantity,
-            new_price: newAveragePrice
-          });
-        } else {
-          // If no ItemStock record exists, create one
-          itemStock = await ItemStock.create({
-            item_id: item.item_id,
-            hostel_id,
-            current_stock: item.quantity,
-            unit_price: item.unit_price, // The initial unit price is the purchased price
-            minimum_stock: 0,
-          }, { transaction });
-          
-          console.log('Created new ItemStock:', JSON.stringify(itemStock.toJSON()));
-        }
-      } catch (itemError) {
-        console.error(`Error processing item ${item.item_id}:`, itemError);
-        throw itemError; // Rethrow to trigger transaction rollback
-      }
-    }
-
-    await transaction.commit();
-    console.log(`Successfully created ${createdBatches.length} inventory batches`);
-    res.status(201).json({ 
-      success: true, 
-      message: 'Purchases recorded and inventory batches created.',
-      data: createdBatches
-    });
-  } catch (error) {
-    await transaction.rollback();
-    console.error('Inventory purchase error:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error: ' + error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-  }
-};
-
-const getInventoryTransactions = async (req, res) => {
-  try {
-    const { transaction_type, item_id, store_id, from_date, to_date } = req.query;
-    const hostel_id = req.user.hostel_id;
-
-    let whereClause = { hostel_id };
-
-    if (transaction_type) {
-      whereClause.transaction_type = transaction_type;
-    }
-    
-    if (item_id) {
-      whereClause.item_id = item_id;
-    }
-    
-    if (store_id) {
-      whereClause.store_id = store_id;
-    }
-    
-    if (from_date && to_date) {
-      whereClause.transaction_date = {
-        [Op.between]: [from_date, to_date]
-      };
-    }
-
-    const transactions = await InventoryTransaction.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: Item,
-          include: [{ 
-            model: ItemCategory, 
-            as: 'tbl_ItemCategory' 
-          }]
-        },
-        {
-          model: Store,
-          attributes: ['id', 'name']
-        },
-        {
-          model: User,
-          as: 'RecordedBy',
-          attributes: ['id', 'username']
-        }
-      ],
-      order: [['transaction_date', 'DESC'], ['createdAt', 'DESC']]
-    });
-
-    res.json({
-      success: true,
-      data: transactions
-    });
-  } catch (error) {
-    console.error('Inventory transactions fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
 // SPECIAL FOOD ITEMS MANAGEMENT
 const createSpecialFoodItem = async (req, res) => {
   try {
@@ -3320,6 +1793,7 @@ const createSpecialFoodItem = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
 const getSpecialFoodItems = async (req, res) => {
   try {
     const { category, is_available, search } = req.query;
@@ -3342,11 +1816,11 @@ const getSpecialFoodItems = async (req, res) => {
     console.error('Special food items fetch error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      message: 'Server error'
     });
   }
 };
+
 const getSpecialFoodItemById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -3879,6 +2353,7 @@ const getMonthlyFoodOrderReport = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
 const getItemsByStoreId = async (req, res) => {
   try {
     const { store_id } = req.params;
@@ -3888,21 +2363,21 @@ const getItemsByStoreId = async (req, res) => {
       include: [
         {
           model: Item,
-          include: [{ model: UOM, as: 'UOM', required: false }] // Include UOM for display
+          include: [{ model: UOM, as: 'UOM', required: false }]
         }
       ],
-      order: [[Item, 'name', 'ASC']] // Order by item name
+      order: [[Item, 'name', 'ASC']]
     });
 
     if (!itemStores) {
       return res.status(404).json({ success: false, message: 'No items mapped to this store yet.' });
     }
 
-    // Format the response to be easy for the frontend to use
+    // Format the response
     const items = itemStores.map(is => ({
       item_id: is.item_id,
       name: is.Item.name,
-      unit_price: is.price, // Last known price from this store
+      unit_price: is.price,
       unit: is.Item.UOM?.abbreviation || 'unit'
     }));
 
@@ -3912,6 +2387,7 @@ const getItemsByStoreId = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
 const getStoresByItemId = async (req, res) => {
   try {
     const { item_id } = req.params;
@@ -3924,18 +2400,17 @@ const getStoresByItemId = async (req, res) => {
           attributes: ['id', 'name']
         }
       ],
-      order: [['is_preferred', 'DESC'], ['updatedAt', 'DESC']] // Show preferred/most recent first
+      order: [['is_preferred', 'DESC'], ['updatedAt', 'DESC']]
     });
 
     if (!itemStores) {
       return res.status(404).json({ success: false, message: 'No stores mapped to this item yet.' });
     }
 
-    // Format the response to be easy for the frontend to use
     const stores = itemStores.map(is => ({
       store_id: is.store_id,
       name: is.Store.name,
-      price: is.price, // Send the last known price
+      price: is.price,
       is_preferred: is.is_preferred
     }));
 
@@ -3945,7 +2420,7 @@ const getStoresByItemId = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-// In messController.js
+
 const getSummarizedConsumptionReport = async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
@@ -3979,6 +2454,80 @@ const getSummarizedConsumptionReport = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+const markMenuAsServed = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const hostel_id = req.user.hostel_id;
+
+    const schedule = await MenuSchedule.findOne({
+      where: { id, hostel_id },
+      include: [
+        {
+          model: Menu,
+          include: [
+            {
+              model: MenuItem,
+              as: 'tbl_Menu_Items',
+              include: [{ model: Item, as: 'tbl_Item' }]
+            }
+          ]
+        }
+      ],
+      transaction
+    });
+
+    if (!schedule) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'Schedule not found' });
+    }
+
+    if (schedule.status === 'served') {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Menu is already marked as served' });
+    }
+
+    await schedule.update({ status: 'served' }, { transaction });
+
+    let lowStockItems = [];
+    if (schedule.Menu?.tbl_Menu_Items?.length > 0) {
+      const consumptionDate = schedule.scheduled_date;
+      const meal_type = schedule.meal_time;
+      
+      const consumptions = schedule.Menu.tbl_Menu_Items.map(menuItem => ({
+        item_id: menuItem.item_id,
+        quantity_consumed: menuItem.quantity * schedule.estimated_servings,
+        unit: menuItem.unit,
+        consumption_date: consumptionDate,
+        meal_type: meal_type
+      }));
+
+      // Call the reusable logic function directly, passing the transaction
+      const consumptionResult = await _recordBulkConsumptionLogic(
+        consumptions, 
+        hostel_id, 
+        req.user.id, 
+        transaction
+      );
+      lowStockItems = consumptionResult.lowStockItems;
+    }
+
+    await transaction.commit();
+    
+    res.json({
+      success: true,
+      message: 'Menu marked as served and consumption recorded',
+      data: {
+        schedule,
+        lowStockItems,
+      }
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Mark menu as served error:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + (error.message || 'Unknown error') });
+  }
+};
 module.exports = {
   // Menu Management
   createMenu,
@@ -4006,62 +2555,11 @@ module.exports = {
   updateMenuItems,
   removeItemFromMenu,
   
-  // Mess Bills
-  generateMessBills,
-  getMessBills,
-  
   // Menu Scheduling
   scheduleMenu,
   getMenuSchedule,
-  
-  // Token Management
-  generateTokens,
-  
-  // Grocery Management
-  createGroceryType,
-  getGroceryTypes,
-  updateGroceryType,
-  deleteGroceryType,
-  createGrocery,
-  getGroceries,
-  updateGrocery,
-  deleteGrocery,
-  
-  // Stock Management
-  updateItemStock,
-  getItemStock,
-  
-  // Consumption Management
-  getDailyConsumption,
-  
-  // Supplier Management
-  createSupplier,
-  getSuppliers,
-  updateSupplier,
-  deleteSupplier,
-  
-  // Purchase Order Management
-  createPurchaseOrder,
-  getPurchaseOrders,
-  
-  // Supplier Bill Management
-  createSupplierBill,
-  getSupplierBills,
-  
-  // Expense Management
-  createExpenseType,
-  getExpenseTypes,
-  createOtherExpense,
-  getOtherExpenses,
-  
-  // Mess Fees Management
-  allocateMessFees,
-  getMessFeesAllocation,
-  
-  // Attendance and Charges
-  getAttendanceStatsForDate,
-  calculateAndApplyDailyCharges,
-  getMyMessCharges,
+  updateMenuSchedule,
+  deleteMenuSchedule,
   
   // UOM Management
   createUOM,
@@ -4069,34 +2567,43 @@ module.exports = {
   updateUOM,
   deleteUOM,
   
+  // Stock Management
+  updateItemStock,
+  getItemStock,
+  
+  // Consumption Management
+  getDailyConsumption,
+  recordBulkConsumption,
+  
   // Menu Cost Calculation
   calculateMenuCost,
   
   // Dashboard
   getMessDashboardStats,
-  // Add these to your existing exports in messController.js
   
-  getInventoryReport,
-  getConsumptionReport,
-  getExpenseReport,
-  getMenuPlanningReport,
-  getMonthlyReport,
-  recordBulkConsumption,
+  // Store Management
   createStore,
   getStores,
   updateStore,
   deleteStore,
+  
+  // Item-Store Mapping
   mapItemToStore,
   getItemStores,
   removeItemStoreMapping,
+  
+  // Inventory Management
   recordInventoryPurchase,
   getInventoryTransactions,
-
+  
+  // Special Food Items
   createSpecialFoodItem,
   getSpecialFoodItems,
   getSpecialFoodItemById,
   updateSpecialFoodItem,
   deleteSpecialFoodItem,
+  
+  // Food Orders
   createFoodOrder,
   getFoodOrders,
   getFoodOrderById,
@@ -4104,9 +2611,8 @@ module.exports = {
   updatePaymentStatus,
   cancelFoodOrder,
   getMonthlyFoodOrderReport,
-  updateMenuSchedule,
-  deleteMenuSchedule, 
   getItemsByStoreId,
   getStoresByItemId,
-  getSummarizedConsumptionReport
+  getSummarizedConsumptionReport,
+  markMenuAsServed
 };

@@ -1,192 +1,224 @@
-// src/components/mess/StoreManagement.jsx
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Modal, Form, Input, Switch, Space, message, Popconfirm, Spin, Alert } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
+import {
+  Card, Table, Button, Space, Tag, message, Modal, Form, Input,
+  Popconfirm, Typography, Tooltip, Switch
+} from 'antd';
+import {
+  PlusOutlined, EditOutlined, DeleteOutlined, ShopOutlined,
+  EnvironmentOutlined, PhoneOutlined, InfoCircleOutlined
+} from '@ant-design/icons';
 import { messAPI } from '../../services/api';
 
+const { Text, Title } = Typography;
+
 const StoreManagement = () => {
-  const [form] = Form.useForm();
   const [stores, setStores] = useState([]);
-  const [isModalVisible, setIsModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
   const [editingStore, setEditingStore] = useState(null);
+  const [form] = Form.useForm();
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
 
   useEffect(() => {
     fetchStores();
-  }, []);
+  }, [showInactive]);
 
   const fetchStores = async () => {
     setLoading(true);
     try {
-      const response = await messAPI.getStores();
-      if (response.data.success) {
-        setStores(response.data.data);
-      } else {
-        setError('Failed to load stores: ' + (response.data.message || 'Unknown error'));
+      const params = {};
+      if (!showInactive) {
+        params.is_active = 'true';
       }
+      
+      const response = await messAPI.getStores(params);
+      setStores(response.data.data || []);
     } catch (error) {
-      console.error('Failed to fetch stores:', error);
-      setError('Failed to load stores. Please try again later.');
+      message.error('Failed to fetch stores');
     } finally {
       setLoading(false);
     }
   };
 
-  const showModal = (store = null) => {
-    setEditingStore(store);
+  const handleCreate = () => {
+    setEditingStore(null);
     form.resetFields();
-    if (store) {
-      form.setFieldsValue({
-        name: store.name,
-        address: store.address,
-        contact_number: store.contact_number,
-        is_active: store.is_active
-      });
-    }
-    setIsModalVisible(true);
+    setModalVisible(true);
   };
 
-  const handleCancel = () => {
-    setIsModalVisible(false);
-    setEditingStore(null);
+  const handleEdit = (store) => {
+    setEditingStore(store);
+    form.setFieldsValue({
+      name: store.name,
+      address: store.address,
+      contact_number: store.contact_number,
+      is_active: store.is_active
+    });
+    setModalVisible(true);
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await messAPI.deleteStore(id);
+      message.success('Store deleted successfully');
+      fetchStores();
+    } catch (error) {
+      if (error.response?.status === 400) {
+        message.error('This store cannot be deleted because it is being used by items');
+      } else {
+        message.error('Failed to delete store');
+      }
+    }
   };
 
   const handleSubmit = async (values) => {
-    setSubmitting(true);
+    setConfirmLoading(true);
     try {
-      let response;
       if (editingStore) {
-        response = await messAPI.updateStore(editingStore.id, values);
+        await messAPI.updateStore(editingStore.id, values);
+        message.success('Store updated successfully');
       } else {
-        response = await messAPI.createStore(values);
+        await messAPI.createStore(values);
+        message.success('Store created successfully');
       }
-      
-      if (response.data.success) {
-        message.success(`Store ${editingStore ? 'updated' : 'created'} successfully`);
-        setIsModalVisible(false);
-        fetchStores();
-      } else {
-        setError(`Failed to ${editingStore ? 'update' : 'create'} store: ` + 
-          (response.data.message || 'Unknown error'));
-      }
+      setModalVisible(false);
+      fetchStores();
     } catch (error) {
-      console.error(`Failed to ${editingStore ? 'update' : 'create'} store:`, error);
-      setError(`Failed to ${editingStore ? 'update' : 'create'} store. Please try again later.`);
+      message.error('Failed to save store');
     } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDeleteStore = async (id) => {
-    try {
-      const response = await messAPI.deleteStore(id);
-      if (response.data.success) {
-        message.success('Store deleted successfully');
-        fetchStores();
-      } else {
-        message.error('Failed to delete store: ' + (response.data.message || 'Unknown error'));
-      }
-    } catch (error) {
-      console.error('Failed to delete store:', error);
-      message.error('Failed to delete store. Please try again later.');
+      setConfirmLoading(false);
     }
   };
 
   const columns = [
     {
-      title: 'Name',
+      title: 'Store Name',
       dataIndex: 'name',
-      key: 'name'
+      key: 'name',
+      sorter: (a, b) => a.name.localeCompare(b.name),
+      render: (text) => (
+        <Space>
+          <ShopOutlined />
+          <span>{text}</span>
+        </Space>
+      )
     },
     {
       title: 'Address',
       dataIndex: 'address',
       key: 'address',
-      ellipsis: true
+      render: (text) => (
+        text ? (
+          <Space>
+            <EnvironmentOutlined />
+            <span>{text}</span>
+          </Space>
+        ) : 'N/A'
+      )
     },
     {
       title: 'Contact',
       dataIndex: 'contact_number',
-      key: 'contact'
+      key: 'contact',
+      render: (text) => (
+        text ? (
+          <Space>
+            <PhoneOutlined />
+            <span>{text}</span>
+          </Space>
+        ) : 'N/A'
+      )
     },
     {
       title: 'Status',
       dataIndex: 'is_active',
       key: 'status',
-      render: (isActive) => (
-        <span style={{ color: isActive ? 'green' : 'red' }}>
-          {isActive ? 'Active' : 'Inactive'}
-        </span>
-      )
+      render: (active) => (
+        <Tag color={active ? 'green' : 'red'}>
+          {active ? 'Active' : 'Inactive'}
+        </Tag>
+      ),
+      filters: [
+        { text: 'Active', value: true },
+        { text: 'Inactive', value: false }
+      ],
+      onFilter: (value, record) => record.is_active === value
     },
     {
-      title: 'Action',
-      key: 'action',
+      title: 'Actions',
+      key: 'actions',
       render: (_, record) => (
         <Space>
           <Button
-            type="primary"
             icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
             size="small"
-            onClick={() => showModal(record)}
           />
           <Popconfirm
             title="Are you sure you want to delete this store?"
-            onConfirm={() => handleDeleteStore(record.id)}
+            onConfirm={() => handleDelete(record.id)}
             okText="Yes"
             cancelText="No"
           >
             <Button
-              type="danger"
               icon={<DeleteOutlined />}
+              danger
               size="small"
             />
           </Popconfirm>
+          <Button 
+            size="small" 
+            onClick={() => {
+              // Navigate to item-store mapping with this store pre-selected
+              window.location.href = `/mess/item-store-mapping?store=${record.id}`;
+            }}
+          >
+            Map Items
+          </Button>
         </Space>
       )
     }
   ];
 
   return (
-    <Card title="Store Management" bordered={false}>
-      {error && (
-        <Alert
-          message="Error"
-          description={error}
-          type="error"
-          showIcon
-          closable
-          style={{ marginBottom: 16 }}
-          onClose={() => setError(null)}
-        />
-      )}
-      
-      <Button
-        type="primary"
-        icon={<PlusOutlined />}
-        onClick={() => showModal()}
-        style={{ marginBottom: 16 }}
-      >
-        Add Store
-      </Button>
-      
-      <Spin spinning={loading}>
-        <Table
-          dataSource={stores}
-          columns={columns}
-          rowKey="id"
-          pagination={{ pageSize: 10 }}
-          bordered
-        />
-      </Spin>
-      
+    <Card 
+      title="Store Management"
+      extra={
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+          Add Store
+        </Button>
+      }
+    >
+      <div style={{ marginBottom: 16 }}>
+        <Space>
+          <Switch
+            checked={showInactive}
+            onChange={(checked) => setShowInactive(checked)}
+            checkedChildren="Show All"
+            unCheckedChildren="Active Only"
+          />
+          
+          <Button onClick={fetchStores} loading={loading}>
+            Refresh
+          </Button>
+        </Space>
+      </div>
+
+      <Table
+        columns={columns}
+        dataSource={stores}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+      />
+
       <Modal
         title={editingStore ? 'Edit Store' : 'Add Store'}
-        visible={isModalVisible}
-        onCancel={handleCancel}
+        visible={modalVisible}
+        onCancel={() => setModalVisible(false)}
         footer={null}
+        confirmLoading={confirmLoading}
       >
         <Form
           form={form}
@@ -199,23 +231,23 @@ const StoreManagement = () => {
             label="Store Name"
             rules={[{ required: true, message: 'Please enter store name' }]}
           >
-            <Input />
+            <Input placeholder="Enter store name" />
           </Form.Item>
-          
+
           <Form.Item
             name="address"
             label="Address"
           >
-            <Input.TextArea rows={3} />
+            <Input.TextArea rows={3} placeholder="Enter store address (optional)" />
           </Form.Item>
-          
+
           <Form.Item
             name="contact_number"
             label="Contact Number"
           >
-            <Input />
+            <Input placeholder="Enter contact number (optional)" />
           </Form.Item>
-          
+
           <Form.Item
             name="is_active"
             label="Active"
@@ -223,20 +255,16 @@ const StoreManagement = () => {
           >
             <Switch />
           </Form.Item>
-          
+
           <Form.Item>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={submitting}
-              icon={<SaveOutlined />}
-              style={{ marginRight: 8 }}
-            >
-              {editingStore ? 'Update' : 'Create'}
-            </Button>
-            <Button htmlType="button" onClick={handleCancel}>
-              Cancel
-            </Button>
+            <Space>
+              <Button type="primary" htmlType="submit" loading={confirmLoading}>
+                {editingStore ? 'Update' : 'Create'}
+              </Button>
+              <Button onClick={() => setModalVisible(false)}>
+                Cancel
+              </Button>
+            </Space>
           </Form.Item>
         </Form>
       </Modal>
