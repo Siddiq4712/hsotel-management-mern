@@ -2,14 +2,14 @@ const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const { 
   sequelize, User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,
-  Attendance, Leave, Complaint, Suspension, Holiday
+  Attendance, Leave, Complaint, Suspension, Holiday,Fee, MessBill
   // Note: Models not used in this controller have been removed from this import for clarity
 } = require('../models');
 
 // STUDENT ENROLLMENT
 const enrollStudent = async (req, res) => {
   try {
-    const { username, password, session_id, email } = req.body;
+    const { username, password, session_id, email, requires_bed, paid_initial_emi } = req.body;
     const hostel_id = req.user.hostel_id;
 
     const existingUser = await User.findOne({ where: { username } });
@@ -31,8 +31,31 @@ const enrollStudent = async (req, res) => {
     const enrollment = await Enrollment.create({
       student_id: student.id,
       hostel_id,
-      session_id
+      session_id,
+      requires_bed: requires_bed || false,
+      initial_emi_status: requires_bed ? (paid_initial_emi ? 'paid' : 'pending') : 'not_required'
     });
+
+    // If bed is required and initial EMI is paid, create fee records for the 5 EMIs
+    if (requires_bed && paid_initial_emi) {
+      // Get today's date
+      const today = new Date();
+      
+      // Create 5 monthly EMI fee records
+      for (let i = 0; i < 5; i++) {
+        const dueDate = new Date(today);
+        dueDate.setMonth(dueDate.getMonth() + i);
+        
+        await Fee.create({
+          student_id: student.id,
+          fee_type: 'hostel',
+          amount: 5000, // Replace with your actual EMI amount
+          due_date: dueDate,
+          status: i === 0 ? 'paid' : 'pending', // First month paid, rest pending
+          payment_date: i === 0 ? today : null
+        });
+      }
+    }
 
     res.status(201).json({ 
       success: true,
@@ -42,48 +65,6 @@ const enrollStudent = async (req, res) => {
   } catch (error) {
     console.error('Student enrollment error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-const getStudents = async (req, res) => {
-  try {
-    const hostel_id = req.user.hostel_id;
-    if (!hostel_id) {
-        return res.status(400).json({ success: false, message: "Warden is not assigned to a hostel." });
-    }
-
-    const studentsWithModels = await User.findAll({
-      where: { 
-        role: 'student',
-        hostel_id,
-        is_active: true 
-      },
-      attributes: { exclude: ['password'] },
-      include: [
-        {
-          model: RoomAllotment,
-          as: 'tbl_RoomAllotments',
-          where: { is_active: true },
-          required: false,
-          include: [{
-            model: HostelRoom,
-            attributes: ['room_number']
-          }]
-        }
-      ],
-      order: [
-        [{ model: RoomAllotment, as: 'tbl_RoomAllotments' }, HostelRoom, 'room_number', 'ASC'],
-        ['username', 'ASC']
-      ]
-    });
-
-    // Convert to plain objects to prevent circular reference errors
-    const students = studentsWithModels.map(instance => instance.get({ plain: true }));
-
-    res.json({ success: true, data: students });
-  } catch (error) {
-    console.error('Error fetching students:', error);
-    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
@@ -914,6 +895,47 @@ const createAdditionalCollection = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+const getStudents = async (req, res) => {
+  try {
+    const hostel_id = req.user.hostel_id;
+    if (!hostel_id) {
+        return res.status(400).json({ success: false, message: "Warden is not assigned to a hostel." });
+    }
+
+    const studentsWithModels = await User.findAll({
+      where: { 
+        role: 'student',
+        hostel_id,
+        is_active: true 
+      },
+      attributes: { exclude: ['password'] },
+      include: [
+        {
+          model: RoomAllotment,
+          as: 'tbl_RoomAllotments',
+          where: { is_active: true },
+          required: false,
+          include: [{
+            model: HostelRoom,
+            attributes: ['room_number']
+          }]
+        }
+      ],
+      order: [
+        [{ model: RoomAllotment, as: 'tbl_RoomAllotments' }, HostelRoom, 'room_number', 'ASC'],
+        ['username', 'ASC']
+      ]
+    });
+
+    // Convert to plain objects to prevent circular reference errors
+    const students = studentsWithModels.map(instance => instance.get({ plain: true }));
+
+    res.json({ success: true, data: students });
+  } catch (error) {
+    console.error('Error fetching students:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+};
 
 const getAdditionalCollections = async (req, res) => {
   try {
@@ -946,6 +968,343 @@ const getAdditionalCollections = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+// Add these functions to wardenController.js
+
+// Generate mess bills for all students in hostel, excluding those on OD
+const generateMessBills = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { month, year, amount_per_day } = req.body;
+    const hostel_id = req.user.hostel_id;
+    
+    if (!month || !year || !amount_per_day) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Month, year and amount per day are required' 
+      });
+    }
+    
+    // Validate month and year
+    const monthNum = parseInt(month, 10);
+    const yearNum = parseInt(year, 10);
+    
+    if (monthNum < 1 || monthNum > 12) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid month (should be 1-12)' 
+      });
+    }
+    
+    // Create the date range for the selected month
+    const startDate = new Date(yearNum, monthNum - 1, 1);
+    const endDate = new Date(yearNum, monthNum, 0); // Last day of the month
+    
+    // Get all students in the hostel
+    const students = await User.findAll({
+      where: { 
+        hostel_id,
+        role: 'student',
+        is_active: true
+      },
+      attributes: ['id']
+    });
+    
+    if (students.length === 0) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'No active students found in this hostel'
+      });
+    }
+    
+    // Get all attendance records for this month
+    const attendanceRecords = await Attendance.findAll({
+      where: {
+        date: {
+          [Op.between]: [startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]
+        },
+        student_id: {
+          [Op.in]: students.map(student => student.id)
+        }
+      },
+      transaction
+    });
+    
+    // Create a map to track attendance for each student
+    const studentAttendance = {};
+    
+    // Initialize the map for each student with 0 OD days
+    students.forEach(student => {
+      studentAttendance[student.id] = {
+        odDays: 0,
+        presentDays: 0
+      };
+    });
+    
+    // Count OD days for each student
+    attendanceRecords.forEach(record => {
+      if (record.status === 'OD') {
+        studentAttendance[record.student_id].odDays++;
+      } else if (record.status === 'P') {
+        studentAttendance[record.student_id].presentDays++;
+      }
+    });
+    
+    // Calculate number of days in the month
+    const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
+    
+    // Create mess bills for each student
+    const createdBills = [];
+    for (const student of students) {
+      // Calculate chargeable days (total days - OD days)
+      const odDays = studentAttendance[student.id].odDays || 0;
+      const chargeableDays = daysInMonth - odDays;
+      
+      // Calculate the amount
+      const totalAmount = chargeableDays * amount_per_day;
+      
+      // Set due date as 10th of the next month
+      const dueMonth = monthNum === 12 ? 1 : monthNum + 1;
+      const dueYear = monthNum === 12 ? yearNum + 1 : yearNum;
+      const dueDate = new Date(dueYear, dueMonth - 1, 10);
+      
+      // Create or update the mess bill
+      const [bill, created] = await MessBill.findOrCreate({
+        where: {
+          student_id: student.id,
+          hostel_id,
+          month: monthNum,
+          year: yearNum
+        },
+        defaults: {
+          amount: totalAmount,
+          status: 'pending',
+          due_date: dueDate
+        },
+        transaction
+      });
+      
+      // If bill already exists, update it
+      if (!created) {
+        await bill.update({
+          amount: totalAmount,
+          due_date: dueDate
+        }, { transaction });
+      }
+      
+      createdBills.push(bill);
+    }
+    
+    await transaction.commit();
+    
+    res.status(201).json({
+      success: true,
+      message: `Mess bills generated for ${createdBills.length} students for ${month}/${year}`,
+      data: {
+        billCount: createdBills.length,
+        month: monthNum,
+        year: yearNum
+      }
+    });
+    
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Mess bill generation error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error: ' + error.message 
+    });
+  }
+};
+
+// Get all mess bills for a specific month
+const getMessBills = async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    const hostel_id = req.user.hostel_id;
+    
+    if (!month || !year) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Month and year are required' 
+      });
+    }
+    
+    // Get all bills for the month
+    const bills = await MessBill.findAll({
+      where: { 
+        hostel_id,
+        month,
+        year
+      },
+      include: [{
+        model: User,
+        as: 'MessBillStudent',
+        attributes: ['id', 'username', 'email']
+      }],
+      order: [['status', 'ASC'], ['createdAt', 'DESC']]
+    });
+    
+    // Calculate summary statistics
+    const totalBills = bills.length;
+    const totalAmount = bills.reduce((sum, bill) => sum + parseFloat(bill.amount), 0);
+    const pendingBills = bills.filter(bill => bill.status === 'pending').length;
+    const pendingAmount = bills
+      .filter(bill => bill.status === 'pending')
+      .reduce((sum, bill) => sum + parseFloat(bill.amount), 0);
+    const paidBills = bills.filter(bill => bill.status === 'paid').length;
+    const paidAmount = bills
+      .filter(bill => bill.status === 'paid')
+      .reduce((sum, bill) => sum + parseFloat(bill.amount), 0);
+    
+    res.json({
+      success: true,
+      data: {
+        month,
+        year,
+        totalBills,
+        totalAmount,
+        pendingBills,
+        pendingAmount,
+        paidBills,
+        paidAmount,
+        bills
+      }
+    });
+    
+  } catch (error) {
+    console.error('Mess bills fetch error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error: ' + error.message 
+    });
+  }
+};
+
+// Update mess bill status
+const updateMessBillStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, payment_date } = req.body;
+    const hostel_id = req.user.hostel_id;
+    
+    if (!status || !['pending', 'paid', 'overdue'].includes(status)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Valid status is required (pending, paid, or overdue)' 
+      });
+    }
+    
+    const bill = await MessBill.findOne({
+      where: { 
+        id,
+        hostel_id
+      },
+      include: [{
+        model: User,
+        as: 'MessBillStudent',
+        attributes: ['id', 'username', 'email']
+      }]
+    });
+    
+    if (!bill) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Mess bill not found' 
+      });
+    }
+    
+    await bill.update({
+      status,
+      payment_date: status === 'paid' ? (payment_date || new Date()) : null
+    });
+    
+    res.json({
+      success: true,
+      data: bill,
+      message: `Mess bill status updated to ${status}`
+    });
+    
+  } catch (error) {
+    console.error('Mess bill status update error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error: ' + error.message 
+    });
+  }
+};
+const fetchDailyCosts = async (month, year) => {
+  setCalculatingCosts(true);
+  try {
+    // Create start and end dates for the month
+    const startDate = moment({ year, month: month - 1, day: 1 }).format('YYYY-MM-DD');
+    const endDate = moment({ year, month: month - 1, day: 1 }).endOf('month').format('YYYY-MM-DD');
+    
+    // Fetch the served menus for the month
+    const response = await messAPI.getMenuSchedule({ start_date: startDate, end_date: endDate });
+    
+    // Filter to only get served menus
+    const servedMenus = response.data.data.filter(schedule => schedule.status === 'served');
+    
+    // Create daily cost mapping
+    const dailyCostsMap = {};
+    
+    // Initialize with 0 cost for each day of the month
+    const daysInMonth = moment({ year, month: month - 1 }).daysInMonth();
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateString = moment({ year, month: month - 1, day }).format('YYYY-MM-DD');
+      dailyCostsMap[dateString] = {
+        total: 0,
+        meals: []
+      };
+    }
+    
+    // Sum up cost_per_serving for each day, accounting for multiple meals per day
+    servedMenus.forEach(menu => {
+      const dateString = moment(menu.scheduled_date).format('YYYY-MM-DD');
+      const costPerServing = parseFloat(menu.cost_per_serving || 0);
+      
+      if (dailyCostsMap[dateString]) {
+        dailyCostsMap[dateString].total += costPerServing;
+        dailyCostsMap[dateString].meals.push({
+          meal_time: menu.meal_time,
+          cost: costPerServing,
+          menu_name: menu.Menu?.name || 'Unknown menu'
+        });
+      }
+    });
+    
+    // Convert to array for easier display
+    const dailyCostsArray = Object.keys(dailyCostsMap).map(date => ({
+      date,
+      total_cost: dailyCostsMap[date].total,
+      meals: dailyCostsMap[date].meals
+    })).sort((a, b) => moment(a.date).diff(moment(b.date)));
+    
+    setDailyCosts(dailyCostsArray);
+    
+    // Calculate average daily cost (only for days with meals)
+    const daysWithMeals = dailyCostsArray.filter(day => day.total_cost > 0).length;
+    const totalMonthCost = dailyCostsArray.reduce((sum, item) => sum + item.total_cost, 0);
+    const averageDailyCost = daysWithMeals > 0 ? totalMonthCost / daysWithMeals : 0;
+    
+    setSummary(prevSummary => ({
+      ...prevSummary,
+      averageDailyCost,
+      daysWithMeals,
+      totalMonthCost
+    }));
+    
+  } catch (error) {
+    console.error('Error fetching daily costs:', error);
+    message.error('Failed to calculate daily costs');
+  } finally {
+    setCalculatingCosts(false);
+  }
+};
+
 
 module.exports = {
   // Student Enrollment
@@ -981,5 +1340,11 @@ module.exports = {
   deleteHoliday,
   // Additional Collections
   createAdditionalCollection,
-  getAdditionalCollections
+  getAdditionalCollections,
+  //mess bill management
+  generateMessBills,
+  getMessBills,
+  updateMessBillStatus,
+
+  fetchDailyCosts
 };

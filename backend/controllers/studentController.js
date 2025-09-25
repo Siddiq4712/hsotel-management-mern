@@ -105,37 +105,44 @@ const updateProfile = async (req, res) => {
 };
 
 // MESS BILLS MANAGEMENT
+// In studentController.js
 const getMessBills = async (req, res) => {
   try {
     const student_id = req.user.id;
-    const { status, year, month } = req.query;
+    const { status, month, year } = req.query;
 
     let whereClause = { student_id };
-    
+
     if (status && status !== 'all') {
       whereClause.status = status;
     }
-    
-    if (year) {
-      whereClause.year = year;
-    }
-    
+
     if (month) {
-      whereClause.month = month;
+      whereClause.month = parseInt(month);
+    }
+
+    if (year) {
+      whereClause.year = parseInt(year);
     }
 
     const bills = await MessBill.findAll({
       where: whereClause,
-      order: [['year', 'DESC'], ['month', 'DESC']]
+      order: [['year', 'DESC'], ['month', 'DESC']],
+      include: [
+        {
+          model: User,
+          as: 'MessBillStudent',
+          attributes: ['id', 'username'],
+        },
+      ],
     });
 
     res.json({ success: true, data: bills });
   } catch (error) {
     console.error('Mess bills fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-
 const getMessBillById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1150,6 +1157,7 @@ const getDashboardStats = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
 
 module.exports = {
   // Profile Management

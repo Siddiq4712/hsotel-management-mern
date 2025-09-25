@@ -187,6 +187,7 @@ const Session = sequelize.define('Session', {
   timestamps: true
 });
 
+// In your Enrollment model
 const Enrollment = sequelize.define('Enrollment', {
   id: {
     type: DataTypes.INTEGER,
@@ -221,6 +222,15 @@ const Enrollment = sequelize.define('Enrollment', {
     type: DataTypes.DATE,
     allowNull: false,
     defaultValue: DataTypes.NOW
+  },
+  // Add these fields to the Enrollment model
+  requires_bed: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
+  initial_emi_status: {
+    type: DataTypes.ENUM('not_required', 'pending', 'paid'),
+    defaultValue: 'not_required'
   },
   status: {
     type: DataTypes.ENUM('active', 'inactive', 'suspended'),
@@ -820,9 +830,19 @@ const Fee = sequelize.define('Fee', {
       key: 'id'
     }
   },
+  enrollment_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'tbl_Enrollment',
+      key: 'id'
+    },
+    comment: 'Links fee to a specific enrollment period'
+  },
   fee_type: {
-    type: DataTypes.ENUM('hostel', 'mess', 'maintenance', 'security', 'other'),
-    allowNull: false
+    type: DataTypes.ENUM('hostel', 'mess', 'maintenance', 'security', 'emi', 'other'),
+    allowNull: false,
+    comment: 'Type of fee - added "emi" option for bed allocation EMI payments'
   },
   amount: {
     type: DataTypes.DECIMAL(10, 2),
@@ -839,11 +859,67 @@ const Fee = sequelize.define('Fee', {
   payment_date: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  payment_method: {
+    type: DataTypes.ENUM('cash', 'card', 'upi', 'bank_transfer', 'other'),
+    allowNull: true,
+    comment: 'Method used for payment, if paid'
+  },
+  transaction_id: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Reference ID for the payment transaction'
+  },
+  receipt_number: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Receipt number for the payment'
+  },
+  emi_month: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'For EMI payments, tracks which month in the sequence (1-5)'
+  },
+  collected_by: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'tbl_Users',
+      key: 'id'
+    },
+    comment: 'User who collected the payment'
+  },
+  remarks: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Any additional notes about this fee or payment'
   }
 }, {
   tableName: 'tbl_Fee',
-  timestamps: true
+  timestamps: true,
+  indexes: [
+    {
+      fields: ['student_id']
+    },
+    {
+      fields: ['enrollment_id']
+    },
+    {
+      fields: ['fee_type']
+    },
+    {
+      fields: ['status']
+    },
+    {
+      fields: ['due_date']
+    }
+  ]
 });
+
+// Add associations
+Fee.belongsTo(User, { foreignKey: 'collected_by', as: 'CollectedBy' });
+Fee.belongsTo(Enrollment, { foreignKey: 'enrollment_id', as: 'Enrollment' });
+Enrollment.hasMany(Fee, { foreignKey: 'enrollment_id', as: 'Fees' });
 
 const AdditionalCollectionType = sequelize.define('AdditionalCollectionType', {
   id: {
@@ -1213,11 +1289,16 @@ const MenuItem = sequelize.define('MenuItem', {
     type: DataTypes.DECIMAL(8, 2),
     allowNull: false
   },
-  unit: {
-    type: DataTypes.STRING,
-    allowNull: false
+  unit_id: {  // Changed from 'unit' to 'unit_id'
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tbl_UOM',
+      key: 'id'
+    },
+    comment: 'Unit of measurement (linked to UOM)'
   },
-  preparation_notes: {  // Add this field
+  preparation_notes: {
     type: DataTypes.TEXT,
     allowNull: true
   }
@@ -1225,7 +1306,6 @@ const MenuItem = sequelize.define('MenuItem', {
   tableName: 'tbl_Menu_Item',
   timestamps: true
 });
-
 
 const MenuSchedule = sequelize.define('MenuSchedule', {
   id: {
@@ -1383,129 +1463,100 @@ const ItemStock = sequelize.define('ItemStock', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
-    autoIncrement: true
+    autoIncrement: true,
   },
   item_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'tbl_Item',
-      key: 'id'
-    }
+    references: { model: 'tbl_Item', key: 'id' },
   },
   hostel_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'tbl_Hostel',
-      key: 'id'
-    }
+    references: { model: 'tbl_Hostel', key: 'id' },
   },
   current_stock: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
-    defaultValue: 0.00
+    defaultValue: 0.00,
+    comment: 'Total stock across all batches for this item and hostel',
   },
   minimum_stock: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
-    defaultValue: 0.00
+    defaultValue: 0.00,
+    comment: 'Minimum stock threshold for reordering',
   },
   last_updated: {
     type: DataTypes.DATE,
     allowNull: false,
-    defaultValue: DataTypes.NOW
-  }
+    defaultValue: DataTypes.NOW,
+    comment: 'Last time stock was updated',
+  },
+  last_purchase_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+    comment: 'Date of the most recent batch purchase',
+  },
 }, {
   tableName: 'tbl_ItemStock',
-  timestamps: true
+  timestamps: true,
+  indexes: [
+    { fields: ['item_id', 'hostel_id'] },
+  ],
 });
-
 const DailyConsumption = sequelize.define('DailyConsumption', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
-    autoIncrement: true
+    autoIncrement: true,
   },
   hostel_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'tbl_Hostel',
-      key: 'id'
-    }
+    references: { model: 'tbl_Hostel', key: 'id' },
   },
   item_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'tbl_Item',
-      key: 'id'
-    }
+    references: { model: 'tbl_Item', key: 'id' },
   },
   consumption_date: {
     type: DataTypes.DATEONLY,
-    allowNull: false
+    allowNull: false,
   },
   quantity_consumed: {
     type: DataTypes.DECIMAL(10, 2),
-    allowNull: false
+    allowNull: false,
+    comment: 'Total quantity consumed for this item on this date',
   },
   unit: {
-    type: DataTypes.STRING,
-    allowNull: false
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_UOM', key: 'id' },
+    comment: 'Unit of measurement (linked to UOM)',
   },
   meal_type: {
     type: DataTypes.ENUM('breakfast', 'lunch', 'dinner', 'snacks'),
-    allowNull: false
+    allowNull: false,
   },
   recorded_by: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'tbl_Users',
-      key: 'id'
-    }
-  }
+    references: { model: 'tbl_Users', key: 'id' },
+  },
+  total_cost: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    defaultValue: 0.00,
+    comment: 'Total cost of consumption based on FIFO batches',
+  },
 }, {
   tableName: 'tbl_DailyConsumption',
-  timestamps: true
-});
-
-
-const DailyConsumptionReturn = sequelize.define('DailyConsumptionReturn', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
-  },
-  daily_consumption_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'tbl_DailyConsumption',
-      key: 'id'
-    }
-  },
-  quantity_returned: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false
-  },
-  reason: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
-  returned_by: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'tbl_Users',
-      key: 'id'
-    }
-  }
-}, {
-  tableName: 'tbl_DailyConsumptionReturn',
-  timestamps: true
+  timestamps: true,
+  indexes: [
+    { fields: ['item_id', 'hostel_id', 'consumption_date'] },
+  ],
 });
 
 const NonConsumables = sequelize.define('NonConsumables', {
@@ -2332,7 +2383,11 @@ const FoodOrderItem = sequelize.define('FoodOrderItem', {
 });
 
 const InventoryBatch = sequelize.define('InventoryBatch', {
-  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
   item_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -2343,27 +2398,53 @@ const InventoryBatch = sequelize.define('InventoryBatch', {
     allowNull: false,
     references: { model: 'tbl_Hostel', key: 'id' },
   },
+  quantity_purchased: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    comment: 'Original quantity purchased in this batch',
+  },
   quantity_remaining: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
-    comment: 'The current quantity left in this specific batch',
+    defaultValue: 0.00,
+    comment: 'Current quantity left in this batch',
   },
   unit_price: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
-    comment: 'The price at which this batch was purchased',
+    comment: 'Purchase price per unit for this batch',
   },
   purchase_date: {
     type: DataTypes.DATEONLY,
     allowNull: false,
+    comment: 'Date the batch was purchased',
+  },
+  expiry_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+    comment: 'Optional expiry date for perishable items',
+  },
+  status: {
+    type: DataTypes.ENUM('active', 'depleted', 'expired'),
+    allowNull: false,
+    defaultValue: 'active',
+    comment: 'Batch status for FIFO management',
   },
 }, {
   tableName: 'tbl_InventoryBatch',
-  timestamps: true, // createdAt helps FIFO
+  timestamps: true,
+  indexes: [
+    { fields: ['item_id', 'hostel_id', 'purchase_date'] }, // Optimize FIFO queries
+    { fields: ['status'] },
+  ],
 });
-
 // Remove the beforeCreate hook from this model definition
 const ConsumptionLog = sequelize.define('ConsumptionLog', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
   daily_consumption_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -2371,19 +2452,63 @@ const ConsumptionLog = sequelize.define('ConsumptionLog', {
   },
   batch_id: {
     type: DataTypes.INTEGER,
-    allowNull: false, // This is the crucial constraint
+    allowNull: false,
     references: { model: 'tbl_InventoryBatch', key: 'id' },
   },
   quantity_consumed: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
+    comment: 'Quantity consumed from this batch',
   },
   cost: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
+    comment: 'Cost of consumed quantity (quantity * batch unit_price)',
   },
-}, { 
+  meal_type: {
+    type: DataTypes.ENUM('breakfast', 'lunch', 'dinner', 'snacks'),
+    allowNull: false,
+    comment: 'Meal type for which this consumption was recorded',
+  },
+}, {
   tableName: 'tbl_ConsumptionLog',
+  timestamps: true,
+  indexes: [
+    { fields: ['daily_consumption_id'] },
+    { fields: ['batch_id'] },
+  ],
+});
+const DailyConsumptionReturn = sequelize.define('DailyConsumptionReturn', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  daily_consumption_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_DailyConsumption', key: 'id' },
+  },
+  returned_by: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Users', key: 'id' },
+  },
+  quantity_returned: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+  },
+  return_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false,
+    defaultValue: DataTypes.NOW,
+  },
+  reason: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+}, {
+  tableName: 'tbl_DailyConsumptionReturn',
   timestamps: true,
 });
 // Add associations
@@ -2591,6 +2716,20 @@ ConsumptionLog.belongsTo(DailyConsumption, { foreignKey: 'daily_consumption_id',
 
 DailyConsumption.belongsTo(Item, { foreignKey: 'item_id', as: 'tbl_Item' });
 Item.hasMany(DailyConsumption, { foreignKey: 'item_id', as: 'DailyConsumption' });
+
+// Existing associations (unchanged except where noted)
+Hostel.hasMany(InventoryBatch, { foreignKey: 'hostel_id', as: 'InventoryBatches' });
+
+ConsumptionLog.belongsTo(InventoryBatch, { foreignKey: 'batch_id', as: 'Batch' });
+InventoryBatch.hasMany(ConsumptionLog, { foreignKey: 'batch_id', as: 'ConsumptionLogs' });
+
+DailyConsumption.belongsTo(Item, { foreignKey: 'item_id'});
+DailyConsumption.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy' });
+DailyConsumption.belongsTo(UOM, { foreignKey: 'unit', as: 'UOM' });
+
+// Ensure ItemStock is linked
+ItemStock.belongsTo(Item, { foreignKey: 'item_id'});
+ItemStock.belongsTo(Hostel, { foreignKey: 'hostel_id'});
 
 module.exports = {
   sequelize,

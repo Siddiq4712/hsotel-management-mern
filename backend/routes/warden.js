@@ -1,5 +1,4 @@
-// routes/wardenRoutes.js
-const express = require('express');
+// Make sure to update your imports at the top of the file:
 const {
   enrollStudent, getStudents, getAvailableRooms, allotRoom, getDashboardStats, getSessions,
   // Attendance Management
@@ -11,12 +10,16 @@ const {
   // Suspension Management
   createSuspension, getSuspensions, updateSuspension,
   // Holiday Management
-  createHoliday, getHolidays, updateHoliday, deleteHoliday,bulkMarkAttendance,
+  createHoliday, getHolidays, updateHoliday, deleteHoliday, bulkMarkAttendance,
   // Additional Collections
-  createAdditionalCollection, getAdditionalCollections,updateAttendance,
-  //bulkMarkAttendance, 
-  getRoomOccupants
+  createAdditionalCollection, getAdditionalCollections, updateAttendance,
+  // Add these new imports
+  generateMessBills, getMessBills, updateMessBillStatus,
+  // Other imports
+  getRoomOccupants,getMessBillSummary
 } = require('../controllers/wardenController');
+const express = require('express'); 
+
 const { auth, authorize } = require('../middleware/auth');
 
 const router = express.Router();
@@ -70,6 +73,10 @@ router.post('/additional-collections', createAdditionalCollection);
 router.get('/additional-collections', getAdditionalCollections);
 // router.post('/attendance/bulk', bulkMarkAttendance); // NEW - Bulk mark attendance
 
-// router.get('/rooms/:room_id/occupants', getRoomOccupants); // NEW - Get occupants of a specific room
+// Add these routes to your existing wardenRoutes.js
+// Mess Bills Management
+router.post('/mess-bills/generate', generateMessBills);
+router.get('/mess-bills', getMessBills);
+router.put('/mess-bills/:id/status', updateMessBillStatus);
 
 module.exports = router;
