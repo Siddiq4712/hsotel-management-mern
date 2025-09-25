@@ -41,6 +41,7 @@ const Sidebar = ({ currentView, setCurrentView }) => {
           { id: 'complaints', label: 'Complaints', icon: MessageCircle },
           { id: 'suspensions', label: 'Suspensions', icon: UserX },
           { id: 'holidays', label: 'Holidays', icon: CalendarDays },
+          { id: 'mess-bills', label: 'Mess Bills', icon: Receipt },
         ];
       case 'student':
         return [

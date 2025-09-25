@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Table, Button, Space, Tag, DatePicker, Select,
-  message, Popconfirm, Modal, List, Typography, Tooltip, Row, Col
+  message, Popconfirm, Modal, List, Typography, Tooltip, Row, Col, Alert
 } from 'antd';
 import { 
   EditOutlined, DeleteOutlined, EyeOutlined, 
@@ -24,12 +24,19 @@ const MenuScheduleManagement = () => {
   const [selectedMealType, setSelectedMealType] = useState('all');
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
+  const [lowStockAlert, setLowStockAlert] = useState(null); // For displaying low stock items
 
   useEffect(() => {
     fetchSchedules();
   }, []);
 
   const fetchSchedules = async () => {
+    console.log('🔍 Fetching schedules with params:', {
+      start_date: dateRange[0]?.format('YYYY-MM-DD'),
+      end_date: dateRange[1]?.format('YYYY-MM-DD'),
+      meal_time: selectedMealType !== 'all' ? selectedMealType : undefined
+    });
+    
     setLoading(true);
     try {
       const params = {};
@@ -43,41 +50,75 @@ const MenuScheduleManagement = () => {
         params.meal_time = selectedMealType;
       }
       
+      console.log('📡 API Call: GET /mess/menu-schedule with params:', params);
       const response = await messAPI.getMenuSchedule(params);
+      console.log('✅ Fetched schedules:', response.data.data?.length || 0, 'records');
       setSchedules(response.data.data || []);
     } catch (error) {
-      message.error('Failed to fetch schedules');
+      console.error('❌ Error fetching schedules:', error);
+      message.error('Failed to fetch schedules: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id) => {
+    console.log('🗑️ Deleting schedule ID:', id);
     try {
       await messAPI.deleteMenuSchedule(id);
+      console.log('✅ Schedule deleted successfully');
       message.success('Schedule deleted successfully');
       fetchSchedules();
     } catch (error) {
-      message.error('Failed to delete schedule');
+      console.error('❌ Error deleting schedule:', error);
+      message.error('Failed to delete schedule: ' + (error.message || 'Unknown error'));
     }
   };
 
-  const handleStatusChange = async (id, status) => {
+  // Modified to use serveMenu for FIFO stock deduction
+  const handleMarkAsServed = async (id) => {
+    console.log('🍽️ Marking menu schedule ID', id, 'as served - This will deduct stock via FIFO');
+    
     try {
-      await messAPI.updateMenuSchedule(id, { status });
-      message.success('Status updated successfully');
+      console.log('📡 Calling API: PUT /mess/menu-schedule/' + id + '/serve');
+      const response = await messAPI.serveMenu(id); // Use serveMenu instead of updateMenuSchedule
+      
+      console.log('✅ Serve response:', response.data);
+      message.success('Menu marked as served successfully');
+      
+      // Handle low stock items from response
+      if (response.data.data?.lowStockItems && response.data.data.lowStockItems.length > 0) {
+        console.log('⚠️ Low stock items detected:', response.data.data.lowStockItems);
+        setLowStockAlert({
+          items: response.data.data.lowStockItems,
+          message: 'The following items are now below minimum stock levels:'
+        });
+      }
+      
+      // Refresh schedules
       fetchSchedules();
     } catch (error) {
-      message.error('Failed to update status');
+      console.error('❌ Error marking menu as served:', error.response?.data || error.message);
+      
+      // Check for specific stock-related errors
+      if (error.response?.data?.message?.includes('Insufficient stock')) {
+        message.error('Cannot mark as served: ' + error.response.data.message);
+      } else if (error.response?.status === 400) {
+        message.error('Invalid schedule: ' + (error.response.data.message || 'Status already served'));
+      } else {
+        message.error('Failed to mark menu as served: ' + (error.message || 'Unknown error'));
+      }
     }
   };
 
   const handleViewDetails = (schedule) => {
+    console.log('👁️ Viewing details for schedule:', schedule.id);
     setSelectedSchedule(schedule);
     setDetailsModalVisible(true);
   };
 
   const handleFilterChange = () => {
+    console.log('🔄 Filter changed - refetching schedules');
     fetchSchedules();
   };
 
@@ -185,14 +226,23 @@ const MenuScheduleManagement = () => {
           
           {record.status === 'scheduled' && (
             <>
-              <Button
-                icon={<CheckCircleOutlined />}
-                size="small"
-                type="primary"
-                onClick={() => handleStatusChange(record.id, 'served')}
+              {/* Use Popconfirm for confirmation */}
+              <Popconfirm
+                title="Mark this menu as served? This will deduct stock from inventory using FIFO."
+                description="Stock will be deducted based on oldest purchase date first."
+                onConfirm={() => handleMarkAsServed(record.id)}
+                okText="Yes, Serve Menu"
+                cancelText="Cancel"
+                okButtonProps={{ danger: true }}
               >
-                Served
-              </Button>
+                <Button
+                  icon={<CheckCircleOutlined />}
+                  size="small"
+                  type="primary"
+                >
+                  Mark Served
+                </Button>
+              </Popconfirm>
               
               <Popconfirm
                 title="Are you sure you want to delete this schedule?"
@@ -222,6 +272,30 @@ const MenuScheduleManagement = () => {
         </Button>
       }
     >
+      {/* Low Stock Alert */}
+      {lowStockAlert && (
+        <Alert
+          message={lowStockAlert.message}
+          description={
+            <List
+              size="small"
+              dataSource={lowStockAlert.items}
+              renderItem={item => (
+                <List.Item>
+                  <Text strong>{item.name}</Text>: {item.current_stock} {item.unit} 
+                  (Threshold: {item.minimum_stock} {item.unit})
+                </List.Item>
+              )}
+            />
+          }
+          type="warning"
+          showIcon
+          closable
+          afterClose={() => setLowStockAlert(null)}
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
       <Space style={{ marginBottom: 16 }} wrap>
         <RangePicker
           value={dateRange}
@@ -319,7 +393,7 @@ const MenuScheduleManagement = () => {
                 dataSource={selectedSchedule.Menu.tbl_Menu_Items}
                 renderItem={item => (
                   <List.Item>
-                                        <List.Item.Meta
+                    <List.Item.Meta
                       title={item.tbl_Item?.name}
                       description={`${item.quantity} ${item.unit}`}
                     />
@@ -338,15 +412,21 @@ const MenuScheduleManagement = () => {
             {selectedSchedule.status === 'scheduled' && (
               <div style={{ marginTop: 24 }}>
                 <Space>
-                  <Button
-                    type="primary"
-                    onClick={() => {
-                      handleStatusChange(selectedSchedule.id, 'served');
+                  <Popconfirm
+                    title="Mark this menu as served? This will deduct stock from inventory."
+                    description="Stock will be deducted based on oldest purchase date first (FIFO)."
+                    onConfirm={() => {
+                      handleMarkAsServed(selectedSchedule.id);
                       setDetailsModalVisible(false);
                     }}
+                    okText="Yes, Serve Menu"
+                    cancelText="Cancel"
+                    okButtonProps={{ type: 'primary' }}
                   >
-                    Mark as Served
-                  </Button>
+                    <Button type="primary">
+                      Mark as Served (Deduct Stock)
+                    </Button>
+                  </Popconfirm>
                   
                   <Popconfirm
                     title="Are you sure you want to delete this schedule?"

@@ -29,6 +29,7 @@ import LeaveRequests from './components/warden/LeaveRequests';
 import ComplaintManagement from './components/warden/ComplaintManagement';
 import SuspensionManagement from './components/warden/SuspensionManagement';
 import HolidayManagement from './components/warden/HolidayManagement';
+import MessBillManagement from './components/warden/MessBillManagement';
 
 // Student Components
 import StudentDashboard from './components/student/StudentDashboard';
@@ -143,6 +144,8 @@ const DashboardRouter = () => {
             return <SuspensionManagement />;
           case 'holidays':
             return <HolidayManagement />;
+          case 'mess-bills':
+            return <MessBillManagement />;
           default:
             return <WardenDashboard />;
         }
