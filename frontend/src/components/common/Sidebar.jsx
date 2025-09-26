@@ -90,6 +90,7 @@ case 'mess':
     
     { id: 'section-reports', label: 'Reports', type: 'section' },
     { id: 'consumption-report', label: 'Consumption Report', icon: BarChart2 },
+    { id: 'Daily-expenses', label: 'Daily Expenses', icon: Receipt }, // New item
   ];
       default:
         return [];

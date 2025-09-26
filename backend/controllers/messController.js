@@ -2,7 +2,7 @@ const {
   Menu, Item, ItemCategory, User, MenuItem, Hostel,
   MenuSchedule, UOM, ItemStock, DailyConsumption,
   Store, ItemStore, InventoryTransaction, ConsumptionLog,
-  InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem
+  InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem,MessDailyExpense,ExpenseType
 } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
@@ -835,20 +835,14 @@ const removeItemFromMenu = async (req, res) => {
 const scheduleMenu = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const { menu_id, scheduled_date, meal_time, estimated_servings } = req.body;
+    const { menu_id, scheduled_date, meal_time } = req.body; // REMOVED estimated_servings from req.body
     const hostel_id = req.user.hostel_id;
 
-    if (!menu_id || !scheduled_date || !meal_time || !estimated_servings) {
+    if (!menu_id || !scheduled_date || !meal_time) { // Adjusted validation
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
-        message: 'Menu ID, date, meal time, and estimated servings are required',
-      });
-    }
-
-    if (estimated_servings <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Estimated servings must be greater than zero',
+        message: 'Menu ID, date, and meal time are required',
       });
     }
 
@@ -876,6 +870,17 @@ const scheduleMenu = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Menu not found' });
     }
 
+    // Use the estimated_servings from the fetched Menu record
+    const menuEstimatedServings = menu.estimated_servings;
+
+    if (menuEstimatedServings <= 0) { // Validate Menu's estimated_servings
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'The selected menu has zero or invalid estimated servings. Please update the menu.'
+      });
+    }
+
     // Calculate total cost
     let total_cost = 0;
     if (menu.tbl_Menu_Items && menu.tbl_Menu_Items.length > 0) {
@@ -886,7 +891,7 @@ const scheduleMenu = async (req, res) => {
       }, 0);
     }
 
-    const cost_per_serving = total_cost / estimated_servings;
+    const cost_per_serving = total_cost / menuEstimatedServings; // Use Menu's servings
 
     // Create the schedule with calculated costs
     const schedule = await MenuSchedule.create({
@@ -895,7 +900,7 @@ const scheduleMenu = async (req, res) => {
       scheduled_date,
       meal_time,
       status: 'scheduled',
-      estimated_servings,
+      estimated_servings: menuEstimatedServings, // Use Menu's estimated_servings
       total_cost,
       cost_per_serving,
     }, { transaction });
@@ -910,9 +915,12 @@ const scheduleMenu = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error('Schedule menu error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    // Provide a more specific error for client-side issues vs server-side
+    const errorMessage = error.message.includes("undefined") ? "Invalid data provided for scheduling." : "Server error";
+    res.status(500).json({ success: false, message: errorMessage + ': ' + error.message });
   }
 };
+
 
 // getMenuSchedule
 const getMenuSchedule = async (req, res) => {
@@ -2759,7 +2767,297 @@ const markMenuAsServed = async (req, res) => {
     res.status(500).json({ success: false, message: `Server error: ${error.message}` });
   }
 };
+const createMessDailyExpense = async (req, res) => {
+  try {
+    const { expense_type_id, amount, expense_date, description } = req.body;
+    const hostel_id = req.user.hostel_id;
+    const recorded_by = req.user.id; // User recording the expense
 
+    if (!expense_type_id || !amount || parseFloat(amount) <= 0 || !expense_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Expense type, amount, and date are required'
+      });
+    }
+
+    const messExpense = await MessDailyExpense.create({
+      hostel_id,
+      expense_type_id,
+      amount,
+      expense_date,
+      description,
+      recorded_by
+    });
+
+    res.status(201).json({
+      success: true,
+      data: messExpense,
+      message: 'Mess daily expense recorded successfully'
+    });
+  } catch (error) {
+    console.error('Mess daily expense creation error:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const getMessDailyExpenses = async (req, res) => {
+  try {
+    const { expense_type_id, from_date, to_date, search } = req.query;
+    const hostel_id = req.user.hostel_id;
+
+    let whereClause = { hostel_id };
+
+    if (expense_type_id && expense_type_id !== 'all') {
+      whereClause.expense_type_id = expense_type_id;
+    }
+
+    if (from_date && to_date) {
+      whereClause.expense_date = {
+        [Op.between]: [from_date, to_date]
+      };
+    }
+
+    if (search) {
+      whereClause[Op.or] = [
+        { description: { [Op.iLike]: `%${search}%` } },
+        // Ensure ExpenseType is included in query if searching by its name
+        // This might require a join in raw SQL or specific Sequelize include setup
+        // For eager loading to work with '$ExpenseType.name$', ExpenseType must be included.
+        // As per your models, ExpenseType is associated.
+        { '$ExpenseType.name$': { [Op.iLike]: `%${search}%` } }
+      ];
+    }
+
+    const expenses = await MessDailyExpense.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: ExpenseType,
+          as: 'ExpenseType',
+          attributes: ['id', 'name'],
+          required: false // Use required: false if you want to include expenses without a type if type filter is not active
+        },
+        {
+          model: User,
+          as: 'RecordedBy',
+          attributes: ['id', 'username']
+        }
+      ],
+      order: [['expense_date', 'DESC'], ['createdAt', 'DESC']]
+    });
+
+    res.json({ success: true, data: expenses });
+  } catch (error) {
+    console.error('Get mess daily expenses error:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const getMessDailyExpenseById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hostel_id = req.user.hostel_id;
+
+    const expense = await MessDailyExpense.findOne({
+      where: { id, hostel_id },
+      include: [
+        {
+          model: ExpenseType,
+          as: 'ExpenseType',
+          attributes: ['id', 'name']
+        },
+        {
+          model: User,
+          as: 'RecordedBy',
+          attributes: ['id', 'username']
+        }
+      ]
+    });
+
+    if (!expense) {
+      return res.status(404).json({ success: false, message: 'Mess daily expense not found' });
+    }
+
+    res.json({ success: true, data: expense });
+  } catch (error) {
+    console.error('Get mess daily expense by ID error:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const updateMessDailyExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { expense_type_id, amount, expense_date, description } = req.body;
+    const hostel_id = req.user.hostel_id;
+
+    const messExpense = await MessDailyExpense.findOne({ where: { id, hostel_id } });
+
+    if (!messExpense) {
+      return res.status(404).json({ success: false, message: 'Mess daily expense not found' });
+    }
+
+    await messExpense.update({
+      expense_type_id,
+      amount,
+      expense_date,
+      description
+    });
+
+    res.json({ success: true, data: messExpense, message: 'Mess daily expense updated successfully' });
+  } catch (error) {
+    console.error('Update mess daily expense error:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const deleteMessDailyExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hostel_id = req.user.hostel_id;
+
+    const result = await MessDailyExpense.destroy({ where: { id, hostel_id } });
+
+    if (result === 0) {
+      return res.status(404).json({ success: false, message: 'Mess daily expense not found' });
+    }
+
+    res.json({ success: true, message: 'Mess daily expense deleted successfully' });
+  } catch (error) {
+    console.error('Delete mess daily expense error:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+// const createExpenseTypeForMess = async (req, res) => {
+//   try {
+//     const { name, description } = req.body;
+
+//     if (!name) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'Expense Type name is required'
+//       });
+//     }
+
+//     const expenseType = await ExpenseType.create({
+//       name,
+//       description,
+//       is_active: true // Default to active when created
+//     });
+
+//     res.status(201).json({
+//       success: true,
+//       data: expenseType,
+//       message: 'Expense Type created successfully'
+//     });
+//   } catch (error) {
+//     console.error('Mess Expense Type creation error:', error);
+//     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+//   }
+// };
+const createExpenseType = async (req, res) => {
+  try {
+    const { name, description } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Name is required' 
+      });
+    }
+
+    const expenseType = await ExpenseType.create({
+      name,
+      description
+    });
+
+    res.status(201).json({ 
+      success: true, 
+      data: expenseType,
+      message: 'Expense type created successfully' 
+    });
+  } catch (error) {
+    console.error('Expense type creation error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const getExpenseTypes = async (req, res) => {
+  try {
+    const { search } = req.query;
+    
+    let whereClause = { is_active: true };
+    
+    if (search) {
+      whereClause.name = { [Op.iLike]: `%${search}%` };
+    }
+
+    const expenseTypes = await ExpenseType.findAll({
+      where: whereClause,
+      order: [['name', 'ASC']]
+    });
+
+    res.json({ success: true, data: expenseTypes });
+  } catch (error) {
+    console.error('Expense types fetch error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const updateExpenseType = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body;
+
+    const expenseType = await ExpenseType.findByPk(id);
+    
+    if (!expenseType) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Expense type not found' 
+      });
+    }
+
+    await expenseType.update({
+      name,
+      description
+    });
+
+    res.json({ 
+      success: true, 
+      data: expenseType,
+      message: 'Expense type updated successfully' 
+    });
+  } catch (error) {
+    console.error('Expense type update error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const deleteExpenseType = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const expenseType = await ExpenseType.findByPk(id);
+    
+    if (!expenseType) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Expense type not found' 
+      });
+    }
+
+    await expenseType.update({ is_active: false });
+    
+    res.json({ 
+      success: true, 
+      message: 'Expense type deactivated successfully' 
+    });
+  } catch (error) {
+    console.error('Expense type deletion error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
 
 module.exports = {
   createMenu,
@@ -2818,5 +3116,14 @@ module.exports = {
   getItemsByStoreId,
   getStoresByItemId,
   getSummarizedConsumptionReport,
-  markMenuAsServed
+  markMenuAsServed,
+  createMessDailyExpense,
+  getMessDailyExpenses,
+  getMessDailyExpenseById,
+  updateMessDailyExpense,
+  deleteMessDailyExpense,
+  createExpenseType,
+  getExpenseTypes,
+  updateExpenseType,
+  deleteExpenseType
 };

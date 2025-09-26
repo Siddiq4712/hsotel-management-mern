@@ -63,7 +63,7 @@ import ItemStoreMapping from './components/mess/ItemStoreMapping';
 import ConsumptionReport from './components/mess/ConsumptionReport';
 import MenuPlanner from './components/mess/MenuPlanner';
 import CreateMenu from './components/mess/CreateMenu';
-
+import MessExpenses from './components/mess/MessExpenses';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
 
@@ -216,6 +216,8 @@ const DashboardRouter = () => {
             return <SpecialFoodItemsManagement />;
           case 'food-orders':
             return <FoodOrdersManagement />;
+          case 'Daily-expenses':
+            return <MessExpenses />;
           default:
             return <MessDashboard />;
         }

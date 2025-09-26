@@ -1,3 +1,4 @@
+// services/api.js
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5001/api';
@@ -96,8 +97,8 @@ export const adminAPI = {
   updateIncomeType: (id, data) => api.put(`/admin/income-types/${id}`, data),
   deleteIncomeType: (id) => api.delete(`/admin/income-types/${id}`),
 
-  // Expense Type Management - Complete CRUD
-  createExpenseType: (data) => api.post('/admin/expense-types', data),
+  // Expense Type Management - Complete CRUD (This is the canonical source now)
+  createExpenseType: (data) => api.post('/admin/expense-types', data), // Keep this one
   getExpenseTypes: (params) => api.get('/admin/expense-types', { params }),
   updateExpenseType: (id, data) => api.put(`/admin/expense-types/${id}`, data),
   deleteExpenseType: (id) => api.delete(`/admin/expense-types/${id}`),
@@ -305,6 +306,19 @@ export const messAPI = {
   // Reports
   getMonthlyFoodOrderReport: (params) => api.get('/mess/reports/monthly-food-orders', { params }), // params: { month, year }
   getSummarizedConsumptionReport: (params) => api.get('/mess/reports/consumption-summary', { params }), // params: { start_date, end_date }
+
+  // Mess Daily Expenses Management - New API calls
+  createMessDailyExpense: (data) => api.post('/mess/daily-expenses', data),
+  getMessDailyExpenses: (params) => api.get('/mess/daily-expenses', { params }),
+  getMessDailyExpenseById: (id) => api.get(`/mess/daily-expenses/${id}`),
+  updateMessDailyExpense: (id, data) => api.put(`/mess/daily-expenses/${id}`, data),
+  deleteMessDailyExpense: (id) => api.delete(`/mess/daily-expenses/${id}`),
+  
+  
+  createExpenseType: (data) => api.post('/mess/expenses-types', data), // Keep this one
+  getExpenseTypes: (params) => api.get('/mess/expenses-types', { params }),
+  updateExpenseType: (id, data) => api.put(`/mess/expenses-types/${id}`, data),
+  deleteExpenseType: (id) => api.delete(`/mess/expenses-types/${id}`),
 };
 
 export default api;
