@@ -103,7 +103,7 @@ const MenuPlanner = () => {
         scheduled_date: date,
         meal_time: null,
         menu_id: null,
-        estimated_servings: 100
+        // REMOVED: estimated_servings: 100
       });
     }
   };
@@ -168,7 +168,8 @@ const MenuPlanner = () => {
       // Format values for API
       const formattedValues = {
         ...values,
-        scheduled_date: values.scheduled_date.format('YYYY-MM-DD')
+        scheduled_date: values.scheduled_date.format('YYYY-MM-DD'),
+        // REMOVED: estimated_servings: values.estimated_servings // No longer sent from frontend
       };
       
       await messAPI.scheduleMenu(formattedValues);
@@ -241,7 +242,7 @@ const MenuPlanner = () => {
                 scheduled_date: moment(),
                 meal_time: null,
                 menu_id: null,
-                estimated_servings: 100
+                // REMOVED: estimated_servings: 100
               });
             }}
           >
@@ -349,6 +350,8 @@ const MenuPlanner = () => {
             </Select>
           </Form.Item>
 
+          {/* REMOVED: Estimated Servings Form Item */}
+          {/*
           <Form.Item
             name="estimated_servings"
             label="Estimated Servings"
@@ -359,6 +362,7 @@ const MenuPlanner = () => {
           >
             <InputNumber style={{ width: '100%' }} min={1} />
           </Form.Item>
+          */}
 
           <Form.Item>
             <Space>
@@ -390,7 +394,7 @@ const MenuPlanner = () => {
                 scheduled_date: selectedDateForModal,
                 meal_time: null,
                 menu_id: null,
-                estimated_servings: 100
+                // REMOVED: estimated_servings: 100
               });
             }}
           >

@@ -85,7 +85,21 @@ const {
 
   // Reports
   getSummarizedConsumptionReport,
-  markMenuAsServed
+  markMenuAsServed,
+
+  // Mess Daily Expenses
+  createMessDailyExpense,
+  getMessDailyExpenses,
+  getMessDailyExpenseById,
+  updateMessDailyExpense,
+  deleteMessDailyExpense,
+  createExpenseType,
+  getExpenseTypes,
+  updateExpenseType,
+  deleteExpenseType
+  
+  // createExpenseTypeForMess,
+  // createExpenseType
 } = require('../controllers/messController');
 const { auth, authorize } = require('../middleware/auth');
 
@@ -140,6 +154,7 @@ const validateMenuSchedule = [
   body('meal_time').notEmpty().withMessage('Meal time is required'),
   body('estimated_servings').isInt({ min: 1 }).withMessage('Estimated servings must be a positive integer')
 ];
+
 
 // Apply authentication middleware to all routes
 router.use(auth);
@@ -228,5 +243,20 @@ router.get('/menus/:menu_id/cost', authorize(['mess', 'warden', 'admin']), calcu
 // Reports
 router.get('/reports/monthly-food-orders', authorize(['mess', 'warden', 'admin']), getMonthlyFoodOrderReport);
 router.get('/reports/consumption-summary', authorize(['mess', 'warden', 'admin']), getSummarizedConsumptionReport);
+
+router.post('/daily-expenses', authorize(['mess', 'admin']), createMessDailyExpense);
+router.get('/daily-expenses', authorize(['mess', 'admin']), getMessDailyExpenses);
+router.get('/daily-expenses/:id', authorize(['mess', 'admin']), getMessDailyExpenseById);
+router.put('/daily-expenses/:id', authorize(['mess', 'admin']), updateMessDailyExpense);
+router.delete('/daily-expenses/:id', authorize(['mess', 'admin']), deleteMessDailyExpense);
+
+router.post('/expenses-types',authorize(['mess', 'admin']), createExpenseType);
+router.get('/expenses-types', authorize(['mess', 'admin']),getExpenseTypes);
+router.put('/expenses-types/:id', authorize(['mess', 'admin']),updateExpenseType);
+router.delete('/expenses-types/:id',authorize(['mess', 'admin']), deleteExpenseType);
+
+// router.post('/expense-types', authorize(['mess', 'admin']), createExpenseTypeForMess);
+
+// router.post('/expense-types', authorize(['mess', 'admin']), createExpenseType); 
 
 module.exports = router;
