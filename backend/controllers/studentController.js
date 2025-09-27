@@ -3,11 +3,9 @@ const {
   User, HostelRoom, RoomType, MessBill, MessCharge,
   Leave, Complaint, Transaction, Attendance, Token,
   HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel,
-  SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment
+  SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, sequelize
 } = require('../models');
-const { Op } = require('sequelize');
-
-//const { Op } = require('sequelize');
+const { Op } = require('sequelize'); // <-- NEW LINE: Import 'sequelize' object
 
 // PROFILE MANAGEMENT
 const getProfile = async (req, res) => {
@@ -1202,7 +1200,7 @@ const createFoodOrder = async (req, res) => {
 
   let transaction;
   try {
-    transaction = await sequelize.transaction();
+    transaction = await sequelize.transaction(); 
 
     let totalAmount = 0;
     const orderItems = [];
