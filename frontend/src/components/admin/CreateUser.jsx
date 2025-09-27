@@ -67,7 +67,8 @@ const CreateUser = () => {
     { value: 'admin', label: 'Admin' },
     { value: 'warden', label: 'Warden' },
     { value: 'student', label: 'Student' }, // Add student role
-    { value: 'mess', label: 'Mess Staff' }
+    { value: 'mess', label: 'Mess Staff' },
+    { value: 'student', label: 'lapc' }
   ];
 
   return (

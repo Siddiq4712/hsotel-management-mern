@@ -2680,7 +2680,7 @@ Rebate.belongsTo(User, { foreignKey: 'approved_by', as: 'RebateApprovedBy' });
 
 // Transaction associations
 Transaction.belongsTo(User, { foreignKey: 'student_id', as: 'TransactionStudent' });
-Transaction.belongsTo(User, { foreignKey: 'processed_by', as: 'TransactionProcessedBy' });
+Transaction.belongsTo(User, { foreignKey: 'processed_by', as: 'ProcessedBy' });
 
 // Menu and item associations
 MenuItem.belongsTo(Menu, { foreignKey: 'menu_id' });
