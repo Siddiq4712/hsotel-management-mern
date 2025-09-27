@@ -3,7 +3,7 @@ const {
   User, HostelRoom, RoomType, MessBill, MessCharge,
   Leave, Complaint, Transaction, Attendance, Token,
   HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel,
-  SpecialFoodItem, FoodOrder, FoodOrderItem,
+  SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment
 } = require('../models');
 const { Op } = require('sequelize');
 
@@ -17,7 +17,7 @@ const getProfile = async (req, res) => {
       include: [
         {
           model: RoomAllotment,
-          as: 'RoomAllotments',
+          as: 'tbl_RoomAllotments', 
           where: { is_active: true },
           required: false,
           include: [
@@ -42,7 +42,7 @@ const getProfile = async (req, res) => {
     res.json({ success: true, data: student });
   } catch (error) {
     console.error('Profile fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message }); // Add error.message for better debugging
   }
 };
 
