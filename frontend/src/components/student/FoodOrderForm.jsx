@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Button, DatePicker, Select, Table, InputNumber, Input, message, Spin, Alert, List, Typography, Divider, Row, Col, Image, Space, Modal } from 'antd';
 import { PlusOutlined, MinusOutlined, ShoppingCartOutlined, ClockCircleOutlined, SaveOutlined, DeleteOutlined } from '@ant-design/icons';
-import { studentAPI } from '../../services/api'; // Corrected import
+import { studentAPI } from '../../services/api.js'; // Corrected import
 import moment from 'moment';
 
 const { Option } = Select;

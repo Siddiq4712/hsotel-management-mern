@@ -671,7 +671,7 @@ const getTransactions = async (req, res) => {
     res.json({ success: true, data: transactions });
   } catch (error) {
     console.error('Transactions fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 
