@@ -205,6 +205,13 @@ export const studentAPI = {
   useFacility: (data) => api.post('/student/facility-usage', data),
   getMyFacilityUsage: () => api.get('/student/facility-usage'),
 
+   getSpecialFoodItems: (params) => api.get('/student/special-food-items', { params }),
+  getSpecialFoodItemCategories: () => api.get('/student/special-food-item-categories'),
+  createFoodOrder: (data) => api.post('/student/food-orders', data),
+  getFoodOrders: (params) => api.get('/student/food-orders', { params }), // Accepts params now
+  getFoodOrderById: (id) => api.get(`/student/food-orders/${id}`),
+  cancelFoodOrder: (id) => api.put(`/student/food-orders/${id}/cancel`),
+
   // Meal Tokens
   getMyTokens: () => api.get('/student/tokens'),
 };

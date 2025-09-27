@@ -151,6 +151,7 @@ const DashboardRouter = () => {
         }
       
       case 'student':
+      case 'lapc':
         switch (currentView) {
           case 'dashboard':
             return <StudentDashboard />;

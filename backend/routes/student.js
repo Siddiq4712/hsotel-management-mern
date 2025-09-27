@@ -28,13 +28,19 @@ const {
   getMyTokens,
   getTokenById,
   getDashboardStats,
+  getAvailableSpecialFoodItems,
+  getSpecialFoodItemCategories,
+  createFoodOrder,
+  getMyFoodOrders,
+  getFoodOrderById,
+  cancelFoodOrder,
 } = require('../controllers/studentController');
 const { auth, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
 router.use(auth);
-router.use(authorize(['student']));
+router.use(authorize(['student','lapc']));
 
 // Dashboard Statistics
 router.get('/dashboard-stats', getDashboardStats);
@@ -81,4 +87,12 @@ router.delete('/facility-usage/:id', deleteFacilityUsage);
 router.get('/tokens', getMyTokens);
 router.get('/tokens/:id', getTokenById);
 
+
+// NEW: Special Food Items and Orders Routes for students/lapc
+router.get('/special-food-items', getAvailableSpecialFoodItems);
+router.get('/special-food-item-categories', getSpecialFoodItemCategories);
+router.post('/food-orders', createFoodOrder);
+router.get('/food-orders', getMyFoodOrders);
+router.get('/food-orders/:id', getFoodOrderById);
+router.put('/food-orders/:id/cancel', cancelFoodOrder);
 module.exports = router;

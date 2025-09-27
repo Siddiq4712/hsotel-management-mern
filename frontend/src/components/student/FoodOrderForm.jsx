@@ -1,8 +1,7 @@
-// src/components/student/FoodOrderForm.jsx
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Button, DatePicker, Select, Table, InputNumber, Input, message, Spin, Alert, List, Typography, Divider, Row, Col, Image, Space, Modal } from 'antd';
 import { PlusOutlined, MinusOutlined, ShoppingCartOutlined, ClockCircleOutlined, SaveOutlined, DeleteOutlined } from '@ant-design/icons';
-import { messAPI, studentAPI } from '../../services/api';
+import { studentAPI } from '../../services/api'; // Corrected import
 import moment from 'moment';
 
 const { Option } = Select;
@@ -21,27 +20,23 @@ const FoodOrderForm = () => {
   const [showCart, setShowCart] = useState(false);
 
   useEffect(() => {
-    fetchFoodItems();
+    fetchFoodItems(selectedCategory); // Pass selectedCategory to fetch
     fetchCategories();
-  }, []);
+  }, [selectedCategory]); // Refetch when category changes
 
-  const fetchFoodItems = async (category = 'all') => {
-    setLoading(true);
+  const fetchFoodItems = async (category) => { // Accept category as argument
     try {
-      const params = { is_available: true };
-      if (category !== 'all') {
-        params.category = category;
-      }
-      
-      const response = await messAPI.getSpecialFoodItems(params);
+      setLoading(true);
+      const params = category && category !== 'all' ? { is_available: true, category: category } : { is_available: true };
+      const response = await studentAPI.getSpecialFoodItems(params); // USE studentAPI
       if (response.data.success) {
         setFoodItems(response.data.data);
       } else {
-        message.error('Failed to load food items: ' + (response.data.message || 'Unknown error'));
+        message.error('Failed to fetch food items: ' + (response.data.message || 'Unknown error'));
       }
     } catch (error) {
+      message.error('Failed to fetch food items: ' + error.message);
       console.error('Failed to fetch food items:', error);
-      setError('Failed to load food items. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -49,20 +44,21 @@ const FoodOrderForm = () => {
 
   const fetchCategories = async () => {
     try {
-      const response = await messAPI.getSpecialFoodItems();
+      const response = await studentAPI.getSpecialFoodItemCategories(); // USE studentAPI
       if (response.data.success) {
-        // Extract unique categories
-        const uniqueCategories = [...new Set(response.data.data.map(item => item.category))];
-        setCategories(uniqueCategories);
+        setCategories(response.data.data);
+      } else {
+        message.error('Failed to fetch categories: ' + (response.data.message || 'Unknown error'));
       }
     } catch (error) {
+      message.error('Failed to fetch categories: ' + error.message);
       console.error('Failed to fetch categories:', error);
     }
   };
 
   const handleCategoryChange = (value) => {
     setSelectedCategory(value);
-    fetchFoodItems(value);
+    // fetchFoodItems will be called by useEffect due to selectedCategory change
   };
 
   const addToCart = (item) => {
@@ -111,7 +107,7 @@ const FoodOrderForm = () => {
     return cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   };
 
-  const handleSubmit = async (values) => {
+  const handleSubmit = async (values) => { // This is the main submit function
     if (cartItems.length === 0) {
       message.warning('Please add at least one item to your cart');
       return;
@@ -129,7 +125,7 @@ const FoodOrderForm = () => {
         notes: values.notes
       };
 
-      const response = await studentAPI.createFoodOrder(orderData);
+      const response = await studentAPI.createFoodOrder(orderData); // USE studentAPI
       
       if (response.data.success) {
         message.success('Food order placed successfully');
@@ -146,6 +142,8 @@ const FoodOrderForm = () => {
       setSubmitting(false);
     }
   };
+  
+  // Removed the duplicate `handleOrderSubmit` function from your provided code
 
   const renderFoodItemCard = (item) => {
     return (
@@ -157,7 +155,7 @@ const FoodOrderForm = () => {
           <Image
             alt={item.name}
             src={item.image_url}
-                        fallback="data:image/png;base64,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"
+            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jODVboQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3PTWBSGcbGzM6GCKqlIBRV0dHRJFarQ0eUT8LH4BnRU0NHR0UEFVdIlFRV7TzRskomPY8uykTk/zewQfKw/9znv4yvJynLv4uLiV2dBoDiBf4qP3/ARuCRABEFAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghgg0Aj8i0JO4OzsrPv69Wv+hi2qPHr0qNvf39+iI97soRIh4f3z58/u7du3SXX7Xt7Z2enevHmzfQe+oSN2apSAPj09TSrb+XKI/f379+08+A0cNRE2ANkupk+ACNPvkSPcAAEibACyXUyfABGm3yNHuAECRNgAZLuYPgEirKlHu7u7XdyytGwHAd8jjNyng4OD7vnz51dbPT8/7z58+NB9+/bt6jU/TI+AGWHEnrx48eJ/EsSmHzx40L18+fLyzxF3ZVMjEyDCiEDjMYZZS5wiPXnyZFbJaxMhQIQRGzHvWR7XCyOCXsOmiDAi1HmPMMQjDpbpEiDCiL358eNHurW/5SnWdIBbXiDCiA38/Pnzrce2YyZ4//59F3ePLNMl4PbpiL2J0L979+7yDtHDhw8vtzzvdGnEXdvUigSIsCLAWavHp/+qM0BcXMd/q25n1vF57TYBp0a3mUzilePj4+7k5KSLb6gt6ydAhPUzXnoPR0dHl79WGTNCfBnn1uvSCJdegQhLI1vvCk+fPu2ePXt2tZOYEV6/fn31dz+shwAR1sP1cqvLntbEN9MxA9xcYjsxS1jWR4AIa2Ibzx0tc44fYX/16lV6NDFLXH+YL32jwiACRBiEbf5KcXoTIsQSpzXx4N28Ja4BQoK7rgXiydbHjx/P25TaQAJEGAguWy0+2Q8PD6/Ki4R8EVl+bzBOnZY95fq9rj9zAkTI2SxdidBHqG9+skdw43borCXO/ZcJdraPWdv22uIEiLA4q7nvvCug8WTqzQveOH26fodo7g6uFe/a17W3+nFBAkRYENRdb1vkkz1CH9cPsVy/jrhr27PqMYvENYNlHAIesRiBYwRy0V+8iXP8+/fvX11Mr7L7ECueb/r48eMqm7FuI2BGWDEG8cm+7G3NEOfmdcTQw4h9/55lhm7DekRYKQPZF2ArbXTAyu4kDYB2YxUzwg0gi/41ztHnfQG26HbGel/crVrm7tNY+/1btkOEAZ2M05r4FB7r9GbAIdxaZYrHdOsgJ/wCEQY0J74TmOKnbxxT9n3FgGGWWsVdowHtjt9Nnvf7yQM2aZU/TIAIAxrw6dOnAWtZZcoEnBpNuTuObWMEiLAx1HY0ZQJEmHJ3HNvGCBBhY6jtaMoEiJB0Z29vL6ls58vxPcO8/zfrdo5qvKO+d3Fx8Wu8zf1dW4p/cPzLly/dtv9Ts/EbcvGAHhHyfBIhZ6NSiIBTo0LNNtScABFyNiqFCBChULMNNSdAhJyNSiECRCjUbEPNCRAhZ6NSiAARCjXbUHMCRMjZqBQiQIRCzTbUnAARcjYqhQgQoVCzDTUnQIScjUohAkQo1GxDzQkQIWejUogAEQo121BzAkTI2agUIkCEQs021JwAEXI2KoUIEKFQsw01J0CEnI1KIQJEKNRsQ80JECFno1KIABEKNdtQcwJEyNmoFCJAhELNNtScABFyNiqFCBChULMNNSdAhJyNSiECRCjUbEPNCRAhZ6NSiAARCjXbUHMCRMjZqBQiQIRCzTbUnAARcjYqhQgQoVCzDTUnQIScjUohAkQo1GxDzQkQIWejUogAEQo121BzAkTI2agUIkCEQs021JwAEXI2KoUEFEITSbTzjo24XjKSpGcQp55LYFu9y3Q/T2q9pCtHcJntyxvwW4p+4+ZujOH+BhlILfzbsAMr/lRfjXzGfdmwVdg6nWvQsMM8QLoPYGQDMAyGbGDE/Gv3AgFYnfwC"
             style={{ height: 200, objectFit: 'cover' }}
           /> : 
           <div style={{ height: 200, display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#f0f0f0' }}>
@@ -193,7 +191,7 @@ const FoodOrderForm = () => {
     return (
       <Modal
         title={<div><ShoppingCartOutlined /> Your Order</div>}
-        visible={showCart}
+        open={showCart} // Changed from `visible` to `open`
         onCancel={() => setShowCart(false)}
         footer={null}
         width={700}
@@ -275,16 +273,36 @@ const FoodOrderForm = () => {
               <DatePicker 
                 showTime 
                 format="YYYY-MM-DD HH:mm" 
+                // Ensure the date is not in the past and time is at least 30 minutes from now
                 disabledDate={(current) => current && current < moment().startOf('day')}
-                disabledTime={() => ({
-                  disabledHours: () => [...Array(moment().hour()).keys()],
-                  disabledMinutes: (hour) => {
-                    if (hour === moment().hour()) {
-                      return [...Array(moment().minute() + 30).keys()];
+                disabledTime={(current) => {
+                  const now = moment();
+                  const selectedDate = current || now;
+                  const disabledHours = [];
+                  const disabledMinutes = [];
+                  
+                  if (selectedDate.isSame(now, 'day')) {
+                    const currentHour = now.hour();
+                    const currentMinute = now.minute();
+                    
+                    // Disable hours before the current hour
+                    for (let i = 0; i < currentHour; i++) {
+                      disabledHours.push(i);
                     }
-                    return [];
+                    
+                    // If it's the current hour, disable minutes up to (currentMinute + 30)
+                    if (selectedDate.hour() === currentHour) {
+                      for (let i = 0; i < currentMinute + 30; i++) {
+                        disabledMinutes.push(i);
+                      }
+                    }
                   }
-                })}
+                  
+                  return {
+                    disabledHours: () => disabledHours,
+                    disabledMinutes: () => disabledMinutes,
+                  };
+                }}
                 style={{ width: '100%' }}
               />
             </Form.Item>
@@ -317,7 +335,10 @@ const FoodOrderForm = () => {
   };
 
   return (
-    <Card title="Special Food Order" bordered={false}>
+    <Card 
+      title="Special Food Order" 
+      variant="borderless" // Changed from `bordered={false}` to `variant="borderless"` for Ant Design v5
+    >
       {error && (
         <Alert
           message="Error"
