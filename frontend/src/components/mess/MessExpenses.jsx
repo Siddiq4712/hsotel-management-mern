@@ -1,61 +1,60 @@
-// src/components/mess/MessExpenses.jsx
 import React, { useState, useEffect, useCallback } from 'react';
-import { messAPI } from '../../services/api'; // Ensure this path is correct
-import { format } from 'date-fns';
-import { toast } from 'react-toastify'; // Ensure react-toastify is configured
-import { CreditCard, Plus, CheckCircle, AlertCircle, Edit, Trash2 } from 'lucide-react'; // Lucide icons
+import { messAPI } from '../../services/api'; // API service for mess-related endpoints
+import { format } from 'date-fns'; // Utility for date formatting
+import { toast } from 'react-toastify'; // Library for displaying toast notifications
+import { CreditCard, Plus, CheckCircle, AlertCircle, Edit, Trash2 } from 'lucide-react'; // Icon library
 
 const MessExpenses = () => {
   // --- State for Daily Mess Expenses ---
-  const [dailyExpenses, setDailyExpenses] = useState([]);
-  const [dailyExpenseFormData, setDailyExpenseFormData] = useState({
+  const [dailyExpenses, setDailyExpenses] = useState([]); // Holds the list of daily expense records
+  const [dailyExpenseFormData, setDailyExpenseFormData] = useState({ // State for the daily expense form inputs
     expense_type_id: '',
     amount: '',
     expense_date: format(new Date(), 'yyyy-MM-dd'),
     description: '',
   });
-  const [editingDailyExpenseId, setEditingDailyExpenseId] = useState(null);
-  const [dailyExpenseFilters, setDailyExpenseFilters] = useState({
+  const [editingDailyExpenseId, setEditingDailyExpenseId] = useState(null); // Stores the ID of the expense being edited
+  const [dailyExpenseFilters, setDailyExpenseFilters] = useState({ // State for filtering the expense list
     expense_type_id: 'all',
     from_date: '',
     to_date: '',
     search: ''
   });
-  const [dailyExpenseLoading, setDailyExpenseLoading] = useState(true);
-  const [dailyExpenseError, setDailyExpenseError] = useState(null);
+  const [dailyExpenseLoading, setDailyExpenseLoading] = useState(true); // Loading state for fetching daily expenses
+  const [dailyExpenseError, setDailyExpenseError] = useState(null); // Error state for daily expense fetch
 
   // --- State for Expense Types Management ---
-  const [expenseTypes, setExpenseTypes] = useState([]); // This will hold the list of types
-  const [showExpenseTypeModal, setShowExpenseTypeModal] = useState(false); // Controls visibility of the CRUD modal for types
-  const [expenseTypeFormData, setExpenseTypeFormData] = useState({ // Form data for creating/editing types
+  const [expenseTypes, setExpenseTypes] = useState([]); // Holds the list of expense categories/types
+  const [showExpenseTypeModal, setShowExpenseTypeModal] = useState(false); // Controls visibility of the category management modal
+  const [expenseTypeFormData, setExpenseTypeFormData] = useState({ // Form data for creating/editing categories
     name: '',
     description: ''
   });
-  const [editingExpenseType, setEditingExpenseType] = useState(null); // Holds the type being edited
-  const [expenseTypeMessage, setExpenseTypeMessage] = useState({ type: '', text: '' }); // Message for type CRUD (will only be shown in modal now)
-  const [expenseTypeLoading, setExpenseTypeLoading] = useState(false); // Loading for create/update type
-  const [expenseTypeUpdateLoading, setExpenseTypeUpdateLoading] = useState(false); // Specific loading for update type
+  const [editingExpenseType, setEditingExpenseType] = useState(null); // Holds the category object being edited
+  const [expenseTypeMessage, setExpenseTypeMessage] = useState({ type: '', text: '' }); // Stores success/error messages for category CRUD
+  const [expenseTypeLoading, setExpenseTypeLoading] = useState(false); // Loading state for creating a new category
+  const [expenseTypeUpdateLoading, setExpenseTypeUpdateLoading] = useState(false); // Loading state for updating a category
 
   // --- Callbacks for Expense Types ---
+  // Fetches all available expense categories from the API
   const fetchExpenseTypes = useCallback(async () => {
     try {
-      const response = await messAPI.getExpenseTypes(); // Delegated to adminAPI.getExpenseTypes
+      const response = await messAPI.getExpenseTypes(); 
       setExpenseTypes(response.data.data || []);
     } catch (err) {
       console.error('Error fetching expense types:', err);
       toast.error('Failed to load expense types.');
-    } finally {
-      // No specific loading for just fetching types, as it's part of initial load
     }
   }, []);
 
+  // Handles form submission to create a new expense category
   const handleCreateExpenseType = async (e) => {
     e.preventDefault();
     setExpenseTypeLoading(true);
     setExpenseTypeMessage({ type: '', text: '' });
 
     try {
-      await messAPI.createExpenseType(expenseTypeFormData); // Delegated to adminAPI.createExpenseType
+      await messAPI.createExpenseType(expenseTypeFormData);
       setExpenseTypeMessage({ type: 'success', text: 'Expense type created successfully!' });
       resetExpenseTypeForm(); // Close modal and reset form
       fetchExpenseTypes(); // Refresh the list of types
@@ -70,6 +69,7 @@ const MessExpenses = () => {
     }
   };
 
+  // Handles form submission to update an existing expense category
   const handleUpdateExpenseType = async (e) => {
     e.preventDefault();
     if (!editingExpenseType) return;
@@ -78,7 +78,7 @@ const MessExpenses = () => {
     setExpenseTypeMessage({ type: '', text: '' });
 
     try {
-      await messAPI.updateExpenseType(editingExpenseType.id, expenseTypeFormData); // Delegated to adminAPI.updateExpenseType
+      await messAPI.updateExpenseType(editingExpenseType.id, expenseTypeFormData);
       setExpenseTypeMessage({ type: 'success', text: 'Expense type updated successfully!' });
       resetExpenseTypeForm(); // Close modal and reset form
       fetchExpenseTypes(); // Refresh the list of types
@@ -93,6 +93,7 @@ const MessExpenses = () => {
     }
   };
 
+  // Handles the deletion of an expense category
   const handleDeleteExpenseType = async (id) => {
     if (!window.confirm('Are you sure you want to delete this expense type?')) {
       return;
@@ -100,7 +101,7 @@ const MessExpenses = () => {
     setExpenseTypeMessage({ type: '', text: '' });
 
     try {
-      await messAPI.deleteExpenseType(id); // Delegated to adminAPI.deleteExpenseType
+      await messAPI.deleteExpenseType(id);
       setExpenseTypeMessage({ type: 'success', text: 'Expense type deleted successfully!' });
       fetchExpenseTypes(); // Refresh the list of types
     } catch (error) {
@@ -112,6 +113,7 @@ const MessExpenses = () => {
     }
   };
 
+  // Handles changes to the expense category form inputs
   const handleExpenseTypeFormChange = (e) => {
     setExpenseTypeFormData({
       ...expenseTypeFormData,
@@ -119,6 +121,7 @@ const MessExpenses = () => {
     });
   };
 
+  // Resets the expense category form and closes the modal
   const resetExpenseTypeForm = () => {
     setShowExpenseTypeModal(false);
     setExpenseTypeFormData({ name: '', description: '' });
@@ -126,12 +129,14 @@ const MessExpenses = () => {
     setExpenseTypeMessage({ type: '', text: '' }); // Clear message on modal close
   };
 
+  // Opens the modal in "create" mode
   const openCreateExpenseTypeModal = () => {
     setEditingExpenseType(null); // Ensure no type is being edited
     setExpenseTypeFormData({ name: '', description: '' }); // Clear form for new creation
     setShowExpenseTypeModal(true);
   };
 
+  // Opens the modal in "edit" mode with pre-filled data
   const openEditExpenseTypeModal = (type) => {
     setEditingExpenseType(type);
     setExpenseTypeFormData({
@@ -142,6 +147,7 @@ const MessExpenses = () => {
   };
 
   // --- Callbacks for Daily Mess Expenses ---
+  // Fetches daily mess expenses from the API, applying filters
   const fetchDailyMessExpenses = useCallback(async () => {
     setDailyExpenseLoading(true);
     setDailyExpenseError(null);
@@ -159,27 +165,28 @@ const MessExpenses = () => {
 
   // Initial data fetch on component mount
   useEffect(() => {
-    fetchExpenseTypes(); // Fetch types first
+    fetchExpenseTypes(); // Fetch categories first
     fetchDailyMessExpenses(); // Then fetch daily expenses
-  }, [fetchExpenseTypes, fetchDailyMessExpenses]);
+  }, [fetchExpenseTypes, fetchDailyMessExpenses]); // Re-run effect when these dependencies change
 
-  // Handles form input changes for main daily expense form
+  // Handles form input changes for the daily expense form
   const handleDailyExpenseChange = (e) => {
     const { name, value } = e.target;
     setDailyExpenseFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handles filter input changes for daily expense list
+  // Handles filter input changes for the daily expense list
   const handleDailyExpenseFilterChange = (e) => {
     const { name, value } = e.target;
     setDailyExpenseFilters((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handles form submission (add or update daily expense)
+  // Handles form submission (add or update) for daily expenses
   const handleDailyExpenseSubmit = async (e) => {
     e.preventDefault();
     setDailyExpenseError(null);
 
+    // Basic validation
     if (!dailyExpenseFormData.expense_type_id || !dailyExpenseFormData.amount || parseFloat(dailyExpenseFormData.amount) <= 0 || !dailyExpenseFormData.expense_date) {
       toast.error('Please fill all required fields correctly for the daily expense.');
       return;
@@ -194,6 +201,7 @@ const MessExpenses = () => {
         toast.success('Daily expense added successfully!');
       }
 
+      // Reset form and editing state after a successful submission
       setDailyExpenseFormData({
         expense_type_id: '',
         amount: '',
@@ -201,7 +209,7 @@ const MessExpenses = () => {
         description: '',
       });
       setEditingDailyExpenseId(null);
-      fetchDailyMessExpenses();
+      fetchDailyMessExpenses(); // Refresh the list
     } catch (err) {
       console.error('Error submitting daily expense:', err);
       setDailyExpenseError(err.message);
@@ -247,7 +255,7 @@ const MessExpenses = () => {
     setEditingDailyExpenseId(null);
   };
 
-  // Helper to get expense type name from its ID (for display if not eager loaded)
+  // Helper to get expense type name from its ID (for display)
   const getExpenseTypeName = (id) => {
     const type = expenseTypes.find((et) => et.id === id);
     return type ? type.name : 'Unknown';
@@ -272,11 +280,12 @@ const MessExpenses = () => {
     );
   }
 
+  // Main component JSX
   return (
     <div className="container mx-auto p-6 bg-white shadow-md rounded-lg">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-3xl font-bold text-gray-800">Mess Operations</h2>
-        {/* --- The ONLY button for Expense Type management --- */}
+        {/* Button to open the category management modal */}
         <button
           onClick={openCreateExpenseTypeModal}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center shadow-md"
@@ -291,6 +300,7 @@ const MessExpenses = () => {
         <h3 className="text-2xl font-semibold text-gray-700 mb-4">
           {editingDailyExpenseId ? 'Edit Daily Expense' : 'Add New Daily Expense'}
         </h3>
+        {/* Form for adding/editing a daily expense record */}
         <form onSubmit={handleDailyExpenseSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Expense Type Dropdown */}
           <div>
@@ -367,6 +377,7 @@ const MessExpenses = () => {
 
           {/* Form Actions */}
           <div className="lg:col-span-3 flex justify-end space-x-3">
+            {/* Button to clear the form */}
             <button
               type="button"
               onClick={handleClearDailyExpenseForm}
@@ -374,6 +385,7 @@ const MessExpenses = () => {
             >
               Clear
             </button>
+            {/* Button to submit the form (Add or Update) */}
             <button
               type="submit"
               className="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -390,6 +402,7 @@ const MessExpenses = () => {
 
         {/* Filters for the list */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {/* Filter by Type dropdown */}
           <div>
             <label htmlFor="filter_daily_expense_type" className="block text-sm font-medium text-gray-700 mb-1">
               Filter by Type
@@ -409,6 +422,7 @@ const MessExpenses = () => {
               ))}
             </select>
           </div>
+          {/* From Date filter */}
           <div>
             <label htmlFor="filter_daily_from_date" className="block text-sm font-medium text-gray-700 mb-1">
               From Date
@@ -422,6 +436,7 @@ const MessExpenses = () => {
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             />
           </div>
+          {/* To Date filter */}
           <div>
             <label htmlFor="filter_daily_to_date" className="block text-sm font-medium text-gray-700 mb-1">
               To Date
@@ -435,6 +450,7 @@ const MessExpenses = () => {
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             />
           </div>
+          {/* Search input */}
           <div>
             <label htmlFor="filter_daily_search" className="block text-sm font-medium text-gray-700 mb-1">
               Search
@@ -449,6 +465,7 @@ const MessExpenses = () => {
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
             />
           </div>
+          {/* Apply Filters button */}
           <div className="lg:col-span-4 flex justify-end">
             <button
               onClick={fetchDailyMessExpenses} // Trigger fetching with current filters
@@ -505,12 +522,14 @@ const MessExpenses = () => {
                       {expense.RecordedBy ? expense.RecordedBy.username : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      {/* Edit button */}
                       <button
                         onClick={() => handleEditDailyExpense(expense)}
                         className="text-blue-600 hover:text-blue-900 mr-4"
                       >
                         Edit
                       </button>
+                      {/* Delete button */}
                       <button
                         onClick={() => handleDeleteDailyExpense(expense.id)}
                         className="text-red-600 hover:text-red-900"
@@ -529,7 +548,7 @@ const MessExpenses = () => {
       {/* Create/Update Expense Type Modal */}
       {showExpenseTypeModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex justify-center items-center">
-          <div className="relative p-5 border w-full max-w-lg mx-4 shadow-lg rounded-md bg-white animate-fade-in-down"> {/* Added max-w-lg and animation */}
+          <div className="relative p-5 border w-full max-w-lg mx-4 shadow-lg rounded-md bg-white animate-fade-in-down">
             <div className="mt-3">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
                 {editingExpenseType ? "Edit Expense Category" : "Create Expense Category"}
@@ -561,16 +580,18 @@ const MessExpenses = () => {
                       <li key={type.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md border border-gray-200">
                         <span className="text-gray-800 font-medium">{type.name}</span>
                         <div className="flex space-x-1">
+                          {/* Edit Category button */}
                           <button
-                            type="button" // Important: type="button" to prevent form submission
+                            type="button" 
                             onClick={() => openEditExpenseTypeModal(type)}
                             className="p-1 text-blue-600 hover:text-blue-800 hover:bg-gray-100 rounded-md"
                             title="Edit Category"
                           >
                             <Edit size={16} />
                           </button>
+                          {/* Delete Category button */}
                           <button
-                            type="button" // Important: type="button" to prevent form submission
+                            type="button" 
                             onClick={() => handleDeleteExpenseType(type.id)}
                             className="p-1 text-red-600 hover:text-red-800 hover:bg-gray-100 rounded-md"
                             title="Delete Category"
@@ -584,8 +605,9 @@ const MessExpenses = () => {
                 )}
               </div>
 
+              {/* Form for adding/editing a category */}
               <form onSubmit={editingExpenseType ? handleUpdateExpenseType : handleCreateExpenseType} className="space-y-4">
-                <div className="border-t border-gray-200 pt-4"> {/* Separator for add/edit form */}
+                <div className="border-t border-gray-200 pt-4"> 
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Category Name *
                   </label>
