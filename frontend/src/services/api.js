@@ -249,7 +249,7 @@ export const messAPI = {
   getMenuWithItems: (menuId) => api.get(`/mess/menus/${menuId}/items`),
   updateMenuItems: (menuId, data) => api.put(`/mess/menus/${menuId}/items`, data), // Expected data: { items: [{ item_id, quantity, unit, preparation_notes }] }
   removeItemFromMenu: (menuId, itemId) => api.delete(`/mess/menus/${menuId}/items/${itemId}`),
-
+  getItemBatches: (itemId) => api.get(`/mess/items/${itemId}/batches`),
   // Menu Scheduling - Complete CRUD
   // Expected data: { menu_id, scheduled_date, meal_time, estimated_servings }
   scheduleMenu: (data) => api.post('/mess/menu-schedule', data),
@@ -283,6 +283,7 @@ export const messAPI = {
   getStores: (params) => api.get('/mess/stores', { params }), // params: { search, is_active }
   updateStore: (id, data) => api.put(`/mess/stores/${id}`, data), // Expected data: { name, address, contact_number, is_active }
   deleteStore: (id) => api.delete(`/mess/stores/${id}`),
+   getItemBatches: (itemId) => api.get(`/mess/items/${itemId}/batches`),
 
   // Item-Store Mapping - Complete CRUD
   // Expected data: { item_id, store_id, price, is_preferred }
@@ -293,6 +294,9 @@ export const messAPI = {
   getStoresByItemId: (itemId) => api.get(`/mess/items/${itemId}/stores`),
 
   // Special Food Items - Complete CRUD
+
+    getItemFIFOPrice: (itemId) => api.get(`/mess/items/${itemId}/fifo-price`),
+
   // Expected data: { name, description, price, preparation_time_minutes, category, image_url }
   createSpecialFoodItem: (data) => api.post('/mess/special-food-items', data),
   getSpecialFoodItems: (params) => api.get('/mess/special-food-items', { params }), // params: { category, is_available, search }
