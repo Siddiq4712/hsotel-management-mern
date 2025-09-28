@@ -94,6 +94,7 @@ case 'mess':
     
     { id: 'section-store', label: 'Store Management', type: 'section' },
     { id: 'stores', label: 'Manage Stores', icon: Building },
+    { id: 'purchase-by-store', label: 'Purchase by Store', icon: Truck }, // New item
     { id: 'item-store-mapping', label: 'Item-Store Mapping', icon: List },
     
     { id: 'section-operations', label: 'Daily Operations', type: 'section' },

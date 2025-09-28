@@ -5,9 +5,10 @@ import {
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
-  InfoCircleOutlined, FilterOutlined, TagsOutlined
+  InfoCircleOutlined, FilterOutlined, TagsOutlined, CheckCircleOutlined
 } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
+import moment from 'moment';
 
 const { Option } = Select;
 const { Title, Text } = Typography;
@@ -25,7 +26,7 @@ const ItemManagement = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchText, setSearchText] = useState('');
   
-  // New states for category management
+  // States for category management
   const [activeTab, setActiveTab] = useState('items');
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
@@ -50,8 +51,10 @@ const ItemManagement = () => {
       
       const response = await messAPI.getItems(params);
       setItems(response.data.data || []);
+      console.log("[ItemManagement] Items fetched:", response.data.data?.length || 0);
     } catch (error) {
       message.error('Failed to fetch items');
+      console.error("[ItemManagement] Error fetching items:", error);
     } finally {
       setLoading(false);
     }
@@ -131,6 +134,106 @@ const ItemManagement = () => {
   
   const handleCategorySearch = () => {
     fetchCategories();
+  };
+
+  // Function to verify inventory consistency
+  const verifyInventory = async () => {
+    try {
+      setLoading(true);
+      const response = await messAPI.verifyInventory();
+      message.success(response.data.message);
+      
+      // Refresh the items list
+      fetchItems();
+    } catch (error) {
+      message.error('Failed to verify inventory: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Function to display batch details in a modal
+  const showItemBatches = async (itemId) => {
+    try {
+      setLoading(true);
+      const response = await messAPI.getItemBatches(itemId);
+      const batches = response.data.data || [];
+      
+      // Sort batches by purchase date (oldest first)
+      const sortedBatches = [...batches].sort((a, b) => 
+        new Date(a.purchase_date) - new Date(b.purchase_date)
+      );
+      
+      // Add a visual indicator for the FIFO batch (the first active one)
+      const activeIndex = sortedBatches.findIndex(b => b.status === 'active' && b.quantity_remaining > 0);
+      
+      // Show modal with batch details
+      Modal.info({
+        title: 'Inventory Batches (FIFO Order)',
+        width: 800,
+        content: (
+          <div>
+            <p>Showing all batches for this item, oldest first. The first active batch with remaining quantity will be consumed first (FIFO).</p>
+            <Table 
+              dataSource={sortedBatches}
+              rowKey="id"
+              columns={[
+                {
+                  title: 'Batch ID',
+                  dataIndex: 'id',
+                  width: 80,
+                },
+                {
+                  title: 'FIFO Status',
+                  key: 'fifo_status',
+                  width: 120,
+                  render: (_, record, index) => 
+                    index === activeIndex && record.status === 'active' && record.quantity_remaining > 0 ? 
+                    <Tag color="green">NEXT TO USE</Tag> : null
+                },
+                {
+                  title: 'Purchase Date',
+                  dataIndex: 'purchase_date',
+                  render: date => date ? moment(date).format('YYYY-MM-DD') : 'Unknown',
+                  sorter: (a, b) => new Date(a.purchase_date) - new Date(b.purchase_date)
+                },
+                {
+                  title: 'Unit Price',
+                  dataIndex: 'unit_price',
+                  render: price => `₹${parseFloat(price).toFixed(2)}`
+                },
+                {
+                  title: 'Original Qty',
+                  dataIndex: 'quantity_purchased',
+                },
+                {
+                  title: 'Remaining Qty',
+                  dataIndex: 'quantity_remaining',
+                  render: (qty, record) => 
+                    <Text type={qty > 0 ? 'success' : 'danger'}>{qty}</Text>
+                },
+                {
+                  title: 'Status',
+                  dataIndex: 'status',
+                  render: status => (
+                    <Tag color={status === 'active' ? 'green' : 'red'}>
+                      {status.toUpperCase()}
+                    </Tag>
+                  )
+                }
+              ]}
+              pagination={false}
+              size="small"
+            />
+          </div>
+        )
+      });
+    } catch (error) {
+      message.error('Failed to fetch batch details');
+      console.error('[ItemManagement] Error fetching batches:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Category Management Functions
@@ -217,6 +320,20 @@ const ItemManagement = () => {
         const stockQuantity = record.stock_quantity || 0;
         return <Tag color={stockQuantity > 0 ? 'green' : 'red'}>{stockQuantity}</Tag>;
       },
+    },
+    // Add this new column for batch viewing
+    {
+      title: 'Batches',
+      key: 'batches',
+      render: (_, record) => (
+        <Button 
+          size="small" 
+          onClick={() => showItemBatches(record.id)}
+          icon={<InfoCircleOutlined />}
+        >
+          View
+        </Button>
+      ),
     },
     {
       title: 'Actions',
@@ -308,9 +425,18 @@ const ItemManagement = () => {
       extra={
         <Space>
           {activeTab === 'items' && (
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-              Add Item
-            </Button>
+            <>
+              <Button 
+                onClick={verifyInventory} 
+                icon={<CheckCircleOutlined />}
+                type="default"
+              >
+                Verify Inventory
+              </Button>
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+                Add Item
+              </Button>
+            </>
           )}
           {activeTab === 'categories' && (
             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateCategory}>
