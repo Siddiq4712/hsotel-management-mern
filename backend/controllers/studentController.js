@@ -2,11 +2,10 @@
 const { 
   User, HostelRoom, RoomType, MessBill, MessCharge,
   Leave, Complaint, Transaction, Attendance, Token,
-  HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel
+  HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel,
+  SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, sequelize
 } = require('../models');
-const { Op } = require('sequelize');
-
-//const { Op } = require('sequelize');
+const { Op } = require('sequelize'); // <-- NEW LINE: Import 'sequelize' object
 
 // PROFILE MANAGEMENT
 const getProfile = async (req, res) => {
@@ -16,7 +15,7 @@ const getProfile = async (req, res) => {
       include: [
         {
           model: RoomAllotment,
-          as: 'RoomAllotments',
+          as: 'tbl_RoomAllotments', 
           where: { is_active: true },
           required: false,
           include: [
@@ -41,7 +40,7 @@ const getProfile = async (req, res) => {
     res.json({ success: true, data: student });
   } catch (error) {
     console.error('Profile fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message }); // Add error.message for better debugging
   }
 };
 
@@ -670,7 +669,7 @@ const getTransactions = async (req, res) => {
     res.json({ success: true, data: transactions });
   } catch (error) {
     console.error('Transactions fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 
@@ -1157,6 +1156,176 @@ const getDashboardStats = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+const getAvailableSpecialFoodItems = async (req, res) => {
+  try {
+    const { category } = req.query;
+    let whereClause = { is_available: true };
+    if (category) {
+      whereClause.category = category;
+    }
+
+    const items = await SpecialFoodItem.findAll({
+      where: whereClause,
+      order: [['name', 'ASC']]
+    });
+    res.json({ success: true, data: items });
+  } catch (error) {
+    console.error('Error fetching special food items:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const getSpecialFoodItemCategories = async (req, res) => {
+  try {
+    const categories = await SpecialFoodItem.findAll({
+      attributes: [[sequelize.fn('DISTINCT', sequelize.col('category')), 'category']],
+      where: { is_available: true },
+      order: [['category', 'ASC']]
+    });
+    res.json({ success: true, data: categories.map(c => c.category) });
+  } catch (error) {
+    console.error('Error fetching special food item categories:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const createFoodOrder = async (req, res) => {
+  const { items, requested_time, notes } = req.body;
+  const student_id = req.user.id;
+  const hostel_id = req.user.hostel_id; // Assuming hostel_id is on req.user from auth middleware
+
+  if (!items || items.length === 0 || !requested_time) {
+    return res.status(400).json({ success: false, message: 'Items and requested time are required' });
+  }
+
+  let transaction;
+  try {
+    transaction = await sequelize.transaction(); 
+
+    let totalAmount = 0;
+    const orderItems = [];
+
+    for (const item of items) {
+      const foodItem = await SpecialFoodItem.findByPk(item.food_item_id, { transaction });
+      if (!foodItem || !foodItem.is_available) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: `Food item ${item.food_item_id} not found or not available` });
+      }
+      const subtotal = foodItem.price * item.quantity;
+      totalAmount += subtotal;
+      orderItems.push({
+        food_item_id: item.food_item_id,
+        quantity: item.quantity,
+        unit_price: foodItem.price,
+        subtotal,
+        special_instructions: item.special_instructions,
+      });
+    }
+
+    const foodOrder = await FoodOrder.create({
+      student_id,
+      hostel_id,
+      requested_time,
+      total_amount: totalAmount,
+      status: 'pending',
+      payment_status: 'pending',
+      notes,
+    }, { transaction });
+
+    for (const orderItem of orderItems) {
+      orderItem.food_order_id = foodOrder.id;
+    }
+
+    await FoodOrderItem.bulkCreate(orderItems, { transaction });
+    await transaction.commit();
+
+    const createdOrder = await FoodOrder.findByPk(foodOrder.id, {
+      include: [{ model: FoodOrderItem, include: [SpecialFoodItem] }],
+    });
+
+    res.status(201).json({ success: true, data: createdOrder, message: 'Food order placed successfully' });
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    console.error('Error creating food order:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const getMyFoodOrders = async (req, res) => {
+  try {
+    const student_id = req.user.id;
+    const { status, from_date, to_date } = req.query;
+
+    let whereClause = { student_id };
+    if (status) whereClause.status = status;
+    if (from_date && to_date) {
+      whereClause.order_date = {
+        [Op.between]: [new Date(from_date), new Date(to_date)]
+      };
+    }
+
+    const orders = await FoodOrder.findAll({
+      where: whereClause,
+      include: [
+        { model: FoodOrderItem, include: [SpecialFoodItem] },
+        { model: Hostel, attributes: ['id', 'name'] }
+      ],
+      order: [['order_date', 'DESC']]
+    });
+    res.json({ success: true, data: orders });
+  } catch (error) {
+    console.error('Error fetching my food orders:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const getFoodOrderById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const student_id = req.user.id;
+
+    const order = await FoodOrder.findOne({
+      where: { id, student_id },
+      include: [
+        { model: FoodOrderItem, include: [SpecialFoodItem] },
+        { model: Hostel, attributes: ['id', 'name'] }
+      ],
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Food order not found' });
+    }
+    res.json({ success: true, data: order });
+  } catch (error) {
+    console.error('Error fetching food order by ID:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const cancelFoodOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const student_id = req.user.id;
+
+    const order = await FoodOrder.findOne({
+      where: { id, student_id },
+    });
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Food order not found' });
+    }
+
+    if (order.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'Only pending orders can be cancelled.' });
+    }
+
+    await order.update({ status: 'cancelled' });
+    res.json({ success: true, message: 'Food order cancelled successfully' });
+  } catch (error) {
+    console.error('Error cancelling food order:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
 
 
 module.exports = {
@@ -1203,5 +1372,12 @@ module.exports = {
   getTokenById,
   
   // Dashboard
-  getDashboardStats
+  getDashboardStats,
+  // Special Food Orders
+  getAvailableSpecialFoodItems,
+  getSpecialFoodItemCategories,
+  createFoodOrder,
+  getMyFoodOrders,
+  getFoodOrderById,
+  cancelFoodOrder
 };

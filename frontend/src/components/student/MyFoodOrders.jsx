@@ -1,8 +1,7 @@
-// src/components/student/MyFoodOrders.jsx
 import React, { useState, useEffect } from 'react';
 import { Card, Table, DatePicker, Button, Space, Tag, Spin, Alert, Collapse, Descriptions, Typography, Timeline, Badge, Modal, message } from 'antd';
 import { SearchOutlined, ReloadOutlined, EyeOutlined, CloseOutlined } from '@ant-design/icons';
-import { studentAPI } from '../../services/api';
+import { studentAPI } from '../../services/api'; // Corrected import
 import moment from 'moment';
 
 const { RangePicker } = DatePicker;
@@ -41,7 +40,7 @@ const MyFoodOrders = () => {
         };
       }
       
-      const response = await studentAPI.getFoodOrders(params);
+      const response = await studentAPI.getFoodOrders(params); // USE studentAPI
       if (response.data.success) {
         setOrders(response.data.data);
       } else {
@@ -70,18 +69,27 @@ const MyFoodOrders = () => {
   };
 
   const handleCancelOrder = async (id) => {
-    try {
-      const response = await studentAPI.cancelFoodOrder(id);
-      if (response.data.success) {
-        message.success('Order cancelled successfully');
-        fetchOrders();
-      } else {
-        message.error('Failed to cancel order: ' + (response.data.message || 'Unknown error'));
-      }
-    } catch (error) {
-      console.error('Failed to cancel order:', error);
-      message.error('Failed to cancel order. Please try again later.');
-    }
+    Modal.confirm({
+      title: 'Confirm Cancellation',
+      content: 'Are you sure you want to cancel this order? This action cannot be undone.',
+      okText: 'Yes, Cancel',
+      okType: 'danger',
+      cancelText: 'No',
+      onOk: async () => {
+        try {
+          const response = await studentAPI.cancelFoodOrder(id); // USE studentAPI
+          if (response.data.success) {
+            message.success('Order cancelled successfully');
+            fetchOrders();
+          } else {
+            message.error('Failed to cancel order: ' + (response.data.message || 'Unknown error'));
+          }
+        } catch (error) {
+          console.error('Failed to cancel order:', error);
+          message.error('Failed to cancel order. Please try again later.');
+        }
+      },
+    });
   };
 
   const renderOrderStatus = (status) => {
@@ -164,7 +172,7 @@ const MyFoodOrders = () => {
     return (
       <Modal
         title={<div>Order #{selectedOrder.id} Details</div>}
-        visible={viewModalVisible}
+        open={viewModalVisible} // Changed from `visible` to `open`
         onCancel={() => setViewModalVisible(false)}
         footer={[
           <Button key="close" onClick={() => setViewModalVisible(false)}>
@@ -291,7 +299,7 @@ const MyFoodOrders = () => {
   return (
     <Card 
       title={<span>My Food Orders <Badge count={orders.filter(o => o.status === 'pending' || o.status === 'confirmed' || o.status === 'preparing' || o.status === 'ready').length} /></span>}
-      bordered={false}
+      variant="borderless" // Changed from `bordered={false}` to `variant="borderless"` for Ant Design v5
     >
       {error && (
         <Alert

@@ -53,7 +53,7 @@ import StockManagement from './components/mess/StockManagement';
 import DailyConsumption from './components/mess/DailyConsumption';
 import DailyOperations from './components/mess/DailyOperations';
 import UOMManagement from './components/mess/UOMManagement';
-// import MessReportsPage from './components/mess/MessReportsPage';
+import PurchaseByStore from './components/mess/PurchaseByStore';
 import InventoryManagement from './components/mess/InventoryManagement';
 import InventoryTransactions from './components/mess/InventoryTransactions';
 import StoreManagement from './components/mess/StoreManagement';
@@ -151,6 +151,7 @@ const DashboardRouter = () => {
         }
       
       case 'student':
+      case 'lapc':
         switch (currentView) {
           case 'dashboard':
             return <StudentDashboard />;
@@ -202,8 +203,8 @@ const DashboardRouter = () => {
             return <CreateMenu />;
           case 'uoms':
             return <UOMManagement />;
-          // case 'reports':
-          //   return <MessReportsPage />;
+          case 'purchase-by-store':
+            return <PurchaseByStore />;
           case 'inventory':
             return <InventoryManagement />;
           case 'inventory-transactions':

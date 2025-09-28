@@ -24,7 +24,7 @@ const User = sequelize.define('User', {
     allowNull: false
   },
   role: {
-    type: DataTypes.ENUM('student', 'warden', 'admin', 'mess'),
+    type: DataTypes.ENUM('student', 'warden', 'admin', 'mess','lapc'),
     allowNull: false
   },
   hostel_id: {
@@ -2680,7 +2680,7 @@ Rebate.belongsTo(User, { foreignKey: 'approved_by', as: 'RebateApprovedBy' });
 
 // Transaction associations
 Transaction.belongsTo(User, { foreignKey: 'student_id', as: 'TransactionStudent' });
-Transaction.belongsTo(User, { foreignKey: 'processed_by', as: 'TransactionProcessedBy' });
+Transaction.belongsTo(User, { foreignKey: 'processed_by', as: 'ProcessedBy' });
 
 // Menu and item associations
 MenuItem.belongsTo(Menu, { foreignKey: 'menu_id' });

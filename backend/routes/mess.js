@@ -96,8 +96,9 @@ const {
   createExpenseType,
   getExpenseTypes,
   updateExpenseType,
-  deleteExpenseType
-  
+  deleteExpenseType,
+  getItemFIFOPrice,
+  getItemBatches,  
   // createExpenseTypeForMess,
   // createExpenseType
 } = require('../controllers/messController');
@@ -175,7 +176,8 @@ router.get('/items', authorize(['mess', 'warden', 'admin']), getItems);
 router.get('/items/:id', authorize(['mess', 'warden', 'admin']), getItemById);
 router.put('/items/:id', authorize(['mess', 'admin']), validateItem, updateItem);
 router.delete('/items/:id', authorize(['admin', 'warden']), deleteItem);
-
+// In your routes file
+router.get('/items/:id/batches', authorize(['mess', 'admin']),getItemBatches);
 // Item Category Management - Complete CRUD
 router.post('/item-categories', authorize(['mess', 'admin']), validateItemCategory, createItemCategory);
 router.get('/item-categories', authorize(['mess', 'warden', 'admin']), getItemCategories);
@@ -254,6 +256,9 @@ router.post('/expenses-types',authorize(['mess', 'admin']), createExpenseType);
 router.get('/expenses-types', authorize(['mess', 'admin']),getExpenseTypes);
 router.put('/expenses-types/:id', authorize(['mess', 'admin']),updateExpenseType);
 router.delete('/expenses-types/:id',authorize(['mess', 'admin']), deleteExpenseType);
+// Add this to your routes
+router.get('/items/:id/fifo-price', authorize(['mess', 'admin']),getItemFIFOPrice);
+
 
 // router.post('/expense-types', authorize(['mess', 'admin']), createExpenseTypeForMess);
 
