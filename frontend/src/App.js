@@ -41,7 +41,7 @@ import ViewBills from './components/student/ViewBills';
 import MyMessCharges from './components/student/MyMessCharges';
 import FacilityUsage from './components/student/FacilityUsage';
 import TransactionHistory from './components/student/TransactionHistory';
-import FoodOrderForm from './components/student/FoodOrderForm';
+import FoodOrderForm from './components/student/StudentFoodMenu';
 import MyFoodOrders from './components/student/MyFoodOrders';
 
 // Mess Components
@@ -57,6 +57,7 @@ import PurchaseByStore from './components/mess/PurchaseByStore';
 import InventoryManagement from './components/mess/InventoryManagement';
 import InventoryTransactions from './components/mess/InventoryTransactions';
 import StoreManagement from './components/mess/StoreManagement';
+import MessOrderDashboard from './components/mess/MessOrderDashboard';
 import SpecialFoodItemsManagement from './components/mess/SpecialFoodItemsManagement';
 import FoodOrdersManagement from './components/mess/FoodOrdersManagement';
 import ItemStoreMapping from './components/mess/ItemStoreMapping';
@@ -206,6 +207,8 @@ const DashboardRouter = () => {
             return <UOMManagement />;
           case 'purchase-by-store':
             return <PurchaseByStore />;
+          case 'food-orders-dashboard':
+            return <MessOrderDashboard />;
           case 'record-consumption':
             return <RecordAdhocConsumption />;
           case 'inventory':
