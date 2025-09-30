@@ -105,6 +105,7 @@ const {
   createSpecialConsumption,
   getSpecialConsumptions,
   getSpecialConsumptionById,
+  calculateAndApplyDailyMessCharges
   // createExpenseTypeForMess,
   // createExpenseType
 } = require('../controllers/messController');
@@ -268,10 +269,7 @@ router.get('/items/:id/fifo-price', authorize(['mess', 'admin']),getItemFIFOPric
 router.post('/special-consumption', authorize(['mess', 'admin']),createSpecialConsumption);
 router.get('/special-consumption', authorize(['mess', 'admin']),getSpecialConsumptions);
 router.get('/special-consumption/:id', authorize(['mess', 'admin']),getSpecialConsumptionById);
+router.get('/daily-charges/calculate',authorize(['mess','admin']),calculateAndApplyDailyMessCharges);
 
-
-// router.post('/expense-types', authorize(['mess', 'admin']), createExpenseTypeForMess);
-
-// router.post('/expense-types', authorize(['mess', 'admin']), createExpenseType); 
-
+router.post('/daily-charges/calculate', authorize(['mess','admin']), calculateAndApplyDailyMessCharges);
 module.exports = router;

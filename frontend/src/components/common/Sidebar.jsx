@@ -47,6 +47,7 @@ const Sidebar = ({ currentView, setCurrentView }) => {
         return [
           { id: 'dashboard', label: 'Dashboard', icon: Home },
           { id: 'profile', label: 'My Profile', icon: Users },
+          { id: 'Mess Bills', label:'Mess Bills', type:'section'},
           { id: 'apply-leave', label: 'Apply Leave', icon: Calendar },
           { id: 'my-leaves', label: 'My Leaves', icon: FileText },
           { id: 'submit-complaint', label: 'Submit Complaint', icon: MessageCircle },
@@ -58,21 +59,21 @@ const Sidebar = ({ currentView, setCurrentView }) => {
           { id: 'food-order', label: 'Order Special Food', icon: Coffee },
           { id: 'my-food-orders', label: 'My Food Orders', icon: ShoppingBag },
         ];
-        case 'lapc':
-        return [
-          { id: 'dashboard', label: 'Dashboard', icon: Home },
-          { id: 'profile', label: 'My Profile', icon: Users },
-          { id: 'apply-leave', label: 'Apply Leave', icon: Calendar },
-          { id: 'my-leaves', label: 'My Leaves', icon: FileText },
-          { id: 'submit-complaint', label: 'Submit Complaint', icon: MessageCircle },
-          { id: 'my-complaints', label: 'My Complaints', icon: AlertCircle },
-          { id: 'facilities', label: 'Facilities', icon: Wifi },
-          { id: 'transactions', label: 'Transactions', icon: CreditCard },
-          { id: 'view-bills', label: 'Mess Bills', icon: Receipt },
-          { id: 'mess-charges', label: 'Mess Charges', icon: DollarSign },
-          { id: 'food-order', label: 'Order Special Food', icon: Coffee },
-          { id: 'my-food-orders', label: 'My Food Orders', icon: ShoppingBag },
-        ];
+        // case 'lapc':
+        // return [
+        //   { id: 'dashboard', label: 'Dashboard', icon: Home },
+        //   { id: 'profile', label: 'My Profile', icon: Users },
+        //   { id: 'apply-leave', label: 'Apply Leave', icon: Calendar },
+        //   { id: 'my-leaves', label: 'My Leaves', icon: FileText },
+        //   { id: 'submit-complaint', label: 'Submit Complaint', icon: MessageCircle },
+        //   { id: 'my-complaints', label: 'My Complaints', icon: AlertCircle },
+        //   { id: 'facilities', label: 'Facilities', icon: Wifi },
+        //   { id: 'transactions', label: 'Transactions', icon: CreditCard },
+        //   { id: 'view-bills', label: 'Mess Bills', icon: Receipt },
+        //   { id: 'mess-charges', label: 'Mess Charges', icon: DollarSign },
+        //   { id: 'food-order', label: 'Order Special Food', icon: Coffee },
+        //   { id: 'my-food-orders', label: 'My Food Orders', icon: ShoppingBag },
+        // ];
       // Update the mess menu items to match our simplified workflow:
 
 case 'mess':
@@ -107,10 +108,14 @@ case 'mess':
     { id: 'section-reports', label: 'Reports', type: 'section' },
     { id: 'consumption-report', label: 'Consumption Report', icon: BarChart2 },
     { id: 'Daily-expenses', label: 'Daily Expenses', icon: Receipt }, // New item
-  ];
+
+    {id:'Fees Calculation', label:'Fees Calculation', type:'section'},
+    {id:'calculate-daily-charges', label:'Calculate Daily Charges', icon: CreditCard},
+    
+    ];
       default:
         return [];
-        
+
     }
   };
 

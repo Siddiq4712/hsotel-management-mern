@@ -30,10 +30,7 @@ const {
   getDashboardStats,
   getAvailableSpecialFoodItems,
   getSpecialFoodItemCategories,
-  // createFoodOrder,
-  // getMyFoodOrders,
-  // getFoodOrderById,
-  // cancelFoodOrder,
+  getMyDailyMessCharges
 } = require('../controllers/studentController');
 const {
   createFoodOrder,
@@ -62,7 +59,6 @@ router.put('/profile', updateProfile);
 // Mess Bills Management Routes
 router.get('/mess-bills', getMessBills); // Already correctly defined
 router.get('/mess-bills/:id', getMessBillById);
-router.get('/mess-charges', getMyMessCharges);
 
 // Leave Management Routes
 router.post('/leave-requests', applyLeave);
@@ -107,4 +103,6 @@ router.post('/food-orders', createOrderLimiter, createFoodOrder);
 router.get('/food-orders', getFoodOrders); // <-- This now calls the correct function
 router.get('/food-orders/:id', getFoodOrderById);
 router.put('/food-orders/:id/cancel', cancelFoodOrder);
+// KEEP THIS LINE
+router.get('/daily-mess-charges', auth, getMyDailyMessCharges);
 module.exports = router;

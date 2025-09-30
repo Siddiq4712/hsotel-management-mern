@@ -66,6 +66,8 @@ import MenuPlanner from './components/mess/MenuPlanner';
 import CreateMenu from './components/mess/CreateMenu';
 import MessExpenses from './components/mess/MessExpenses';
 import RecordAdhocConsumption from './components/mess/RecordAdhocConsumption';
+import CalculateDailyCharges from './components/mess/CalculateDailyCharges'; // Import the new component
+import StudentMessHistory from './components/student/StudentMessHistory';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
 
@@ -177,6 +179,8 @@ const DashboardRouter = () => {
             return <FoodOrderForm />;
           case 'my-food-orders':
             return <MyFoodOrders />;
+          case 'mess-history':
+            return <StudentMessHistory />;
           default:
             return <StudentDashboard />;
         }
@@ -219,6 +223,8 @@ const DashboardRouter = () => {
             return <ItemStoreMapping />;
           case 'stores':
             return <StoreManagement />;
+          case 'calculate-daily-charges':
+            return <CalculateDailyCharges />;
           case 'special-food-items':
             return <SpecialFoodItemsManagement />;
           case 'food-orders':

@@ -235,6 +235,10 @@ const Enrollment = sequelize.define('Enrollment', {
   status: {
     type: DataTypes.ENUM('active', 'inactive', 'suspended'),
     defaultValue: 'active'
+  },
+   college: {
+    type: DataTypes.ENUM('nec', 'lapc'),
+    allowNull: true // Or false if it's a required field
   }
 }, {
   tableName: 'tbl_Enrollment',
