@@ -64,6 +64,7 @@ import ConsumptionReport from './components/mess/ConsumptionReport';
 import MenuPlanner from './components/mess/MenuPlanner';
 import CreateMenu from './components/mess/CreateMenu';
 import MessExpenses from './components/mess/MessExpenses';
+import RecordAdhocConsumption from './components/mess/RecordAdhocConsumption';
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
 
@@ -205,6 +206,8 @@ const DashboardRouter = () => {
             return <UOMManagement />;
           case 'purchase-by-store':
             return <PurchaseByStore />;
+          case 'record-consumption':
+            return <RecordAdhocConsumption />;
           case 'inventory':
             return <InventoryManagement />;
           case 'inventory-transactions':

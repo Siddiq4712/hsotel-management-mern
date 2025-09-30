@@ -30,18 +30,28 @@ const {
   getDashboardStats,
   getAvailableSpecialFoodItems,
   getSpecialFoodItemCategories,
+  // createFoodOrder,
+  // getMyFoodOrders,
+  // getFoodOrderById,
+  // cancelFoodOrder,
+} = require('../controllers/studentController');
+const {
   createFoodOrder,
-  getMyFoodOrders,
+  getFoodOrders,       // <-- The powerful function
   getFoodOrderById,
   cancelFoodOrder,
-} = require('../controllers/studentController');
+} = require('../controllers/messController'); // <-- Point to messController
 const { auth, authorize } = require('../middleware/auth');
 
 const router = express.Router();
-
+const rateLimit = require('express-rate-limit');
 router.use(auth);
 router.use(authorize(['student','lapc']));
-
+const createOrderLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each user to 10 food order creations per window
+  message: 'Too many food order requests, please try again later.'
+});
 // Dashboard Statistics
 router.get('/dashboard-stats', getDashboardStats);
 
@@ -89,10 +99,12 @@ router.get('/tokens/:id', getTokenById);
 
 
 // NEW: Special Food Items and Orders Routes for students/lapc
-router.get('/special-food-items', getAvailableSpecialFoodItems);
-router.get('/special-food-item-categories', getSpecialFoodItemCategories);
-router.post('/food-orders', createFoodOrder);
-router.get('/food-orders', getMyFoodOrders);
+router.get('/special-food-items',getAvailableSpecialFoodItems);
+router.get('/special-food-item-categories',getSpecialFoodItemCategories);
+
+// These routes now use the CENTRALIZED controller logic from messController
+router.post('/food-orders', createOrderLimiter, createFoodOrder);
+router.get('/food-orders', getFoodOrders); // <-- This now calls the correct function
 router.get('/food-orders/:id', getFoodOrderById);
 router.put('/food-orders/:id/cancel', cancelFoodOrder);
 module.exports = router;

@@ -2,7 +2,7 @@ const {
   Menu, Item, ItemCategory, User, MenuItem, Hostel,
   MenuSchedule, UOM, ItemStock, DailyConsumption,
   Store, ItemStore, InventoryTransaction, ConsumptionLog,
-  InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem,MessDailyExpense,ExpenseType
+  InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem,MessDailyExpense,ExpenseType,SpecialConsumption,SpecialConsumptionItem
 } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
@@ -1359,46 +1359,46 @@ const getDailyConsumption = async (req, res) => {
   }
 };
 
-const _recordBulkConsumptionLogic = async (consumptions, hostel_id, transaction) => {
-  console.log("[FIFO] Starting consumption processing with FIFO logic");
-  const lowStockItems = [];
+const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_id, transaction) => {
+  console.log("[FIFO LOGIC] Starting consumption processing...");
   
+  const lowStockItems = [];
+  const createdDailyConsumptions = []; // Array to hold the new DailyConsumption records
+
   for (const consumption of consumptions) {
     try {
-      console.log(`[FIFO] Processing item ${consumption.item_id}, quantity ${consumption.quantity_consumed}`);
-      
-      // Validate required properties
-      if (!consumption.item_id || !consumption.quantity_consumed) {
-        console.error('[FIFO] Missing required consumption properties:', consumption);
-        throw new Error('Invalid consumption data: missing required fields');
+      console.log(`[FIFO LOGIC] Processing item_id: ${consumption.item_id}, quantity: ${consumption.quantity_consumed}`);
+
+      // --- Validation ---
+      if (!consumption.item_id || !consumption.quantity_consumed || parseFloat(consumption.quantity_consumed) <= 0) {
+        console.error('[FIFO LOGIC] Invalid consumption data:', consumption);
+        throw new Error('Invalid consumption data: Missing item_id or a valid, positive quantity_consumed.');
       }
       
-      // Make sure we have a valid unit value
-      if (consumption.unit === undefined || consumption.unit === null) {
-        const item = await Item.findByPk(consumption.item_id, {
-          include: [{ model: UOM, as: 'UOM' }],
-          transaction
-        });
-        
-        consumption.unit = item?.unit_id || 1;
-        console.log(`[FIFO] Using unit_id ${consumption.unit} for item ${consumption.item_id}`);
+      let unitId = consumption.unit;
+      if (!unitId) {
+        const itemForUnit = await Item.findByPk(consumption.item_id, { transaction });
+        if (!itemForUnit || !itemForUnit.unit_id) {
+          throw new Error(`Cannot determine unit for item_id: ${consumption.item_id}. Please ensure the item has a default unit.`);
+        }
+        unitId = itemForUnit.unit_id;
+        console.log(`[FIFO LOGIC] Unit not provided. Using default unit_id ${unitId} for item ${consumption.item_id}`);
       }
       
-      let remaining = consumption.quantity_consumed;
+      let remainingToConsume = parseFloat(consumption.quantity_consumed);
       
-      // Get the latest ItemStock record
+      // --- Stock Check ---
       const currentStock = await ItemStock.findOne({
         where: { item_id: consumption.item_id, hostel_id },
-        order: [['updatedAt', 'DESC']],
         transaction
       });
       
-      if (!currentStock || currentStock.current_stock < consumption.quantity_consumed) {
-        console.error(`[FIFO] Insufficient stock for item ${consumption.item_id}. Required: ${consumption.quantity_consumed}, Available: ${currentStock?.current_stock || 0}`);
-        throw new Error(`Insufficient stock for item ID: ${consumption.item_id}`);
+      if (!currentStock || parseFloat(currentStock.current_stock) < remainingToConsume) {
+        console.error(`[FIFO LOGIC] Insufficient stock for item ${consumption.item_id}. Required: ${remainingToConsume}, Available: ${currentStock?.current_stock || 0}`);
+        throw new Error(`Insufficient stock for item: ${consumption.item_id}`);
       }
       
-      // Find active batches
+      // --- Fetch Batches (FIFO) ---
       const batches = await InventoryBatch.findAll({
         where: {
           item_id: consumption.item_id,
@@ -1406,130 +1406,109 @@ const _recordBulkConsumptionLogic = async (consumptions, hostel_id, transaction)
           status: 'active',
           quantity_remaining: { [Op.gt]: 0 }
         },
-        order: [['purchase_date', 'ASC']], // FIFO order - oldest first
+        order: [['purchase_date', 'ASC'], ['id', 'ASC']], // Oldest batches first
         transaction
       });
 
-      console.log(`[FIFO] Found ${batches.length} active batches for item ${consumption.item_id}`);
-      console.log(`[FIFO] Batches:`, batches.map(b => ({
-        id: b.id, 
-        purchase_date: b.purchase_date, 
-        qty_remaining: b.quantity_remaining,
-        unit_price: b.unit_price
-      })));
-      
-      // If no active batches but we have stock, create a synthetic batch
       if (batches.length === 0) {
-        console.warn(`[FIFO] No active batches found for item ${consumption.item_id}, but stock exists. Creating a synthetic batch.`);
-        
-        const item = await Item.findByPk(consumption.item_id, { transaction });
-        
-        if (!item) {
-          throw new Error(`Item not found: ${consumption.item_id}`);
-        }
-        
-        const syntheticBatch = await InventoryBatch.create({
-          item_id: consumption.item_id,
-          hostel_id,
-          quantity_purchased: currentStock.current_stock,
-          quantity_remaining: currentStock.current_stock,
-          unit_price: item.unit_price || 0,
-          purchase_date: currentStock.last_purchase_date || new Date(),
-          status: 'active'
-        }, { transaction });
-        
-        console.log(`[FIFO] Created synthetic batch ${syntheticBatch.id} with ${syntheticBatch.quantity_remaining} quantity`);
-        
-        batches.push(syntheticBatch);
+          console.error(`[FIFO LOGIC] Stock inconsistency for item ${consumption.item_id}. ItemStock shows ${currentStock.current_stock}, but no active batches were found.`);
+          throw new Error(`Stock inconsistency for item ID: ${consumption.item_id}. No active batches available.`);
       }
+
+      console.log(`[FIFO LOGIC] Found ${batches.length} active batch(es) for item ${consumption.item_id}.`);
       
-      // Process the consumption against batches (FIFO)
-      let totalCost = 0;
+      // --- Process Consumption Across Batches ---
+      let totalCostOfConsumption = 0;
       
       for (const batch of batches) {
-        if (remaining <= 0) break;
+        if (remainingToConsume <= 0) break;
         
-        const deduct = Math.min(remaining, batch.quantity_remaining);
-        console.log(`[FIFO] Deducting ${deduct} from batch ${batch.id} with unit price ${batch.unit_price}`);
+        const quantityFromThisBatch = Math.min(remainingToConsume, parseFloat(batch.quantity_remaining));
+        const costFromThisBatch = quantityFromThisBatch * parseFloat(batch.unit_price);
         
-        // Calculate the cost using batch's unit price
-        const batchCost = deduct * parseFloat(batch.unit_price);
-        totalCost += batchCost;
+        console.log(`[FIFO LOGIC] Deducting ${quantityFromThisBatch} from batch #${batch.id} (Unit Price: ${batch.unit_price}). Cost: ${costFromThisBatch}`);
         
-        console.log(`[FIFO] Batch cost: ${batchCost} (${deduct} × ${batch.unit_price}), Total cost so far: ${totalCost}`);
+        totalCostOfConsumption += costFromThisBatch;
         
-        // Update the batch
-        batch.quantity_remaining -= deduct;
+        // Update batch quantity
+        batch.quantity_remaining = parseFloat(batch.quantity_remaining) - quantityFromThisBatch;
         
-        // CRITICAL FIX: Mark batch as depleted when empty
         if (batch.quantity_remaining <= 0) {
-          console.log(`[FIFO] Batch ${batch.id} is now depleted, updating status to 'depleted'`);
+          console.log(`[FIFO LOGIC] Batch #${batch.id} is now depleted. Setting status to 'depleted'.`);
           batch.status = 'depleted';
         }
         
         await batch.save({ transaction });
-        remaining -= deduct;
+        remainingToConsume -= quantityFromThisBatch;
 
-        console.log(`[FIFO] Creating DailyConsumption for item ${consumption.item_id}`);
+        // --- Create Records ---
+        // A single DailyConsumption record is created for each batch used in a consumption event
         const dailyConsumption = await DailyConsumption.create({
           hostel_id,
           item_id: consumption.item_id,
           consumption_date: consumption.consumption_date || new Date(),
-          quantity_consumed: deduct,
-          unit: consumption.unit,
-          meal_type: consumption.meal_type || 'dinner',
-          recorded_by: consumption.recorded_by || 1,
-          total_cost: batchCost
+          quantity_consumed: quantityFromThisBatch, // Log the amount from this batch
+          unit: unitId,
+          meal_type: consumption.meal_type || 'snacks', // Default for ad-hoc
+          recorded_by: user_id, // Use the provided user_id
+          total_cost: costFromThisBatch,
         }, { transaction });
 
-        console.log(`[FIFO] Creating ConsumptionLog for dailyConsumption ${dailyConsumption.id}, cost: ${batchCost}`);
+        createdDailyConsumptions.push(dailyConsumption); // Add to the results array
+
         await ConsumptionLog.create({
           daily_consumption_id: dailyConsumption.id,
           batch_id: batch.id,
-          quantity_consumed: deduct,
-          cost: batchCost,
-          meal_type: consumption.meal_type || 'dinner'
+          quantity_consumed: quantityFromThisBatch,
+          cost: costFromThisBatch,
+          meal_type: consumption.meal_type || 'snacks',
         }, { transaction });
       }
 
-      if (remaining > 0) {
-        console.error(`[FIFO] Something went wrong - couldn't consume all requested quantity. Remaining: ${remaining}`);
-        throw new Error(`Could not consume all requested quantity for item ID: ${consumption.item_id}`);
+      if (remainingToConsume > 0) {
+        // This case should ideally not be hit due to the initial stock check
+        console.error(`[FIFO LOGIC] Could not fulfill entire consumption for item ${consumption.item_id}. Short by ${remainingToConsume}.`);
+        throw new Error(`Could not consume all requested quantity for item ID: ${consumption.item_id}.`);
       }
 
-      // Update ItemStock
-      console.log(`[FIFO] Updating ItemStock for item ${consumption.item_id}. Current: ${currentStock.current_stock}, Consumed: ${consumption.quantity_consumed}`);
-      currentStock.current_stock -= consumption.quantity_consumed;
+      // --- Update Aggregated ItemStock ---
+      currentStock.current_stock = parseFloat(currentStock.current_stock) - parseFloat(consumption.quantity_consumed);
       currentStock.last_updated = new Date();
+      await currentStock.save({ transaction });
       
-      if (currentStock.current_stock <= currentStock.minimum_stock) {
-        console.log(`[FIFO] Low stock detected for item ${consumption.item_id}: ${currentStock.current_stock} <= ${currentStock.minimum_stock}`);
-        const item = await Item.findByPk(consumption.item_id, {
+      console.log(`[FIFO LOGIC] ItemStock for item ${consumption.item_id} updated. New stock: ${currentStock.current_stock}`);
+      
+      // --- Low Stock Alert ---
+      if (currentStock.current_stock <= parseFloat(currentStock.minimum_stock)) {
+        const itemInfo = await Item.findByPk(consumption.item_id, {
           include: [{ model: UOM, as: 'UOM' }],
           transaction
         });
         
-        if (item) {
+        if (itemInfo) {
+          console.log(`[FIFO LOGIC] LOW STOCK detected for item ${itemInfo.name}.`);
           lowStockItems.push({
-            name: item.name,
+            name: itemInfo.name,
             current_stock: currentStock.current_stock,
-            unit: item.UOM ? item.UOM.abbreviation : 'unit',
+            unit: itemInfo.UOM ? itemInfo.UOM.abbreviation : 'units',
             minimum_stock: currentStock.minimum_stock
           });
         }
       }
-      
-      await currentStock.save({ transaction });
-      console.log(`[FIFO] ItemStock updated successfully. New stock level: ${currentStock.current_stock}`);
     } catch (error) {
-      console.error(`[FIFO] Error processing item ${consumption?.item_id}:`, error.message);
+      console.error(`[FIFO LOGIC] FATAL ERROR processing item ${consumption?.item_id}: ${error.message}`);
+      // Re-throw the error to ensure the transaction is rolled back
       throw error;
     }
   }
   
-  console.log('[FIFO] Low stock items:', lowStockItems);
-  return lowStockItems;
+  console.log("[FIFO LOGIC] Consumption processing finished.");
+  
+  // Return a structured object
+  return { lowStockItems, createdDailyConsumptions };
 };
+
+
 // Add this to your messController.js
 const getItemFIFOPrice = async (req, res) => {
   try {
@@ -1792,89 +1771,107 @@ const recordBulkConsumption = async (req, res) => {
 };
 
 // INVENTORY PURCHASE
+// In messController.js
+
+// In messController.js
 const recordInventoryPurchase = async (req, res) => {
   const { items } = req.body;
-  const hostel_id = req.user.hostel_id;
+  const { hostel_id, id: user_id } = req.user;
+  console.log('[API] recordInventoryPurchase CALLED at', new Date().toISOString());
+  console.log('[API] User:', { hostel_id, user_id });
+  console.log('[API] Received items:', JSON.stringify(items, null, 2));
+
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    console.error('[API Error] Purchase failed: Items array is missing or empty.');
+    return res.status(400).json({ success: false, message: 'Items array is required.' });
+  }
+
   const transaction = await sequelize.transaction();
-
   try {
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      throw new Error('Items array is required');
-    }
-
     const createdBatches = [];
-
     for (const item of items) {
-      if (!item.item_id) {
-        console.error('Missing item_id for inventory item');
-        continue;
-      }
+      console.log(`[API LOOP] --- Processing item_id: ${item.item_id} ---`);
 
-      try {
-        // Create a new inventory batch for this purchase
-        const newBatch = await InventoryBatch.create({
-          item_id: item.item_id,
-          hostel_id,
-          quantity_purchased: parseFloat(item.quantity),
-          quantity_remaining: parseFloat(item.quantity),
-          unit_price: parseFloat(item.unit_price),
-          purchase_date: item.transaction_date || new Date(),
-          expiry_date: item.expiry_date || null,
-          status: 'active'
+      // 1. Validate Item Data
+      if (!item.item_id || !item.quantity || item.unit_price === undefined || !item.store_id || !item.unit) {
+        throw new Error(`Missing required fields in item: ${JSON.stringify(item)}`);
+      }
+      console.log('[API LOOP] Step 1: Basic validation passed.');
+
+      // 2. Validate Item Exists
+      const itemRecord = await Item.findByPk(item.item_id, { transaction });
+      if (!itemRecord) {
+        throw new Error(`Item with ID ${item.item_id} not found.`);
+      }
+      console.log(`[API LOOP] Step 2: Found item "${itemRecord.name}" in DB.`);
+
+      // 3. Validate Store Exists
+      const storeRecord = await Store.findByPk(item.store_id, { transaction });
+      if (!storeRecord) {
+        throw new Error(`Store with ID ${item.store_id} not found.`);
+      }
+      console.log(`[API LOOP] Step 3: Found store "${storeRecord.name}" in DB.`);
+
+      // 4. Validate Unit (UOM)
+      console.log(`[API LOOP] Step 4: Validating unit. Searching for abbreviation: "${item.unit}"`);
+      const uomRecord = await UOM.findOne({ where: { abbreviation: item.unit }, transaction });
+      if (!uomRecord) {
+        throw new Error(`Unit with abbreviation "${item.unit}" NOT FOUND in tbl_UOM.`);
+      }
+      console.log(`[API LOOP] Found UOM record: ID=${uomRecord.id}, Name=${uomRecord.name}. Item's required unit_id is ${itemRecord.unit_id}.`);
+      if (itemRecord.unit_id !== uomRecord.id) {
+          throw new Error(`Unit mismatch for item "${itemRecord.name}". Item requires unit_id ${itemRecord.unit_id}, but received unit "${item.unit}" which is ID ${uomRecord.id}.`);
+      }
+      console.log('[API LOOP] Unit validation passed.');
+
+      // 5. Create Inventory Batch
+      console.log('[API LOOP] Step 5: Creating InventoryBatch...');
+      const batch = await InventoryBatch.create({
+        item_id: item.item_id, hostel_id,
+        quantity_purchased: parseFloat(item.quantity), quantity_remaining: parseFloat(item.quantity),
+        unit_price: parseFloat(item.unit_price), purchase_date: new Date(), status: 'active',
+      }, { transaction });
+      console.log(`[API LOOP] Created InventoryBatch ID: ${batch.id}`);
+
+      // 6. Create Inventory Transaction
+      console.log('[API LOOP] Step 6: Creating InventoryTransaction...');
+      await InventoryTransaction.create({
+        item_id: item.item_id, hostel_id, store_id: item.store_id, transaction_date: batch.purchase_date,
+        quantity: batch.quantity_purchased, unit: item.unit, unit_price: batch.unit_price,
+        transaction_type: 'purchase', recorded_by: user_id,
+      }, { transaction });
+      console.log('[API LOOP] Created InventoryTransaction.');
+
+      // 7. Update Item Stock
+      console.log('[API LOOP] Step 7: Updating ItemStock...');
+      let itemStock = await ItemStock.findOne({ where: { item_id: item.item_id, hostel_id }, transaction });
+      if (itemStock) {
+        await itemStock.increment('current_stock', { by: parseFloat(item.quantity), transaction });
+        await itemStock.update({ last_purchase_date: new Date() }, { transaction });
+        console.log(`[API LOOP] Incremented stock for item ${item.item_id}.`);
+      } else {
+        await ItemStock.create({
+          item_id: item.item_id, hostel_id, current_stock: parseFloat(item.quantity),
+          minimum_stock: 0, last_purchase_date: new Date(),
         }, { transaction });
-
-        createdBatches.push(newBatch);
-
-        // Update or create the ItemStock record
-        let itemStock = await ItemStock.findOne({
-          where: { item_id: item.item_id, hostel_id },
-          transaction
-        });
-
-        if (itemStock) {
-          // Calculate the new weighted average unit price
-          const existingStock = parseFloat(itemStock.current_stock);
-          const existingPrice = parseFloat(itemStock.unit_price || 0);
-          const newQuantity = parseFloat(item.quantity);
-          const newPrice = parseFloat(item.unit_price);
-
-          const newAveragePrice = ((existingStock * existingPrice) + (newQuantity * newPrice)) / (existingStock + newQuantity);
-
-          await itemStock.update({
-            current_stock: existingStock + newQuantity,
-            unit_price: newAveragePrice,
-            last_purchase_date: item.transaction_date || new Date()
-          }, { transaction });
-        } else {
-          itemStock = await ItemStock.create({
-            item_id: item.item_id,
-            hostel_id,
-            current_stock: item.quantity,
-            unit_price: item.unit_price,
-            minimum_stock: 0,
-            last_purchase_date: item.transaction_date || new Date()
-          }, { transaction });
-        }
-      } catch (itemError) {
-        throw itemError;
+        console.log(`[API LOOP] Created new stock record for item ${item.item_id}.`);
       }
+      console.log(`[API LOOP] --- Finished processing item_id: ${item.item_id} ---`);
+      createdBatches.push(batch);
     }
 
     await transaction.commit();
-    res.status(201).json({
-      success: true,
-      message: 'Purchases recorded and inventory batches created.',
-      data: createdBatches
-    });
+    console.log('[API] Transaction committed successfully.');
+    return res.status(201).json({ success: true, message: 'Purchases recorded successfully.', data: { createdBatches } });
+
   } catch (error) {
     await transaction.rollback();
-    console.error('Inventory purchase error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error: ' + error.message
-    });
+    console.error('[API FATAL ERROR] Transaction rolled back. Reason:', error.message);
+    console.error(error.stack); // Print full stack trace
+    return res.status(500).json({ success: false, message: `Failed to record purchases: ${error.message}` });
   }
 };
+
 
 const getInventoryTransactions = async (req, res) => {
   try {
@@ -2763,7 +2760,6 @@ const getMonthlyFoodOrderReport = async (req, res) => {
 const getItemsByStoreId = async (req, res) => {
   try {
     const { store_id } = req.params;
-
     const itemStores = await ItemStore.findAll({
       where: { store_id },
       include: [
@@ -2774,19 +2770,16 @@ const getItemsByStoreId = async (req, res) => {
       ],
       order: [[Item, 'name', 'ASC']]
     });
-
-    if (!itemStores) {
+    if (!itemStores || itemStores.length === 0) {
       return res.status(404).json({ success: false, message: 'No items mapped to this store yet.' });
     }
-
-    // Format the response
     const items = itemStores.map(is => ({
       item_id: is.item_id,
       name: is.Item.name,
       unit_price: is.price,
-      unit: is.Item.UOM?.abbreviation || 'unit'
+      unit: is.Item.UOM?.abbreviation || 'unit', // Return UOM abbreviation
+      unit_id: is.Item.unit_id // Optional: include for reference
     }));
-
     res.json({ success: true, data: items });
   } catch (error) {
     console.error('Error fetching items by store:', error);
@@ -3333,6 +3326,154 @@ const calculateMultiBatchPrice = async (itemId, requestedQuantity) => {
     };
   }
 };
+// In messController.js
+
+// ... other controller functions
+
+// In messController.js
+
+const createSpecialConsumption = async (req, res) => {
+  const { name, description, consumption_date, items } = req.body;
+  const hostel_id = req.user.hostel_id;
+  const user_id = req.user.id;
+  const transaction = await sequelize.transaction();
+
+  try {
+    if (!name || !consumption_date) {
+      throw new Error('Consumption name and date are required.');
+    }
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      throw new Error('At least one item must be provided for consumption.');
+    }
+
+    const consumptionsForLogic = items.map(item => ({
+      item_id: item.item_id,
+      quantity_consumed: parseFloat(item.quantity_consumed),
+      unit: item.unit_id, 
+      consumption_date,
+      meal_type: 'snacks', // Use a generic meal_type
+      // No need for recorded_by here, we pass it directly to the logic function
+    }));
+
+    // --- FIX #1: Pass user_id and get the created records directly ---
+    const { lowStockItems, createdDailyConsumptions } = await _recordBulkConsumptionLogic(
+      consumptionsForLogic, 
+      hostel_id, 
+      user_id, // Pass the user_id
+      transaction
+    );
+
+    // --- FIX #2: No need for the extra DB query anymore ---
+    // REMOVED: const createdDailyConsumptions = await DailyConsumption.findAll(...)
+
+    if (!createdDailyConsumptions || createdDailyConsumptions.length === 0) {
+        throw new Error("Failed to record any item consumptions in the database.");
+    }
+
+    const totalCost = createdDailyConsumptions.reduce((sum, record) => sum + parseFloat(record.total_cost), 0);
+    
+    const specialConsumption = await SpecialConsumption.create({
+      hostel_id,
+      name,
+      description,
+      consumption_date,
+      recorded_by: user_id,
+      total_cost: totalCost,
+    }, { transaction });
+
+    const consumptionItemPromises = createdDailyConsumptions.map(dc => {
+      return SpecialConsumptionItem.create({
+        special_consumption_id: specialConsumption.id,
+        item_id: dc.item_id,
+        daily_consumption_id: dc.id,
+        quantity_consumed: dc.quantity_consumed,
+        unit_id: dc.unit,
+        cost: dc.total_cost,
+      }, { transaction });
+    });
+
+    await Promise.all(consumptionItemPromises);
+
+    await transaction.commit();
+
+    res.status(201).json({
+      success: true,
+      message: 'Special consumption recorded successfully.',
+      data: {
+        ...specialConsumption.toJSON(),
+        lowStockItems,
+      },
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Special consumption creation error:', error);
+    res.status(500).json({ success: false, message: `Server error: ${error.message}` });
+  }
+};
+
+
+const getSpecialConsumptions = async (req, res) => {
+  try {
+    const { from_date, to_date, search } = req.query;
+    const hostel_id = req.user.hostel_id;
+
+    let whereClause = { hostel_id };
+
+    if (from_date && to_date) {
+      whereClause.consumption_date = { [Op.between]: [from_date, to_date] };
+    }
+
+    if (search) {
+      whereClause.name = { [Op.iLike]: `%${search}%` };
+    }
+
+    const consumptions = await SpecialConsumption.findAll({
+      where: whereClause,
+      include: [
+        { model: User, as: 'RecordedBy', attributes: ['id', 'username'] }
+      ],
+      order: [['consumption_date', 'DESC'], ['createdAt', 'DESC']],
+    });
+
+    res.json({ success: true, data: consumptions });
+  } catch (error) {
+    console.error('Get special consumptions error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const getSpecialConsumptionById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hostel_id = req.user.hostel_id;
+
+    const consumption = await SpecialConsumption.findOne({
+      where: { id, hostel_id },
+      include: [
+        { model: User, as: 'RecordedBy', attributes: ['id', 'username'] },
+        {
+          model: SpecialConsumptionItem,
+          as: 'ItemsConsumed',
+          include: [
+            { model: Item, attributes: ['id', 'name'] },
+            { model: UOM, attributes: ['id', 'abbreviation'] },
+          ],
+        },
+      ],
+    });
+
+    if (!consumption) {
+      return res.status(404).json({ success: false, message: 'Record not found.' });
+    }
+
+    res.json({ success: true, data: consumption });
+  } catch (error) {
+    console.error('Get special consumption by ID error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 
 module.exports = {
   createMenu,
@@ -3405,6 +3546,9 @@ module.exports = {
   getItemFIFOPrice,
   calculateMultiBatchPrice,
   _recordBulkConsumptionLogic,
-  fetchBatchPrices
+  fetchBatchPrices,
+  createSpecialConsumption,
+  getSpecialConsumptions,
+  getSpecialConsumptionById,
 
 };

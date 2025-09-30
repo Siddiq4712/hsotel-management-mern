@@ -2560,6 +2560,106 @@ const DailyConsumptionReturn = sequelize.define('DailyConsumptionReturn', {
   tableName: 'tbl_DailyConsumptionReturn',
   timestamps: true,
 });
+// In your models file (e.g., models/index.js)
+
+// ... other model definitions
+
+// NEW: Special Consumption Model
+const SpecialConsumption = sequelize.define('SpecialConsumption', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Hostel', key: 'id' },
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    comment: 'Descriptive name for the consumption event, e.g., "Annual Day Celebration"',
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  consumption_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false,
+  },
+  recorded_by: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Users', key: 'id' },
+  },
+  total_cost: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    defaultValue: 0.00,
+    comment: 'Total calculated cost of all items consumed in this event',
+  },
+}, {
+  tableName: 'tbl_SpecialConsumption',
+  timestamps: true,
+});
+
+// NEW: Special Consumption Item Model
+const SpecialConsumptionItem = sequelize.define('SpecialConsumptionItem', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  special_consumption_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_SpecialConsumption', key: 'id' },
+  },
+  item_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Item', key: 'id' },
+  },
+  daily_consumption_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_DailyConsumption', key: 'id' },
+    comment: 'Links to the underlying consumption record which handled stock deduction'
+  },
+  quantity_consumed: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+  },
+  unit_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_UOM', key: 'id' },
+  },
+  cost: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    comment: 'Cost of this specific item line, calculated via FIFO',
+  },
+}, {
+  tableName: 'tbl_SpecialConsumptionItem',
+  timestamps: false, // These are just log entries, timestamps on parent are enough
+});
+
+// ... inside the associations block at the end of your file
+
+// NEW Associations for Special Consumption
+SpecialConsumption.hasMany(SpecialConsumptionItem, { foreignKey: 'special_consumption_id', as: 'ItemsConsumed' });
+SpecialConsumptionItem.belongsTo(SpecialConsumption, { foreignKey: 'special_consumption_id' });
+
+SpecialConsumptionItem.belongsTo(Item, { foreignKey: 'item_id' });
+SpecialConsumptionItem.belongsTo(UOM, { foreignKey: 'unit_id' });
+SpecialConsumptionItem.belongsTo(DailyConsumption, { foreignKey: 'daily_consumption_id' });
+
+SpecialConsumption.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+SpecialConsumption.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy' });
+
 // Add associations
 SpecialFoodItem.hasMany(FoodOrderItem, { foreignKey: 'food_item_id' });
 FoodOrderItem.belongsTo(SpecialFoodItem, { foreignKey: 'food_item_id' });
@@ -2855,4 +2955,6 @@ module.exports = {
   ConsumptionLog,
 
   MessDailyExpense,
+  SpecialConsumption,
+  SpecialConsumptionItem
 };

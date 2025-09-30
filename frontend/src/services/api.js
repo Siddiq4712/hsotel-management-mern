@@ -283,7 +283,7 @@ export const messAPI = {
   getStores: (params) => api.get('/mess/stores', { params }), // params: { search, is_active }
   updateStore: (id, data) => api.put(`/mess/stores/${id}`, data), // Expected data: { name, address, contact_number, is_active }
   deleteStore: (id) => api.delete(`/mess/stores/${id}`),
-   getItemBatches: (itemId) => api.get(`/mess/items/${itemId}/batches`),
+
 
   // Item-Store Mapping - Complete CRUD
   // Expected data: { item_id, store_id, price, is_preferred }
@@ -330,6 +330,13 @@ export const messAPI = {
   getExpenseTypes: (params) => api.get('/mess/expenses-types', { params }),
   updateExpenseType: (id, data) => api.put(`/mess/expenses-types/${id}`, data),
   deleteExpenseType: (id) => api.delete(`/mess/expenses-types/${id}`),
+
+  recordAdhocConsumption: (data) => api.post('/mess/special-consumption', data),
+  getAdhocConsumptions: (params) => api.get('/mess/special-consumption', { params }),
+  getAdhocConsumptionById: (id) => api.get(`/mess/special-consumption/${id}`),
+  // createSpecialConsumption:(data) => api.post('/mess/special-consumption', data),
+  // getSpecialConsumptions:(params) => api.get('/mess/special-consumption', { params }),
+  // getSpecialConsumptionById:(id) => api.get(`/mess/special-consumption/${id}`),
 };
 
 export default api;
