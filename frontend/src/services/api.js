@@ -181,7 +181,6 @@ export const studentAPI = {
 
   // Mess Management
   getMessBills: (params) => api.get('/student/mess-bills', { params }), // Updated to accept params
-  getMyMessCharges: (params) => api.get('/student/mess-charges', { params }),
 
   // Fee Management
   getMyFees: (params) => api.get('/student/fees', { params }),
@@ -211,6 +210,8 @@ export const studentAPI = {
   getFoodOrders: (params) => api.get('/student/food-orders', { params }), // Accepts params now
   getFoodOrderById: (id) => api.get(`/student/food-orders/${id}`),
   cancelFoodOrder: (id) => api.put(`/student/food-orders/${id}/cancel`),
+  getMyDailyMessCharges: (params) => api.get('/student/daily-mess-charges', { params }),
+
 
   // Meal Tokens
   getMyTokens: () => api.get('/student/tokens'),
@@ -337,6 +338,7 @@ export const messAPI = {
   // createSpecialConsumption:(data) => api.post('/mess/special-consumption', data),
   // getSpecialConsumptions:(params) => api.get('/mess/special-consumption', { params }),
   // getSpecialConsumptionById:(id) => api.get(`/mess/special-consumption/${id}`),
+  calculateDailyCharges: (data) => api.post('/mess/daily-charges/calculate', data),
 };
 
 export default api;

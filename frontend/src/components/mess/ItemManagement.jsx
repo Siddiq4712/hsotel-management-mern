@@ -543,30 +543,33 @@ const ItemManagement = () => {
             <Input placeholder="Enter item name" />
           </Form.Item>
 
-          <Form.Item
-            name="category_id"
-            label="Category"
-            rules={[{ required: true, message: 'Please select a category' }]}
-          >
-            <Space.Compact style={{ width: '100%' }}>
-              <Select 
-                placeholder="Select category"
-                style={{ width: 'calc(100% - 40px)' }}
-              >
-                {categories.map(category => (
-                  <Option key={category.id} value={category.id}>{category.name}</Option>
-                ))}
-              </Select>
-              <Button 
-                type="default" 
-                icon={<PlusOutlined />} 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCreateCategory();
-                }}
-              />
-            </Space.Compact>
-          </Form.Item>
+          <Form.Item label="Category" required>
+  <Space.Compact style={{ width: '100%' }}>
+    {/* Inner Form.Item connects the Select to the form state */}
+    <Form.Item
+      name="category_id"
+      noStyle
+      rules={[{ required: true, message: 'Please select a category' }]}
+    >
+      <Select placeholder="Select category">
+        {categories.map(category => (
+          <Option key={category.id} value={category.id}>{category.name}</Option>
+        ))}
+      </Select>
+    </Form.Item>
+    
+    {/* The button remains outside the controlling Form.Item */}
+    <Button 
+      type="default" 
+      icon={<PlusOutlined />} 
+      onClick={(e) => {
+        e.stopPropagation();
+        handleCreateCategory();
+      }}
+    />
+  </Space.Compact>
+</Form.Item>
+
 
           <Form.Item
             name="unit_id"

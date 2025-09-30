@@ -1,5 +1,5 @@
 const {
-  Menu, Item, ItemCategory, User, MenuItem, Hostel,
+  Menu, Item, ItemCategory, User, MenuItem, Hostel,Attendance,Enrollment,DailyMessCharge,
   MenuSchedule, UOM, ItemStock, DailyConsumption,
   Store, ItemStore, InventoryTransaction, ConsumptionLog,
   InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem,MessDailyExpense,ExpenseType,SpecialConsumption,SpecialConsumptionItem
@@ -8,56 +8,6 @@ const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 
 // MENU MANAGEMENT - Complete CRUD
-/*const createMenu = async (req, res) => {
-  const transaction = await sequelize.transaction();
-  try {
-    const { name, meal_type, description, estimated_servings, preparation_time, items } = req.body;
-    const hostel_id = req.user.hostel_id;
-
-    if (!name || !meal_type) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Name and meal type are required'
-      });
-    }
-
-    // Step 1: Create the main menu record
-    const menu = await Menu.create({
-      hostel_id,
-      name,
-      meal_type,
-      description,
-      estimated_servings,
-      preparation_time,
-      date: new Date()
-    }, { transaction });
-
-    // Step 2: If ingredients (items) are provided, create them
-    if (items && Array.isArray(items) && items.length > 0) {
-      const menuItems = items.map(item => ({
-        menu_id: menu.id,
-        item_id: item.item_id,
-        quantity: item.quantity,
-        unit: item.unit_id,
-        preparation_notes: item.preparation_notes
-      }));
-      await MenuItem.bulkCreate(menuItems, { transaction });
-    }
-
-    await transaction.commit();
-
-    res.status(201).json({
-      success: true,
-      data: menu,
-      message: 'Menu and its items created successfully'
-    });
-  } catch (error) {
-    await transaction.rollback();
-    console.error('Menu creation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};*/
 const createMenu = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
@@ -1363,15 +1313,13 @@ const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_id, tra
   console.log("[FIFO LOGIC] Starting consumption processing...");
   
   const lowStockItems = [];
-  const createdDailyConsumptions = []; // Array to hold the new DailyConsumption records
+  const createdDailyConsumptions = [];
 
   for (const consumption of consumptions) {
     try {
       console.log(`[FIFO LOGIC] Processing item_id: ${consumption.item_id}, quantity: ${consumption.quantity_consumed}`);
 
-      // --- Validation ---
       if (!consumption.item_id || !consumption.quantity_consumed || parseFloat(consumption.quantity_consumed) <= 0) {
-        console.error('[FIFO LOGIC] Invalid consumption data:', consumption);
         throw new Error('Invalid consumption data: Missing item_id or a valid, positive quantity_consumed.');
       }
       
@@ -1382,23 +1330,19 @@ const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_id, tra
           throw new Error(`Cannot determine unit for item_id: ${consumption.item_id}. Please ensure the item has a default unit.`);
         }
         unitId = itemForUnit.unit_id;
-        console.log(`[FIFO LOGIC] Unit not provided. Using default unit_id ${unitId} for item ${consumption.item_id}`);
       }
       
       let remainingToConsume = parseFloat(consumption.quantity_consumed);
       
-      // --- Stock Check ---
       const currentStock = await ItemStock.findOne({
         where: { item_id: consumption.item_id, hostel_id },
         transaction
       });
       
       if (!currentStock || parseFloat(currentStock.current_stock) < remainingToConsume) {
-        console.error(`[FIFO LOGIC] Insufficient stock for item ${consumption.item_id}. Required: ${remainingToConsume}, Available: ${currentStock?.current_stock || 0}`);
         throw new Error(`Insufficient stock for item: ${consumption.item_id}`);
       }
       
-      // --- Fetch Batches (FIFO) ---
       const batches = await InventoryBatch.findAll({
         where: {
           item_id: consumption.item_id,
@@ -1406,19 +1350,15 @@ const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_id, tra
           status: 'active',
           quantity_remaining: { [Op.gt]: 0 }
         },
-        order: [['purchase_date', 'ASC'], ['id', 'ASC']], // Oldest batches first
+        order: [['purchase_date', 'ASC'], ['id', 'ASC']],
         transaction
       });
 
       if (batches.length === 0) {
-          console.error(`[FIFO LOGIC] Stock inconsistency for item ${consumption.item_id}. ItemStock shows ${currentStock.current_stock}, but no active batches were found.`);
           throw new Error(`Stock inconsistency for item ID: ${consumption.item_id}. No active batches available.`);
       }
 
       console.log(`[FIFO LOGIC] Found ${batches.length} active batch(es) for item ${consumption.item_id}.`);
-      
-      // --- Process Consumption Across Batches ---
-      let totalCostOfConsumption = 0;
       
       for (const batch of batches) {
         if (remainingToConsume <= 0) break;
@@ -1428,33 +1368,27 @@ const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_id, tra
         
         console.log(`[FIFO LOGIC] Deducting ${quantityFromThisBatch} from batch #${batch.id} (Unit Price: ${batch.unit_price}). Cost: ${costFromThisBatch}`);
         
-        totalCostOfConsumption += costFromThisBatch;
-        
-        // Update batch quantity
         batch.quantity_remaining = parseFloat(batch.quantity_remaining) - quantityFromThisBatch;
         
         if (batch.quantity_remaining <= 0) {
-          console.log(`[FIFO LOGIC] Batch #${batch.id} is now depleted. Setting status to 'depleted'.`);
           batch.status = 'depleted';
         }
         
         await batch.save({ transaction });
         remainingToConsume -= quantityFromThisBatch;
 
-        // --- Create Records ---
-        // A single DailyConsumption record is created for each batch used in a consumption event
         const dailyConsumption = await DailyConsumption.create({
           hostel_id,
           item_id: consumption.item_id,
           consumption_date: consumption.consumption_date || new Date(),
-          quantity_consumed: quantityFromThisBatch, // Log the amount from this batch
+          quantity_consumed: quantityFromThisBatch,
           unit: unitId,
-          meal_type: consumption.meal_type || 'snacks', // Default for ad-hoc
-          recorded_by: user_id, // Use the provided user_id
+          meal_type: consumption.meal_type || 'snacks',
+          recorded_by: user_id, // This will now correctly receive the integer ID
           total_cost: costFromThisBatch,
         }, { transaction });
 
-        createdDailyConsumptions.push(dailyConsumption); // Add to the results array
+        createdDailyConsumptions.push(dailyConsumption);
 
         await ConsumptionLog.create({
           daily_consumption_id: dailyConsumption.id,
@@ -1466,19 +1400,15 @@ const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_id, tra
       }
 
       if (remainingToConsume > 0) {
-        // This case should ideally not be hit due to the initial stock check
-        console.error(`[FIFO LOGIC] Could not fulfill entire consumption for item ${consumption.item_id}. Short by ${remainingToConsume}.`);
         throw new Error(`Could not consume all requested quantity for item ID: ${consumption.item_id}.`);
       }
 
-      // --- Update Aggregated ItemStock ---
       currentStock.current_stock = parseFloat(currentStock.current_stock) - parseFloat(consumption.quantity_consumed);
       currentStock.last_updated = new Date();
       await currentStock.save({ transaction });
       
       console.log(`[FIFO LOGIC] ItemStock for item ${consumption.item_id} updated. New stock: ${currentStock.current_stock}`);
       
-      // --- Low Stock Alert ---
       if (currentStock.current_stock <= parseFloat(currentStock.minimum_stock)) {
         const itemInfo = await Item.findByPk(consumption.item_id, {
           include: [{ model: UOM, as: 'UOM' }],
@@ -1486,7 +1416,6 @@ const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_id, tra
         });
         
         if (itemInfo) {
-          console.log(`[FIFO LOGIC] LOW STOCK detected for item ${itemInfo.name}.`);
           lowStockItems.push({
             name: itemInfo.name,
             current_stock: currentStock.current_stock,
@@ -1497,14 +1426,12 @@ const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_id, tra
       }
     } catch (error) {
       console.error(`[FIFO LOGIC] FATAL ERROR processing item ${consumption?.item_id}: ${error.message}`);
-      // Re-throw the error to ensure the transaction is rolled back
       throw error;
     }
   }
   
   console.log("[FIFO LOGIC] Consumption processing finished.");
   
-  // Return a structured object
   return { lowStockItems, createdDailyConsumptions };
 };
 
@@ -2856,8 +2783,9 @@ const getSummarizedConsumptionReport = async (req, res) => {
 
 const markMenuAsServed = async (req, res) => {
   const { id } = req.params;
-  const { hostel_id } = req.user;
+  const { hostel_id, id: user_id } = req.user; // Get user_id from the request
   const transaction = await sequelize.transaction();
+
   try {
     console.log(`[markMenuAsServed] Fetching schedule ID ${id} for hostel ${hostel_id}`);
     const schedule = await MenuSchedule.findByPk(id, {
@@ -2894,45 +2822,37 @@ const markMenuAsServed = async (req, res) => {
     }
 
     if (schedule.status === 'served') {
-      console.warn(`[markMenuAsServed] Schedule ID ${id} already served`);
+      console.warn(`[markMenuAsServed] Schedule ID ${id} is already served`);
       await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'Menu already served' });
+      return res.status(400).json({ success: false, message: 'Menu is already marked as served' });
     }
 
     console.log(`[markMenuAsServed] Processing consumption for ${schedule.Menu.tbl_Menu_Items.length} items`);
     
-    // Prepare consumption data, ensuring valid unit values
-    // In the markMenuAsServed function
-const consumptions = schedule.Menu.tbl_Menu_Items.map(menuItem => {
-  // Get the unit_id from the MenuItem or fall back to the Item's unit_id
-  let unitId = menuItem.unit_id;
-  
-  // If unit_id is not available in the MenuItem, use Item's unit_id
-  if (!unitId && menuItem.tbl_Item && menuItem.tbl_Item.unit_id) {
-    unitId = menuItem.tbl_Item.unit_id;
-  }
-  
-  // Final fallback - if we still don't have a unit_id, use 1
-  if (!unitId) {
-    console.warn(`[markMenuAsServed] No unit_id found for item ${menuItem.item_id}, using default unit ID: 1`);
-    unitId = 1;
-  }
-  
-  // Use the actual quantity without multiplying by estimated_servings
-  return {
-    item_id: menuItem.item_id,
-    quantity_consumed: parseFloat(menuItem.quantity), // Don't multiply by estimated_servings
-    unit: unitId,
-    consumption_date: schedule.scheduled_date,
-    meal_type: schedule.meal_time,
-    hostel_id,
-    recorded_by: req.user.id
-  };
-});
-
+    // MODIFIED: Simplified the mapping. The `recorded_by` field is no longer needed here.
+    const consumptions = schedule.Menu.tbl_Menu_Items.map(menuItem => {
+      let unitId = menuItem.unit_id;
+      if (!unitId && menuItem.tbl_Item && menuItem.tbl_Item.unit_id) {
+        unitId = menuItem.tbl_Item.unit_id;
+      }
+      if (!unitId) {
+        console.warn(`[markMenuAsServed] No unit_id found for item ${menuItem.item_id}, using default unit ID: 1`);
+        unitId = 1;
+      }
+      return {
+        item_id: menuItem.item_id,
+        quantity_consumed: parseFloat(menuItem.quantity),
+        unit: unitId,
+        consumption_date: schedule.scheduled_date,
+        meal_type: schedule.meal_time
+      };
+    });
 
     console.log('[markMenuAsServed] Consumptions prepared:', consumptions);
-    const lowStockItems = await _recordBulkConsumptionLogic(consumptions, hostel_id, transaction);
+    
+    // VVVVVV THIS IS THE MAIN FIX VVVVVV
+    // The user_id (integer) is now passed as the 3rd argument, and the transaction object as the 4th.
+    const { lowStockItems } = await _recordBulkConsumptionLogic(consumptions, hostel_id, user_id, transaction);
 
     console.log('[markMenuAsServed] Updating schedule status to served');
     schedule.status = 'served';
@@ -2942,15 +2862,17 @@ const consumptions = schedule.Menu.tbl_Menu_Items.map(menuItem => {
     console.log('[markMenuAsServed] Transaction committed, returning response');
     res.status(200).json({
       success: true,
-      message: 'Menu marked as served',
+      message: 'Menu marked as served and stock updated.',
       data: { lowStockItems }
     });
+
   } catch (error) {
     console.error('[markMenuAsServed] Error:', error.message, error.stack);
     await transaction.rollback();
     res.status(500).json({ success: false, message: `Server error: ${error.message}` });
   }
 };
+
 const createMessDailyExpense = async (req, res) => {
   try {
     const { expense_type_id, amount, expense_date, description } = req.body;
@@ -3473,6 +3395,112 @@ const getSpecialConsumptionById = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+const calculateAndApplyDailyMessCharges = async (req, res) => {
+  const { date } = req.body;
+  const { hostel_id } = req.user;
+
+  if (!date) {
+    return res.status(400).json({ success: false, message: 'A specific date is required.' });
+  }
+
+  const transaction = await sequelize.transaction();
+  try {
+    // === STEP 1: Calculate the total cost of all served meals for the day ===
+    const dailyCostResult = await MenuSchedule.findOne({
+      attributes: [
+        [sequelize.fn('SUM', sequelize.col('cost_per_serving')), 'totalDailyCost']
+      ],
+      where: {
+        hostel_id,
+        scheduled_date: date,
+        status: 'served' // Only include menus that were actually served
+      },
+      raw: true,
+      transaction
+    });
+
+    const totalDailyCost = parseFloat(dailyCostResult.totalDailyCost || 0);
+
+    if (totalDailyCost <= 0) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: `No served menus with a valid cost found for ${date}.` });
+    }
+
+    // === STEP 2: Get all active students in the hostel ===
+    const activeEnrollments = await Enrollment.findAll({
+      where: { hostel_id, status: 'active' },
+      attributes: ['student_id'],
+      raw: true,
+      transaction
+    });
+    const allActiveStudentIds = activeEnrollments.map(e => e.student_id);
+
+    // === STEP 3: Find students who are EXEMPT from charges (On Duty or Leave) ===
+    const exemptAttendance = await Attendance.findAll({
+      where: {
+        date: date,
+        student_id: { [Op.in]: allActiveStudentIds },
+        status: { [Op.in]: ['OD', 'Leave'] } // Define your exempt statuses here
+      },
+      attributes: ['student_id', 'status'],
+      raw: true,
+      transaction
+    });
+    
+    // Create records for exempt students with ZERO charge
+    const exemptCharges = exemptAttendance.map(att => ({
+      student_id: att.student_id,
+      hostel_id,
+      date,
+      amount: 0.00,
+      attendance_status: att.status === 'OD' ? 'on_duty' : 'leave', // Standardize status
+      is_charged: false
+    }));
+
+    // === STEP 4: Identify all students who WILL BE charged ===
+    const exemptStudentIds = exemptAttendance.map(att => att.student_id);
+    const studentsToChargeIds = allActiveStudentIds.filter(id => !exemptStudentIds.includes(id));
+    
+    // Create records for the students to be charged
+    const dailyCharges = studentsToChargeIds.map(studentId => ({
+      student_id: studentId,
+      hostel_id,
+      date,
+      amount: totalDailyCost,
+      attendance_status: 'present', // Assume present if not marked otherwise as exempt
+      is_charged: true
+    }));
+
+    // === STEP 5: Insert all records into the database ===
+    const allChargeRecords = [...dailyCharges, ...exemptCharges];
+
+    if (allChargeRecords.length > 0) {
+      await DailyMessCharge.bulkCreate(allChargeRecords, {
+        updateOnDuplicate: ['amount', 'attendance_status', 'is_charged'], // This will update existing records for the same day
+        transaction
+      });
+    }
+
+    await transaction.commit();
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully applied daily mess charges of ₹${totalDailyCost.toFixed(2)} to ${studentsToChargeIds.length} students for ${date}.`,
+      data: {
+        date,
+        dailyCost: totalDailyCost,
+        studentsCharged: studentsToChargeIds.length,
+        studentsExempt: exemptStudentIds.length
+      }
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Error calculating daily mess charges:', error);
+    res.status(500).json({ success: false, message: `Server Error: ${error.message}` });
+  }
+};
+
 
 
 module.exports = {
@@ -3550,5 +3578,6 @@ module.exports = {
   createSpecialConsumption,
   getSpecialConsumptions,
   getSpecialConsumptionById,
+  calculateAndApplyDailyMessCharges
 
 };
