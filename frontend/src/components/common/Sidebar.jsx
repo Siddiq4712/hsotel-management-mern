@@ -78,7 +78,6 @@ const Sidebar = ({ currentView, setCurrentView }) => {
 case 'mess':
   return [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
-    
     { id: 'section-menu', label: 'Menu Management', type: 'section' },
     { id: 'menus', label: 'Manage Menus', icon: ChefHat },
     { id: 'items', label: 'Manage Items', icon: Coffee },
@@ -95,6 +94,7 @@ case 'mess':
     { id: 'section-store', label: 'Store Management', type: 'section' },
     { id: 'stores', label: 'Manage Stores', icon: Building },
     { id: 'purchase-by-store', label: 'Purchase by Store', icon: Truck }, // New item
+    { id: 'record-consumption', label: 'Record Consumption', icon: Clipboard },
     { id: 'item-store-mapping', label: 'Item-Store Mapping', icon: List },
     
     { id: 'section-operations', label: 'Daily Operations', type: 'section' },

@@ -99,6 +99,12 @@ const {
   deleteExpenseType,
   getItemFIFOPrice,
   getItemBatches,  
+  fetchBatchPrices,
+
+  // Special Consumption
+  createSpecialConsumption,
+  getSpecialConsumptions,
+  getSpecialConsumptionById,
   // createExpenseTypeForMess,
   // createExpenseType
 } = require('../controllers/messController');
@@ -256,8 +262,12 @@ router.post('/expenses-types',authorize(['mess', 'admin']), createExpenseType);
 router.get('/expenses-types', authorize(['mess', 'admin']),getExpenseTypes);
 router.put('/expenses-types/:id', authorize(['mess', 'admin']),updateExpenseType);
 router.delete('/expenses-types/:id',authorize(['mess', 'admin']), deleteExpenseType);
-// Add this to your routes
+
 router.get('/items/:id/fifo-price', authorize(['mess', 'admin']),getItemFIFOPrice);
+
+router.post('/special-consumption', authorize(['mess', 'admin']),createSpecialConsumption);
+router.get('/special-consumption', authorize(['mess', 'admin']),getSpecialConsumptions);
+router.get('/special-consumption/:id', authorize(['mess', 'admin']),getSpecialConsumptionById);
 
 
 // router.post('/expense-types', authorize(['mess', 'admin']), createExpenseTypeForMess);
