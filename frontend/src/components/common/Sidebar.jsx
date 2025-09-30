@@ -102,7 +102,7 @@ case 'mess':
     
     { id: 'section-special', label: 'Special Food Orders', type: 'section' },
     { id: 'special-food-items', label: 'Special Food Items', icon: Coffee },
-    { id: 'food-orders', label: 'Food Orders', icon: ShoppingBag },
+    { id: 'food-orders-dashboard', label: 'Order Dashboard', icon: ShoppingBag }, // Updated item
     
     { id: 'section-reports', label: 'Reports', type: 'section' },
     { id: 'consumption-report', label: 'Consumption Report', icon: BarChart2 },
@@ -110,6 +110,7 @@ case 'mess':
   ];
       default:
         return [];
+        
     }
   };
 
