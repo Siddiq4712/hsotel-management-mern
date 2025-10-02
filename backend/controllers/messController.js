@@ -1211,38 +1211,75 @@ const getItemStock = async (req, res) => {
     const hostel_id = req.user.hostel_id;
     const { low_stock } = req.query;
 
-    let whereClause = { hostel_id };
+    // Corrected SQL query with no JS comments
+    const query = `
+      WITH LastPurchase AS (
+        SELECT
+          it.item_id,
+          it.store_id,
+          it.quantity,
+          it.unit_price,
+          it.transaction_date,
+          ROW_NUMBER() OVER(PARTITION BY it.item_id ORDER BY it.transaction_date DESC, it.id DESC) as rn
+        FROM \`tbl_InventoryTransaction\` AS it
+        WHERE it.transaction_type = 'purchase' AND it.hostel_id = :hostel_id
+      )
+      SELECT
+        stock.*,
+        item.name AS "Item.name",
+        item.category_id AS "Item.category_id",
+        category.name AS "Item.tbl_ItemCategory.name",
+        uom.abbreviation AS "Item.UOM.abbreviation",
+        item.unit_id AS "Item.unit_id",
+        lp.quantity as last_bought_qty,
+        lp.unit_price as last_bought_unit_price,
+        (lp.quantity * lp.unit_price) as last_bought_overall_cost,
+        store.name as last_bought_store_name,
+        lp.store_id as last_bought_store_id
+      FROM \`tbl_ItemStock\` AS stock
+      JOIN \`tbl_Item\` AS item ON item.id = stock.item_id
+      LEFT JOIN \`tbl_ItemCategory\` AS category ON category.id = item.category_id
+      LEFT JOIN \`tbl_UOM\` as uom ON uom.id = item.unit_id
+      LEFT JOIN (SELECT * FROM LastPurchase WHERE rn = 1) AS lp ON lp.item_id = stock.item_id
+      LEFT JOIN \`tbl_Store\` AS store ON store.id = lp.store_id
+      WHERE stock.hostel_id = :hostel_id
+      ${low_stock === 'true' ? "AND stock.current_stock <= stock.minimum_stock" : ""}
+      ORDER BY item.name ASC;
+    `;
 
-    if (low_stock === 'true') {
-      whereClause = {
-        ...whereClause,
-        [Op.where]: sequelize.where(
-          sequelize.col('current_stock'),
-          Op.lte,
-          sequelize.col('minimum_stock')
-        )
-      };
-    }
-
-    const itemStocks = await ItemStock.findAll({
-      where: whereClause,
-      include: [{
-        model: Item,
-        include: [{
-          model: ItemCategory,
-          as: 'tbl_ItemCategory'
-        }]
-      }],
-      order: [['last_updated', 'DESC']]
+    const itemStocks = await sequelize.query(query, {
+      replacements: { hostel_id },
+      type: sequelize.QueryTypes.SELECT,
+      nest: false
     });
 
-    res.json({
-      success: true,
-      data: itemStocks
-    });
+    // Corrected formatting map to include the new ID
+    const formattedData = itemStocks.map(stock => ({
+      id: stock.id,
+      item_id: stock.item_id,
+      hostel_id: stock.hostel_id,
+      current_stock: stock.current_stock,
+      minimum_stock: stock.minimum_stock,
+      last_purchase_date: stock.last_purchase_date,
+      last_updated: stock.last_updated,
+      last_bought_qty: stock.last_bought_qty,
+      last_bought_unit_price: stock.last_bought_unit_price,
+      last_bought_overall_cost: stock.last_bought_overall_cost,
+      last_bought_store_name: stock.last_bought_store_name,
+      last_bought_store_id: stock.last_bought_store_id, // <<< CRUCIAL LINE
+      Item: {
+        name: stock['Item.name'],
+        category_id: stock['Item.category_id'],
+        unit_id: stock['Item.unit_id'],
+        tbl_ItemCategory: { name: stock['Item.tbl_ItemCategory.name'] },
+        UOM: { abbreviation: stock['Item.UOM.abbreviation'] }
+      }
+    }));
+
+    res.json({ success: true, data: formattedData });
   } catch (error) {
     console.error('Item stock fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 
@@ -3780,8 +3817,144 @@ const getRoundingAdjustments = async (req, res) => {
     res.status(500).json({ success: false, message: `Server Error: ${error.message}` });
   }
 };
+// Add this new function inside messController.js
 
+// In messController.js
+const getLatestPurchaseReport = async (req, res) => {
+  try {
+    const { hostel_id } = req.user;
+    const { store_id } = req.query;
 
+    const replacements = { hostel_id };
+    
+    const whereConditions = [
+      `it.transaction_type = 'purchase'`,
+      `it.hostel_id = :hostel_id`
+    ];
+
+    if (store_id) {
+      whereConditions.push(`it.store_id = :store_id`);
+      replacements.store_id = store_id;
+    }
+
+    const whereClauseString = whereConditions.join(' AND ');
+
+    const query = `
+      WITH LatestTransactions AS (
+        SELECT
+          it.item_id,
+          it.store_id,
+          it.quantity,
+          it.unit_price,
+          it.transaction_date,
+          ROW_NUMBER() OVER(PARTITION BY it.item_id ORDER BY it.transaction_date DESC, it.id DESC) as rn
+        FROM \`tbl_InventoryTransaction\` AS it
+        WHERE ${whereClauseString}
+      )
+      SELECT
+        i.name AS "itemName",
+        s.name AS "storeName",
+        lt.quantity,
+        lt.unit_price AS "unitPrice",
+        (lt.quantity * lt.unit_price) AS "totalCost"
+      FROM LatestTransactions AS lt
+      JOIN \`tbl_Item\` AS i ON i.id = lt.item_id
+      LEFT JOIN \`tbl_Store\` AS s ON s.id = lt.store_id -- <<< THIS IS THE FIX (was JOIN)
+      WHERE lt.rn = 1
+      ORDER BY i.name;
+    `;
+
+    const reportData = await sequelize.query(query, {
+      replacements,
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    res.json({ success: true, data: reportData });
+  } catch (error) {
+    console.error('Error generating latest purchase report:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const correctLastPurchase = async (req, res) => {
+  const { item_id, new_quantity, new_unit_price } = req.body;
+  const { hostel_id } = req.user;
+  const transaction = await sequelize.transaction();
+
+  try {
+    if (!item_id || new_quantity === undefined || new_unit_price === undefined) {
+      throw new Error("Item ID, new quantity, and new unit price are required.");
+    }
+
+    // 1. Find the latest inventory BATCH for this item
+    const latestBatch = await InventoryBatch.findOne({
+      where: { item_id, hostel_id },
+      order: [['purchase_date', 'DESC'], ['id', 'DESC']],
+      transaction
+    });
+
+    if (!latestBatch) {
+      throw new Error("No purchase batch found for this item to correct.");
+    }
+
+    // 2. IMPORTANT: Check if items from this batch have already been consumed
+    if (latestBatch.quantity_remaining < latestBatch.quantity_purchased) {
+      throw new Error("Cannot correct purchase: Items from this batch have already been consumed. Please handle this as a stock adjustment.");
+    }
+
+    // 3. Find the corresponding inventory TRANSACTION to correct
+    const latestTransaction = await InventoryTransaction.findOne({
+      where: {
+        item_id,
+        hostel_id,
+        transaction_type: 'purchase',
+        // Match the transaction to the batch by date and price (this assumes one purchase per item per day, which is reasonable)
+        // A better approach in the future would be to link transaction_id to batch_id
+        transaction_date: latestBatch.purchase_date,
+        unit_price: latestBatch.unit_price,
+        quantity: latestBatch.quantity_purchased,
+      },
+      order: [['createdAt', 'DESC']],
+      transaction
+    });
+
+    if (!latestTransaction) {
+      throw new Error("Could not find the matching purchase transaction log to correct.");
+    }
+    
+    const old_quantity = parseFloat(latestBatch.quantity_purchased);
+    const quantity_difference = parseFloat(new_quantity) - old_quantity;
+
+    // 4. Update the Inventory Batch
+    await latestBatch.update({
+      quantity_purchased: new_quantity,
+      quantity_remaining: new_quantity, // Since none was consumed, remaining equals purchased
+      unit_price: new_unit_price
+    }, { transaction });
+
+    // 5. Update the Inventory Transaction Log
+    await latestTransaction.update({
+      quantity: new_quantity,
+      unit_price: new_unit_price
+    }, { transaction });
+
+    // 6. Adjust the main Item Stock total
+    const itemStock = await ItemStock.findOne({ where: { item_id, hostel_id }, transaction });
+    if (itemStock) {
+      // Adjust by the difference
+      itemStock.current_stock = parseFloat(itemStock.current_stock) + quantity_difference;
+      await itemStock.save({ transaction });
+    }
+
+    await transaction.commit();
+    res.json({ success: true, message: 'Last purchase corrected successfully.' });
+
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Error correcting last purchase:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 
 module.exports = {
   createMenu,
@@ -3861,6 +4034,8 @@ module.exports = {
   calculateAndApplyDailyMessCharges,
   getRoundingAdjustments,
   getMenuRoundingAdjustments,
-  getDailyChargeRoundingAdjustments
+  getDailyChargeRoundingAdjustments,
+  getLatestPurchaseReport,
+  correctLastPurchase
 
 };

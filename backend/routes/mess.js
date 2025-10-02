@@ -106,8 +106,9 @@ const {
   getSpecialConsumptions,
   getSpecialConsumptionById,
   calculateAndApplyDailyMessCharges,
-
-  getRoundingAdjustments
+  getRoundingAdjustments,
+  getLatestPurchaseReport,
+  correctLastPurchase
   // createExpenseTypeForMess,
   // createExpenseType
 } = require('../controllers/messController');
@@ -276,4 +277,7 @@ router.get('/daily-charges/calculate',authorize(['mess','admin']),calculateAndAp
 router.post('/daily-charges/calculate', authorize(['mess','admin']), calculateAndApplyDailyMessCharges);
 
 router.get('/additional-income/rounding', authorize(['mess', 'admin']), getRoundingAdjustments);
+router.get('/reports/latest-purchase', authorize(['mess', 'admin']), getLatestPurchaseReport);
+
+router.post('/inventory/correct-last-purchase', authorize(['mess','admin']), correctLastPurchase);
 module.exports = router;
