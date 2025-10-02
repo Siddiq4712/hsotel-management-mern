@@ -2651,6 +2651,7 @@ const SpecialConsumptionItem = sequelize.define('SpecialConsumptionItem', {
   timestamps: false, // These are just log entries, timestamps on parent are enough
 });
 
+
 // ... inside the associations block at the end of your file
 
 // NEW Associations for Special Consumption

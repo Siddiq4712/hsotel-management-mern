@@ -1,4 +1,4 @@
-// services/api.js
+// src/services/api.js
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5001/api';
@@ -98,7 +98,7 @@ export const adminAPI = {
   deleteIncomeType: (id) => api.delete(`/admin/income-types/${id}`),
 
   // Expense Type Management - Complete CRUD (This is the canonical source now)
-  createExpenseType: (data) => api.post('/admin/expense-types', data), // Keep this one
+  createExpenseType: (data) => api.post('/admin/expense-types', data),
   getExpenseTypes: (params) => api.get('/admin/expense-types', { params }),
   updateExpenseType: (id, data) => api.put(`/admin/expense-types/${id}`, data),
   deleteExpenseType: (id) => api.delete(`/admin/expense-types/${id}`),
@@ -180,7 +180,7 @@ export const studentAPI = {
   getProfile: () => api.get('/student/profile'),
 
   // Mess Management
-  getMessBills: (params) => api.get('/student/mess-bills', { params }), // Updated to accept params
+  getMessBills: (params) => api.get('/student/mess-bills', { params }),
 
   // Fee Management
   getMyFees: (params) => api.get('/student/fees', { params }),
@@ -207,7 +207,7 @@ export const studentAPI = {
    getSpecialFoodItems: (params) => api.get('/student/special-food-items', { params }),
   getSpecialFoodItemCategories: () => api.get('/student/special-food-item-categories'),
   createFoodOrder: (data) => api.post('/student/food-orders', data),
-  getFoodOrders: (params) => api.get('/student/food-orders', { params }), // Accepts params now
+  getFoodOrders: (params) => api.get('/student/food-orders', { params }),
   getFoodOrderById: (id) => api.get(`/student/food-orders/${id}`),
   cancelFoodOrder: (id) => api.put(`/student/food-orders/${id}/cancel`),
   getMyDailyMessCharges: (params) => api.get('/student/daily-mess-charges', { params }),
@@ -339,6 +339,8 @@ export const messAPI = {
   // getSpecialConsumptions:(params) => api.get('/mess/special-consumption', { params }),
   // getSpecialConsumptionById:(id) => api.get(`/mess/special-consumption/${id}`),
   calculateDailyCharges: (data) => api.post('/mess/daily-charges/calculate', data),
+  getRoundingAdjustments: (params) => api.get('/mess/additional-income/rounding', { params }),
+
 };
 
 export default api;

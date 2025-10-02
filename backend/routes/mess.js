@@ -105,7 +105,9 @@ const {
   createSpecialConsumption,
   getSpecialConsumptions,
   getSpecialConsumptionById,
-  calculateAndApplyDailyMessCharges
+  calculateAndApplyDailyMessCharges,
+
+  getRoundingAdjustments
   // createExpenseTypeForMess,
   // createExpenseType
 } = require('../controllers/messController');
@@ -272,4 +274,6 @@ router.get('/special-consumption/:id', authorize(['mess', 'admin']),getSpecialCo
 router.get('/daily-charges/calculate',authorize(['mess','admin']),calculateAndApplyDailyMessCharges);
 
 router.post('/daily-charges/calculate', authorize(['mess','admin']), calculateAndApplyDailyMessCharges);
+
+router.get('/additional-income/rounding', authorize(['mess', 'admin']), getRoundingAdjustments);
 module.exports = router;
