@@ -88,7 +88,7 @@ case 'mess':
     
     { id: 'section-inventory', label: 'Inventory Management', type: 'section' },
     { id: 'uoms', label: 'Units of Measure', icon: Settings },
-    { id: 'stock', label: 'Stock Management', icon: Database },
+    // { id: 'stock', label: 'Stock Management', icon: Database },
     { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'consumption', label: 'Daily Consumption', icon: ClipboardCheck },
     
@@ -98,8 +98,8 @@ case 'mess':
     { id: 'record-consumption', label: 'Record Consumption', icon: Clipboard },
     { id: 'item-store-mapping', label: 'Item-Store Mapping', icon: List },
     
-    { id: 'section-operations', label: 'Daily Operations', type: 'section' },
-    { id: 'daily-operations', label: 'Mess Operations', icon: Clock },
+    // { id: 'section-operations', label: 'Daily Operations', type: 'section' },
+    // { id: 'daily-operations', label: 'Mess Operations', icon: Clock },
     
     { id: 'section-special', label: 'Special Food Orders', type: 'section' },
     { id: 'special-food-items', label: 'Special Food Items', icon: Coffee },

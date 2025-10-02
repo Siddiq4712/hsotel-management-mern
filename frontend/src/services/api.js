@@ -340,6 +340,8 @@ export const messAPI = {
   // getSpecialConsumptionById:(id) => api.get(`/mess/special-consumption/${id}`),
   calculateDailyCharges: (data) => api.post('/mess/daily-charges/calculate', data),
   getRoundingAdjustments: (params) => api.get('/mess/additional-income/rounding', { params }),
+  getLatestPurchaseReport:(params) => api.get('/mess/reports/latest-purchase', { params }),
+  correctLastPurchase: (payload) => api.post('/mess/inventory/correct-last-purchase', payload),
 
 };
 

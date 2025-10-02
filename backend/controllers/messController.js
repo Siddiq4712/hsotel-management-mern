@@ -21,6 +21,9 @@ function customRounding(amount) {
     return Math.ceil(num);
   }
 }
+const UNIVERSAL_ROUNDING_INCOME_TYPE_NAME = 'Rounding Adjustments'; // More generic name for primary aggregate
+const MENU_ROUNDING_INCOME_TYPE_NAME = 'Menu Rounding Adjustments'; // For per-menu rounding
+const DAILY_CHARGE_ROUNDING_INCOME_TYPE_NAME = 'Daily Charge Calculation Adjustments'; // For per-student calculation rounding
 
 // MENU MANAGEMENT - Complete CRUD
 const createMenu = async (req, res) => {
@@ -127,7 +130,7 @@ const getMenus = async (req, res) => {
     }
 
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
 
     const menus = await Menu.findAll({
@@ -325,7 +328,7 @@ const getItems = async (req, res) => {
     }
 
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
 
     // First, get all the items
@@ -539,7 +542,7 @@ const getItemCategories = async (req, res) => {
     let whereClause = {};
 
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
 
     const categories = await ItemCategory.findAll({
@@ -1208,38 +1211,75 @@ const getItemStock = async (req, res) => {
     const hostel_id = req.user.hostel_id;
     const { low_stock } = req.query;
 
-    let whereClause = { hostel_id };
+    // Corrected SQL query with no JS comments
+    const query = `
+      WITH LastPurchase AS (
+        SELECT
+          it.item_id,
+          it.store_id,
+          it.quantity,
+          it.unit_price,
+          it.transaction_date,
+          ROW_NUMBER() OVER(PARTITION BY it.item_id ORDER BY it.transaction_date DESC, it.id DESC) as rn
+        FROM \`tbl_InventoryTransaction\` AS it
+        WHERE it.transaction_type = 'purchase' AND it.hostel_id = :hostel_id
+      )
+      SELECT
+        stock.*,
+        item.name AS "Item.name",
+        item.category_id AS "Item.category_id",
+        category.name AS "Item.tbl_ItemCategory.name",
+        uom.abbreviation AS "Item.UOM.abbreviation",
+        item.unit_id AS "Item.unit_id",
+        lp.quantity as last_bought_qty,
+        lp.unit_price as last_bought_unit_price,
+        (lp.quantity * lp.unit_price) as last_bought_overall_cost,
+        store.name as last_bought_store_name,
+        lp.store_id as last_bought_store_id
+      FROM \`tbl_ItemStock\` AS stock
+      JOIN \`tbl_Item\` AS item ON item.id = stock.item_id
+      LEFT JOIN \`tbl_ItemCategory\` AS category ON category.id = item.category_id
+      LEFT JOIN \`tbl_UOM\` as uom ON uom.id = item.unit_id
+      LEFT JOIN (SELECT * FROM LastPurchase WHERE rn = 1) AS lp ON lp.item_id = stock.item_id
+      LEFT JOIN \`tbl_Store\` AS store ON store.id = lp.store_id
+      WHERE stock.hostel_id = :hostel_id
+      ${low_stock === 'true' ? "AND stock.current_stock <= stock.minimum_stock" : ""}
+      ORDER BY item.name ASC;
+    `;
 
-    if (low_stock === 'true') {
-      whereClause = {
-        ...whereClause,
-        [Op.where]: sequelize.where(
-          sequelize.col('current_stock'),
-          Op.lte,
-          sequelize.col('minimum_stock')
-        )
-      };
-    }
-
-    const itemStocks = await ItemStock.findAll({
-      where: whereClause,
-      include: [{
-        model: Item,
-        include: [{
-          model: ItemCategory,
-          as: 'tbl_ItemCategory'
-        }]
-      }],
-      order: [['last_updated', 'DESC']]
+    const itemStocks = await sequelize.query(query, {
+      replacements: { hostel_id },
+      type: sequelize.QueryTypes.SELECT,
+      nest: false
     });
 
-    res.json({
-      success: true,
-      data: itemStocks
-    });
+    // Corrected formatting map to include the new ID
+    const formattedData = itemStocks.map(stock => ({
+      id: stock.id,
+      item_id: stock.item_id,
+      hostel_id: stock.hostel_id,
+      current_stock: stock.current_stock,
+      minimum_stock: stock.minimum_stock,
+      last_purchase_date: stock.last_purchase_date,
+      last_updated: stock.last_updated,
+      last_bought_qty: stock.last_bought_qty,
+      last_bought_unit_price: stock.last_bought_unit_price,
+      last_bought_overall_cost: stock.last_bought_overall_cost,
+      last_bought_store_name: stock.last_bought_store_name,
+      last_bought_store_id: stock.last_bought_store_id, // <<< CRUCIAL LINE
+      Item: {
+        name: stock['Item.name'],
+        category_id: stock['Item.category_id'],
+        unit_id: stock['Item.unit_id'],
+        tbl_ItemCategory: { name: stock['Item.tbl_ItemCategory.name'] },
+        UOM: { abbreviation: stock['Item.UOM.abbreviation'] }
+      }
+    }));
+
+    res.json({ success: true, data: formattedData });
   } catch (error) {
     console.error('Item stock fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 
@@ -1881,7 +1921,7 @@ const getStores = async (req, res) => {
     let whereClause = {};
 
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
 
     if (is_active !== undefined) {
@@ -2121,7 +2161,7 @@ const getSpecialFoodItems = async (req, res) => {
       whereClause.is_available = is_available === 'true';
     }
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
     const foodItems = await SpecialFoodItem.findAll({
       where: whereClause,
@@ -2777,6 +2817,7 @@ const markMenuAsServed = async (req, res) => {
       include: [
         {
           model: Menu,
+          attributes: ['name'],
           include: [
             {
               model: MenuItem,
@@ -2787,7 +2828,7 @@ const markMenuAsServed = async (req, res) => {
         }
       ],
       transaction,
-      lock: transaction.LOCK.UPDATE // Lock for consistency
+      lock: transaction.LOCK.UPDATE
     });
 
     if (!schedule || schedule.hostel_id !== hostel_id) {
@@ -2799,8 +2840,7 @@ const markMenuAsServed = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Menu is already marked as served' });
     }
 
-    // --- 1. Calculate raw and rounded cost_per_serving for this menu ---
-    const menuTotalCost = parseFloat(schedule.total_cost || 0); // This is the RAW total cost from scheduleMenu
+    const menuTotalCost = parseFloat(schedule.total_cost || 0); // RAW total cost from scheduleMenu
     const estimatedServings = parseFloat(schedule.estimated_servings || 0);
 
     let rawCostPerServing = 0;
@@ -2809,10 +2849,11 @@ const markMenuAsServed = async (req, res) => {
     }
     
     const roundedCostPerServing = customRounding(rawCostPerServing);
-    const menuRoundingAdjustment = parseFloat((roundedCostPerServing - rawCostPerServing).toFixed(2));
+    
+    // Calculate the TOTAL rounding adjustment for ALL servings of THIS menu
+    const totalMenuRoundingAdjustment = parseFloat((roundedCostPerServing * estimatedServings - menuTotalCost).toFixed(2));
 
 
-    // --- 2. Record bulk consumption of ingredients ---
     const consumptions = schedule.Menu.tbl_Menu_Items.map(menuItem => {
       let unitId = menuItem.unit_id;
       if (!unitId && menuItem.tbl_Item && menuItem.tbl_Item.unit_id) {
@@ -2830,28 +2871,30 @@ const markMenuAsServed = async (req, res) => {
 
     const { lowStockItems } = await _recordBulkConsumptionLogic(consumptions, hostel_id, userId, transaction);
 
-    // --- 3. Update MenuSchedule status and final cost_per_serving ---
     await schedule.update({
       status: 'served',
       cost_per_serving: roundedCostPerServing // Store the ROUNDED cost per serving for billing
     }, { transaction });
 
-    // --- 4. Create/Update AdditionalIncome for this menu's rounding adjustment ---
-    if (menuRoundingAdjustment !== 0) {
-      let roundingIncomeType = await IncomeType.findOne({ where: { name: 'Menu Rounding Adjustments' }, transaction });
+    // --- Create/Update AdditionalIncome for the TOTAL rounding adjustment for this menu service ---
+    if (totalMenuRoundingAdjustment !== 0) {
+      let roundingIncomeType = await IncomeType.findOne({ where: { name: MENU_ROUNDING_INCOME_TYPE_NAME }, transaction });
       if (!roundingIncomeType) {
         roundingIncomeType = await IncomeType.create({
-          name: 'Menu Rounding Adjustments',
-          description: 'Rounding adjustment for individual menu items when marked served',
+          name: MENU_ROUNDING_INCOME_TYPE_NAME,
+          description: 'Total rounding adjustment for a menu service',
           is_active: true,
         }, { transaction });
       }
 
+      // Description is crucial for making this entry unique per menu per day
+      const uniqueDescription = `Total menu rounding: "${schedule.Menu.name}" on ${schedule.scheduled_date} (${schedule.meal_time})`;
+
       await AdditionalIncome.upsert({
         hostel_id,
         income_type_id: roundingIncomeType.id,
-        amount: menuRoundingAdjustment,
-        description: `Rounding adjustment for menu "${schedule.Menu.name}" served on ${schedule.scheduled_date} (${schedule.meal_time})`,
+        amount: totalMenuRoundingAdjustment, // Store the TOTAL rounding adjustment
+        description: uniqueDescription,
         received_date: schedule.scheduled_date,
         received_by: userId
       }, {
@@ -2859,8 +2902,8 @@ const markMenuAsServed = async (req, res) => {
           hostel_id,
           income_type_id: roundingIncomeType.id,
           received_date: schedule.scheduled_date,
-          description: `Rounding adjustment for menu "${schedule.Menu.name}" served on ${schedule.scheduled_date} (${schedule.meal_time})`
-        }, // Unique key includes description to allow multiple menu adjustments per day if needed
+          description: uniqueDescription
+        }, 
         transaction
       });
     }
@@ -2873,7 +2916,7 @@ const markMenuAsServed = async (req, res) => {
         lowStockItems,
         rawCostPerServing: parseFloat(rawCostPerServing.toFixed(2)),
         roundedCostPerServing: parseFloat(roundedCostPerServing.toFixed(2)),
-        menuRoundingAdjustment: menuRoundingAdjustment
+        totalMenuRoundingAdjustment: totalMenuRoundingAdjustment // Return the TOTAL adjustment
       }
     });
 
@@ -2883,6 +2926,7 @@ const markMenuAsServed = async (req, res) => {
     res.status(500).json({ success: false, message: `Server error: ${error.message}` });
   }
 };
+
 
 const createMessDailyExpense = async (req, res) => {
   try {
@@ -2936,12 +2980,12 @@ const getMessDailyExpenses = async (req, res) => {
 
     if (search) {
       whereClause[Op.or] = [
-        { description: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.like]: `%${search}%` } },
         // Ensure ExpenseType is included in query if searching by its name
         // This might require a join in raw SQL or specific Sequelize include setup
         // For eager loading to work with '$ExpenseType.name$', ExpenseType must be included.
         // As per your models, ExpenseType is associated.
-        { '$ExpenseType.name$': { [Op.iLike]: `%${search}%` } }
+        { '$ExpenseType.name$': { [Op.like]: `%${search}%` } }
       ];
     }
 
@@ -3106,7 +3150,7 @@ const getExpenseTypes = async (req, res) => {
     let whereClause = { is_active: true };
     
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
 
     const expenseTypes = await ExpenseType.findAll({
@@ -3358,7 +3402,7 @@ const getSpecialConsumptions = async (req, res) => {
     }
 
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
 
     const consumptions = await SpecialConsumption.findAll({
@@ -3419,7 +3463,6 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
 
   const transaction = await sequelize.transaction();
   try {
-    // === STEP 1: Sum the *already rounded* cost_per_serving from served menus for the day ===
     const dailyMenuCostResult = await MenuSchedule.findOne({
       attributes: [
         [sequelize.fn('SUM', sequelize.col('cost_per_serving')), 'totalDailyMenuCost']
@@ -3430,8 +3473,6 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
     });
     const totalDailyMenuCostRounded = parseFloat(dailyMenuCostResult.totalDailyMenuCost || 0);
 
-
-    // === STEP 2: Get detailed expenses where expense type is NOT 'others' ===
     const detailedExpensesRaw = await MessDailyExpense.findAll({
       attributes: [
         [sequelize.col('ExpenseType.name'), 'expenseTypeName'],
@@ -3453,7 +3494,6 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
       return { expenseTypeName: exp.expenseTypeName, amount: amount };
     });
 
-    // Total chargeable amount is now based on rounded menu cost + expenses
     const totalChargeableAmount = totalDailyMenuCostRounded + totalOtherExpenses;
 
     if (totalChargeableAmount <= 0) {
@@ -3465,12 +3505,11 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
           date, dailyCost: 0, rawDailyCostPerStudent: 0,
           totalChargeableAmount: 0, totalDailyMenuCost: 0,
           detailedExpenses: [], studentsCharged: 0, studentsExempt: 0,
-          totalRoundingAdjustment: 0 // This will now represent only the rounding from THIS calculation
+          totalRoundingAdjustment: 0
         }
       });
     }
 
-    // === STEP 3: Get all active enrolled students in the hostel ===
     const activeEnrollments = await Enrollment.findAll({
       where: { hostel_id, status: 'active' },
       attributes: ['student_id'],
@@ -3493,7 +3532,6 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
       });
     }
 
-    // === STEP 4: Identify students who are NOT 'OD' for the divisor and for charging ===
     const attendanceRecords = await Attendance.findAll({
       where: { date: date, student_id: { [Op.in]: allActiveStudentIds } },
       attributes: ['student_id', 'status'],
@@ -3542,10 +3580,9 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
       });
     }
 
-    // --- Calculate the daily cost per student who WILL BE charged (excluding OD) ---
     const divisorCount = studentIdsToCharge.length;
-    let rawDailyCostPerStudent = 0; // Original calculated value before rounding
-    let dailyCostPerStudent = 0;    // Rounded value
+    let rawDailyCostPerStudent = 0;
+    let dailyCostPerStudent = 0;
 
     if (divisorCount > 0) {
       rawDailyCostPerStudent = totalChargeableAmount / divisorCount;
@@ -3567,16 +3604,14 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
       });
     }
 
-    // --- Calculate the rounding adjustment for THIS calculation ---
-    const dailyChargeRoundingAdjustment = parseFloat((dailyCostPerStudent - rawDailyCostPerStudent).toFixed(2));
-    
-    // Total rounding adjustment for this call now only considers the adjustment from this specific step
-    const totalRoundingAdjustment = dailyChargeRoundingAdjustment; 
+    // Calculate the TOTAL rounding adjustment for THIS daily charge calculation across all charged students
+    const totalDailyChargeRoundingAdjustment = parseFloat((dailyCostPerStudent * divisorCount - totalChargeableAmount).toFixed(2));
+    const totalRoundingAdjustment = totalDailyChargeRoundingAdjustment; // Use this as the total for the record
 
-    // --- STEP 5: Insert/Update all DailyMessCharge records into the database ---
+
     const finalRecordsWithAmounts = recordsToCreateOrUpdate.map(record => {
       if (record.is_charged) {
-        return { ...record, amount: dailyCostPerStudent }; // Use the final rounded value for DB
+        return { ...record, amount: dailyCostPerStudent };
       }
       return record;
     });
@@ -3588,29 +3623,33 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
       });
     }
 
-    // --- NEW STEP: Create/Update AdditionalIncome for the rounding adjustment from THIS calculation ---
+    // --- Create/Update AdditionalIncome for the TOTAL rounding adjustment from THIS calculation ---
     if (totalRoundingAdjustment !== 0) {
-      let roundingIncomeType = await IncomeType.findOne({ where: { name: 'Daily Charge Rounding Adjustments' }, transaction }); // NEW IncomeType name
+      let roundingIncomeType = await IncomeType.findOne({ where: { name: DAILY_CHARGE_ROUNDING_INCOME_TYPE_NAME }, transaction });
       if (!roundingIncomeType) {
         roundingIncomeType = await IncomeType.create({
-          name: 'Daily Charge Rounding Adjustments',
-          description: 'Rounding adjustment from the final daily mess charge calculation (per student)',
+          name: DAILY_CHARGE_ROUNDING_INCOME_TYPE_NAME,
+          description: 'Total rounding adjustment from the final daily mess charge calculation (per student)',
           is_active: true,
         }, { transaction });
       }
 
+      // This description should be stable for the daily aggregate for upsert's where clause
+      const uniqueDescription = `Daily charge calculation total rounding for ${date}`;
+
       await AdditionalIncome.upsert({
         hostel_id,
         income_type_id: roundingIncomeType.id,
-        amount: totalRoundingAdjustment,
-        description: `Daily charge rounding adjustment for ${date}`,
+        amount: totalRoundingAdjustment, // Store the TOTAL rounding adjustment here
+        description: uniqueDescription,
         received_date: date,
         received_by: userId
       }, {
         where: {
           hostel_id,
           income_type_id: roundingIncomeType.id,
-          received_date: date
+          received_date: date,
+          description: uniqueDescription // Use description in WHERE for unique identification
         },
         transaction
       });
@@ -3623,10 +3662,10 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
       message: `Successfully applied daily mess charges of ₹${dailyCostPerStudent.toFixed(2)} (gross total: ₹${totalChargeableAmount.toFixed(2)}) to ${divisorCount} students for ${date}. Total rounding adjustment: ₹${totalRoundingAdjustment.toFixed(2)}.`,
       data: {
         date,
-        dailyCost: dailyCostPerStudent, // Rounded final per-student cost
-        rawDailyCostPerStudent: parseFloat(rawDailyCostPerStudent.toFixed(2)), // Raw per-student cost
+        dailyCost: dailyCostPerStudent,
+        rawDailyCostPerStudent: parseFloat(rawDailyCostPerStudent.toFixed(2)),
         totalChargeableAmount: totalChargeableAmount,
-        totalDailyMenuCost: totalDailyMenuCostRounded, // Use the rounded total menu cost here
+        totalDailyMenuCost: totalDailyMenuCostRounded,
         detailedExpenses: detailedExpenses,
         studentsCharged: divisorCount,
         studentsExempt: studentsOnODCount,
@@ -3648,7 +3687,7 @@ const getMenuRoundingAdjustments = async (req, res) => {
     const hostel_id = req.user.hostel_id;
 
     const roundingIncomeType = await IncomeType.findOne({
-      where: { name: 'Menu Rounding Adjustments' }
+      where: { name: MENU_ROUNDING_INCOME_TYPE_NAME }
     });
 
     if (!roundingIncomeType) {
@@ -3679,7 +3718,7 @@ const getMenuRoundingAdjustments = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching menu rounding adjustments:', error);
-    res.status(500).json({ success: false, message: `Server Error: ${error.message}` });
+    res.status(500).json({ success: false, message: `Server error: ${error.message}` });
   }
 };
 
@@ -3690,7 +3729,7 @@ const getDailyChargeRoundingAdjustments = async (req, res) => {
     const hostel_id = req.user.hostel_id;
 
     const roundingIncomeType = await IncomeType.findOne({
-      where: { name: 'Daily Charge Rounding Adjustments' }
+      where: { name: DAILY_CHARGE_ROUNDING_INCOME_TYPE_NAME }
     });
 
     if (!roundingIncomeType) {
@@ -3725,24 +3764,35 @@ const getDailyChargeRoundingAdjustments = async (req, res) => {
   }
 };
 
-
+// REVISED getRoundingAdjustments: Now fetches all relevant rounding types
 const getRoundingAdjustments = async (req, res) => {
   try {
     const { from_date, to_date } = req.query;
-    const hostel_id = req.user.hostel_id; // Filter by the user's hostel
+    const hostel_id = req.user.hostel_id;
 
-    // Find the 'Rounding Adjustments' IncomeType globally (as per your model definition)
-    const roundingIncomeType = await IncomeType.findOne({
-      where: { name: 'Rounding Adjustments' }
+    // Find all IncomeTypes whose names contain keywords related to rounding
+    const roundingIncomeTypes = await IncomeType.findAll({
+      where: {
+        name: {
+          [Op.or]: [
+            { [Op.like]: `%${MENU_ROUNDING_INCOME_TYPE_NAME}%` },
+            { [Op.like]: `%${DAILY_CHARGE_ROUNDING_INCOME_TYPE_NAME}%` },
+            { [Op.like]: `%Rounding Adjustments%` } // Catch older/generic ones like your ID 6
+            // Add any other specific names from your tbl_IncomeType that are related to rounding
+          ]
+        }
+      }
     });
 
-    if (!roundingIncomeType) {
-      return res.status(200).json({ success: true, data: [], message: 'No "Rounding Adjustments" income type found.' });
+    const roundingIncomeTypeIds = roundingIncomeTypes.map(type => type.id);
+
+    if (roundingIncomeTypeIds.length === 0) {
+      return res.status(200).json({ success: true, data: [], message: 'No relevant rounding adjustment income types found.' });
     }
 
     let whereClause = {
-      hostel_id, // Filter AdditionalIncome by hostel
-      income_type_id: roundingIncomeType.id // Filter by the specific income type
+      hostel_id,
+      income_type_id: { [Op.in]: roundingIncomeTypeIds } // Filter by all identified rounding IDs
     };
 
     if (from_date && to_date) {
@@ -3767,8 +3817,144 @@ const getRoundingAdjustments = async (req, res) => {
     res.status(500).json({ success: false, message: `Server Error: ${error.message}` });
   }
 };
+// Add this new function inside messController.js
 
+// In messController.js
+const getLatestPurchaseReport = async (req, res) => {
+  try {
+    const { hostel_id } = req.user;
+    const { store_id } = req.query;
 
+    const replacements = { hostel_id };
+    
+    const whereConditions = [
+      `it.transaction_type = 'purchase'`,
+      `it.hostel_id = :hostel_id`
+    ];
+
+    if (store_id) {
+      whereConditions.push(`it.store_id = :store_id`);
+      replacements.store_id = store_id;
+    }
+
+    const whereClauseString = whereConditions.join(' AND ');
+
+    const query = `
+      WITH LatestTransactions AS (
+        SELECT
+          it.item_id,
+          it.store_id,
+          it.quantity,
+          it.unit_price,
+          it.transaction_date,
+          ROW_NUMBER() OVER(PARTITION BY it.item_id ORDER BY it.transaction_date DESC, it.id DESC) as rn
+        FROM \`tbl_InventoryTransaction\` AS it
+        WHERE ${whereClauseString}
+      )
+      SELECT
+        i.name AS "itemName",
+        s.name AS "storeName",
+        lt.quantity,
+        lt.unit_price AS "unitPrice",
+        (lt.quantity * lt.unit_price) AS "totalCost"
+      FROM LatestTransactions AS lt
+      JOIN \`tbl_Item\` AS i ON i.id = lt.item_id
+      LEFT JOIN \`tbl_Store\` AS s ON s.id = lt.store_id -- <<< THIS IS THE FIX (was JOIN)
+      WHERE lt.rn = 1
+      ORDER BY i.name;
+    `;
+
+    const reportData = await sequelize.query(query, {
+      replacements,
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    res.json({ success: true, data: reportData });
+  } catch (error) {
+    console.error('Error generating latest purchase report:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const correctLastPurchase = async (req, res) => {
+  const { item_id, new_quantity, new_unit_price } = req.body;
+  const { hostel_id } = req.user;
+  const transaction = await sequelize.transaction();
+
+  try {
+    if (!item_id || new_quantity === undefined || new_unit_price === undefined) {
+      throw new Error("Item ID, new quantity, and new unit price are required.");
+    }
+
+    // 1. Find the latest inventory BATCH for this item
+    const latestBatch = await InventoryBatch.findOne({
+      where: { item_id, hostel_id },
+      order: [['purchase_date', 'DESC'], ['id', 'DESC']],
+      transaction
+    });
+
+    if (!latestBatch) {
+      throw new Error("No purchase batch found for this item to correct.");
+    }
+
+    // 2. IMPORTANT: Check if items from this batch have already been consumed
+    if (latestBatch.quantity_remaining < latestBatch.quantity_purchased) {
+      throw new Error("Cannot correct purchase: Items from this batch have already been consumed. Please handle this as a stock adjustment.");
+    }
+
+    // 3. Find the corresponding inventory TRANSACTION to correct
+    const latestTransaction = await InventoryTransaction.findOne({
+      where: {
+        item_id,
+        hostel_id,
+        transaction_type: 'purchase',
+        // Match the transaction to the batch by date and price (this assumes one purchase per item per day, which is reasonable)
+        // A better approach in the future would be to link transaction_id to batch_id
+        transaction_date: latestBatch.purchase_date,
+        unit_price: latestBatch.unit_price,
+        quantity: latestBatch.quantity_purchased,
+      },
+      order: [['createdAt', 'DESC']],
+      transaction
+    });
+
+    if (!latestTransaction) {
+      throw new Error("Could not find the matching purchase transaction log to correct.");
+    }
+    
+    const old_quantity = parseFloat(latestBatch.quantity_purchased);
+    const quantity_difference = parseFloat(new_quantity) - old_quantity;
+
+    // 4. Update the Inventory Batch
+    await latestBatch.update({
+      quantity_purchased: new_quantity,
+      quantity_remaining: new_quantity, // Since none was consumed, remaining equals purchased
+      unit_price: new_unit_price
+    }, { transaction });
+
+    // 5. Update the Inventory Transaction Log
+    await latestTransaction.update({
+      quantity: new_quantity,
+      unit_price: new_unit_price
+    }, { transaction });
+
+    // 6. Adjust the main Item Stock total
+    const itemStock = await ItemStock.findOne({ where: { item_id, hostel_id }, transaction });
+    if (itemStock) {
+      // Adjust by the difference
+      itemStock.current_stock = parseFloat(itemStock.current_stock) + quantity_difference;
+      await itemStock.save({ transaction });
+    }
+
+    await transaction.commit();
+    res.json({ success: true, message: 'Last purchase corrected successfully.' });
+
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Error correcting last purchase:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 
 module.exports = {
   createMenu,
@@ -3848,6 +4034,8 @@ module.exports = {
   calculateAndApplyDailyMessCharges,
   getRoundingAdjustments,
   getMenuRoundingAdjustments,
-  getDailyChargeRoundingAdjustments
+  getDailyChargeRoundingAdjustments,
+  getLatestPurchaseReport,
+  correctLastPurchase
 
 };

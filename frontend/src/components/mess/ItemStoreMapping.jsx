@@ -4,10 +4,11 @@ import {
   Form, Switch, Popconfirm, Tag, Tabs, Typography, Input
 } from 'antd';
 import {
-  PlusOutlined, LinkOutlined, ShopOutlined, TagOutlined,
+  PlusOutlined, DownloadOutlined, // Import DownloadOutlined for the Excel button
   DeleteOutlined, SearchOutlined
 } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
+import * as XLSX from 'xlsx'; // Import xlsx library
 
 const { Option } = Select;
 const { TabPane } = Tabs;
@@ -70,8 +71,6 @@ const ItemStoreMapping = () => {
     setLoading(true);
     try {
       const response = await messAPI.getItemsByStoreId(storeId);
-      // In a real implementation, you'd use this data
-      // For now, we'll just show a message
       message.info(`Fetched ${response.data.data?.length || 0} items from store`);
     } catch (error) {
       message.error('Failed to fetch items by store');
@@ -85,8 +84,6 @@ const ItemStoreMapping = () => {
     setLoading(true);
     try {
       const response = await messAPI.getStoresByItemId(itemId);
-      // In a real implementation, you'd use this data
-      // For now, we'll just show a message
       message.info(`Fetched ${response.data.data?.length || 0} stores for item`);
     } catch (error) {
       message.error('Failed to fetch stores by item');
@@ -130,6 +127,31 @@ const ItemStoreMapping = () => {
 
   const handleTabChange = (key) => {
     setActiveTab(key);
+  };
+
+  // --- NEW: handleExportExcel function ---
+  const handleExportExcel = () => {
+    if (itemStores.length === 0) {
+      message.warning('No data to export.');
+      return;
+    }
+
+    // Map the itemStores data to the desired Excel structure
+    const exportData = itemStores.map(mapping => ({
+      'Item Name': mapping.Item?.name || 'N/A',
+      'Common Store Name': mapping.Store?.name || 'N/A',
+      // Qty and Overall Cost are not available in the ItemStore mapping data
+      // They would typically come from a purchase/inventory transaction record.
+      'Qty': '', 
+      'Unit Price': parseFloat(mapping.price || 0).toFixed(2),
+      'Overall Cost': '', 
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'ItemStoreMappings');
+    XLSX.writeFile(workbook, 'ItemStoreMappings.xlsx');
+    message.success('Data exported to Excel successfully!');
   };
 
   const columns = [
@@ -317,6 +339,18 @@ const ItemStoreMapping = () => {
             >
               Add Mapping
             </Button>
+            
+            {/* --- NEW: Export to Excel Button --- */}
+            <Button 
+              type="default" // Using 'default' type for a secondary action
+              icon={<DownloadOutlined />} 
+              onClick={handleExportExcel}
+              style={{ marginLeft: 8 }} // Add some spacing
+            >
+              Export to Excel
+            </Button>
+            {/* --- END NEW --- */}
+
           </Space>
 
           <Table
@@ -425,3 +459,4 @@ const ItemStoreMapping = () => {
 };
 
 export default ItemStoreMapping;
+
