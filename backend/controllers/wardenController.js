@@ -7,38 +7,85 @@ const {
 } = require('../models');
 
 // STUDENT ENROLLMENT
+// STUDENT ENROLLMENT - MODIFIED
 const enrollStudent = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const { username, password, session_id, email, requires_bed, paid_initial_emi } = req.body;
+    // Extract user information from the request body
+    const { 
+      username, 
+      email, 
+      session_id, 
+      requires_bed, 
+      paid_initial_emi,
+      college,
+      // New field to support student creation without password
+      create_with_default_password 
+    } = req.body;
+    
     const hostel_id = req.user.hostel_id;
 
-    const existingUser = await User.findOne({ where: { username } });
-    if (existingUser) {
-      return res.status(400).json({ success: false, message: 'Username already exists' });
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    const student = await User.create({
-      username,
-      email: email || `${username}@hostel.com`,
-      password: hashedPassword,
-      role: 'student',
-      hostel_id
+    // Check if username or email already exists
+    const existingUser = await User.findOne({ 
+      where: { 
+        [Op.or]: [
+          { username: username },
+          { email: email || `${username}@hostel.com` }
+        ]
+      },
+      transaction
     });
 
+    let student;
+    
+    if (existingUser) {
+      // If user exists but not linked to this hostel, update them
+      if (existingUser.hostel_id !== hostel_id) {
+        await existingUser.update({ 
+          hostel_id, 
+          role: 'student',
+          is_active: true 
+        }, { transaction });
+      }
+      student = existingUser;
+    } else {
+      // User doesn't exist, create a new user
+      // Determine if we should use a default password or the provided one
+      let passwordToUse;
+      
+      if (create_with_default_password || !req.body.password) {
+        // Use default password if explicitly requested or if no password provided
+        passwordToUse = '12345678';
+      } else {
+        // Otherwise use the password from request body
+        passwordToUse = req.body.password;
+      }
+      
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(passwordToUse, salt);
+
+      student = await User.create({
+        username,
+        email: email || `${username}@hostel.com`,
+        password: hashedPassword,
+        role: 'student',
+        hostel_id,
+        is_active: true
+      }, { transaction });
+    }
+
+    // Create enrollment for the student
     const enrollment = await Enrollment.create({
       student_id: student.id,
       hostel_id,
       session_id,
       requires_bed: requires_bed || false,
-      initial_emi_status: requires_bed ? (paid_initial_emi ? 'paid' : 'pending') : 'not_required'
-    });
+      initial_emi_status: requires_bed ? (paid_initial_emi ? 'paid' : 'pending') : 'not_required',
+      college: college || 'nec' // Default to 'nec' if not provided
+    }, { transaction });
 
     // If bed is required and initial EMI is paid, create fee records for the 5 EMIs
     if (requires_bed && paid_initial_emi) {
-      // Get today's date
       const today = new Date();
       
       // Create 5 monthly EMI fee records
@@ -48,23 +95,43 @@ const enrollStudent = async (req, res) => {
         
         await Fee.create({
           student_id: student.id,
-          fee_type: 'hostel',
+          enrollment_id: enrollment.id, // Link to the enrollment
+          fee_type: 'emi',
           amount: 5000, // Replace with your actual EMI amount
           due_date: dueDate,
           status: i === 0 ? 'paid' : 'pending', // First month paid, rest pending
-          payment_date: i === 0 ? today : null
-        });
+          payment_date: i === 0 ? today : null,
+          emi_month: i + 1 // Track which month in the sequence (1-5)
+        }, { transaction });
       }
     }
 
+    await transaction.commit();
+
+    // Prepare response message
+    const createdWithDefaultPassword = create_with_default_password || !req.body.password;
+    const responseMessage = existingUser 
+      ? 'Student already exists. Enrollment created.'
+      : createdWithDefaultPassword 
+        ? 'Student enrolled successfully with default password (12345678)'
+        : 'Student enrolled successfully';
+
     res.status(201).json({ 
       success: true,
-      data: { student: { ...student.toJSON(), password: undefined }, enrollment },
-      message: 'Student enrolled successfully'
+      data: { 
+        student: { 
+          ...student.toJSON(), 
+          password: undefined 
+        }, 
+        enrollment,
+        default_password_used: !existingUser && createdWithDefaultPassword
+      },
+      message: responseMessage
     });
   } catch (error) {
+    await transaction.rollback();
     console.error('Student enrollment error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 

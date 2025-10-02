@@ -1,11 +1,26 @@
 const {
   Menu, Item, ItemCategory, User, MenuItem, Hostel,Attendance,Enrollment,DailyMessCharge,
   MenuSchedule, UOM, ItemStock, DailyConsumption,
-  Store, ItemStore, InventoryTransaction, ConsumptionLog,
+  Store, ItemStore, InventoryTransaction, ConsumptionLog,IncomeType,AdditionalIncome,
   InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem,MessDailyExpense,ExpenseType,SpecialConsumption,SpecialConsumptionItem
 } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
+const moment = require('moment')
+// Custom rounding function: <= 0.20 rounds down, > 0.20 rounds up
+function customRounding(amount) {
+  const num = parseFloat(amount);
+  if (isNaN(num)) return 0;
+
+  const integerPart = Math.floor(num);
+  const fractionalPart = num - integerPart;
+
+  if (fractionalPart <= 0.20) {
+    return integerPart;
+  } else {
+    return Math.ceil(num);
+  }
+}
 
 // MENU MANAGEMENT - Complete CRUD
 const createMenu = async (req, res) => {
@@ -734,33 +749,17 @@ const removeItemFromMenu = async (req, res) => {
 const scheduleMenu = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const { menu_id, scheduled_date, meal_time } = req.body; // REMOVED estimated_servings from req.body
+    const { menu_id, scheduled_date, meal_time } = req.body;
     const hostel_id = req.user.hostel_id;
 
-    if (!menu_id || !scheduled_date || !meal_time) { // Adjusted validation
+    if (!menu_id || !scheduled_date || !meal_time) {
       await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Menu ID, date, and meal time are required',
-      });
+      return res.status(400).json({ success: false, message: 'Menu ID, date, and meal time are required' });
     }
 
-    // Fetch the menu with its items to calculate the cost
     const menu = await Menu.findOne({
       where: { id: menu_id, hostel_id },
-      include: [
-        {
-          model: MenuItem,
-          as: 'tbl_Menu_Items',
-          include: [
-            {
-              model: Item,
-              as: 'tbl_Item',
-              attributes: ['id', 'name', 'unit_price'],
-            },
-          ],
-        }
-      ],
+      include: [{ model: MenuItem, as: 'tbl_Menu_Items', include: [{ model: Item, as: 'tbl_Item', attributes: ['id', 'name', 'unit_price'] }] }],
       transaction
     });
 
@@ -769,19 +768,13 @@ const scheduleMenu = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Menu not found' });
     }
 
-    // Use the estimated_servings from the fetched Menu record
     const menuEstimatedServings = menu.estimated_servings;
-
-    if (menuEstimatedServings <= 0) { // Validate Menu's estimated_servings
+    if (menuEstimatedServings <= 0) {
       await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'The selected menu has zero or invalid estimated servings. Please update the menu.'
-      });
+      return res.status(400).json({ message: 'The selected menu has zero or invalid estimated servings. Please update the menu.' });
     }
 
-    // Calculate total cost
-    let total_cost = 0;
+    let total_cost = 0; // This will store the RAW total cost of ingredients
     if (menu.tbl_Menu_Items && menu.tbl_Menu_Items.length > 0) {
       total_cost = menu.tbl_Menu_Items.reduce((sum, menuItem) => {
         const itemPrice = parseFloat(menuItem.tbl_Item.unit_price) || 0;
@@ -789,37 +782,30 @@ const scheduleMenu = async (req, res) => {
         return sum + (itemPrice * itemQuantity);
       }, 0);
     }
+    
+    // At scheduling time, cost_per_serving is just an initial estimate (raw, unrounded)
+    // Actual rounding for charges happens when the menu is marked served.
+    const initial_raw_cost_per_serving = total_cost / menuEstimatedServings;
 
-    const cost_per_serving = total_cost / menuEstimatedServings; // Use Menu's servings
-
-    // Create the schedule with calculated costs
     const schedule = await MenuSchedule.create({
       hostel_id,
       menu_id,
       scheduled_date,
       meal_time,
       status: 'scheduled',
-      estimated_servings: menuEstimatedServings, // Use Menu's estimated_servings
-      total_cost,
-      cost_per_serving,
+      estimated_servings: menuEstimatedServings,
+      total_cost: total_cost, // Store RAW total cost
+      cost_per_serving: initial_raw_cost_per_serving, // Store RAW cost per serving initially
     }, { transaction });
 
     await transaction.commit();
-
-    res.status(201).json({
-      success: true,
-      data: schedule,
-      message: 'Menu scheduled successfully with cost calculation',
-    });
+    res.status(201).json({ success: true, data: schedule, message: 'Menu scheduled successfully with initial cost calculation' });
   } catch (error) {
     await transaction.rollback();
     console.error('Schedule menu error:', error);
-    // Provide a more specific error for client-side issues vs server-side
-    const errorMessage = error.message.includes("undefined") ? "Invalid data provided for scheduling." : "Server error";
-    res.status(500).json({ success: false, message: errorMessage + ': ' + error.message });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-
 
 // getMenuSchedule
 const getMenuSchedule = async (req, res) => {
@@ -2782,63 +2768,57 @@ const getSummarizedConsumptionReport = async (req, res) => {
 };
 
 const markMenuAsServed = async (req, res) => {
-  const { id } = req.params;
-  const { hostel_id, id: user_id } = req.user; // Get user_id from the request
+  const { id } = req.params; // MenuSchedule ID
+  const { hostel_id, id: userId } = req.user;
   const transaction = await sequelize.transaction();
 
   try {
-    console.log(`[markMenuAsServed] Fetching schedule ID ${id} for hostel ${hostel_id}`);
     const schedule = await MenuSchedule.findByPk(id, {
       include: [
-        { 
-          model: Menu, 
+        {
+          model: Menu,
           include: [
-            { 
-              model: MenuItem, 
+            {
+              model: MenuItem,
               as: 'tbl_Menu_Items',
-              include: [
-                {
-                  model: Item,
-                  as: 'tbl_Item',
-                  include: [
-                    {
-                      model: UOM,
-                      as: 'UOM'
-                    }
-                  ]
-                }
-              ]
+              include: [{ model: Item, as: 'tbl_Item', include: [{ model: UOM, as: 'UOM' }] }]
             }
-          ] 
+          ]
         }
       ],
-      transaction
+      transaction,
+      lock: transaction.LOCK.UPDATE // Lock for consistency
     });
 
     if (!schedule || schedule.hostel_id !== hostel_id) {
-      console.error(`[markMenuAsServed] Schedule not found or unauthorized for ID ${id}`);
       await transaction.rollback();
-      return res.status(404).json({ success: false, message: 'Menu schedule not found' });
+      return res.status(404).json({ success: false, message: 'Menu schedule not found or unauthorized' });
     }
-
     if (schedule.status === 'served') {
-      console.warn(`[markMenuAsServed] Schedule ID ${id} is already served`);
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Menu is already marked as served' });
     }
 
-    console.log(`[markMenuAsServed] Processing consumption for ${schedule.Menu.tbl_Menu_Items.length} items`);
+    // --- 1. Calculate raw and rounded cost_per_serving for this menu ---
+    const menuTotalCost = parseFloat(schedule.total_cost || 0); // This is the RAW total cost from scheduleMenu
+    const estimatedServings = parseFloat(schedule.estimated_servings || 0);
+
+    let rawCostPerServing = 0;
+    if (estimatedServings > 0) {
+      rawCostPerServing = menuTotalCost / estimatedServings;
+    }
     
-    // MODIFIED: Simplified the mapping. The `recorded_by` field is no longer needed here.
+    const roundedCostPerServing = customRounding(rawCostPerServing);
+    const menuRoundingAdjustment = parseFloat((roundedCostPerServing - rawCostPerServing).toFixed(2));
+
+
+    // --- 2. Record bulk consumption of ingredients ---
     const consumptions = schedule.Menu.tbl_Menu_Items.map(menuItem => {
       let unitId = menuItem.unit_id;
       if (!unitId && menuItem.tbl_Item && menuItem.tbl_Item.unit_id) {
         unitId = menuItem.tbl_Item.unit_id;
       }
-      if (!unitId) {
-        console.warn(`[markMenuAsServed] No unit_id found for item ${menuItem.item_id}, using default unit ID: 1`);
-        unitId = 1;
-      }
+      if (!unitId) { console.warn(`No unit_id found for item ${menuItem.item_id}, using default unit ID: 1`); unitId = 1; }
       return {
         item_id: menuItem.item_id,
         quantity_consumed: parseFloat(menuItem.quantity),
@@ -2848,27 +2828,58 @@ const markMenuAsServed = async (req, res) => {
       };
     });
 
-    console.log('[markMenuAsServed] Consumptions prepared:', consumptions);
-    
-    // VVVVVV THIS IS THE MAIN FIX VVVVVV
-    // The user_id (integer) is now passed as the 3rd argument, and the transaction object as the 4th.
-    const { lowStockItems } = await _recordBulkConsumptionLogic(consumptions, hostel_id, user_id, transaction);
+    const { lowStockItems } = await _recordBulkConsumptionLogic(consumptions, hostel_id, userId, transaction);
 
-    console.log('[markMenuAsServed] Updating schedule status to served');
-    schedule.status = 'served';
-    await schedule.save({ transaction });
+    // --- 3. Update MenuSchedule status and final cost_per_serving ---
+    await schedule.update({
+      status: 'served',
+      cost_per_serving: roundedCostPerServing // Store the ROUNDED cost per serving for billing
+    }, { transaction });
+
+    // --- 4. Create/Update AdditionalIncome for this menu's rounding adjustment ---
+    if (menuRoundingAdjustment !== 0) {
+      let roundingIncomeType = await IncomeType.findOne({ where: { name: 'Menu Rounding Adjustments' }, transaction });
+      if (!roundingIncomeType) {
+        roundingIncomeType = await IncomeType.create({
+          name: 'Menu Rounding Adjustments',
+          description: 'Rounding adjustment for individual menu items when marked served',
+          is_active: true,
+        }, { transaction });
+      }
+
+      await AdditionalIncome.upsert({
+        hostel_id,
+        income_type_id: roundingIncomeType.id,
+        amount: menuRoundingAdjustment,
+        description: `Rounding adjustment for menu "${schedule.Menu.name}" served on ${schedule.scheduled_date} (${schedule.meal_time})`,
+        received_date: schedule.scheduled_date,
+        received_by: userId
+      }, {
+        where: {
+          hostel_id,
+          income_type_id: roundingIncomeType.id,
+          received_date: schedule.scheduled_date,
+          description: `Rounding adjustment for menu "${schedule.Menu.name}" served on ${schedule.scheduled_date} (${schedule.meal_time})`
+        }, // Unique key includes description to allow multiple menu adjustments per day if needed
+        transaction
+      });
+    }
 
     await transaction.commit();
-    console.log('[markMenuAsServed] Transaction committed, returning response');
     res.status(200).json({
       success: true,
       message: 'Menu marked as served and stock updated.',
-      data: { lowStockItems }
+      data: {
+        lowStockItems,
+        rawCostPerServing: parseFloat(rawCostPerServing.toFixed(2)),
+        roundedCostPerServing: parseFloat(roundedCostPerServing.toFixed(2)),
+        menuRoundingAdjustment: menuRoundingAdjustment
+      }
     });
 
   } catch (error) {
-    console.error('[markMenuAsServed] Error:', error.message, error.stack);
     await transaction.rollback();
+    console.error('[markMenuAsServed] Error:', error.message, error.stack);
     res.status(500).json({ success: false, message: `Server error: ${error.message}` });
   }
 };
@@ -3397,36 +3408,69 @@ const getSpecialConsumptionById = async (req, res) => {
 };
 const calculateAndApplyDailyMessCharges = async (req, res) => {
   const { date } = req.body;
-  const { hostel_id } = req.user;
+  const { hostel_id, id: userId } = req.user;
 
   if (!date) {
     return res.status(400).json({ success: false, message: 'A specific date is required.' });
   }
+  if (!hostel_id) {
+    return res.status(401).json({ success: false, message: 'User is not associated with a hostel.' });
+  }
 
   const transaction = await sequelize.transaction();
   try {
-    // === STEP 1: Calculate the total cost of all served meals for the day ===
-    const dailyCostResult = await MenuSchedule.findOne({
+    // === STEP 1: Sum the *already rounded* cost_per_serving from served menus for the day ===
+    const dailyMenuCostResult = await MenuSchedule.findOne({
       attributes: [
-        [sequelize.fn('SUM', sequelize.col('cost_per_serving')), 'totalDailyCost']
+        [sequelize.fn('SUM', sequelize.col('cost_per_serving')), 'totalDailyMenuCost']
       ],
-      where: {
-        hostel_id,
-        scheduled_date: date,
-        status: 'served' // Only include menus that were actually served
-      },
+      where: { hostel_id, scheduled_date: date, status: 'served' },
+      raw: true,
+      transaction
+    });
+    const totalDailyMenuCostRounded = parseFloat(dailyMenuCostResult.totalDailyMenuCost || 0);
+
+
+    // === STEP 2: Get detailed expenses where expense type is NOT 'others' ===
+    const detailedExpensesRaw = await MessDailyExpense.findAll({
+      attributes: [
+        [sequelize.col('ExpenseType.name'), 'expenseTypeName'],
+        [sequelize.fn('SUM', sequelize.col('MessDailyExpense.amount')), 'amount']
+      ],
+      where: { hostel_id, expense_date: date },
+      include: [
+        { model: ExpenseType, as: 'ExpenseType', attributes: [], where: { name: { [Op.ne]: 'others' } }, required: true }
+      ],
+      group: ['ExpenseType.name'],
       raw: true,
       transaction
     });
 
-    const totalDailyCost = parseFloat(dailyCostResult.totalDailyCost || 0);
+    let totalOtherExpenses = 0;
+    const detailedExpenses = detailedExpensesRaw.map(exp => {
+      const amount = parseFloat(exp.amount || 0);
+      totalOtherExpenses += amount;
+      return { expenseTypeName: exp.expenseTypeName, amount: amount };
+    });
 
-    if (totalDailyCost <= 0) {
+    // Total chargeable amount is now based on rounded menu cost + expenses
+    const totalChargeableAmount = totalDailyMenuCostRounded + totalOtherExpenses;
+
+    if (totalChargeableAmount <= 0) {
       await transaction.rollback();
-      return res.status(404).json({ success: false, message: `No served menus with a valid cost found for ${date}.` });
+      return res.status(200).json({
+        success: true,
+        message: `No valid daily menu costs or relevant expenses found for ${date}. No charges applied.`,
+        data: {
+          date, dailyCost: 0, rawDailyCostPerStudent: 0,
+          totalChargeableAmount: 0, totalDailyMenuCost: 0,
+          detailedExpenses: [], studentsCharged: 0, studentsExempt: 0,
+          totalRoundingAdjustment: 0 // This will now represent only the rounding from THIS calculation
+        }
+      });
     }
 
-    // === STEP 2: Get all active students in the hostel ===
+    // === STEP 3: Get all active enrolled students in the hostel ===
     const activeEnrollments = await Enrollment.findAll({
       where: { hostel_id, status: 'active' },
       attributes: ['student_id'],
@@ -3435,48 +3479,139 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
     });
     const allActiveStudentIds = activeEnrollments.map(e => e.student_id);
 
-    // === STEP 3: Find students who are EXEMPT from charges (On Duty or Leave) ===
-    const exemptAttendance = await Attendance.findAll({
-      where: {
-        date: date,
-        student_id: { [Op.in]: allActiveStudentIds },
-        status: { [Op.in]: ['OD', 'Leave'] } // Define your exempt statuses here
-      },
+    if (allActiveStudentIds.length === 0) {
+      await transaction.rollback();
+      return res.status(200).json({
+        success: true,
+        message: `No active students found in hostel ${hostel_id} for ${date}. No charges applied.`,
+        data: {
+          date, dailyCost: 0, rawDailyCostPerStudent: 0,
+          totalChargeableAmount: totalChargeableAmount,
+          totalDailyMenuCost: totalDailyMenuCostRounded, detailedExpenses: detailedExpenses,
+          studentsCharged: 0, studentsExempt: 0, totalRoundingAdjustment: 0
+        }
+      });
+    }
+
+    // === STEP 4: Identify students who are NOT 'OD' for the divisor and for charging ===
+    const attendanceRecords = await Attendance.findAll({
+      where: { date: date, student_id: { [Op.in]: allActiveStudentIds } },
       attributes: ['student_id', 'status'],
       raw: true,
       transaction
     });
+
+    const attendanceMap = new Map(attendanceRecords.map(att => [att.student_id, att.status]));
+
+    let studentsOnODCount = 0;
+    const studentIdsToCharge = [];
+    const recordsToCreateOrUpdate = [];
+
+    for (const studentId of allActiveStudentIds) {
+      const status = attendanceMap.get(studentId);
+      let attendanceStatusForRecord;
+      let isCharged;
+      let chargeAmount = 0.00;
+
+      if (status === 'OD') {
+        studentsOnODCount++;
+        attendanceStatusForRecord = 'on_duty';
+        isCharged = false;
+      } else {
+        studentIdsToCharge.push(studentId);
+        isCharged = true;
+
+        if (status === 'P') {
+          attendanceStatusForRecord = 'present';
+        } else if (status === 'A') {
+          attendanceStatusForRecord = 'absent';
+        } else if (status === 'Leave') {
+          attendanceStatusForRecord = 'leave';
+        } else {
+          attendanceStatusForRecord = 'not_marked';
+        }
+      }
+
+      recordsToCreateOrUpdate.push({
+        student_id: studentId,
+        hostel_id,
+        date,
+        amount: chargeAmount, // Placeholder for the final rounded amount
+        attendance_status: attendanceStatusForRecord,
+        is_charged: isCharged
+      });
+    }
+
+    // --- Calculate the daily cost per student who WILL BE charged (excluding OD) ---
+    const divisorCount = studentIdsToCharge.length;
+    let rawDailyCostPerStudent = 0; // Original calculated value before rounding
+    let dailyCostPerStudent = 0;    // Rounded value
+
+    if (divisorCount > 0) {
+      rawDailyCostPerStudent = totalChargeableAmount / divisorCount;
+      dailyCostPerStudent = customRounding(rawDailyCostPerStudent);
+      dailyCostPerStudent = parseFloat(dailyCostPerStudent.toFixed(2));
+
+    } else {
+      await transaction.rollback();
+      return res.status(200).json({
+        success: true,
+        message: `All ${allActiveStudentIds.length} active students were exempt (on OD) for ${date}. No charges applied.`,
+        data: {
+          date, dailyCost: 0, rawDailyCostPerStudent: 0,
+          totalChargeableAmount: totalChargeableAmount,
+          totalDailyMenuCost: totalDailyMenuCostRounded, detailedExpenses: detailedExpenses,
+          studentsCharged: 0, studentsExempt: allActiveStudentIds.length,
+          totalRoundingAdjustment: 0
+        }
+      });
+    }
+
+    // --- Calculate the rounding adjustment for THIS calculation ---
+    const dailyChargeRoundingAdjustment = parseFloat((dailyCostPerStudent - rawDailyCostPerStudent).toFixed(2));
     
-    // Create records for exempt students with ZERO charge
-    const exemptCharges = exemptAttendance.map(att => ({
-      student_id: att.student_id,
-      hostel_id,
-      date,
-      amount: 0.00,
-      attendance_status: att.status === 'OD' ? 'on_duty' : 'leave', // Standardize status
-      is_charged: false
-    }));
+    // Total rounding adjustment for this call now only considers the adjustment from this specific step
+    const totalRoundingAdjustment = dailyChargeRoundingAdjustment; 
 
-    // === STEP 4: Identify all students who WILL BE charged ===
-    const exemptStudentIds = exemptAttendance.map(att => att.student_id);
-    const studentsToChargeIds = allActiveStudentIds.filter(id => !exemptStudentIds.includes(id));
-    
-    // Create records for the students to be charged
-    const dailyCharges = studentsToChargeIds.map(studentId => ({
-      student_id: studentId,
-      hostel_id,
-      date,
-      amount: totalDailyCost,
-      attendance_status: 'present', // Assume present if not marked otherwise as exempt
-      is_charged: true
-    }));
+    // --- STEP 5: Insert/Update all DailyMessCharge records into the database ---
+    const finalRecordsWithAmounts = recordsToCreateOrUpdate.map(record => {
+      if (record.is_charged) {
+        return { ...record, amount: dailyCostPerStudent }; // Use the final rounded value for DB
+      }
+      return record;
+    });
 
-    // === STEP 5: Insert all records into the database ===
-    const allChargeRecords = [...dailyCharges, ...exemptCharges];
+    if (finalRecordsWithAmounts.length > 0) {
+      await DailyMessCharge.bulkCreate(finalRecordsWithAmounts, {
+        updateOnDuplicate: ['amount', 'attendance_status', 'is_charged'],
+        transaction
+      });
+    }
 
-    if (allChargeRecords.length > 0) {
-      await DailyMessCharge.bulkCreate(allChargeRecords, {
-        updateOnDuplicate: ['amount', 'attendance_status', 'is_charged'], // This will update existing records for the same day
+    // --- NEW STEP: Create/Update AdditionalIncome for the rounding adjustment from THIS calculation ---
+    if (totalRoundingAdjustment !== 0) {
+      let roundingIncomeType = await IncomeType.findOne({ where: { name: 'Daily Charge Rounding Adjustments' }, transaction }); // NEW IncomeType name
+      if (!roundingIncomeType) {
+        roundingIncomeType = await IncomeType.create({
+          name: 'Daily Charge Rounding Adjustments',
+          description: 'Rounding adjustment from the final daily mess charge calculation (per student)',
+          is_active: true,
+        }, { transaction });
+      }
+
+      await AdditionalIncome.upsert({
+        hostel_id,
+        income_type_id: roundingIncomeType.id,
+        amount: totalRoundingAdjustment,
+        description: `Daily charge rounding adjustment for ${date}`,
+        received_date: date,
+        received_by: userId
+      }, {
+        where: {
+          hostel_id,
+          income_type_id: roundingIncomeType.id,
+          received_date: date
+        },
         transaction
       });
     }
@@ -3485,18 +3620,150 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: `Successfully applied daily mess charges of ₹${totalDailyCost.toFixed(2)} to ${studentsToChargeIds.length} students for ${date}.`,
+      message: `Successfully applied daily mess charges of ₹${dailyCostPerStudent.toFixed(2)} (gross total: ₹${totalChargeableAmount.toFixed(2)}) to ${divisorCount} students for ${date}. Total rounding adjustment: ₹${totalRoundingAdjustment.toFixed(2)}.`,
       data: {
         date,
-        dailyCost: totalDailyCost,
-        studentsCharged: studentsToChargeIds.length,
-        studentsExempt: exemptStudentIds.length
+        dailyCost: dailyCostPerStudent, // Rounded final per-student cost
+        rawDailyCostPerStudent: parseFloat(rawDailyCostPerStudent.toFixed(2)), // Raw per-student cost
+        totalChargeableAmount: totalChargeableAmount,
+        totalDailyMenuCost: totalDailyMenuCostRounded, // Use the rounded total menu cost here
+        detailedExpenses: detailedExpenses,
+        studentsCharged: divisorCount,
+        studentsExempt: studentsOnODCount,
+        totalRoundingAdjustment: totalRoundingAdjustment
       }
     });
 
   } catch (error) {
     await transaction.rollback();
     console.error('Error calculating daily mess charges:', error);
+    res.status(500).json({ success: false, message: `Server Error: ${error.message}` });
+  }
+};
+
+// NEW: Function to get Additional Income related to menu rounding
+const getMenuRoundingAdjustments = async (req, res) => {
+  try {
+    const { from_date, to_date } = req.query;
+    const hostel_id = req.user.hostel_id;
+
+    const roundingIncomeType = await IncomeType.findOne({
+      where: { name: 'Menu Rounding Adjustments' }
+    });
+
+    if (!roundingIncomeType) {
+      return res.status(200).json({ success: true, data: [], message: 'No "Menu Rounding Adjustments" income type found.' });
+    }
+
+    let whereClause = {
+      hostel_id,
+      income_type_id: roundingIncomeType.id
+    };
+
+    if (from_date && to_date) {
+      whereClause.received_date = {
+        [Op.between]: [from_date, to_date]
+      };
+    }
+
+    const adjustments = await AdditionalIncome.findAll({
+      where: whereClause,
+      include: [
+        { model: User, as: 'IncomeReceivedBy', attributes: ['id', 'username'] },
+        { model: IncomeType, as: 'IncomeType', attributes: ['id', 'name'] }
+      ],
+      order: [['received_date', 'DESC']],
+    });
+
+    res.status(200).json({ success: true, data: adjustments });
+
+  } catch (error) {
+    console.error('Error fetching menu rounding adjustments:', error);
+    res.status(500).json({ success: false, message: `Server Error: ${error.message}` });
+  }
+};
+
+// NEW: Function to get Additional Income related to daily charge rounding
+const getDailyChargeRoundingAdjustments = async (req, res) => {
+  try {
+    const { from_date, to_date } = req.query;
+    const hostel_id = req.user.hostel_id;
+
+    const roundingIncomeType = await IncomeType.findOne({
+      where: { name: 'Daily Charge Rounding Adjustments' }
+    });
+
+    if (!roundingIncomeType) {
+      return res.status(200).json({ success: true, data: [], message: 'No "Daily Charge Rounding Adjustments" income type found.' });
+    }
+
+    let whereClause = {
+      hostel_id,
+      income_type_id: roundingIncomeType.id
+    };
+
+    if (from_date && to_date) {
+      whereClause.received_date = {
+        [Op.between]: [from_date, to_date]
+      };
+    }
+
+    const adjustments = await AdditionalIncome.findAll({
+      where: whereClause,
+      include: [
+        { model: User, as: 'IncomeReceivedBy', attributes: ['id', 'username'] },
+        { model: IncomeType, as: 'IncomeType', attributes: ['id', 'name'] }
+      ],
+      order: [['received_date', 'DESC']],
+    });
+
+    res.status(200).json({ success: true, data: adjustments });
+
+  } catch (error) {
+    console.error('Error fetching daily charge rounding adjustments:', error);
+    res.status(500).json({ success: false, message: `Server Error: ${error.message}` });
+  }
+};
+
+
+const getRoundingAdjustments = async (req, res) => {
+  try {
+    const { from_date, to_date } = req.query;
+    const hostel_id = req.user.hostel_id; // Filter by the user's hostel
+
+    // Find the 'Rounding Adjustments' IncomeType globally (as per your model definition)
+    const roundingIncomeType = await IncomeType.findOne({
+      where: { name: 'Rounding Adjustments' }
+    });
+
+    if (!roundingIncomeType) {
+      return res.status(200).json({ success: true, data: [], message: 'No "Rounding Adjustments" income type found.' });
+    }
+
+    let whereClause = {
+      hostel_id, // Filter AdditionalIncome by hostel
+      income_type_id: roundingIncomeType.id // Filter by the specific income type
+    };
+
+    if (from_date && to_date) {
+      whereClause.received_date = {
+        [Op.between]: [from_date, to_date]
+      };
+    }
+
+    const adjustments = await AdditionalIncome.findAll({
+      where: whereClause,
+      include: [
+        { model: User, as: 'IncomeReceivedBy', attributes: ['id', 'username'] },
+        { model: IncomeType, as: 'IncomeType', attributes: ['id', 'name'] }
+      ],
+      order: [['received_date', 'DESC']],
+    });
+
+    res.status(200).json({ success: true, data: adjustments });
+
+  } catch (error) {
+    console.error('Error fetching rounding adjustments:', error);
     res.status(500).json({ success: false, message: `Server Error: ${error.message}` });
   }
 };
@@ -3578,6 +3845,9 @@ module.exports = {
   createSpecialConsumption,
   getSpecialConsumptions,
   getSpecialConsumptionById,
-  calculateAndApplyDailyMessCharges
+  calculateAndApplyDailyMessCharges,
+  getRoundingAdjustments,
+  getMenuRoundingAdjustments,
+  getDailyChargeRoundingAdjustments
 
 };
