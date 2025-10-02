@@ -1,4 +1,4 @@
-// src/pages/Mess/HostelAdditionalIncome.jsx (or wherever you manage your mess-side pages)
+// src/pages/Mess/HostelAdditionalIncome.jsx
 import React, { useState, useEffect } from 'react';
 import { Card, Table, DatePicker, Button, Space, Tag, Spin, Alert, Typography } from 'antd';
 import { SearchOutlined, ReloadOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
@@ -12,13 +12,14 @@ const HostelAdditionalIncome = () => {
   const [adjustments, setAdjustments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  // Default date range to current month
-  const [dateRange, setDateRange] = useState([moment().startOf('month'), moment().endOf('month')]);
+  
+  // --- FIX IS HERE: Default date range to the start of the current year until the end of the current month ---
+  const [dateRange, setDateRange] = useState([moment().startOf('year'), moment().endOf('month')]);
 
   // Fetch data whenever the date range changes
   useEffect(() => {
     fetchAdjustments();
-  }, [dateRange]);
+  }, [dateRange]); // This dependency is correct
 
   const fetchAdjustments = async () => {
     setLoading(true);
@@ -37,12 +38,10 @@ const HostelAdditionalIncome = () => {
       if (response.data.success) {
         setAdjustments(response.data.data);
       } else {
-        // Handle API error response
         setError('Failed to load adjustments: ' + (response.data.message || 'Unknown error'));
       }
     } catch (err) {
       console.error('Error fetching rounding adjustments:', err);
-      // Catch network or unexpected errors
       setError('Failed to load rounding adjustments. Please try again later.');
     } finally {
       setLoading(false);
@@ -54,8 +53,9 @@ const HostelAdditionalIncome = () => {
   };
 
   const handleReset = () => {
-    // Reset date range to current month and trigger data fetch via useEffect
-    setDateRange([moment().startOf('month'), moment().endOf('month')]); 
+    // Reset date range to the start of the current year until the end of the current month
+    setDateRange([moment().startOf('year'), moment().endOf('month')]); 
+    // useEffect will trigger fetchAdjustments due to dateRange change
   };
 
   // Define table columns

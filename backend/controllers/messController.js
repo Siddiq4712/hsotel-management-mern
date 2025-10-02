@@ -21,6 +21,9 @@ function customRounding(amount) {
     return Math.ceil(num);
   }
 }
+const UNIVERSAL_ROUNDING_INCOME_TYPE_NAME = 'Rounding Adjustments'; // More generic name for primary aggregate
+const MENU_ROUNDING_INCOME_TYPE_NAME = 'Menu Rounding Adjustments'; // For per-menu rounding
+const DAILY_CHARGE_ROUNDING_INCOME_TYPE_NAME = 'Daily Charge Calculation Adjustments'; // For per-student calculation rounding
 
 // MENU MANAGEMENT - Complete CRUD
 const createMenu = async (req, res) => {
@@ -127,7 +130,7 @@ const getMenus = async (req, res) => {
     }
 
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
 
     const menus = await Menu.findAll({
@@ -325,7 +328,7 @@ const getItems = async (req, res) => {
     }
 
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
 
     // First, get all the items
@@ -539,7 +542,7 @@ const getItemCategories = async (req, res) => {
     let whereClause = {};
 
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
 
     const categories = await ItemCategory.findAll({
@@ -1881,7 +1884,7 @@ const getStores = async (req, res) => {
     let whereClause = {};
 
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
 
     if (is_active !== undefined) {
@@ -2121,7 +2124,7 @@ const getSpecialFoodItems = async (req, res) => {
       whereClause.is_available = is_available === 'true';
     }
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
     const foodItems = await SpecialFoodItem.findAll({
       where: whereClause,
@@ -2777,6 +2780,7 @@ const markMenuAsServed = async (req, res) => {
       include: [
         {
           model: Menu,
+          attributes: ['name'],
           include: [
             {
               model: MenuItem,
@@ -2787,7 +2791,7 @@ const markMenuAsServed = async (req, res) => {
         }
       ],
       transaction,
-      lock: transaction.LOCK.UPDATE // Lock for consistency
+      lock: transaction.LOCK.UPDATE
     });
 
     if (!schedule || schedule.hostel_id !== hostel_id) {
@@ -2799,8 +2803,7 @@ const markMenuAsServed = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Menu is already marked as served' });
     }
 
-    // --- 1. Calculate raw and rounded cost_per_serving for this menu ---
-    const menuTotalCost = parseFloat(schedule.total_cost || 0); // This is the RAW total cost from scheduleMenu
+    const menuTotalCost = parseFloat(schedule.total_cost || 0); // RAW total cost from scheduleMenu
     const estimatedServings = parseFloat(schedule.estimated_servings || 0);
 
     let rawCostPerServing = 0;
@@ -2809,10 +2812,11 @@ const markMenuAsServed = async (req, res) => {
     }
     
     const roundedCostPerServing = customRounding(rawCostPerServing);
-    const menuRoundingAdjustment = parseFloat((roundedCostPerServing - rawCostPerServing).toFixed(2));
+    
+    // Calculate the TOTAL rounding adjustment for ALL servings of THIS menu
+    const totalMenuRoundingAdjustment = parseFloat((roundedCostPerServing * estimatedServings - menuTotalCost).toFixed(2));
 
 
-    // --- 2. Record bulk consumption of ingredients ---
     const consumptions = schedule.Menu.tbl_Menu_Items.map(menuItem => {
       let unitId = menuItem.unit_id;
       if (!unitId && menuItem.tbl_Item && menuItem.tbl_Item.unit_id) {
@@ -2830,28 +2834,30 @@ const markMenuAsServed = async (req, res) => {
 
     const { lowStockItems } = await _recordBulkConsumptionLogic(consumptions, hostel_id, userId, transaction);
 
-    // --- 3. Update MenuSchedule status and final cost_per_serving ---
     await schedule.update({
       status: 'served',
       cost_per_serving: roundedCostPerServing // Store the ROUNDED cost per serving for billing
     }, { transaction });
 
-    // --- 4. Create/Update AdditionalIncome for this menu's rounding adjustment ---
-    if (menuRoundingAdjustment !== 0) {
-      let roundingIncomeType = await IncomeType.findOne({ where: { name: 'Menu Rounding Adjustments' }, transaction });
+    // --- Create/Update AdditionalIncome for the TOTAL rounding adjustment for this menu service ---
+    if (totalMenuRoundingAdjustment !== 0) {
+      let roundingIncomeType = await IncomeType.findOne({ where: { name: MENU_ROUNDING_INCOME_TYPE_NAME }, transaction });
       if (!roundingIncomeType) {
         roundingIncomeType = await IncomeType.create({
-          name: 'Menu Rounding Adjustments',
-          description: 'Rounding adjustment for individual menu items when marked served',
+          name: MENU_ROUNDING_INCOME_TYPE_NAME,
+          description: 'Total rounding adjustment for a menu service',
           is_active: true,
         }, { transaction });
       }
 
+      // Description is crucial for making this entry unique per menu per day
+      const uniqueDescription = `Total menu rounding: "${schedule.Menu.name}" on ${schedule.scheduled_date} (${schedule.meal_time})`;
+
       await AdditionalIncome.upsert({
         hostel_id,
         income_type_id: roundingIncomeType.id,
-        amount: menuRoundingAdjustment,
-        description: `Rounding adjustment for menu "${schedule.Menu.name}" served on ${schedule.scheduled_date} (${schedule.meal_time})`,
+        amount: totalMenuRoundingAdjustment, // Store the TOTAL rounding adjustment
+        description: uniqueDescription,
         received_date: schedule.scheduled_date,
         received_by: userId
       }, {
@@ -2859,8 +2865,8 @@ const markMenuAsServed = async (req, res) => {
           hostel_id,
           income_type_id: roundingIncomeType.id,
           received_date: schedule.scheduled_date,
-          description: `Rounding adjustment for menu "${schedule.Menu.name}" served on ${schedule.scheduled_date} (${schedule.meal_time})`
-        }, // Unique key includes description to allow multiple menu adjustments per day if needed
+          description: uniqueDescription
+        }, 
         transaction
       });
     }
@@ -2873,7 +2879,7 @@ const markMenuAsServed = async (req, res) => {
         lowStockItems,
         rawCostPerServing: parseFloat(rawCostPerServing.toFixed(2)),
         roundedCostPerServing: parseFloat(roundedCostPerServing.toFixed(2)),
-        menuRoundingAdjustment: menuRoundingAdjustment
+        totalMenuRoundingAdjustment: totalMenuRoundingAdjustment // Return the TOTAL adjustment
       }
     });
 
@@ -2883,6 +2889,7 @@ const markMenuAsServed = async (req, res) => {
     res.status(500).json({ success: false, message: `Server error: ${error.message}` });
   }
 };
+
 
 const createMessDailyExpense = async (req, res) => {
   try {
@@ -2936,12 +2943,12 @@ const getMessDailyExpenses = async (req, res) => {
 
     if (search) {
       whereClause[Op.or] = [
-        { description: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.like]: `%${search}%` } },
         // Ensure ExpenseType is included in query if searching by its name
         // This might require a join in raw SQL or specific Sequelize include setup
         // For eager loading to work with '$ExpenseType.name$', ExpenseType must be included.
         // As per your models, ExpenseType is associated.
-        { '$ExpenseType.name$': { [Op.iLike]: `%${search}%` } }
+        { '$ExpenseType.name$': { [Op.like]: `%${search}%` } }
       ];
     }
 
@@ -3106,7 +3113,7 @@ const getExpenseTypes = async (req, res) => {
     let whereClause = { is_active: true };
     
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
 
     const expenseTypes = await ExpenseType.findAll({
@@ -3358,7 +3365,7 @@ const getSpecialConsumptions = async (req, res) => {
     }
 
     if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
+      whereClause.name = { [Op.like]: `%${search}%` };
     }
 
     const consumptions = await SpecialConsumption.findAll({
@@ -3419,7 +3426,6 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
 
   const transaction = await sequelize.transaction();
   try {
-    // === STEP 1: Sum the *already rounded* cost_per_serving from served menus for the day ===
     const dailyMenuCostResult = await MenuSchedule.findOne({
       attributes: [
         [sequelize.fn('SUM', sequelize.col('cost_per_serving')), 'totalDailyMenuCost']
@@ -3430,8 +3436,6 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
     });
     const totalDailyMenuCostRounded = parseFloat(dailyMenuCostResult.totalDailyMenuCost || 0);
 
-
-    // === STEP 2: Get detailed expenses where expense type is NOT 'others' ===
     const detailedExpensesRaw = await MessDailyExpense.findAll({
       attributes: [
         [sequelize.col('ExpenseType.name'), 'expenseTypeName'],
@@ -3453,7 +3457,6 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
       return { expenseTypeName: exp.expenseTypeName, amount: amount };
     });
 
-    // Total chargeable amount is now based on rounded menu cost + expenses
     const totalChargeableAmount = totalDailyMenuCostRounded + totalOtherExpenses;
 
     if (totalChargeableAmount <= 0) {
@@ -3465,12 +3468,11 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
           date, dailyCost: 0, rawDailyCostPerStudent: 0,
           totalChargeableAmount: 0, totalDailyMenuCost: 0,
           detailedExpenses: [], studentsCharged: 0, studentsExempt: 0,
-          totalRoundingAdjustment: 0 // This will now represent only the rounding from THIS calculation
+          totalRoundingAdjustment: 0
         }
       });
     }
 
-    // === STEP 3: Get all active enrolled students in the hostel ===
     const activeEnrollments = await Enrollment.findAll({
       where: { hostel_id, status: 'active' },
       attributes: ['student_id'],
@@ -3493,7 +3495,6 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
       });
     }
 
-    // === STEP 4: Identify students who are NOT 'OD' for the divisor and for charging ===
     const attendanceRecords = await Attendance.findAll({
       where: { date: date, student_id: { [Op.in]: allActiveStudentIds } },
       attributes: ['student_id', 'status'],
@@ -3542,10 +3543,9 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
       });
     }
 
-    // --- Calculate the daily cost per student who WILL BE charged (excluding OD) ---
     const divisorCount = studentIdsToCharge.length;
-    let rawDailyCostPerStudent = 0; // Original calculated value before rounding
-    let dailyCostPerStudent = 0;    // Rounded value
+    let rawDailyCostPerStudent = 0;
+    let dailyCostPerStudent = 0;
 
     if (divisorCount > 0) {
       rawDailyCostPerStudent = totalChargeableAmount / divisorCount;
@@ -3567,16 +3567,14 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
       });
     }
 
-    // --- Calculate the rounding adjustment for THIS calculation ---
-    const dailyChargeRoundingAdjustment = parseFloat((dailyCostPerStudent - rawDailyCostPerStudent).toFixed(2));
-    
-    // Total rounding adjustment for this call now only considers the adjustment from this specific step
-    const totalRoundingAdjustment = dailyChargeRoundingAdjustment; 
+    // Calculate the TOTAL rounding adjustment for THIS daily charge calculation across all charged students
+    const totalDailyChargeRoundingAdjustment = parseFloat((dailyCostPerStudent * divisorCount - totalChargeableAmount).toFixed(2));
+    const totalRoundingAdjustment = totalDailyChargeRoundingAdjustment; // Use this as the total for the record
 
-    // --- STEP 5: Insert/Update all DailyMessCharge records into the database ---
+
     const finalRecordsWithAmounts = recordsToCreateOrUpdate.map(record => {
       if (record.is_charged) {
-        return { ...record, amount: dailyCostPerStudent }; // Use the final rounded value for DB
+        return { ...record, amount: dailyCostPerStudent };
       }
       return record;
     });
@@ -3588,29 +3586,33 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
       });
     }
 
-    // --- NEW STEP: Create/Update AdditionalIncome for the rounding adjustment from THIS calculation ---
+    // --- Create/Update AdditionalIncome for the TOTAL rounding adjustment from THIS calculation ---
     if (totalRoundingAdjustment !== 0) {
-      let roundingIncomeType = await IncomeType.findOne({ where: { name: 'Daily Charge Rounding Adjustments' }, transaction }); // NEW IncomeType name
+      let roundingIncomeType = await IncomeType.findOne({ where: { name: DAILY_CHARGE_ROUNDING_INCOME_TYPE_NAME }, transaction });
       if (!roundingIncomeType) {
         roundingIncomeType = await IncomeType.create({
-          name: 'Daily Charge Rounding Adjustments',
-          description: 'Rounding adjustment from the final daily mess charge calculation (per student)',
+          name: DAILY_CHARGE_ROUNDING_INCOME_TYPE_NAME,
+          description: 'Total rounding adjustment from the final daily mess charge calculation (per student)',
           is_active: true,
         }, { transaction });
       }
 
+      // This description should be stable for the daily aggregate for upsert's where clause
+      const uniqueDescription = `Daily charge calculation total rounding for ${date}`;
+
       await AdditionalIncome.upsert({
         hostel_id,
         income_type_id: roundingIncomeType.id,
-        amount: totalRoundingAdjustment,
-        description: `Daily charge rounding adjustment for ${date}`,
+        amount: totalRoundingAdjustment, // Store the TOTAL rounding adjustment here
+        description: uniqueDescription,
         received_date: date,
         received_by: userId
       }, {
         where: {
           hostel_id,
           income_type_id: roundingIncomeType.id,
-          received_date: date
+          received_date: date,
+          description: uniqueDescription // Use description in WHERE for unique identification
         },
         transaction
       });
@@ -3623,10 +3625,10 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
       message: `Successfully applied daily mess charges of ₹${dailyCostPerStudent.toFixed(2)} (gross total: ₹${totalChargeableAmount.toFixed(2)}) to ${divisorCount} students for ${date}. Total rounding adjustment: ₹${totalRoundingAdjustment.toFixed(2)}.`,
       data: {
         date,
-        dailyCost: dailyCostPerStudent, // Rounded final per-student cost
-        rawDailyCostPerStudent: parseFloat(rawDailyCostPerStudent.toFixed(2)), // Raw per-student cost
+        dailyCost: dailyCostPerStudent,
+        rawDailyCostPerStudent: parseFloat(rawDailyCostPerStudent.toFixed(2)),
         totalChargeableAmount: totalChargeableAmount,
-        totalDailyMenuCost: totalDailyMenuCostRounded, // Use the rounded total menu cost here
+        totalDailyMenuCost: totalDailyMenuCostRounded,
         detailedExpenses: detailedExpenses,
         studentsCharged: divisorCount,
         studentsExempt: studentsOnODCount,
@@ -3648,7 +3650,7 @@ const getMenuRoundingAdjustments = async (req, res) => {
     const hostel_id = req.user.hostel_id;
 
     const roundingIncomeType = await IncomeType.findOne({
-      where: { name: 'Menu Rounding Adjustments' }
+      where: { name: MENU_ROUNDING_INCOME_TYPE_NAME }
     });
 
     if (!roundingIncomeType) {
@@ -3679,7 +3681,7 @@ const getMenuRoundingAdjustments = async (req, res) => {
 
   } catch (error) {
     console.error('Error fetching menu rounding adjustments:', error);
-    res.status(500).json({ success: false, message: `Server Error: ${error.message}` });
+    res.status(500).json({ success: false, message: `Server error: ${error.message}` });
   }
 };
 
@@ -3690,7 +3692,7 @@ const getDailyChargeRoundingAdjustments = async (req, res) => {
     const hostel_id = req.user.hostel_id;
 
     const roundingIncomeType = await IncomeType.findOne({
-      where: { name: 'Daily Charge Rounding Adjustments' }
+      where: { name: DAILY_CHARGE_ROUNDING_INCOME_TYPE_NAME }
     });
 
     if (!roundingIncomeType) {
@@ -3725,24 +3727,35 @@ const getDailyChargeRoundingAdjustments = async (req, res) => {
   }
 };
 
-
+// REVISED getRoundingAdjustments: Now fetches all relevant rounding types
 const getRoundingAdjustments = async (req, res) => {
   try {
     const { from_date, to_date } = req.query;
-    const hostel_id = req.user.hostel_id; // Filter by the user's hostel
+    const hostel_id = req.user.hostel_id;
 
-    // Find the 'Rounding Adjustments' IncomeType globally (as per your model definition)
-    const roundingIncomeType = await IncomeType.findOne({
-      where: { name: 'Rounding Adjustments' }
+    // Find all IncomeTypes whose names contain keywords related to rounding
+    const roundingIncomeTypes = await IncomeType.findAll({
+      where: {
+        name: {
+          [Op.or]: [
+            { [Op.like]: `%${MENU_ROUNDING_INCOME_TYPE_NAME}%` },
+            { [Op.like]: `%${DAILY_CHARGE_ROUNDING_INCOME_TYPE_NAME}%` },
+            { [Op.like]: `%Rounding Adjustments%` } // Catch older/generic ones like your ID 6
+            // Add any other specific names from your tbl_IncomeType that are related to rounding
+          ]
+        }
+      }
     });
 
-    if (!roundingIncomeType) {
-      return res.status(200).json({ success: true, data: [], message: 'No "Rounding Adjustments" income type found.' });
+    const roundingIncomeTypeIds = roundingIncomeTypes.map(type => type.id);
+
+    if (roundingIncomeTypeIds.length === 0) {
+      return res.status(200).json({ success: true, data: [], message: 'No relevant rounding adjustment income types found.' });
     }
 
     let whereClause = {
-      hostel_id, // Filter AdditionalIncome by hostel
-      income_type_id: roundingIncomeType.id // Filter by the specific income type
+      hostel_id,
+      income_type_id: { [Op.in]: roundingIncomeTypeIds } // Filter by all identified rounding IDs
     };
 
     if (from_date && to_date) {
