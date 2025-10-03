@@ -112,7 +112,8 @@ const {
   getMessFeeSummary,
   getStudentFeeBreakdown,
   createStudentFee,
-  generateMonthlyMessReport
+  generateMonthlyMessReport,
+  getDailyConsumptionDetails
   // createExpenseTypeForMess,
   // createExpenseType
 } = require('../controllers/messController');
@@ -289,5 +290,8 @@ router.get('/reports/mess-fee-summary', authorize(['mess', 'admin']), getMessFee
 
 router.get('/reports/student-fee-breakdown', authorize(['mess', 'admin']), getStudentFeeBreakdown);
 router.post('/student-fees', authorize(['mess', 'admin']), createStudentFee);
-router.get('/reports/monthly-mess-bill', authorize(['mess', 'admin']), generateMonthlyMessReport);
+router.get('/reports/monthly-mess-bill', authorize(['mess', 'admin']), generateMonthlyMessReport);4
+
+router.get('/reports/daily-consumption-details', authorize(['mess', 'admin']), getDailyConsumptionDetails);
+
 module.exports = router;
