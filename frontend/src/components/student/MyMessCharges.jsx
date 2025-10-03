@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { studentAPI } from '../../services/api';
-import { Receipt, Calendar, CheckCircle, XCircle, ChevronDown, ChevronUp, Droplet, Percent } from 'lucide-react'; // Added Percent icon
+import { Receipt, Calendar, CheckCircle, XCircle, ChevronDown, ChevronUp, Droplet } from 'lucide-react';
 import moment from 'moment';
 
 const MyMessCharges = () => {
@@ -108,9 +108,6 @@ const MyMessCharges = () => {
                   const statusInfo = getStatusInfo(charge.attendance_status);
                   const isExpanded = expandedRow === charge.id;
                   
-                  // Extract breakdown details for easier access
-                  const { baseMessCharge, specialFoodOrders, waterBillAmount, attendanceInfo, roundingAdjustments } = charge.breakdown;
-
                   return (
                     <React.Fragment key={charge.id}>
                       <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => toggleRow(charge.id)}>
@@ -132,89 +129,49 @@ const MyMessCharges = () => {
                         </td>
                       </tr>
                       {isExpanded && (
-                        <tr className="bg-gray-50"> {/* Slightly different background for expanded details */}
+                        <tr className="bg-gray-50">
                           <td colSpan="5" className="px-6 py-4 text-sm text-gray-700">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-l-4 border-blue-500 pl-4">
                               
-                              {/* Column for Your Shared Mess Costs */}
+                              {/* MODIFIED: This section is simplified to show the direct value */}
                               <div>
-                                <h4 className="font-semibold text-gray-800 mb-2">Your Base Mess Charge Breakdown</h4>
+                                <h4 className="font-semibold text-gray-800 mb-2">Base Mess Charge</h4>
                                 <ul className="list-none space-y-1 text-gray-700">
-                                  {/* Menu Cost (as part of your base mess charge) */}
-                                  <li>
-                                    <span className="font-medium">Menu Cost Portion:</span> ₹{
-                                       (parseFloat(charge.baseMessCharge) > 0 && parseFloat(baseMessCharge.grossTotalBeforeDivision) > 0)
-                                        ? (parseFloat(charge.baseMessCharge) / parseFloat(baseMessCharge.grossTotalBeforeDivision) * parseFloat(baseMessCharge.totalDailyMenuCost)).toFixed(2)
-                                        : '0.00'
-                                    }
+                                  <li className="font-bold flex justify-between">
+                                    <span>Your Daily Share:</span>
+                                    <span>₹{parseFloat(charge.baseMessCharge).toFixed(2)}</span>
                                   </li>
-                                  {/* Expense (by types) cost (as part of your base mess charge) */}
-                                  {baseMessCharge.detailedExpenses.length > 0 ? (
-                                    baseMessCharge.detailedExpenses.map((exp, idx) => (
-                                      <li key={`exp-type-${charge.id}-${idx}`}>
-                                        <span className="font-medium">Expense ({exp.expenseTypeName}) Portion:</span> ₹{
-                                           (parseFloat(charge.baseMessCharge) > 0 && parseFloat(baseMessCharge.grossTotalBeforeDivision) > 0)
-                                            ? (parseFloat(charge.baseMessCharge) / parseFloat(baseMessCharge.grossTotalBeforeDivision) * parseFloat(exp.amount)).toFixed(2)
-                                            : '0.00'
-                                        }
-                                      </li>
-                                    ))
-                                  ) : (
-                                    <li><span className="font-medium">Other Shared Daily Expenses:</span> ₹0.00</li>
-                                  )}
-                                  <li className="font-bold border-t border-gray-200 pt-1 mt-1">
-                                    Total Base Mess Charge (your share): ₹{parseFloat(charge.baseMessCharge).toFixed(2)}
-                                  </li>
-                                   {/* Individual rounding adjustment for Base Mess Charge */}
-                                   {parseFloat(roundingAdjustments.baseMess) !== 0 && (
-                                    <li className={`flex items-center ${parseFloat(roundingAdjustments.baseMess) > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                      <Percent className="w-4 h-4 mr-2" />
-                                      <span className="font-medium">Base Mess Rounding Adj:</span> {parseFloat(roundingAdjustments.baseMess) > 0 ? '+' : ''}₹{parseFloat(roundingAdjustments.baseMess).toFixed(2)}
-                                    </li>
-                                  )}
                                 </ul>
                               </div>
 
-                              {/* Column for Your Direct Charges */}
                               <div>
                                 <h4 className="font-semibold text-gray-800 mb-2">Your Direct Charges</h4>
                                 <ul className="list-none space-y-1 text-gray-700">
-                                  {/* Water Bill */}
-                                  {parseFloat(waterBillAmount) > 0 && (
-                                    <li className="flex items-center">
-                                      <Droplet className="w-4 h-4 text-blue-500 mr-2" />
-                                      <span className="font-medium">Water Bill:</span> ₹{parseFloat(waterBillAmount).toFixed(2)}
+                                  {parseFloat(charge.waterBill) > 0 && (
+                                    <li className="flex items-center justify-between">
+                                      <div className='flex items-center'>
+                                        <Droplet className="w-4 h-4 text-blue-500 mr-2" />
+                                        <span className="font-medium">Water Bill:</span>
+                                      </div>
+                                      <span>₹{parseFloat(charge.waterBill).toFixed(2)}</span>
                                     </li>
                                   )}
-                                  {/* Special Food Cost */}
                                   {parseFloat(charge.specialFoodCost) > 0 ? (
-                                    <>
-                                      <li className="font-medium">Special Food Orders:</li>
-                                      <ul className="list-disc list-inside ml-4 space-y-0.5">
-                                        {specialFoodOrders.map((orderItem, idx) => (
-                                          <li key={`sf-${charge.id}-${idx}`}>
-                                            {orderItem.itemName} ({orderItem.quantity}x ₹{orderItem.unitPrice}) = ₹{orderItem.subtotal}
-                                          </li>
-                                        ))}
-                                      </ul>
-                                      <li className="font-bold ml-4">Total Special Food: ₹{charge.specialFoodCost.toFixed(2)}</li>
-                                    </>
+                                    <li className="flex items-center justify-between">
+                                      <span className="font-medium">Special Food Orders:</span>
+                                      <span className="font-bold">₹{parseFloat(charge.specialFoodCost).toFixed(2)}</span>
+                                    </li>
                                   ) : (
-                                    <li><span className="font-medium">Special Food Orders:</span> ₹0.00</li>
-                                  )}
-                                  {/* Individual rounding adjustment for Special Food */}
-                                  {parseFloat(roundingAdjustments.specialFood) !== 0 && (
-                                    <li className={`flex items-center ${parseFloat(roundingAdjustments.specialFood) > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                      <Percent className="w-4 h-4 mr-2" />
-                                      <span className="font-medium">Special Food Rounding Adj:</span> {parseFloat(roundingAdjustments.specialFood) > 0 ? '+' : ''}₹{parseFloat(roundingAdjustments.specialFood).toFixed(2)}
+                                    <li className="flex items-center justify-between">
+                                      <span className="font-medium">Special Food Orders:</span>
+                                      <span>₹0.00</span>
                                     </li>
                                   )}
                                 </ul>
                               </div>
 
-                              {/* Column for Daily Summary */}
                               <div>
-                                <h4 className="font-semibold text-gray-800 mb-2">Daily Overview</h4>
+                                <h4 className="font-semibold text-gray-800 mb-2">Daily Summary</h4>
                                 <ul className="list-none space-y-1 text-gray-700">
                                   <li className="mt-4 pt-2 border-t border-gray-300 font-bold text-lg flex justify-between">
                                     <span>Your Total Charge for Day:</span>

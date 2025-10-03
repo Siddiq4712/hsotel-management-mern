@@ -2650,6 +2650,66 @@ const SpecialConsumptionItem = sequelize.define('SpecialConsumptionItem', {
   tableName: 'tbl_SpecialConsumptionItem',
   timestamps: false, // These are just log entries, timestamps on parent are enough
 });
+// In your main models file (e.g., models/index.js)
+
+// ... after the 'FoodOrderItem' or 'Fee' model definition ...
+
+const StudentFee = sequelize.define('StudentFee', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  student_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Users', key: 'id' }
+  },
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Hostel', key: 'id' }
+  },
+  fee_type: {
+    type: DataTypes.STRING, // e.g., 'water_bill', 'fine', 'other_expense'
+    allowNull: false,
+  },
+  amount: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+  },
+  description: {
+    type: DataTypes.TEXT,
+  },
+  month: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    comment: 'Month this fee applies to (1-12)',
+  },
+  year: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    comment: 'Year this fee applies to',
+  },
+  status: {
+    type: DataTypes.ENUM('pending', 'paid'),
+    defaultValue: 'pending',
+  },
+  issued_by: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Users', key: 'id' }
+  },
+  issue_date: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+}, {
+  tableName: 'tbl_StudentFee',
+  timestamps: true,
+});
+
+// ... continue with your other model definitions
 
 
 // ... inside the associations block at the end of your file
@@ -2891,6 +2951,13 @@ MessDailyExpense.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 MessDailyExpense.belongsTo(ExpenseType, { foreignKey: 'expense_type_id', as: 'ExpenseType' });
 MessDailyExpense.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy' });
 
+
+StudentFee.belongsTo(User, { foreignKey: 'student_id', as: 'Student' });
+StudentFee.belongsTo(User, { foreignKey: 'issued_by', as: 'IssuedBy' });
+StudentFee.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+User.hasMany(StudentFee, { foreignKey: 'student_id', as: 'StudentFees' });
+
+
 module.exports = {
   sequelize,
   User,
@@ -2961,5 +3028,6 @@ module.exports = {
 
   MessDailyExpense,
   SpecialConsumption,
-  SpecialConsumptionItem
+  SpecialConsumptionItem,
+  StudentFee
 };
