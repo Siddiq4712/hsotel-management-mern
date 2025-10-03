@@ -1,3 +1,4 @@
+const ExcelJS = require('exceljs');
 const {
   Menu, Item, ItemCategory, User, MenuItem, Hostel,Attendance,Enrollment,DailyMessCharge,
   MenuSchedule, UOM, ItemStock, DailyConsumption,MessBill,
@@ -4134,6 +4135,220 @@ const generateMonthlyMessReport = async (req, res) => {
   }
 };
 
+const exportStockToExcel = async (req, res) => {
+  try {
+    const hostel_id = req.user.hostel_id;
+    const hostel = await Hostel.findByPk(hostel_id);
+
+    if (!hostel) {
+      return res.status(404).json({ success: false, message: 'Hostel not found.' });
+    }
+
+    // Fetch stock with item and UOM
+    const stocks = await ItemStock.findAll({
+      where: { hostel_id },
+      include: [
+        {
+          model: Item,
+          as: 'Item',
+          include: [
+            {
+              model: UOM,
+              as: 'UOM',
+              attributes: ['abbreviation'],
+              required: false
+            }
+          ]
+        }
+      ],
+      order: [[{ model: Item, as: 'Item' }, 'name', 'ASC']]
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Stock Report');
+
+    // Header: College Name
+    worksheet.addRow(['NATIONAL ENGINEERING COLLEGE GENTS HOSTEL']);
+    worksheet.getCell('A1').font = { bold: true, size: 14 };
+    worksheet.mergeCells('A1:F1');
+    worksheet.getCell('A1').alignment = { horizontal: 'center' };
+
+    // Header: Address
+    worksheet.addRow(['K.R. NAGAR - 628 503']);
+    worksheet.getCell('A2').font = { bold: true, size: 12 };
+    worksheet.mergeCells('A2:F2');
+    worksheet.getCell('A2').alignment = { horizontal: 'center' };
+
+    // Header: Date
+    worksheet.addRow([`Stock as on ${moment().format('DD.MM.YYYY')}`]);
+    worksheet.getCell('A3').font = { bold: true, size: 12 };
+    worksheet.mergeCells('A3:F3');
+    worksheet.getCell('A3').alignment = { horizontal: 'center' };
+
+    // Add a blank row
+    worksheet.addRow([]);
+
+    // ✅ Manually add column headers (row 5)
+    const headerRow = worksheet.addRow(['Sl.No.', 'Name of the Items', 'Qty', 'Balance stock', 'U.Rate', 'Amount']);
+    headerRow.font = { bold: true };
+    headerRow.alignment = { horizontal: 'center' };
+    headerRow.eachCell((cell) => {
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    });
+
+    // Set column widths (manually since we're not using `worksheet.columns`)
+    worksheet.getColumn(1).width = 8;
+    worksheet.getColumn(2).width = 30;
+    worksheet.getColumn(3).width = 10;
+    worksheet.getColumn(4).width = 15;
+    worksheet.getColumn(5).width = 15;
+    worksheet.getColumn(6).width = 15;
+
+    let totalAmount = 0;
+
+    // Add stock data rows (starting from row 6)
+    stocks.forEach((stock, index) => {
+      const itemName = stock.Item?.name || 'Unknown Item';
+      const unitAbbreviation = stock.Item?.UOM?.abbreviation || '';
+      const balanceStock = parseFloat(stock.current_stock);
+      const unitRate = parseFloat(stock.Item?.unit_price || 0);
+      const amount = balanceStock * unitRate;
+      totalAmount += amount;
+
+      const row = worksheet.addRow([
+        index + 1,
+        itemName,
+        unitAbbreviation,
+        balanceStock.toFixed(3),
+        unitRate.toFixed(2),
+        amount.toFixed(2)
+      ]);
+
+      // Format cells
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' }
+        };
+      });
+
+      // Align cells
+      row.getCell(3).alignment = { horizontal: 'center' }; // Qty
+      row.getCell(4).alignment = { horizontal: 'right' };  // Balance stock
+      row.getCell(5).alignment = { horizontal: 'right' };  // U.Rate
+      row.getCell(6).alignment = { horizontal: 'right' };  // Amount
+    });
+
+    // Total row
+    const totalRow = worksheet.addRow(['', '', '', '', 'Total amount', totalAmount.toFixed(2)]);
+    totalRow.getCell(5).font = { bold: true };
+    totalRow.getCell(6).font = { bold: true };
+    totalRow.getCell(6).alignment = { horizontal: 'right' };
+
+    totalRow.eachCell((cell) => {
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+    });
+
+    // Amount in words
+    worksheet.addRow([]);
+    const amountInWordsRow = worksheet.addRow([`Amount in words: ${convertNumberToWords(totalAmount.toFixed(2))} only`]);
+    amountInWordsRow.getCell('A').font = { italic: true };
+    worksheet.mergeCells(`A${amountInWordsRow.number}:F${amountInWordsRow.number}`);
+
+    // Signature row
+    worksheet.addRow([]);
+    worksheet.addRow([]);
+    const signatureRow = worksheet.addRow(['ASSOCIATE WARDEN', 'WARDEN', '', '', '', 'DIRECTOR']);
+    signatureRow.eachCell((cell) => {
+      cell.font = { bold: true };
+      cell.alignment = { horizontal: 'center' };
+    });
+
+    // Download Excel
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="StockReport_${moment().format('YYYYMMDD_HHmmss')}.xlsx"`);
+
+    await workbook.xlsx.write(res);
+    res.end();
+
+  } catch (error) {
+    console.error('Error exporting stock to Excel:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+// Helper function to convert numbers to words (Indian format)
+function convertNumberToWords(num) {
+  const units = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  function convertChunk(n) {
+    if (n === 0) return '';
+    if (n < 10) return units[n];
+    if (n < 20) return teens[n - 10];
+    const digit = n % 10;
+    return tens[Math.floor(n / 10)] + (digit ? ' ' + units[digit] : '');
+  }
+
+  function convert(num) {
+    if (num === 0) return 'Zero';
+    let words = '';
+    const parts = String(num).split('.');
+    let integerPart = parseInt(parts[0], 10);
+    let fractionalPart = parts[1] ? parseInt(parts[1], 10) : 0;
+
+    if (integerPart >= 10000000) {
+      words += convertChunk(Math.floor(integerPart / 10000000)) + ' Crore ';
+      integerPart %= 10000000;
+    }
+    if (integerPart >= 100000) {
+      words += convertChunk(Math.floor(integerPart / 100000)) + ' Lakh ';
+      integerPart %= 100000;
+    }
+    if (integerPart >= 1000) {
+      words += convertChunk(Math.floor(integerPart / 1000)) + ' Thousand ';
+      integerPart %= 1000;
+    }
+    if (integerPart >= 100) {
+      words += convertChunk(Math.floor(integerPart / 100)) + ' Hundred ';
+      integerPart %= 100;
+    }
+    if (integerPart > 0) {
+      words += convertChunk(integerPart);
+    }
+
+    words = words.trim();
+
+    if (fractionalPart > 0) {
+      words += ' Paise ' + convertChunk(fractionalPart);
+    }
+
+    return words || 'Zero';
+  }
+
+  const [whole, paise] = num.toString().split('.');
+  let result = convert(parseInt(whole, 10));
+  if (paise && parseInt(paise, 10) > 0) {
+    result += ' ,paise ' + convertChunk(parseInt(paise, 10));
+  }
+
+  return result;
+}
+
+
 
 
 module.exports = {
@@ -4220,5 +4435,6 @@ module.exports = {
   getMessFeeSummary,
   getStudentFeeBreakdown,
   createStudentFee,
-  generateMonthlyMessReport
+  generateMonthlyMessReport,
+  exportStockToExcel
 };
