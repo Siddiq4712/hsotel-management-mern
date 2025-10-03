@@ -347,6 +347,7 @@ export const messAPI = {
   createStudentFee: (data) => api.post('/mess/student-fees', data),
   getStudents: () => api.get('/warden/students'), 
   generateMonthlyMessReport: (params) => api.get('/mess/reports/monthly-mess-bill', { params }),
+  getDailyConsumptionDetails: (params) => api.get('/mess/reports/daily-consumption-details', { params }),
 
 };
 

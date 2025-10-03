@@ -253,12 +253,18 @@ const GenerateMessBills = () => {
         </Space>
         
         <Table
-          columns={columns}
-          dataSource={messBills}
-          rowKey="id"
-          loading={billsLoading}
-          pagination={{ pageSize: 10 }}
-        />
+        columns={columns}
+        dataSource={reportData}
+        rowKey="studentId"
+        loading={loading}
+        scroll={{ x: 1500 }}
+        pagination={{
+          pageSize: 10, // Sets the default page size
+          showSizeChanger: true,
+          pageSizeOptions: ['10', '50', '100'],
+          showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+        }}
+      />
       </Card>
     </div>
   );
