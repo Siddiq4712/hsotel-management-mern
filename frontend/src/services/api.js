@@ -342,6 +342,10 @@ export const messAPI = {
   getRoundingAdjustments: (params) => api.get('/mess/additional-income/rounding', { params }),
   getLatestPurchaseReport:(params) => api.get('/mess/reports/latest-purchase', { params }),
   correctLastPurchase: (payload) => api.post('/mess/inventory/correct-last-purchase', payload),
+  getStudentFeeBreakdown: (params) => api.get('/mess/reports/student-fee-breakdown', { params }),
+  createStudentFee: (data) => api.post('/mess/student-fees', data),
+  getStudents: () => api.get('/warden/students'), 
+  generateMonthlyMessReport: (params) => api.get('/mess/reports/monthly-mess-bill', { params }),
 
 };
 

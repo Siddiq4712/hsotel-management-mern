@@ -108,7 +108,11 @@ const {
   calculateAndApplyDailyMessCharges,
   getRoundingAdjustments,
   getLatestPurchaseReport,
-  correctLastPurchase
+  correctLastPurchase,
+  getMessFeeSummary,
+  getStudentFeeBreakdown,
+  createStudentFee,
+  generateMonthlyMessReport
   // createExpenseTypeForMess,
   // createExpenseType
 } = require('../controllers/messController');
@@ -280,4 +284,10 @@ router.get('/additional-income/rounding', authorize(['mess', 'admin']), getRound
 router.get('/reports/latest-purchase', authorize(['mess', 'admin']), getLatestPurchaseReport);
 
 router.post('/inventory/correct-last-purchase', authorize(['mess','admin']), correctLastPurchase);
+
+router.get('/reports/mess-fee-summary', authorize(['mess', 'admin']), getMessFeeSummary);
+
+router.get('/reports/student-fee-breakdown', authorize(['mess', 'admin']), getStudentFeeBreakdown);
+router.post('/student-fees', authorize(['mess', 'admin']), createStudentFee);
+router.get('/reports/monthly-mess-bill', authorize(['mess', 'admin']), generateMonthlyMessReport);
 module.exports = router;

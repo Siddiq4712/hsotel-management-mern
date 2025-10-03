@@ -32,8 +32,8 @@ router.get('/dashboard-stats', getDashboardStats);
 router.get('/sessions', getSessions);
 
 // Student Management
-router.post('/students', enrollStudent);
-router.get('/students', getStudents);
+router.post('/students',authorize(['warden','mess']), enrollStudent);
+router.get('/students',authorize(['warden','mess']), getStudents);
 
 // Room Management
 router.get('/available-rooms', getAvailableRooms);

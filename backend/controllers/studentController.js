@@ -1204,6 +1204,8 @@ const getSpecialFoodItemCategories = async (req, res) => {
   }
 };
 
+// In studentController.js
+
 const getMyDailyMessCharges = async (req, res) => {
   try {
     const student_id = req.user.id;
@@ -1229,12 +1231,9 @@ const getMyDailyMessCharges = async (req, res) => {
     const detailedCharges = [];
 
     for (const dmc of dailyMessCharges) {
-        // dmc.amount is already the ROUNDED base mess charge from DailyMessCharge table
         const baseMessChargeAmountFromDB = parseFloat(dmc.amount || 0);
 
-        let dailyTotalCharge = baseMessChargeAmountFromDB;
         const date = dmc.date;
-
         const startOfDay = moment(date).startOf('day').toDate();
         const endOfDay = moment(date).endOf('day').toDate();
 
@@ -1245,123 +1244,32 @@ const getMyDailyMessCharges = async (req, res) => {
                 status: { [Op.in]: ['delivered', 'ready', 'confirmed', 'preparing'] },
                 payment_status: { [Op.ne]: 'refunded' }
             },
-            include: [{
-                model: FoodOrderItem,
-                include: [{ model: SpecialFoodItem, attributes: ['name', 'price'] }]
-            }],
-            raw: false
+            raw: true // Using raw: true simplifies the next step
         });
 
-        let totalSpecialFoodCostRaw = 0;
-        const specialFoodDetails = [];
-        specialFoodOrders.forEach(order => {
-            order.FoodOrderItems.forEach(item => {
-                const itemSubtotal = parseFloat(item.subtotal || 0);
-                const itemQuantity = parseFloat(item.quantity || 0);
-                const itemUnitPrice = parseFloat(item.unit_price || 0);
-
-                totalSpecialFoodCostRaw += itemSubtotal;
-                specialFoodDetails.push({
-                    orderId: order.id,
-                    itemName: item.SpecialFoodItem ? item.SpecialFoodItem.name : 'Unknown Item',
-                    quantity: itemQuantity,
-                    unitPrice: itemUnitPrice.toFixed(2),
-                    subtotal: itemSubtotal.toFixed(2)
-                });
-            });
-        });
+        // Sum up the total special food cost directly
+        const totalSpecialFoodCostRaw = specialFoodOrders.reduce((sum, order) => sum + parseFloat(order.total_amount), 0);
         
-        // Round special food cost for display
-        let totalSpecialFoodCostRounded = customRounding(totalSpecialFoodCostRaw);
-        dailyTotalCharge += totalSpecialFoodCostRounded;
+        // REMOVED: Rounding for special food cost
+        // const totalSpecialFoodCostRounded = customRounding(totalSpecialFoodCostRaw);
 
         let waterBill = 0;
-        if (dmc.attendance_status !== 'on_duty') {
-            waterBill = 10.00;
-            dailyTotalCharge += waterBill;
+        if (dmc.attendance_status !== 'on_duty') { // Assuming 'on_duty' corresponds to OD
+            waterBill = 10.00; // Example fixed charge
         }
         
-        let baseMessChargeBreakdown = {
-            totalDailyMenuCost: 0,
-            detailedExpenses: [],
-            grossTotalBeforeDivision: 0
-        };
-
-        const menuCostBreakdown = await MenuSchedule.findOne({
-            attributes: [
-                [sequelize.fn('SUM', sequelize.col('cost_per_serving')), 'totalDailyMenuCost']
-            ],
-            where: { hostel_id, scheduled_date: date, status: 'served' },
-            raw: true
-        });
-        // This is the SUM of ALREADY ROUNDED cost_per_serving values from MenuSchedule
-        baseMessChargeBreakdown.totalDailyMenuCost = parseFloat(menuCostBreakdown.totalDailyMenuCost || 0); 
-
-        const detailedExpensesRaw = await MessDailyExpense.findAll({
-            attributes: [
-                [sequelize.col('ExpenseType.name'), 'expenseTypeName'],
-                [sequelize.fn('SUM', sequelize.col('MessDailyExpense.amount')), 'amount']
-            ],
-            where: { hostel_id, expense_date: date },
-            include: [{
-                model: ExpenseType,
-                as: 'ExpenseType',
-                attributes: [],
-                where: { name: { [Op.ne]: 'others' } },
-                required: true
-            }],
-            group: ['ExpenseType.name'],
-            raw: true
-        });
+        // MODIFIED: Use raw values for the total
+        const dailyTotalCharge = baseMessChargeAmountFromDB + totalSpecialFoodCostRaw + waterBill;
         
-        baseMessChargeBreakdown.detailedExpenses = detailedExpensesRaw.map(exp => ({
-            expenseTypeName: exp.expenseTypeName,
-            amount: parseFloat(exp.amount || 0)
-        }));
-
-        // The grossTotalBeforeDivision in the breakdown reflects the sum of already rounded values
-        baseMessChargeBreakdown.grossTotalBeforeDivision = baseMessChargeBreakdown.totalDailyMenuCost +
-            baseMessChargeBreakdown.detailedExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-
-        // --- Individual rounding adjustments for breakdown display ---
-        // This calculates the difference between the rounded value and its original raw value
-        // The baseMessChargeAmountFromDB IS the rounded value from the DailyMessCharge table.
-        // We'd need the original 'raw' calculated value from the messController to do this.
-        // For simplicity, for the student side, we can state the rounding was applied, but not recalculate its exact fractional part from this side.
-        // Or, the messController could store this raw value in the DailyMessCharge table for each student.
-        // For now, let's just make it zero or indicate it was rounded.
-
-        // If you want to show the precise `baseMessRoundingAdjustment` per student,
-        // you'd need the `rawDailyCostPerStudent` to be stored in the `DailyMessCharge` model.
-        // Since we cannot modify models, we'll indicate "Rounded" but not a specific adjustment amount from this side.
-        // The specialFoodRoundingAdjustment can still be calculated because we have raw vs rounded here.
-        const specialFoodRoundingAdjustment = parseFloat((totalSpecialFoodCostRounded - totalSpecialFoodCostRaw).toFixed(2));
-
-
         detailedCharges.push({
             id: dmc.id,
             date: dmc.date,
             attendance_status: dmc.attendance_status,
-            baseMessCharge: baseMessChargeAmountFromDB, // This is the rounded value from DB
-            specialFoodCost: totalSpecialFoodCostRounded,
-            waterBill: waterBill,
+            baseMessCharge: baseMessChargeAmountFromDB.toFixed(4), // Show more precision
+            specialFoodCost: totalSpecialFoodCostRaw.toFixed(2),
+            waterBill: waterBill.toFixed(2),
             dailyTotalCharge: dailyTotalCharge.toFixed(2),
-
-            breakdown: {
-                baseMessCharge: baseMessChargeBreakdown,
-                specialFoodOrders: specialFoodDetails,
-                waterBillAmount: waterBill,
-                attendanceInfo: {
-                    status: dmc.attendance_status,
-                    isCharged: dmc.is_charged
-                },
-                // For baseMess: We know it was rounded, but don't have the original raw value here.
-                // For specialFood: We can calculate the individual adjustment.
-                roundingAdjustments: {
-                    baseMess: "Value rounded at calculation", // Placeholder
-                    specialFood: specialFoodRoundingAdjustment
-                }
-            }
+            // The detailed breakdown part can be simplified or removed if not needed for the student view
         });
     }
 

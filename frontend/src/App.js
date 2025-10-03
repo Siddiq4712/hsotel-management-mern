@@ -69,6 +69,7 @@ import RecordAdhocConsumption from './components/mess/RecordAdhocConsumption';
 import CalculateDailyCharges from './components/mess/CalculateDailyCharges'; // Import the new component
 import StudentMessHistory from './components/student/StudentMessHistory';
 import HostelAdditionalIncome from './components/mess/HostelAdditionalIncome'; // Import the new component
+import MessFee from './components/mess/MessFeeManagement'; // Import the new component
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
 
@@ -234,6 +235,8 @@ const DashboardRouter = () => {
             return <MessExpenses />;
           case 'hostel-additional-income':
             return <HostelAdditionalIncome />;
+          case 'mess-fee':
+            return <MessFee/>;
           default:
             return <MessDashboard />;
         }

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Card, DatePicker, Button, message, Spin, Alert, Typography, Statistic, Descriptions, Divider, Tag } from 'antd';
+import { Card, DatePicker, Button, message, Spin, Alert, Typography, Statistic, Descriptions, Divider } from 'antd';
 import moment from 'moment';
-import { CalculatorOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
+import { CalculatorOutlined } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
 
 const { Title, Paragraph } = Typography;
@@ -42,8 +42,7 @@ const CalculateDailyCharges = () => {
     <Card>
       <Title level={3}>Calculate & Apply Daily Mess Charges</Title>
       <Paragraph type="secondary">
-        Select a date to calculate the total daily meal cost (sum of cost-per-serving of all served menus)
-        and apply it as a charge to all active students who were not on leave or official duty.
+        Select a date to calculate the total daily meal cost and apply it as a charge to all active students who were not on leave or official duty. The calculation now uses precise, unrounded values.
       </Paragraph>
 
       <div style={{ marginBottom: 24 }}>
@@ -80,21 +79,13 @@ const CalculateDailyCharges = () => {
             <Statistic
                 title="Total Daily Mess Cost (Gross)"
                 value={result.data.totalChargeableAmount}
-                precision={2}
+                precision={4} // Showing more precision for clarity
                 prefix="₹"
             />
-            {/* NEW: Display raw cost per student */}
             <Statistic
-                title="Daily Cost per Student (Actual)"
-                value={result.data.rawDailyCostPerStudent}
-                precision={2}
-                prefix="₹"
-            />
-            {/* Display rounded cost per student */}
-            <Statistic
-                title="Daily Cost per Student (Rounded)"
-                value={result.data.dailyCost}
-                precision={2}
+                title="Daily Cost per Student"
+                value={result.data.dailyCost} // This is the raw, unrounded value
+                precision={4} // Showing more precision for clarity
                 prefix="₹"
             />
             <Statistic title="Students Charged" value={result.data.studentsCharged} />
@@ -104,7 +95,7 @@ const CalculateDailyCharges = () => {
 
             <Descriptions bordered column={1} size="small">
                 <Descriptions.Item label="1. Total Menu Cost (Gross)">
-                    ₹{result.data.totalDailyMenuCost ? parseFloat(result.data.totalDailyMenuCost).toFixed(2) : '0.00'}
+                    ₹{result.data.totalDailyMenuCost ? parseFloat(result.data.totalDailyMenuCost).toFixed(4) : '0.00'}
                 </Descriptions.Item>
 
                 {result.data.detailedExpenses && result.data.detailedExpenses.length > 0 ? (
@@ -121,7 +112,7 @@ const CalculateDailyCharges = () => {
 
                 <Descriptions.Item label={<span style={{ fontWeight: 'bold' }}>2. Total Chargeable Amount (Gross Sum of Menu + Expenses)</span>}>
                     <span style={{ fontWeight: 'bold' }}>
-                        ₹{result.data.totalChargeableAmount ? parseFloat(result.data.totalChargeableAmount).toFixed(2) : '0.00'}
+                        ₹{result.data.totalChargeableAmount ? parseFloat(result.data.totalChargeableAmount).toFixed(4) : '0.00'}
                     </span>
                 </Descriptions.Item>
 
@@ -129,27 +120,13 @@ const CalculateDailyCharges = () => {
                     {result.data.studentsCharged} (Excluding {result.data.studentsExempt} on OD/Leave)
                 </Descriptions.Item>
 
-                {/* NEW: Display both raw and rounded per-student cost in breakdown */}
-                <Descriptions.Item label="4. Actual Daily Cost per Student (before rounding)">
-                    ₹{result.data.rawDailyCostPerStudent ? parseFloat(result.data.rawDailyCostPerStudent).toFixed(2) : '0.00'}
-                </Descriptions.Item>
-                <Descriptions.Item label={<span style={{ fontWeight: 'bold' }}>5. Final Daily Cost per Student (Rounded)</span>}>
+                <Descriptions.Item label={<span style={{ fontWeight: 'bold' }}>4. Final Daily Cost per Student</span>}>
                     <span style={{ fontWeight: 'bold' }}>
-                        ₹{result.data.dailyCost ? parseFloat(result.data.dailyCost).toFixed(2) : '0.00'}
+                        ₹{result.data.dailyCost ? parseFloat(result.data.dailyCost).toFixed(4) : '0.00'}
                     </span>
                 </Descriptions.Item>
 
-                {/* Display total rounding adjustment */}
-                {parseFloat(result.data.totalRoundingAdjustment) !== 0 && (
-                  <Descriptions.Item label={<span style={{ fontWeight: 'bold' }}>6. Total Rounding Adjustment (Hostel Income/Expense)</span>}>
-                      <span style={{ fontWeight: 'bold', color: parseFloat(result.data.totalRoundingAdjustment) >= 0 ? 'green' : 'red' }}>
-                          {parseFloat(result.data.totalRoundingAdjustment) >= 0 ? '+' : ''}₹{parseFloat(result.data.totalRoundingAdjustment).toFixed(2)}
-                      </span>
-                      <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                          (This amount is recorded as Additional Income for the hostel)
-                      </Paragraph>
-                  </Descriptions.Item>
-                )}
+                {/* The rounding adjustment section has been completely removed as it's no longer calculated. */}
             </Descriptions>
         </Card>
       )}
