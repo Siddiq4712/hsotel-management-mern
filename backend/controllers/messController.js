@@ -2772,32 +2772,49 @@ const getStoresByItemId = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+// In messController.js
 
 const getSummarizedConsumptionReport = async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
     const hostel_id = req.user.hostel_id;
 
-    if (!start_date || !end_date) throw new Error('Start and end date are required.');
+    if (!start_date || !end_date) {
+      return res.status(400).json({ success: false, message: 'Start and end date are required.' });
+    }
 
+    // The main change is in this database query
     const result = await DailyConsumption.findAll({
       where: {
         hostel_id,
         consumption_date: { [Op.between]: [start_date, end_date] },
       },
+      // MODIFIED: Select the category name and sum the cost
       attributes: [
-        [sequelize.col('tbl_Item.name'), 'item_name'],
-        [sequelize.col('DailyConsumption.unit'), 'unit'],
-        [sequelize.fn('SUM', sequelize.col('DailyConsumption.quantity_consumed')), 'total_consumed'],
+        [sequelize.col('tbl_Item->tbl_ItemCategory.name'), 'category_name'],
         [sequelize.fn('SUM', sequelize.col('DailyConsumption.total_cost')), 'total_cost'],
       ],
+      // MODIFIED: Include Item and its associated ItemCategory to access the category name
       include: [
-        { model: Item, as: 'tbl_Item', attributes: [] },
-        { model: ConsumptionLog, as: 'ConsumptionLogs', attributes: [] },
+        { 
+          model: Item, 
+          as: 'tbl_Item', 
+          attributes: [], // We don't need item attributes in the final result
+          required: true,
+          include: [
+            {
+              model: ItemCategory,
+              as: 'tbl_ItemCategory',
+              attributes: [], // We don't need category attributes either
+              required: true,
+            }
+          ]
+        },
       ],
-      group: ['tbl_Item.id', 'tbl_Item.name', 'DailyConsumption.unit'],
-      order: [[sequelize.col('tbl_Item.name'), 'ASC']],
-      raw: true,
+      // MODIFIED: Group the results by the category name
+      group: [sequelize.col('tbl_Item->tbl_ItemCategory.name')],
+      order: [[sequelize.col('tbl_Item->tbl_ItemCategory.name'), 'ASC']],
+      raw: true, // Keep it raw for a clean result
     });
 
     res.json({ success: true, data: result });
@@ -2806,6 +2823,7 @@ const getSummarizedConsumptionReport = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+
 
 // In messController.js
 
@@ -4029,9 +4047,11 @@ const createStudentFee = async (req, res) => {
 };
 // In messController.js
 
+// In messController.js
+
 const generateMonthlyMessReport = async (req, res) => {
   try {
-    const { month, year } = req.query;
+    const { month, year, college } = req.query;
     const { hostel_id } = req.user;
 
     if (!month || !year) {
@@ -4041,11 +4061,29 @@ const generateMonthlyMessReport = async (req, res) => {
     const startDate = moment({ year, month: month - 1 }).startOf('month').toDate();
     const endDate = moment({ year, month: month - 1 }).endOf('month').toDate();
     
+    // Join with Enrollment to filter by college
+    let studentIncludeClause = {
+        model: Enrollment,
+        as: 'tbl_Enrollments',
+        attributes: [], // We only need it for filtering
+        required: true,
+    };
+
+    if (college && college !== 'all') {
+        studentIncludeClause.where = { college: college };
+    }
+
     const students = await User.findAll({
       where: { hostel_id, role: 'student', is_active: true },
+      include: [studentIncludeClause],
       attributes: ['id', 'username'],
       raw: true,
     });
+
+    if (students.length === 0) {
+        return res.json({ success: true, data: [] });
+    }
+
     const studentIds = students.map(s => s.id);
     
     const messCharges = await DailyMessCharge.findAll({
@@ -4064,15 +4102,9 @@ const generateMonthlyMessReport = async (req, res) => {
       raw: true,
     });
 
-    // ========================================================================
-    //  THIS IS THE CORRECTED PART
-    // ========================================================================
     const foodOrders = await FoodOrder.findAll({
       where: { 
-        hostel_id, 
-        student_id: {[Op.in]: studentIds},
-        // MODIFIED: Broaden the status check to include all non-cancelled orders
-        // and explicitly exclude refunded ones. This is more robust.
+        hostel_id, student_id: {[Op.in]: studentIds},
         status: { [Op.ne]: 'cancelled' }, 
         payment_status: { [Op.ne]: 'refunded' },
         order_date: { [Op.between]: [startDate, endDate] } 
@@ -4081,7 +4113,6 @@ const generateMonthlyMessReport = async (req, res) => {
       attributes: ['student_id', [sequelize.fn('SUM', sequelize.col('total_amount')), 'total_special_food_cost']],
       raw: true,
     });
-    // ========================================================================
     
     const otherFees = await StudentFee.findAll({
         where: { hostel_id, month, year, student_id: {[Op.in]: studentIds} },
@@ -4110,19 +4141,23 @@ const generateMonthlyMessReport = async (req, res) => {
       const finalAmount = Math.round(netAmount);
       const roundingUp = finalAmount - netAmount;
 
+      // Calculate the daily rate
+      const dailyRate = messData.days > 0 ? messData.amount / messData.days : 0;
+
       return {
         studentId: student.id,
         name: student.username,
         regNo: student.username,
         messDays: messData.days,
         messAmount: messData.amount,
-        additionalAmount: additionalAmount, // This will now have the correct value
+        additionalAmount: additionalAmount,
         bedCharges: bedCharges,
         hinduIndianExpress: fixedCharges.hinduIndianExpress,
         total: total,
         netAmount: netAmount,
         roundingUp: roundingUp,
         finalAmount: finalAmount,
+        dailyRate: dailyRate,
       };
     }).sort((a, b) => a.regNo.localeCompare(b.regNo));
 
@@ -4133,6 +4168,57 @@ const generateMonthlyMessReport = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+const getDailyConsumptionDetails = async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    const { hostel_id } = req.user;
+
+    if (!month || !year) {
+      return res.status(400).json({ success: false, message: 'Month and year are required.' });
+    }
+
+    const startDate = moment({ year, month: month - 1 }).startOf('month').format('YYYY-MM-DD');
+    const endDate = moment({ year, month: month - 1 }).endOf('month').format('YYYY-MM-DD');
+
+    // This query groups total cost by both date and category name
+    const result = await DailyConsumption.findAll({
+      where: {
+        hostel_id,
+        consumption_date: { [Op.between]: [startDate, endDate] },
+      },
+      attributes: [
+        'consumption_date',
+        [sequelize.col('tbl_Item->tbl_ItemCategory.name'), 'category_name'],
+        [sequelize.fn('SUM', sequelize.col('DailyConsumption.total_cost')), 'daily_total_cost'],
+      ],
+      include: [
+        { 
+          model: Item, 
+          as: 'tbl_Item', 
+          attributes: [],
+          required: true,
+          include: [
+            {
+              model: ItemCategory,
+              as: 'tbl_ItemCategory',
+              attributes: [],
+              required: true,
+            }
+          ]
+        },
+      ],
+      group: ['consumption_date', sequelize.col('tbl_Item->tbl_ItemCategory.name')],
+      order: [['consumption_date', 'ASC']],
+      raw: true,
+    });
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('Error fetching daily consumption details:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
 
 
 
@@ -4220,5 +4306,6 @@ module.exports = {
   getMessFeeSummary,
   getStudentFeeBreakdown,
   createStudentFee,
-  generateMonthlyMessReport
+  generateMonthlyMessReport,
+  getDailyConsumptionDetails,
 };

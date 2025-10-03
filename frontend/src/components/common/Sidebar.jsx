@@ -88,7 +88,7 @@ case 'mess':
     
     { id: 'section-inventory', label: 'Inventory Management', type: 'section' },
     { id: 'uoms', label: 'Units of Measure', icon: Settings },
-    // { id: 'stock', label: 'Stock Management', icon: Database },
+    { id: 'stock', label: 'Stock Management', icon: Database },
     { id: 'inventory', label: 'Inventory', icon: Package },
     { id: 'consumption', label: 'Daily Consumption', icon: ClipboardCheck },
     
