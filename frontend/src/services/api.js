@@ -272,6 +272,7 @@ export const messAPI = {
   updateItemStock: (data) => api.post('/mess/stock', data),
   getItemStock: (params) => api.get('/mess/stock', { params }), // params: { low_stock }
   // Expected data: { consumptions: [{ item_id, quantity_consumed, unit, consumption_date, meal_type }] }
+  exportStockToExcel: () => api.get('/mess/stock/export-excel', { responseType: 'blob' }),
   recordBulkConsumption: (data) => api.post('/mess/consumption/bulk', data),
   getDailyConsumption: (params) => api.get('/mess/consumption', { params }), // params: { date, meal_type, item_id }
   // Expected data: { items: [{ item_id, quantity, unit_price, transaction_date, expiry_date }] }

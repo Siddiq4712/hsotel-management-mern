@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Select, message, Space, Typography, Tag, Switch, Modal, Form, InputNumber, DatePicker, Select as AntSelect } from 'antd';
-import { ReloadOutlined, PlusOutlined } from '@ant-design/icons';
+import { ReloadOutlined, PlusOutlined, DownloadOutlined } from '@ant-design/icons'; // Import DownloadOutlined
 import { messAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext'; // Assuming you have an AuthContext for user data
 
@@ -11,6 +11,7 @@ const StockManagement = () => {
   const [stocks, setStocks] = useState([]);
   const [items, setItems] = useState([]); // For item selection in modal
   const [loading, setLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false); // New loading state for export
   const [showLowStock, setShowLowStock] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [form] = Form.useForm();
@@ -78,6 +79,44 @@ const StockManagement = () => {
     form.resetFields();
   };
 
+  // NEW FUNCTION: Handle Export to Excel
+  const handleExportExcel = async () => {
+    setExportLoading(true);
+    try {
+      const response = await messAPI.exportStockToExcel();
+      
+      // Create a blob from the response data
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      
+      // Get filename from Content-Disposition header if available, otherwise use a default
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'StockReport.xlsx';
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      // Create a link element, set its href and download attributes, then click it
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      message.success('Stock report downloaded successfully!');
+    } catch (error) {
+      message.error('Failed to download stock report: ' + (error.message || 'Unknown error'));
+      console.error('Export error:', error);
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   const columns = [
     {
       title: 'Item Name',
@@ -131,6 +170,15 @@ const StockManagement = () => {
           </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={showAddStockModal}>
             Add Stock
+          </Button>
+          {/* NEW BUTTON: Export to Excel */}
+          <Button 
+            icon={<DownloadOutlined />} 
+            onClick={handleExportExcel} 
+            loading={exportLoading}
+            type="default" // You can change type to 'primary' if preferred
+          >
+            Export to Excel
           </Button>
         </Space>
       }
