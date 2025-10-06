@@ -1,5 +1,6 @@
 const express = require('express');
 const { body } = require('express-validator');
+
 const rateLimit = require('express-rate-limit');
 const {
   // Menu Management
@@ -99,7 +100,7 @@ const {
   updateExpenseType,
   deleteExpenseType,
   getItemFIFOPrice,
-  getItemBatches,  
+  getItemBatches,
   fetchBatchPrices,
 
   // Special Consumption
@@ -114,10 +115,25 @@ const {
   getStudentFeeBreakdown,
   createStudentFee,
   generateMonthlyMessReport,
-  getDailyConsumptionDetails
-  // createExpenseTypeForMess,
-  // createExpenseType
+  getDailyConsumptionDetails,
+  exportUnitRateCalculation, // Make sure this is imported
+  createBulkStudentFee,
+  getStudentFees,
+  createCreditToken,
+  getCreditTokens,
+  updateCreditToken,
+  deleteCreditToken,
+  createConcern,
+  getConcerns,
+  updateConcern,
+  deleteConcern,
+
+  getIncomeEntries,
+  createIncomeEntry,
+
+
 } = require('../controllers/messController');
+const { getSessions,getStudents } = require('../controllers/wardenController');
 const { auth, authorize } = require('../middleware/auth');
 
 const router = express.Router();
@@ -193,7 +209,7 @@ router.get('/items/:id', authorize(['mess', 'warden', 'admin']), getItemById);
 router.put('/items/:id', authorize(['mess', 'admin']), validateItem, updateItem);
 router.delete('/items/:id', authorize(['admin', 'warden']), deleteItem);
 // In your routes file
-router.get('/items/:id/batches', authorize(['mess', 'admin']),getItemBatches);
+router.get('/items/:id/batches', authorize(['mess', 'admin']), getItemBatches);
 // Item Category Management - Complete CRUD
 router.post('/item-categories', authorize(['mess', 'admin']), validateItemCategory, createItemCategory);
 router.get('/item-categories', authorize(['mess', 'warden', 'admin']), getItemCategories);
@@ -269,31 +285,54 @@ router.get('/daily-expenses/:id', authorize(['mess', 'admin']), getMessDailyExpe
 router.put('/daily-expenses/:id', authorize(['mess', 'admin']), updateMessDailyExpense);
 router.delete('/daily-expenses/:id', authorize(['mess', 'admin']), deleteMessDailyExpense);
 
-router.post('/expenses-types',authorize(['mess', 'admin']), createExpenseType);
-router.get('/expenses-types', authorize(['mess', 'admin']),getExpenseTypes);
-router.put('/expenses-types/:id', authorize(['mess', 'admin']),updateExpenseType);
-router.delete('/expenses-types/:id',authorize(['mess', 'admin']), deleteExpenseType);
+router.post('/expenses-types', authorize(['mess', 'admin']), createExpenseType);
+router.get('/expenses-types', authorize(['mess', 'admin']), getExpenseTypes);
+router.put('/expenses-types/:id', authorize(['mess', 'admin']), updateExpenseType);
+router.delete('/expenses-types/:id', authorize(['mess', 'admin']), deleteExpenseType);
 
-router.get('/items/:id/fifo-price', authorize(['mess', 'admin']),getItemFIFOPrice);
+router.get('/items/:id/fifo-price', authorize(['mess', 'admin']), getItemFIFOPrice);
 
-router.post('/special-consumption', authorize(['mess', 'admin']),createSpecialConsumption);
-router.get('/special-consumption', authorize(['mess', 'admin']),getSpecialConsumptions);
-router.get('/special-consumption/:id', authorize(['mess', 'admin']),getSpecialConsumptionById);
-router.get('/daily-charges/calculate',authorize(['mess','admin']),calculateAndApplyDailyMessCharges);
+router.post('/special-consumption', authorize(['mess', 'admin']), createSpecialConsumption);
+router.get('/special-consumption', authorize(['mess', 'admin']), getSpecialConsumptions);
+router.get('/special-consumption/:id', authorize(['mess', 'admin']), getSpecialConsumptionById);
+router.get('/daily-charges/calculate', authorize(['mess', 'admin']), calculateAndApplyDailyMessCharges);
 
-router.post('/daily-charges/calculate', authorize(['mess','admin']), calculateAndApplyDailyMessCharges);
+router.post('/daily-charges/calculate', authorize(['mess', 'admin']), calculateAndApplyDailyMessCharges);
 
 router.get('/additional-income/rounding', authorize(['mess', 'admin']), getRoundingAdjustments);
 router.get('/reports/latest-purchase', authorize(['mess', 'admin']), getLatestPurchaseReport);
 
-router.post('/inventory/correct-last-purchase', authorize(['mess','admin']), correctLastPurchase);
+router.post('/inventory/correct-last-purchase', authorize(['mess', 'admin']), correctLastPurchase);
 
 router.get('/reports/mess-fee-summary', authorize(['mess', 'admin']), getMessFeeSummary);
 
 router.get('/reports/student-fee-breakdown', authorize(['mess', 'admin']), getStudentFeeBreakdown);
 router.post('/student-fees', authorize(['mess', 'admin']), createStudentFee);
-router.get('/reports/monthly-mess-bill', authorize(['mess', 'admin']), generateMonthlyMessReport);4
+router.get('/reports/monthly-mess-bill', authorize(['mess', 'admin']), generateMonthlyMessReport);
 
 router.get('/reports/daily-consumption-details', authorize(['mess', 'admin']), getDailyConsumptionDetails);
+
+router.get('/stock/export-unit-rate', authorize(['mess', 'admin']), exportUnitRateCalculation); // NEW ROUTE
+
+router.post('/student-fees/bulk', authorize(['mess', 'admin']), createBulkStudentFee);
+router.get('/student-fees', authorize(['mess', 'admin']), getStudentFees);
+router.get('/sessions', authorize(['mess', 'warden', 'admin']), getSessions);
+
+router.get('/students',authorize(['warden','mess']), getStudents);
+
+router.post('/credit-token',authorize(['mess', 'admin']),createCreditToken);
+router.get('/credit-token', authorize(['mess', 'admin']),getCreditTokens);
+router.put('/credit-token/:id', authorize(['mess', 'admin']),updateCreditToken);
+router.delete('/credit-token/:id', authorize(['mess', 'admin']),deleteCreditToken);
+
+router.post('/concerns', authorize(['mess', 'admin']), createConcern);
+router.get('/concerns', authorize(['mess', 'admin', 'warden']), getConcerns);
+router.put('/concerns/:id', authorize(['mess', 'admin']), updateConcern);
+router.delete('/concerns/:id', authorize(['mess', 'admin']), deleteConcern);
+
+router.get('/income-entries', authorize(['mess', 'admin']), getIncomeEntries);
+router.post('/income-entries', authorize(['mess', 'admin']), createIncomeEntry);
+
+
 
 module.exports = router;

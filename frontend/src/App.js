@@ -70,6 +70,10 @@ import CalculateDailyCharges from './components/mess/CalculateDailyCharges'; // 
 import StudentMessHistory from './components/student/StudentMessHistory';
 import HostelAdditionalIncome from './components/mess/HostelAdditionalIncome'; // Import the new component
 import MessFee from './components/mess/MessFeeManagement'; // Import the new component
+import PaperBillGenerator from './components/mess/PaperBillGenerator'; // Import the new component
+import SisterBillConcern from './components/mess/CreditTokenManager'; // Import the new component
+import IncomeEntryManager from './components/mess/IncomeEntryManager';
+
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
 
@@ -231,12 +235,18 @@ const DashboardRouter = () => {
             return <SpecialFoodItemsManagement />;
           case 'food-orders':
             return <FoodOrdersManagement />;
+          case 'sister-bill-concern':
+            return <SisterBillConcern />;
           case 'Daily-expenses':
             return <MessExpenses />;
           case 'hostel-additional-income':
             return <HostelAdditionalIncome />;
           case 'mess-fee':
             return <MessFee/>;
+          case 'paper-bill-generator':
+            return <PaperBillGenerator />;
+          case 'income-deduction-entry':
+            return <IncomeEntryManager />;
           default:
             return <MessDashboard />;
         }

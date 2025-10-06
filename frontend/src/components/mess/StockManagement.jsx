@@ -1,28 +1,126 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Select, message, Space, Typography, Tag, Switch, Modal, Form, InputNumber, DatePicker, Select as AntSelect } from 'antd';
-import { ReloadOutlined, PlusOutlined, DownloadOutlined } from '@ant-design/icons'; // Import DownloadOutlined
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Card, Table, Button, Select, message, Space, Typography, Tag,
+  Switch, Modal, Form, InputNumber, DatePicker, Select as AntSelect, Spin
+} from 'antd';
+import { ReloadOutlined, PlusOutlined, DownloadOutlined, EuroCircleOutlined, CalendarOutlined } from '@ant-design/icons'; // Import CalendarOutlined
 import { messAPI } from '../../services/api';
-import { useAuth } from '../../context/AuthContext'; // Assuming you have an AuthContext for user data
+import { useAuth } from '../../context/AuthContext';
+import moment from 'moment';
 
 const { Title, Text } = Typography;
 const { Option } = AntSelect;
 
-const StockManagement = () => {
-  const [stocks, setStocks] = useState([]);
-  const [items, setItems] = useState([]); // For item selection in modal
-  const [loading, setLoading] = useState(false);
-  const [exportLoading, setExportLoading] = useState(false); // New loading state for export
-  const [showLowStock, setShowLowStock] = useState(false);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [form] = Form.useForm();
-  const { user } = useAuth(); // Get user data including hostel_id
+// --- NEW COMPONENT: BatchDetailsTable --- (as defined in previous fix)
+const BatchDetailsTable = ({ itemId, itemName, unit }) => {
+  const [batches, setBatches] = useState([]);
+  const [batchesLoading, setBatchesLoading] = useState(false);
 
   useEffect(() => {
-    fetchStocks();
-    fetchItems();
-  }, [showLowStock]);
+    const fetchBatches = async () => {
+      setBatchesLoading(true);
+      try {
+        const response = await messAPI.getItemBatches(itemId);
+        setBatches(response.data.data || []);
+      } catch (error) {
+        message.error('Failed to fetch batch details for ' + itemName);
+        console.error('Error fetching batches:', error);
+      } finally {
+        setBatchesLoading(false);
+      }
+    };
+    fetchBatches();
+  }, [itemId, itemName]);
 
-  const fetchStocks = async () => {
+  const batchColumns = [
+    {
+      title: 'Batch ID',
+      dataIndex: 'id',
+      key: 'batch_id',
+    },
+    {
+      title: 'Purchase Date',
+      dataIndex: 'purchase_date',
+      key: 'purchase_date',
+      render: (date) => moment(date).format('DD MMM YYYY'),
+    },
+    {
+      title: 'Unit Price',
+      dataIndex: 'unit_price',
+      key: 'unit_price',
+      render: (price) => `₹${parseFloat(price).toFixed(2)}`,
+    },
+    {
+      title: 'Qty Purchased',
+      dataIndex: 'quantity_purchased',
+      key: 'quantity_purchased',
+      render: (qty) => `${parseFloat(qty).toFixed(2)} ${unit}`,
+    },
+    {
+      title: 'Qty Remaining',
+      dataIndex: 'quantity_remaining',
+      key: 'quantity_remaining',
+      render: (qty) => (
+        <Text strong={qty > 0} type={qty <= 0.01 ? 'danger' : 'default'}>
+          {parseFloat(qty).toFixed(2)} {unit}
+        </Text>
+      ),
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status) => (
+        <Tag color={status === 'active' ? 'green' : status === 'depleted' ? 'red' : 'orange'}>
+          {status.toUpperCase()}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Expiry Date',
+      dataIndex: 'expiry_date',
+      key: 'expiry_date',
+      render: (date) => date ? moment(date).format('DD MMM YYYY') : 'N/A',
+    },
+  ];
+
+  if (batchesLoading) {
+    return <Spin tip="Loading batches..." style={{ margin: '20px auto', display: 'block' }} />;
+  }
+
+  if (batches.length === 0) {
+    return <Text type="secondary">No batches found for this item.</Text>;
+  }
+
+  return (
+    <Card size="small" style={{ margin: '10px 0', backgroundColor: '#f9f9f9' }}>
+      <Title level={5}>Inventory Batches for {itemName}</Title>
+      <Table
+        columns={batchColumns}
+        dataSource={batches}
+        rowKey="id"
+        pagination={false}
+        size="small"
+      />
+    </Card>
+  );
+};
+// --- END NEW COMPONENT ---
+
+
+const StockManagement = () => {
+  const [stocks, setStocks] = useState([]);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [showLowStock, setShowLowStock] = useState(false);
+  const [isAddStockModalVisible, setIsAddStockModalVisible] = useState(false); // Renamed for clarity
+  const [isUnitRateModalVisible, setIsUnitRateModalVisible] = useState(false); // NEW: State for Unit Rate Modal
+  const [unitRateForm] = Form.useForm(); // NEW: Form for Unit Rate Modal
+  const [addStockForm] = Form.useForm(); // Renamed form for clarity
+  const { user } = useAuth();
+
+  const fetchStocks = useCallback(async () => {
     setLoading(true);
     try {
       const response = await messAPI.getItemStock({ low_stock: showLowStock });
@@ -32,6 +130,7 @@ const StockManagement = () => {
         item_name: stock.Item?.name,
         category_name: stock.Item?.tbl_ItemCategory?.name || 'N/A',
         unit: stock.Item?.UOM?.abbreviation || 'unit',
+        display_unit_price: stock.effective_unit_price,
       }));
       setStocks(formattedStocks);
     } catch (error) {
@@ -39,7 +138,12 @@ const StockManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showLowStock]);
+
+  useEffect(() => {
+    fetchStocks();
+    fetchItems();
+  }, [fetchStocks]);
 
   const fetchItems = async () => {
     try {
@@ -51,14 +155,13 @@ const StockManagement = () => {
   };
 
   const showAddStockModal = () => {
-    setIsModalVisible(true);
+    setIsAddStockModalVisible(true);
   };
 
   const handleAddStock = async (values) => {
     try {
       const payload = {
         item_id: values.item_id,
-        hostel_id: user.hostel_id, // Use hostel_id from user context
         quantity: values.quantity,
         unit_price: values.unit_price,
         purchase_date: values.purchase_date ? values.purchase_date.format('YYYY-MM-DD') : undefined,
@@ -66,29 +169,26 @@ const StockManagement = () => {
 
       await messAPI.updateItemStock(payload);
       message.success('Stock added successfully');
-      setIsModalVisible(false);
-      form.resetFields();
-      fetchStocks(); // Refresh stock table
+      setIsAddStockModalVisible(false);
+      addStockForm.resetFields();
+      fetchStocks();
     } catch (error) {
       message.error('Failed to add stock: ' + (error.response?.data?.message || error.message));
     }
   };
 
-  const handleCancel = () => {
-    setIsModalVisible(false);
-    form.resetFields();
+  const handleCancelAddStock = () => {
+    setIsAddStockModalVisible(false);
+    addStockForm.resetFields();
   };
 
-  // NEW FUNCTION: Handle Export to Excel
   const handleExportExcel = async () => {
     setExportLoading(true);
     try {
       const response = await messAPI.exportStockToExcel();
       
-      // Create a blob from the response data
       const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       
-      // Get filename from Content-Disposition header if available, otherwise use a default
       const contentDisposition = response.headers['content-disposition'];
       let filename = 'StockReport.xlsx';
       if (contentDisposition) {
@@ -98,7 +198,6 @@ const StockManagement = () => {
         }
       }
 
-      // Create a link element, set its href and download attributes, then click it
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -115,6 +214,55 @@ const StockManagement = () => {
     } finally {
       setExportLoading(false);
     }
+  };
+
+  // NEW: Function to handle Unit Rate Calculation Export
+  const handleExportUnitRateCalculation = async (values) => {
+    setExportLoading(true); // Reuse exportLoading state
+    try {
+      const month = values.monthYear.month() + 1; // moment month is 0-indexed
+      const year = values.monthYear.year();
+
+      const response = await messAPI.exportUnitRateCalculation({ month, year });
+
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = `UnitRateCalculation_${moment({ month: month - 1, year }).format('MMM_YYYY')}.xlsx`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="([^"]+)"/);
+        if (filenameMatch && filenameMatch[1]) {
+          filename = filenameMatch[1];
+        }
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      message.success('Unit Rate Calculation Report downloaded successfully!');
+      setIsUnitRateModalVisible(false); // Close modal on success
+      unitRateForm.resetFields();
+    } catch (error) {
+      message.error('Failed to download report: ' + (error.response?.data?.message || error.message));
+      console.error('Unit Rate Export error:', error);
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  const expandedRowRender = (record) => {
+    return (
+      <BatchDetailsTable 
+        itemId={record.item_id} 
+        itemName={record.item_name} 
+        unit={record.unit} 
+      />
+    );
   };
 
   const columns = [
@@ -140,17 +288,23 @@ const StockManagement = () => {
       key: 'current_stock',
       render: (stock, record) => (
         <Space>
-          <Text>{`${stock} ${record.unit}`}</Text>
-          {stock <= record.minimum_stock && stock > 0 && <Tag color="warning">Low Stock</Tag>}
-          {stock === 0 && <Tag color="error">Out of Stock</Tag>}
+          <Text>{`${parseFloat(stock).toFixed(2)} ${record.unit}`}</Text>
+          {stock <= record.minimum_stock && stock > 0.01 && <Tag color="warning">Low Stock</Tag>}
+          {stock <= 0.01 && <Tag color="error">Out of Stock</Tag>}
         </Space>
       ),
+    },
+    {
+      title: 'Unit Price (FIFO)',
+      dataIndex: 'display_unit_price',
+      key: 'display_unit_price',
+      render: (price) => `₹${parseFloat(price).toFixed(2)}`,
     },
     {
       title: 'Minimum Stock',
       dataIndex: 'minimum_stock',
       key: 'minimum_stock',
-      render: (stock, record) => `${stock} ${record.unit}`,
+      render: (stock, record) => `${parseFloat(stock).toFixed(2)} ${record.unit}`,
     },
   ];
 
@@ -171,14 +325,21 @@ const StockManagement = () => {
           <Button type="primary" icon={<PlusOutlined />} onClick={showAddStockModal}>
             Add Stock
           </Button>
-          {/* NEW BUTTON: Export to Excel */}
-          <Button 
-            icon={<DownloadOutlined />} 
-            onClick={handleExportExcel} 
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={handleExportExcel}
             loading={exportLoading}
-            type="default" // You can change type to 'primary' if preferred
+            type="default"
           >
-            Export to Excel
+            Export Current Stock
+          </Button>
+          {/* NEW BUTTON: Export Unit Rate Calculation */}
+          <Button
+            icon={<CalendarOutlined />}
+            onClick={() => setIsUnitRateModalVisible(true)}
+            type="default"
+          >
+            Export Monthly Report
           </Button>
         </Space>
       }
@@ -189,22 +350,26 @@ const StockManagement = () => {
         rowKey="key"
         loading={loading}
         pagination={{ pageSize: 10 }}
+        expandable={{
+          expandedRowRender: expandedRowRender,
+        }}
       />
       <Modal
         title="Add Stock"
-        visible={isModalVisible}
-        onOk={form.submit}
-        onCancel={handleCancel}
+        visible={isAddStockModalVisible}
+        onOk={addStockForm.submit}
+        onCancel={handleCancelAddStock}
         okText="Add Stock"
         cancelText="Cancel"
       >
         <Form
-          form={form}
+          form={addStockForm}
           layout="vertical"
           onFinish={handleAddStock}
           initialValues={{
             quantity: 0,
             unit_price: 0,
+            purchase_date: moment(),
           }}
         >
           <Form.Item
@@ -212,7 +377,7 @@ const StockManagement = () => {
             label="Item"
             rules={[{ required: true, message: 'Please select an item' }]}
           >
-            <Select placeholder="Select an item">
+            <Select placeholder="Select an item" showSearch optionFilterProp="children">
               {items.map(item => (
                 <Option key={item.id} value={item.id}>
                   {item.name} ({item.UOM?.abbreviation || 'unit'})
@@ -244,7 +409,35 @@ const StockManagement = () => {
             name="purchase_date"
             label="Purchase Date"
           >
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* NEW: Modal for Unit Rate Calculation Report */}
+      <Modal
+        title="Export Monthly Unit Rate Report"
+        visible={isUnitRateModalVisible}
+        onOk={unitRateForm.submit}
+        onCancel={() => setIsUnitRateModalVisible(false)}
+        okText="Generate Report"
+        cancelText="Cancel"
+        confirmLoading={exportLoading}
+      >
+        <Form
+          form={unitRateForm}
+          layout="vertical"
+          onFinish={handleExportUnitRateCalculation}
+          initialValues={{
+            monthYear: moment(), // Default to current month/year
+          }}
+        >
+          <Form.Item
+            name="monthYear"
+            label="Select Month and Year"
+            rules={[{ required: true, message: 'Please select a month and year' }]}
+          >
+            <DatePicker picker="month" style={{ width: '100%' }} format="MMMM YYYY" />
           </Form.Item>
         </Form>
       </Modal>

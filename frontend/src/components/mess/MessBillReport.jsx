@@ -1,140 +1,184 @@
-// components/mess/MessBillReport.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { Card, Button, DatePicker, Row, Col, Table, message, Spin, Descriptions, Tag, Typography } from 'antd';
+import { DownloadOutlined, CalculatorOutlined } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
-import { Receipt, Users, Calendar } from 'lucide-react';
-import ReportGenerator from '../ReportGenerator';
+import moment from 'moment';
+import * as XLSX from 'xlsx';
+
+const { Title, Text } = Typography;
+const { MonthPicker } = DatePicker;
 
 const MessBillReport = () => {
-  const [bills, setBills] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [yearMonth, setYearMonth] = useState(
-    `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
-  );
+  const [selectedMonth, setSelectedMonth] = useState(moment());
+  const [loading, setLoading] = useState(false);
+  const [reportData, setReportData] = useState([]);
+  const [summaryData, setSummaryData] = useState(null);
 
-  useEffect(() => {
-    fetchBills();
-  }, [yearMonth]);
-
-  const fetchBills = async () => {
+  const handleGenerateReport = async () => {
+    if (!selectedMonth) {
+      message.error('Please select a month.');
+      return;
+    }
+    setLoading(true);
+    setReportData([]);
+    setSummaryData(null);
     try {
-      setLoading(true);
-      const [year, month] = yearMonth.split('-');
-      const response = await messAPI.getMessBills({
-        year,
-        month
-      });
-      setBills(response.data.data || []);
+      const params = {
+        month: selectedMonth.month() + 1,
+        year: selectedMonth.year(),
+      };
+      const response = await messAPI.generateMonthlyMessReport(params);
+      
+      // LOGS TO CHECK RECEIVED DATA
+      console.log('[MessBillReport] Raw response from API:', response.data);
+      if (response.data.data && response.data.data.length > 0) {
+        console.log('[MessBillReport] First student record received:', response.data.data[0]);
+        console.log('[MessBillReport] Summary data received:', response.data.summary);
+      }
+
+      setReportData(response.data.data || []);
+      setSummaryData(response.data.summary || {});
+      message.success(`Report generated for ${selectedMonth.format('MMMM YYYY')}`);
     } catch (error) {
-      console.error('Error fetching bills:', error);
+      console.error('[MessBillReport] Error generating report:', error); // Log the full error
+      message.error(`Failed to generate report: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
-
-  // Prepare status options for filter
-  const statusOptions = [
-    { value: 'pending', label: 'Pending' },
-    { value: 'paid', label: 'Paid' },
-    { value: 'overdue', label: 'Overdue' }
-  ];
-
-  // Prepare columns for report
-  const columns = [
-    {
-      key: 'student',
-      label: 'Student',
-      render: (item) => (
-        <div className="flex items-center">
-          <Users className="text-gray-400 mr-2" size={16} />
-          <span>{item.User?.username || 'Unknown'}</span>
-        </div>
-      )
-    },
-    {
-      key: 'period',
-      label: 'Period',
-      render: (item) => {
-        const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                        'July', 'August', 'September', 'October', 'November', 'December'];
-        return `${months[item.month - 1]} ${item.year}`;
-      }
-    },
-    {
-      key: 'amount',
-      label: 'Amount',
-      render: (item) => (
-        <div className="text-gray-900">₹{parseFloat(item.amount).toFixed(2)}</div>
-      )
-    },
-    {
-      key: 'due_date',
-      label: 'Due Date',
-      render: (item) => new Date(item.due_date).toLocaleDateString()
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (item) => {
-        const statusColors = {
-          paid: 'bg-green-100 text-green-800',
-          pending: 'bg-yellow-100 text-yellow-800',
-          overdue: 'bg-red-100 text-red-800'
-        };
-        return (
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[item.status] || 'bg-gray-100 text-gray-800'}`}>
-            {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
-          </span>
-        );
-      }
+  
+  const handleExport = () => {
+     if (!summaryData || reportData.length === 0) {
+      message.warn('No data to export. Please generate a report first.');
+      return;
     }
-  ];
+    const summarySheetData = [
+      ['NATIONAL ENGINEERING COLLEGE GENTS HOSTEL'],
+      [`DAILY RATE CALCULATION - ${selectedMonth.format('MMMM YYYY').toUpperCase()}`],
+      [],
+      ['S.no', 'Particulars', 'Amount (Rs)'],
+      [1, 'Food Ingredient Cost', summaryData.totalFoodIngredientCost],
+      [2, 'Other Operational Expenses', summaryData.totalOtherMessExpenses],
+      ['', { t: 's', v: 'Sub total', s: { font: { bold: true } } }, { t: 'n', v: summaryData.subTotal, s: { font: { bold: true } } }],
+      [],
+      ['', 'Cash Token (Less)', { t: 'n', v: -(summaryData.cashToken || 0) }],
+      ['', 'Credit Token (Sister Concern)', { t: 'n', v: -(summaryData.creditToken || 0) }],
+      ['', 'Student Special Orders', { t: 'n', v: -(summaryData.studentAdditionalCreditToken || 0) }],
+      ['', 'Student Guest Income', { t: 'n', v: -(summaryData.studentGuestIncome || 0) }],
+      [],
+      ['', { t: 's', v: 'Total Expenses =', s: { font: { bold: true } } }, { t: 'n', v: summaryData.totalExpenses, s: { font: { bold: true } } }],
+      ['', { t: 's', v: `Mess Days = ${summaryData.messDays}`, s: { font: { bold: true } } }, ''],
+      ['', { t: 's', v: 'Daily Rate = Total Expenses / Mess Days', s: { font: { bold: true } } }, { t: 'n', v: summaryData.dailyRate, s: { font: { bold: true } } }],
+    ];
+    
+    const summaryWorksheet = XLSX.utils.aoa_to_sheet(summarySheetData);
 
-  // Prepare filters
-  const filters = [
-    {
-      key: 'status',
-      label: 'Status',
-      options: statusOptions
-    }
-  ];
+    const studentSheetData = reportData.map((item, index) => ({
+        'S.no': index + 1,
+        'Name': item.name,
+        'REG NO': item.regNo,
+        'M.Days': item.messDays,
+        'Daily rate': (item.dailyRate || 0).toFixed(2),
+        'Mess amount': (item.messAmount || 0).toFixed(2),
+        'Additional amount': (item.additionalAmount || 0).toFixed(2),
+        'Bed charges': (item.bedCharges || 0).toFixed(2),
+        'Paper Bill': (item.paperBill || 0).toFixed(2),
+        'Newspaper': (item.hinduIndianExpress || 0).toFixed(2),
+        'Total': (item.total || 0).toFixed(2),
+        'Net Amount': (item.netAmount || 0).toFixed(2),
+        'Roundingup': (item.roundingUp || 0).toFixed(2),
+        'Final Amount': item.finalAmount,
+    }));
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+    const studentWorksheet = XLSX.utils.json_to_sheet(studentSheetData);
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, summaryWorksheet, 'Daily Rate Calculation');
+    XLSX.utils.book_append_sheet(workbook, studentWorksheet, 'Student Bills');
+    
+    XLSX.writeFile(workbook, `Mess_Bill_Report_${selectedMonth.format('YYYY_MM')}.xlsx`);
+    message.success('Report exported successfully!');
+  };
+
+  const studentColumns = [
+    { title: 'S.No', key: 's_no', render: (_, __, index) => index + 1 },
+    { title: 'Name', dataIndex: 'name', key: 'name' },
+    { title: 'Reg No', dataIndex: 'regNo', key: 'regNo' },
+    { title: 'M.Days', dataIndex: 'messDays', key: 'messDays', align: 'right' },
+    { title: 'Daily Rate', dataIndex: 'dailyRate', key: 'dailyRate', align: 'right', render: (val = 0) => val.toFixed(4) },
+    { title: 'Mess Amount', dataIndex: 'messAmount', key: 'messAmount', align: 'right', render: (val = 0) => val.toFixed(2) },
+    { title: 'Additional Amt', dataIndex: 'additionalAmount', key: 'additionalAmount', align: 'right', render: (val = 0) => val.toFixed(2) },
+    { title: 'Bed Charges', dataIndex: 'bedCharges', key: 'bedCharges', align: 'right', render: (val = 0) => val.toFixed(2) },
+    { title: 'Paper Bill', dataIndex: 'paperBill', key: 'paperBill', align: 'right', render: (val = 0) => val > 0 ? val.toFixed(2) : '-' },
+    { title: 'Newspaper', dataIndex: 'hinduIndianExpress', key: 'hinduIndianExpress', align: 'right', render: (val = 0) => val > 0 ? val.toFixed(2) : '-' },
+    { title: 'Total', dataIndex: 'total', key: 'total', align: 'right', render: (val = 0) => <Text strong>{val.toFixed(2)}</Text> },
+    { title: 'Net Amt', dataIndex: 'netAmount', key: 'netAmount', align: 'right', render: (val = 0) => val.toFixed(2) },
+    { title: 'Rounding', dataIndex: 'roundingUp', key: 'roundingUp', align: 'right', render: (val = 0) => val.toFixed(2) },
+    { title: 'Final Amt', dataIndex: 'finalAmount', key: 'finalAmount', align: 'right', render: (val = 0) => <Tag color="blue" style={{ fontSize: 14 }}>{val.toFixed(2)}</Tag> },
+  ];
 
   return (
-    <div>
-      <div className="mb-8 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Mess Bill Reports</h1>
-          <p className="text-gray-600 mt-2">View and export mess billing data</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <label className="text-sm font-medium text-gray-700">Month:</label>
-            <input
-              type="month"
-              value={yearMonth}
-              onChange={(e) => setYearMonth(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-            />
+    <Card title="Monthly Mess Bill Report">
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col>
+          <MonthPicker value={selectedMonth} onChange={setSelectedMonth} format="MMMM YYYY" style={{ width: 200 }}/>
+        </Col>
+        <Col>
+          <Button type="primary" icon={<CalculatorOutlined />} onClick={handleGenerateReport} loading={loading}>
+            Generate Report
+          </Button>
+        </Col>
+        <Col>
+          <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={!summaryData}>
+            Export to Excel
+          </Button>
+        </Col>
+      </Row>
+      <Spin spinning={loading}>
+        {summaryData && (
+          <div style={{ marginBottom: 24 }}>
+            <Title level={4}>Calculation Summary for {selectedMonth.format('MMMM YYYY')}</Title>
+            <Descriptions bordered size="small" column={2}>
+              <Descriptions.Item label="Total Food & Other Expenses" span={2}>
+                {(summaryData.subTotal || 0).toFixed(2)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Less: Credit Token">
+                {(summaryData.creditToken || 0).toFixed(2)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Less: Cash Token">
+                {(summaryData.cashToken || 0).toFixed(2)}
+              </Descriptions.Item>
+               <Descriptions.Item label="Less: Student Special Orders">
+                {(summaryData.studentAdditionalCreditToken || 0).toFixed(2)}
+              </Descriptions.Item>
+               <Descriptions.Item label="Less: Student Guest Income">
+                {(summaryData.studentGuestIncome || 0).toFixed(2)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Net Chargeable Expenses" span={2}>
+                <Text strong style={{ color: '#1890ff' }}>{(summaryData.totalExpenses || 0).toFixed(2)}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Total Man-Days">
+                {summaryData.messDays}
+              </Descriptions.Item>
+              <Descriptions.Item label="Calculated Daily Rate">
+                 <Tag color="green" style={{ fontSize: 16 }}>₹ {(summaryData.dailyRate || 0).toFixed(4)}</Tag>
+              </Descriptions.Item>
+            </Descriptions>
           </div>
-        </div>
-      </div>
-
-      <ReportGenerator
-        title="Mess Bill Report"
-        data={bills}
-        columns={columns}
-        filters={filters}
-        filename="mess_bill_report"
-        hideColumns={['id', 'createdAt', 'updatedAt']}
-      />
-    </div>
+        )}
+        {reportData.length > 0 && (
+          <Table
+            columns={studentColumns}
+            dataSource={reportData}
+            rowKey="studentId"
+            bordered
+            size="small"
+            pagination={{ pageSize: 50 }}
+            scroll={{ x: 1600 }}
+          />
+        )}
+      </Spin>
+    </Card>
   );
 };
 

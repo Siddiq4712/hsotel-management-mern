@@ -110,9 +110,12 @@ case 'mess':
     { id: 'Daily-expenses', label: 'Daily Expenses', icon: Receipt }, // New item
 
     {id:'Fees Calculation', label:'Fees Calculation', type:'section'},
+    {id:'paper-bill-generator', label:'Paper Bill Generator', icon: FileText},
     {id:'calculate-daily-charges', label:'Calculate Daily Charges', icon: CreditCard},
     {id: 'hostel-additional-income', label: 'Additional Income', icon: DollarSign },
     {id:'mess-fee', label:'Mess Fee Summary', icon: FileText},
+    {id:'sister-bill-concern', label:'Sister Concern Bills', icon: FileText},
+    {id:'income-deduction-entry', label:'Income Entry', icon: DollarSign},
     
     ];
       default:
