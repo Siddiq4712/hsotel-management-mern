@@ -29,7 +29,7 @@ router.use(authorize(['warden']));
 
 // Dashboard
 router.get('/dashboard-stats', getDashboardStats);
-router.get('/sessions', getSessions);
+router.get('/sessions',authorize(['warden','mess']),getSessions);
 
 // Student Management
 router.post('/students',authorize(['warden','mess']), enrollStudent);

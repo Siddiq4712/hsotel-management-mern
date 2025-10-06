@@ -2434,6 +2434,30 @@ const FoodOrderItem = sequelize.define('FoodOrderItem', {
   tableName: 'tbl_FoodOrderItem',
   timestamps: true
 });
+const Concern = sequelize.define('Concern', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true,
+    comment: 'The specific name, e.g., "K.R. Memorial Scholarship Meeting"',
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  is_active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
+}, {
+  tableName: 'tbl_Concern',
+  timestamps: true,
+});
 
 const InventoryBatch = sequelize.define('InventoryBatch', {
   id: {
@@ -2569,6 +2593,39 @@ const DailyConsumptionReturn = sequelize.define('DailyConsumptionReturn', {
 // ... other model definitions
 
 // NEW: Special Consumption Model
+const CreditToken = sequelize.define('CreditToken', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Hostel', key: 'id' },
+  },
+    concern_id: { // Replaces 'name' and 'description'
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Concern', key: 'id' },
+  },
+  amount: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+  },
+  date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false,
+  },
+  recorded_by: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Users', key: 'id' },
+  },
+}, {
+  tableName: 'tbl_CreditToken',
+  timestamps: true,
+});
 const SpecialConsumption = sequelize.define('SpecialConsumption', {
   id: {
     type: DataTypes.INTEGER,
@@ -2709,11 +2766,6 @@ const StudentFee = sequelize.define('StudentFee', {
   timestamps: true,
 });
 
-// ... continue with your other model definitions
-
-
-// ... inside the associations block at the end of your file
-
 // NEW Associations for Special Consumption
 SpecialConsumption.hasMany(SpecialConsumptionItem, { foreignKey: 'special_consumption_id', as: 'ItemsConsumed' });
 SpecialConsumptionItem.belongsTo(SpecialConsumption, { foreignKey: 'special_consumption_id' });
@@ -2734,9 +2786,6 @@ FoodOrderItem.belongsTo(FoodOrder, { foreignKey: 'food_order_id' });
 
 FoodOrder.belongsTo(User, { foreignKey: 'student_id', as: 'Student' });
 FoodOrder.belongsTo(Hostel, { foreignKey: 'hostel_id' });
-
-
-
 // Add associations
 Store.hasMany(ItemStore, { foreignKey: 'store_id' });
 ItemStore.belongsTo(Store, { foreignKey: 'store_id' });
@@ -2749,7 +2798,11 @@ InventoryTransaction.belongsTo(Store, { foreignKey: 'store_id' });
 InventoryTransaction.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 InventoryTransaction.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy' });
 
-// Include in exports
+CreditToken.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+CreditToken.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy' });
+
+Concern.hasMany(CreditToken, { foreignKey: 'concern_id' });
+CreditToken.belongsTo(Concern, { foreignKey: 'concern_id', as: 'Concern' }); 
 
 
 // Add associations for the new model
@@ -3029,5 +3082,7 @@ module.exports = {
   MessDailyExpense,
   SpecialConsumption,
   SpecialConsumptionItem,
-  StudentFee
+  StudentFee,
+  CreditToken,
+  Concern
 };

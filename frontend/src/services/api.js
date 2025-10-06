@@ -345,10 +345,26 @@ export const messAPI = {
   correctLastPurchase: (payload) => api.post('/mess/inventory/correct-last-purchase', payload),
   getStudentFeeBreakdown: (params) => api.get('/mess/reports/student-fee-breakdown', { params }),
   createStudentFee: (data) => api.post('/mess/student-fees', data),
-  getStudents: () => api.get('/warden/students'), 
+  getStudents: () => api.get('/mess/students'), 
   generateMonthlyMessReport: (params) => api.get('/mess/reports/monthly-mess-bill', { params }),
   getDailyConsumptionDetails: (params) => api.get('/mess/reports/daily-consumption-details', { params }),
+  exportUnitRateCalculation: (params) => api.get('/mess/stock/export-unit-rate', { params, responseType: 'blob' }),
+  createBulkStudentFee: (data) => api.post('/mess/student-fees/bulk', data),
+  getStudentFees: (params) => api.get('/mess/student-fees', { params }),
+  getSessions: () => api.get('/mess/sessions'),
 
+  createCreditToken: (data) => api.post('/mess/credit-token', data),
+  getCreditTokens: (params) => api.get('/mess/credit-token', { params }),
+  updateCreditToken: (id, data) => api.put(`/mess/credit-token/${id}`, data),
+  deleteCreditToken: (id) => api.delete(`/mess/credit-token/${id}`),
+
+  createConcern: (data) => api.post('/mess/concerns', data),
+  getConcerns: (params) => api.get('/mess/concerns', { params }),
+  updateConcern: (id, data) => api.put(`/mess/concerns/${id}`, data),
+  deleteConcern: (id) => api.delete(`/mess/concerns/${id}`),
+
+  getIncomeEntries: (params) => api.get('/mess/income-entries', { params }),
+  createIncomeEntry: (data) => api.post('/mess/income-entries', data),
 };
 
 export default api;
