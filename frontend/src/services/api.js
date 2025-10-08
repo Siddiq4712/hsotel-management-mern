@@ -41,6 +41,7 @@ export const authAPI = {
 export const adminAPI = {
   // Dashboard
   getDashboardStats: () => api.get('/admin/dashboard-stats'),
+  getAdminChartData: () => api.get('/admin/chart-data'), // ADD THIS LINE
 
   // Hostel Management - Complete CRUD
   createHostel: (data) => api.post('/admin/hostels', data),
@@ -326,8 +327,8 @@ export const messAPI = {
   getMessDailyExpenseById: (id) => api.get(`/mess/daily-expenses/${id}`),
   updateMessDailyExpense: (id, data) => api.put(`/mess/daily-expenses/${id}`, data),
   deleteMessDailyExpense: (id) => api.delete(`/mess/daily-expenses/${id}`),
-  
-  
+
+
   createExpenseType: (data) => api.post('/mess/expenses-types', data), // Keep this one
   getExpenseTypes: (params) => api.get('/mess/expenses-types', { params }),
   updateExpenseType: (id, data) => api.put(`/mess/expenses-types/${id}`, data),
@@ -345,7 +346,7 @@ export const messAPI = {
   correctLastPurchase: (payload) => api.post('/mess/inventory/correct-last-purchase', payload),
   getStudentFeeBreakdown: (params) => api.get('/mess/reports/student-fee-breakdown', { params }),
   createStudentFee: (data) => api.post('/mess/student-fees', data),
-  getStudents: () => api.get('/mess/students'), 
+  getStudents: () => api.get('/mess/students'),
   generateMonthlyMessReport: (params) => api.get('/mess/reports/monthly-mess-bill', { params }),
   getDailyConsumptionDetails: (params) => api.get('/mess/reports/daily-consumption-details', { params }),
   exportUnitRateCalculation: (params) => api.get('/mess/stock/export-unit-rate', { params, responseType: 'blob' }),
