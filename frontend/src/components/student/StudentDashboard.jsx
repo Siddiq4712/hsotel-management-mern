@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { studentAPI } from '../../services/api';
-import { User, Bed, Receipt, Calendar } from 'lucide-react';
+import { User, Bed, Receipt, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react';
+import moment from 'moment';
 
 const StudentDashboard = () => {
   const [profile, setProfile] = useState(null);
+  const [attendance, setAttendance] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [attendanceLoading, setAttendanceLoading] = useState(true);
 
   useEffect(() => {
     fetchProfile();
+    fetchAttendance();
   }, []);
 
   const fetchProfile = async () => {
@@ -21,6 +25,33 @@ const StudentDashboard = () => {
     }
   };
 
+  const fetchAttendance = async () => {
+    setAttendanceLoading(true);
+    try {
+      const date = moment().format('YYYY-MM-DD');
+      const response = await studentAPI.getMyAttendance({ date });
+      const records = response.data.data || [];
+      setAttendance(records.length > 0 ? records[0] : null);
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const getStatusDisplay = (status) => {
+    switch (status) {
+      case 'P':
+        return { icon: <CheckCircle className="text-green-600" size={48} />, text: 'Present', color: 'bg-green-50 border-green-200 text-green-800' };
+      case 'A':
+        return { icon: <XCircle className="text-red-600" size={48} />, text: 'Absent', color: 'bg-red-50 border-red-200 text-red-800' };
+      case 'OD':
+        return { icon: <Clock className="text-blue-600" size={48} />, text: 'On Duty', color: 'bg-blue-50 border-blue-200 text-blue-800' };
+      default:
+        return { icon: null, text: 'Not Marked', color: 'bg-gray-50 border-gray-200 text-gray-500' };
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -28,6 +59,8 @@ const StudentDashboard = () => {
       </div>
     );
   }
+
+  const statusInfo = attendance ? getStatusDisplay(attendance.status) : getStatusDisplay(null);
 
   return (
     <div>
@@ -66,6 +99,32 @@ const StudentDashboard = () => {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Today's Attendance Status</h2>
+            {attendanceLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : (
+              <div className={`flex flex-col items-center p-6 border rounded-lg ${statusInfo.color}`}>
+                {statusInfo.icon}
+                <h3 className="mt-2 mb-1 font-semibold">{statusInfo.text}</h3>
+                {attendance && (
+                  <p className="text-sm text-gray-600 mb-2">
+                    Reason: {attendance.reason || 'N/A'}
+                    {attendance.remarks && ` - ${attendance.remarks}`}
+                  </p>
+                )}
+                {attendance && attendance.status === 'OD' && (
+                  <p className="text-sm text-gray-600">
+                    From: {moment(attendance.from_date).format('DD MMM')} to {moment(attendance.to_date).format('DD MMM')}
+                  </p>
+                )}
+                {!attendance && <p className="text-sm text-gray-500">No attendance record for today</p>}
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-lg shadow-md p-6">

@@ -365,6 +365,9 @@ export const messAPI = {
 
   getIncomeEntries: (params) => api.get('/mess/income-entries', { params }),
   createIncomeEntry: (data) => api.post('/mess/income-entries', data),
+
+  generateDailyRateReport: (params) => api.get('/mess/reports/daily-rate-calculation', { params }),
+  exportDailyRateReport: (params) => api.get('/mess/reports/daily-rate-calculation', { params: { ...params, export: true }, responseType: 'blob' }),
 };
 
 export default api;

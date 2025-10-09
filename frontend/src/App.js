@@ -73,6 +73,7 @@ import MessFee from './components/mess/MessFeeManagement'; // Import the new com
 import PaperBillGenerator from './components/mess/PaperBillGenerator'; // Import the new component
 import SisterBillConcern from './components/mess/CreditTokenManager'; // Import the new component
 import IncomeEntryManager from './components/mess/IncomeEntryManager';
+import DailyRateReport from './components/mess/DailyRateReport'; // Import the new component
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -247,6 +248,8 @@ const DashboardRouter = () => {
             return <PaperBillGenerator />;
           case 'income-deduction-entry':
             return <IncomeEntryManager />;
+          case 'daily-rate-report':
+            return <DailyRateReport />;
           default:
             return <MessDashboard />;
         }

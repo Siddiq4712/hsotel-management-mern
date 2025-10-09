@@ -5,7 +5,8 @@ import { CalendarDays, Plus, Calendar, CheckCircle, AlertCircle, Edit, Trash2 } 
 const HolidayManagement = () => {
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     date: '',
@@ -13,7 +14,7 @@ const HolidayManagement = () => {
     description: ''
   });
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [createLoading, setCreateLoading] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
     fetchHolidays();
@@ -31,30 +32,63 @@ const HolidayManagement = () => {
     }
   };
 
-  const handleCreateHoliday = async (e) => {
-    e.preventDefault();
-    setCreateLoading(true);
-    setMessage({ type: '', text: '' });
-
-    try {
-      await wardenAPI.createHoliday(formData);
-      
-      setMessage({ type: 'success', text: 'Holiday created successfully!' });
+  const openModal = (holiday = null) => {
+    if (holiday) {
+      setFormData({
+        name: holiday.name,
+        date: holiday.date,
+        type: holiday.type,
+        description: holiday.description || ''
+      });
+      setEditingId(holiday.id);
+    } else {
       setFormData({
         name: '',
         date: '',
         type: '',
         description: ''
       });
-      setShowCreateModal(false);
+      setEditingId(null);
+    }
+    setShowModal(true);
+    setMessage({ type: '', text: '' });
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingId(null);
+    setFormData({
+      name: '',
+      date: '',
+      type: '',
+      description: ''
+    });
+    setMessage({ type: '', text: '' });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setModalLoading(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      if (editingId) {
+        await wardenAPI.updateHoliday(editingId, formData);
+        setMessage({ type: 'success', text: 'Holiday updated successfully!' });
+      } else {
+        await wardenAPI.createHoliday(formData);
+        setMessage({ type: 'success', text: 'Holiday created successfully!' });
+      }
+      
+      closeModal();
       fetchHolidays();
     } catch (error) {
       setMessage({ 
         type: 'error', 
-        text: error.response?.data?.message || 'Failed to create holiday' 
+        text: error.response?.data?.message || (editingId ? 'Failed to update holiday' : 'Failed to create holiday') 
       });
     } finally {
-      setCreateLoading(false);
+      setModalLoading(false);
     }
   };
 
@@ -144,7 +178,7 @@ const HolidayManagement = () => {
           <p className="text-gray-600 mt-2">Manage hostel holidays and special days</p>
         </div>
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => openModal()}
           className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
         >
           <Plus size={20} className="mr-2" />
@@ -291,7 +325,10 @@ const HolidayManagement = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button className="text-blue-600 hover:text-blue-900 mr-3">
+                          <button 
+                            onClick={() => openModal(holiday)}
+                            className="text-blue-600 hover:text-blue-900 mr-3"
+                          >
                             <Edit size={16} />
                           </button>
                           <button
@@ -318,14 +355,31 @@ const HolidayManagement = () => {
         )}
       </div>
 
-      {/* Create Holiday Modal */}
-      {showCreateModal && (
+      {/* Holiday Modal */}
+      {showModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Add Holiday</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                {editingId ? 'Edit Holiday' : 'Add Holiday'}
+              </h3>
               
-              <form onSubmit={handleCreateHoliday} className="space-y-4">
+              {message.text && (
+                <div className={`mb-4 p-3 rounded-lg flex items-center ${
+                  message.type === 'success' 
+                    ? 'bg-green-100 border border-green-400 text-green-700' 
+                    : 'bg-red-100 border border-red-400 text-red-700'
+                }`}>
+                  {message.type === 'success' ? (
+                    <CheckCircle size={16} className="mr-2" />
+                  ) : (
+                    <AlertCircle size={16} className="mr-2" />
+                  )}
+                  {message.text}
+                </div>
+              )}
+              
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Holiday Name *
@@ -392,23 +446,14 @@ const HolidayManagement = () => {
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    disabled={createLoading}
-                    className="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+                    disabled={modalLoading}
+                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
                   >
-                                        {createLoading ? 'Adding...' : 'Add Holiday'}
+                    {modalLoading ? 'Saving...' : (editingId ? 'Update Holiday' : 'Add Holiday')}
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowCreateModal(false);
-                      setFormData({
-                        name: '',
-                        date: '',
-                        type: '',
-                        description: ''
-                      });
-                      setMessage({ type: '', text: '' });
-                    }}
+                    onClick={closeModal}
                     className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
                   >
                     Cancel

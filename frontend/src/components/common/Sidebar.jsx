@@ -114,7 +114,7 @@ case 'mess':
     {id:'calculate-daily-charges', label:'Calculate Daily Charges', icon: CreditCard},
     {id: 'hostel-additional-income', label: 'Additional Income', icon: DollarSign },
     {id:'mess-fee', label:'Mess Fee Summary', icon: FileText},
-    {id:'sister-bill-concern', label:'Sister Concern Bills', icon: FileText},
+    {id: 'daily-rate-report', label:'Daily Rate', icon : CreditCard},
     {id:'income-deduction-entry', label:'Income Entry', icon: DollarSign},
     
     ];

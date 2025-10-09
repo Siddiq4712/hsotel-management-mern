@@ -27,7 +27,7 @@ const MessFeeManagement = () => {
       const response = await messAPI.generateMonthlyMessReport({ month, year, college });
       const data = response.data.data || [];
       setReportData(data);
-      calculateSummary(data);
+      setSummary(response.data.summary || {});
     } catch (error) {
       message.error('Failed to fetch monthly report data.');
     } finally {
@@ -97,15 +97,15 @@ const MessFeeManagement = () => {
       const workbook = XLSX.utils.book_new();
 
       const ws_data = reportData.map((row, index) => ({
-        'S.No.': index + 1, 'Name': row.name, 'REG NO': row.regNo, 'M.Days': row.messDays,
+        'S.No.': index + 1, 'Name': row.name, 'REG NO': row.regNo, 'M.Days': row.messDays, 'Daily rate': row.dailyRate,
         'Mess amount': row.messAmount, 'Additional amount': row.additionalAmount,
         'Bed charges': row.bedCharges, 'Hindu & Indian Express': row.hinduIndianExpress,
         'Total': row.total, 'Net Amount': row.netAmount, 'Roundingup': row.roundingUp,
-        'Final Amount': row.finalAmount, 'Daily rate': row.dailyRate,
+        'Final Amount': row.finalAmount,
       }));
       
       const ws = XLSX.utils.json_to_sheet([], {
-          header: ['S.No.', 'Name', 'REG NO', 'M.Days', 'Mess amount', 'Additional amount', 'Bed charges', 'Hindu & Indian Express', 'Total', 'Net Amount', 'Roundingup', 'Final Amount', 'Daily rate']
+          header: ['S.No.', 'Name', 'REG NO', 'M.Days', 'Daily rate', 'Mess amount', 'Additional amount', 'Bed charges', 'Hindu & Indian Express', 'Total', 'Net Amount', 'Roundingup', 'Final Amount']
       });
       XLSX.utils.sheet_add_aoa(ws, [['NATIONAL ENGINEERING COLLEGE GENTS HOSTEL, K.R. NAGAR 628 503']], { origin: 'A1' });
       XLSX.utils.sheet_add_aoa(ws, [[`MESS BILL FOR THE MONTH OF ${selectedDate.format('MMMM YYYY').toUpperCase()}`]], { origin: 'A2' });
@@ -131,6 +131,7 @@ const MessFeeManagement = () => {
     { title: 'Name', dataIndex: 'name', key: 'name', width: 200, fixed: 'left', sorter: (a, b) => a.name.localeCompare(b.name) },
     { title: 'REG NO', dataIndex: 'regNo', key: 'regNo', width: 120 },
     { title: 'M.Days', dataIndex: 'messDays', key: 'messDays', align: 'center', width: 80 },
+    { title: 'Daily Rate', dataIndex: 'dailyRate', key: 'dailyRate', align: 'right', render: (val) => `₹${val.toFixed(2)}` },
     { title: 'Mess Amount', dataIndex: 'messAmount', key: 'messAmount', align: 'right', render: (val) => val.toFixed(2) },
     { title: 'Additional Amount', dataIndex: 'additionalAmount', key: 'additionalAmount', align: 'right', render: (val) => val.toFixed(2) },
     { title: 'Bed Charges', dataIndex: 'bedCharges', key: 'bedCharges', align: 'right', render: (val) => val.toFixed(2) },
@@ -139,6 +140,7 @@ const MessFeeManagement = () => {
     { title: 'Net Amount', dataIndex: 'netAmount', key: 'netAmount', align: 'right', render: (val) => val.toFixed(2) },
     { title: 'Rounding', dataIndex: 'roundingUp', key: 'roundingUp', align: 'right', render: (val) => val.toFixed(2) },
     { title: 'Final Amount', dataIndex: 'finalAmount', key: 'finalAmount', align: 'right', fixed: 'right', width: 120, render: (val) => <Title level={5} style={{ margin: 0 }}>₹{val}</Title> },
+    
   ];
 
   return (
@@ -160,10 +162,12 @@ const MessFeeManagement = () => {
 
       <Row gutter={[16, 24]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} md={8} lg={4}><Statistic title="Total Students" value={reportData.length} prefix={<UserOutlined />} /></Col>
-        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Mess Bill" value={summary.totalMessAmount} prefix="₹" precision={2} /></Col>
-        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Additional" value={summary.totalAdditionalAmount} prefix="₹" precision={2} /></Col>
-        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Bed Charges" value={summary.totalBedCharges} prefix="₹" precision={2} /></Col>
-        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Grand Total (Final)" value={summary.grandTotal} prefix="₹" precision={0} valueStyle={{ color: '#cf1322' }} /></Col>
+        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Man Days" value={summary.messDays} /></Col>
+        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Daily Rate" value={summary.dailyRate} prefix="₹" precision={2} /></Col>
+        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Mess Bill" value={summary.totalMessAmount || 0} prefix="₹" precision={2} /></Col>
+        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Additional" value={summary.totalAdditionalAmount || 0} prefix="₹" precision={2} /></Col>
+        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Bed Charges" value={summary.totalBedCharges || 0} prefix="₹" precision={2} /></Col>
+        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Grand Total (Final)" value={summary.grandTotal || 0} prefix="₹" precision={0} valueStyle={{ color: '#cf1322' }} /></Col>
       </Row>
 
       <Table columns={columns} dataSource={reportData} rowKey="studentId" loading={loading} scroll={{ x: 1500 }} pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '50', '100'], showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items` }}/>
@@ -175,14 +179,17 @@ const MessFeeManagement = () => {
               {students.map(s => <Option key={s.id} value={s.id}>{s.username}</Option>)}
             </Select>
           </Form.Item>
-          <Form.Item name="fee_type" label="Fee Type" rules={[{ required: true }]}>
+                    <Form.Item name="fee_type" label="Fee Type" rules={[{ required: true }]}>
             <Select placeholder="Select fee type">
               <Option value="bed_charge">Bed Charge</Option>
               <Option value="water_bill">Water Bill</Option>
               <Option value="fine">Fine</Option>
               <Option value="other_expense">Other Expense</Option>
+              {/* Add this new option */}
+              <Option value="newspaper">Newspaper Bill</Option>
             </Select>
           </Form.Item>
+
           <Form.Item name="amount" label="Amount (₹)" rules={[{ required: true }]}>
             <InputNumber min={0} style={{ width: '100%' }} precision={2} />
           </Form.Item>

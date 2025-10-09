@@ -208,49 +208,230 @@ const getMenuById = async (req, res) => {
   }
 };
 
+// Enhanced updateMenu function - now handles menu details AND items (create/update/delete logic for items)
 const updateMenu = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
-    const { name, meal_type, description, estimated_servings, preparation_time } = req.body;
+    const { name, meal_type, description, estimated_servings, preparation_time, items } = req.body;
     const hostel_id = req.user.hostel_id;
 
+    console.log('Received menu update data:', req.body); // Debug log
+
+    if (!name || !meal_type) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Name and meal type are required'
+      });
+    }
+
+    // Step 1: Fetch the existing menu to verify ownership
     const menu = await Menu.findOne({
-      where: { id, hostel_id }
-    });
+      where: { id, hostel_id },
+      include: [{ model: MenuItem, as: 'tbl_Menu_Items' }]
+    }, { transaction });
 
     if (!menu) {
+      await transaction.rollback();
       return res.status(404).json({
         success: false,
         message: 'Menu not found'
       });
     }
 
+    // Step 2: Update the main menu record
     await menu.update({
       name,
       meal_type,
       description,
       estimated_servings,
       preparation_time
+    }, { transaction });
+
+    // Step 3: Handle items (if provided) - similar to createMenu but for updates
+    if (items && Array.isArray(items) && items.length > 0) {
+      // Fetch all UOM records to map abbreviations to IDs
+      const uomRecords = await UOM.findAll({}, { transaction });
+      const uomMap = {};
+      uomRecords.forEach(uom => {
+        uomMap[uom.abbreviation.toLowerCase()] = uom.id;
+      });
+
+      // Get existing item IDs for comparison (to detect adds/updates/deletes)
+      const existingMenuItemIds = menu.tbl_Menu_Items.map(mi => mi.item_id);
+
+      // Process incoming items
+      const incomingItems = items.map(item => {
+        let unit_id = null;
+        if (item.unit && typeof item.unit === 'string') {
+          unit_id = uomMap[item.unit.toLowerCase()];
+        }
+        if (!unit_id) {
+          console.warn(`No UOM found for abbreviation: ${item.unit}`);
+          unit_id = uomRecords.length > 0 ? uomRecords[0].id : 1;
+        }
+
+        return {
+          ...item,
+          unit_id,
+          preparation_notes: item.preparation_notes || ''
+        };
+      });
+
+      const incomingItemIds = incomingItems.map(item => item.item_id);
+
+      // Detect items to delete (existing but not in incoming)
+      const itemsToDelete = existingMenuItemIds.filter(id => !incomingItemIds.includes(id));
+      if (itemsToDelete.length > 0) {
+        await MenuItem.destroy({
+          where: {
+            menu_id: id,
+            item_id: { [Op.in]: itemsToDelete }
+          }
+        }, { transaction });
+        console.log(`Deleted ${itemsToDelete.length} menu items.`);
+      }
+
+      // Process items to add or update
+      for (const incomingItem of incomingItems) {
+        const existingItem = menu.tbl_Menu_Items.find(mi => mi.item_id === incomingItem.item_id);
+        
+        if (existingItem) {
+          // Update existing
+          await existingItem.update({
+            quantity: incomingItem.quantity,
+            unit_id: incomingItem.unit_id,
+            preparation_notes: incomingItem.preparation_notes
+          }, { transaction });
+          console.log(`Updated menu item for item_id: ${incomingItem.item_id}`);
+        } else {
+          // Create new
+          await MenuItem.create({
+            menu_id: id,
+            item_id: incomingItem.item_id,
+            quantity: incomingItem.quantity,
+            unit_id: incomingItem.unit_id,
+            preparation_notes: incomingItem.preparation_notes
+          }, { transaction });
+          console.log(`Added new menu item for item_id: ${incomingItem.item_id}`);
+        }
+      }
+    } else {
+      // If no items provided, optionally clear all items? (Or leave as is)
+      // For now, leave as is - user can send empty array to delete all
+      if (items && items.length === 0) {
+        await MenuItem.destroy({ where: { menu_id: id } }, { transaction });
+        console.log('Cleared all menu items.');
+      }
+    }
+
+    await transaction.commit();
+
+    // Fetch updated menu with items for response
+    const updatedMenu = await Menu.findOne({
+      where: { id, hostel_id },
+      include: [
+        {
+          model: MenuItem,
+          as: 'tbl_Menu_Items',
+          include: [
+            {
+              model: Item,
+              as: 'tbl_Item',
+              include: [{
+                model: ItemCategory,
+                as: 'tbl_ItemCategory'
+              }]
+            }
+          ]
+        }
+      ]
     });
 
     res.json({
       success: true,
-      data: menu,
-      message: 'Menu updated successfully'
+      data: updatedMenu,
+      message: 'Menu and its items updated successfully'
     });
   } catch (error) {
+    await transaction.rollback();
     console.error('Menu update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 
+// Enhanced deleteMenu - now checks if used in schedules before deletion
 const deleteMenu = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
     const hostel_id = req.user.hostel_id;
 
+    // Step 1: Check if menu is used in any schedules
+    const scheduleCount = await MenuSchedule.count({
+      where: { menu_id: id, hostel_id }
+    }, { transaction });
+
+    if (scheduleCount > 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete menu that is scheduled ${scheduleCount} time(s). Please remove schedules first.`
+      });
+    }
+
+    // Step 2: Fetch and delete the menu
     const menu = await Menu.findOne({
       where: { id, hostel_id }
+    }, { transaction });
+
+    if (!menu) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Menu not found'
+      });
+    }
+
+    // Step 3: Delete associated menu items first
+    await MenuItem.destroy({ where: { menu_id: id } }, { transaction });
+    await menu.destroy({ transaction });
+
+    await transaction.commit();
+
+    res.json({
+      success: true,
+      message: 'Menu and its items deleted successfully'
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Menu deletion error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Optional: New endpoint to recalculate menu cost with FIFO (call this after updating items if needed)
+const recalculateMenuCostWithFIFO = async (req, res) => {
+  try {
+    const { menu_id } = req.params;
+    const hostel_id = req.user.hostel_id;
+
+    const menu = await Menu.findOne({
+      where: { id: menu_id, hostel_id },
+      include: [
+        {
+          model: MenuItem,
+          as: 'tbl_Menu_Items',
+          include: [
+            {
+              model: Item,
+              as: 'tbl_Item',
+              attributes: ['id', 'name', 'unit_price']
+            }
+          ]
+        }
+      ]
     });
 
     if (!menu) {
@@ -260,20 +441,73 @@ const deleteMenu = async (req, res) => {
       });
     }
 
-    // Delete associated menu items first
-    await MenuItem.destroy({ where: { menu_id: id } });
-    await menu.destroy();
+    let total_cost = 0;
+    const itemCosts = [];
+
+    if (menu.tbl_Menu_Items && menu.tbl_Menu_Items.length > 0) {
+      for (const menuItem of menu.tbl_Menu_Items) {
+        const itemId = menuItem.item_id;
+        const requestedQty = parseFloat(menuItem.quantity);
+
+        // Fetch active batches for FIFO simulation (same as in scheduleMenu)
+        const batches = await InventoryBatch.findAll({
+          where: {
+            item_id: itemId,
+            hostel_id,
+            status: 'active',
+            quantity_remaining: { [Op.gt]: 0 }
+          },
+          order: [['purchase_date', 'ASC'], ['id', 'ASC']]
+        });
+
+        let remainingQty = requestedQty;
+        let itemCost = 0;
+
+        // Simulate FIFO consumption for cost preview
+        for (const batch of batches) {
+          if (remainingQty <= 0) break;
+          const qtyFromBatch = Math.min(remainingQty, parseFloat(batch.quantity_remaining));
+          itemCost += qtyFromBatch * parseFloat(batch.unit_price);
+          remainingQty -= qtyFromBatch;
+        }
+
+        // Fallback to base price for any shortfall
+        if (remainingQty > 0) {
+          const basePrice = parseFloat(menuItem.tbl_Item.unit_price || 0);
+          itemCost += remainingQty * basePrice;
+          console.warn(`[recalculateMenuCostWithFIFO] Insufficient batches for item ${itemId}; used base price for ${remainingQty} units`);
+        }
+
+        total_cost += itemCost;
+        itemCosts.push({
+          item_id: itemId,
+          item_name: menuItem.tbl_Item.name,
+          quantity: requestedQty,
+          fifo_cost: itemCost,
+          breakdown: batches.map(b => ({ batch_id: b.id, qty_used: Math.min(requestedQty, b.quantity_remaining), price: b.unit_price }))
+        });
+      }
+    }
+
+    const costPerServing = menu.estimated_servings > 0 ? total_cost / menu.estimated_servings : 0;
 
     res.json({
       success: true,
-      message: 'Menu deleted successfully'
+      data: {
+        menu_id: menu.id,
+        menu_name: menu.name,
+        total_cost: total_cost,
+        estimated_servings: menu.estimated_servings,
+        cost_per_serving: costPerServing,
+        item_costs: itemCosts
+      },
+      message: 'Menu cost recalculated with FIFO pricing'
     });
   } catch (error) {
-    console.error('Menu deletion error:', error);
+    console.error('Menu FIFO cost recalculation error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-
 // ITEM MANAGEMENT - Complete CRUD
 const createItem = async (req, res) => {
   try {
@@ -780,16 +1014,51 @@ const scheduleMenu = async (req, res) => {
       return res.status(400).json({ message: 'The selected menu has zero or invalid estimated servings. Please update the menu.' });
     }
 
-    let total_cost = 0; // This will store the RAW total cost of ingredients
+    // UPDATED: Calculate FIFO-based estimate (simulation: no stock deduction)
+    let total_cost = 0;
     if (menu.tbl_Menu_Items && menu.tbl_Menu_Items.length > 0) {
-      total_cost = menu.tbl_Menu_Items.reduce((sum, menuItem) => {
-        const itemPrice = parseFloat(menuItem.tbl_Item.unit_price) || 0;
-        const itemQuantity = parseFloat(menuItem.quantity) || 0;
-        return sum + (itemPrice * itemQuantity);
-      }, 0);
+      for (const menuItem of menu.tbl_Menu_Items) {
+        const itemId = menuItem.item_id;
+        const requestedQty = parseFloat(menuItem.quantity);
+
+        // Fetch active batches for FIFO simulation
+        const batches = await InventoryBatch.findAll({
+          where: {
+            item_id: itemId,
+            hostel_id,
+            status: 'active',
+            quantity_remaining: { [Op.gt]: 0 }
+          },
+          order: [['purchase_date', 'ASC'], ['id', 'ASC']],
+          transaction
+        });
+
+        let remainingQty = requestedQty;
+        let itemCost = 0;
+
+        // Simulate FIFO consumption for cost preview
+        for (const batch of batches) {
+          if (remainingQty <= 0) break;
+          const qtyFromBatch = Math.min(remainingQty, parseFloat(batch.quantity_remaining));
+          itemCost += qtyFromBatch * parseFloat(batch.unit_price);
+          remainingQty -= qtyFromBatch;
+        }
+
+        // Fallback to base price for any shortfall (e.g., insufficient stock)
+        if (remainingQty > 0) {
+          const basePrice = parseFloat(menuItem.tbl_Item.unit_price || 0);
+          itemCost += remainingQty * basePrice;
+          console.warn(`[scheduleMenu] Insufficient batches for item ${itemId}; used base price for ${remainingQty} units`);
+        }
+
+        total_cost += itemCost;
+        console.log(`[scheduleMenu] Item ${menuItem.tbl_Item.name}: Estimated FIFO cost = ₹${itemCost.toFixed(2)}`);
+      }
     }
 
-    // At scheduling time, cost_per_serving is just an initial estimate (raw, unrounded)
+    console.log(`[scheduleMenu] Total estimated FIFO cost: ₹${total_cost.toFixed(2)}`);
+
+    // Cost per serving (raw, unrounded)
     const initial_raw_cost_per_serving = total_cost / menuEstimatedServings;
 
     const schedule = await MenuSchedule.create({
@@ -799,19 +1068,22 @@ const scheduleMenu = async (req, res) => {
       meal_time,
       status: 'scheduled',
       estimated_servings: menuEstimatedServings,
-      total_cost: total_cost, // Store RAW total cost
-      cost_per_serving: initial_raw_cost_per_serving, // Store RAW cost per serving initially
+      total_cost: total_cost, // Now FIFO-based estimate
+      cost_per_serving: initial_raw_cost_per_serving, // FIFO-based per serving
     }, { transaction });
 
     await transaction.commit();
-    res.status(201).json({ success: true, data: schedule, message: 'Menu scheduled successfully with initial cost calculation' });
+    res.status(201).json({ 
+      success: true, 
+      data: schedule, 
+      message: 'Menu scheduled successfully with FIFO cost estimate' 
+    });
   } catch (error) {
     await transaction.rollback();
     console.error('Schedule menu error:', error);
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-
 // getMenuSchedule
 const getMenuSchedule = async (req, res) => {
   try {
@@ -2853,9 +3125,7 @@ const getSummarizedConsumptionReport = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-
-
-// In messController.js
+// In messController.js - Final fix for markMenuAsServed with correct ENUM mapping
 
 const markMenuAsServed = async (req, res) => {
   const { id } = req.params; // MenuSchedule ID
@@ -2896,16 +3166,15 @@ const markMenuAsServed = async (req, res) => {
 
     const { lowStockItems } = await _recordBulkConsumptionLogic(consumptions, hostel_id, userId, transaction);
     
-    // Recalculate the exact cost from consumption logs for accuracy
+    // Recalculate the exact cost from consumption logs for accuracy (but not used for charging)
     const totalServedMenuCostForDay = (await DailyConsumption.sum('total_cost', {
         where: { consumption_date: schedule.scheduled_date, meal_type: schedule.meal_time, hostel_id },
         transaction
     })) || 0;
 
-
     // --- Step 2: Identify chargeable students (Man-Days) ---
     const activeEnrollments = await Enrollment.findAll({
-      where: { hostel_id }, // FIXED: Removed 'end_date' filter to avoid "Unknown column" error. Assumes all enrolled students are active. Add 'is_active: true' if the model has an 'is_active' field.
+      where: { hostel_id },
       attributes: ['student_id'],
       raw: true,
       transaction
@@ -2930,12 +3199,61 @@ const markMenuAsServed = async (req, res) => {
     });
     const attendanceMap = new Map(attendanceRecords.map(att => [att.student_id, att.status]));
 
+    // FIXED: Correct mapping to full ENUM strings for DailyMessCharge model
+    const mapAttendanceToChargeStatus = (attStatus, studentId, rowIndex) => {
+      // Ensure attStatus is a non-null string
+      let normalizedStatus = (attStatus || '').toString().trim().toUpperCase(); // Uppercase for ENUM match ('P', 'A', 'OD')
+      
+      // Log the raw value for debugging
+      console.log(`[markMenuAsServed] Row ${rowIndex + 1} (Student ${studentId}): Raw attendanceStatus = "${attStatus}" -> Normalized = "${normalizedStatus}"`);
+
+      // Map to exact DailyMessCharge.attendance_status ENUM values (assuming ENUM('present', 'absent', 'on_duty', 'not_marked'))
+      let chargeStatus;
+      switch (normalizedStatus) {
+        case 'P':
+          chargeStatus = 'present';
+          break;
+        case 'A':
+          chargeStatus = 'absent';
+          break;
+        case 'OD':
+          chargeStatus = 'on_duty';
+          break;
+        default:
+          chargeStatus = 'not_marked'; // Safe fallback matching ENUM
+          console.warn(`[markMenuAsServed] Row ${rowIndex + 1} (Student ${studentId}): Unexpected status "${normalizedStatus}". Defaulting to '${chargeStatus}'.`);
+      }
+
+      // Validate length (assuming VARCHAR(20) or ENUM with these values)
+      if (chargeStatus.length > 20) { // Adjust max length based on your schema
+        console.error(`[markMenuAsServed] Row ${rowIndex + 1} (Student ${studentId}): Status "${chargeStatus}" too long. Truncating.`);
+        chargeStatus = chargeStatus.substring(0, 20);
+      }
+
+      // Log final mapped value
+      console.log(`[markMenuAsServed] Row ${rowIndex + 1} (Student ${studentId}): Final chargeStatus = "${chargeStatus}" (length: ${chargeStatus.length})`);
+
+      return chargeStatus;
+    };
+
     const dailyChargesToCreate = [];
     let studentsToChargeCount = 0;
+    const invalidStatuses = []; // Track for summary
 
-    for (const studentId of allActiveStudentIds) {
-      const attendanceStatus = attendanceMap.get(studentId) || 'absent';
-      const is_charged = (attendanceStatus === 'present');
+    for (let i = 0; i < allActiveStudentIds.length; i++) {
+      const studentId = allActiveStudentIds[i];
+      const attendanceStatus = attendanceMap.get(studentId) || null;
+      const chargeStatus = mapAttendanceToChargeStatus(attendanceStatus, studentId, i); // Pass row index for logging
+      
+      // Double-check against expected ENUM values (exact match for DailyMessCharge)
+      const validStatuses = ['present', 'absent', 'on_duty', 'not_marked']; // Full ENUM values
+      if (!validStatuses.includes(chargeStatus)) {
+        console.error(`[markMenuAsServed] Row ${i + 1} (Student ${studentId}): Invalid final chargeStatus "${chargeStatus}". Skipping this student.`);
+        invalidStatuses.push({ studentId, attendanceStatus, chargeStatus });
+        continue;
+      }
+
+      const is_charged = (attendanceStatus === 'P');
 
       if (is_charged) {
         studentsToChargeCount++;
@@ -2945,40 +3263,60 @@ const markMenuAsServed = async (req, res) => {
         hostel_id,
         student_id: studentId,
         date: schedule.scheduled_date,
-        amount: 0, // This will be updated with the raw menu cost portion
-        attendance_status: attendanceStatus,
+        amount: 0, // This will be updated with the cost per serving
+        attendance_status: chargeStatus, // Now full ENUM string
         is_charged: is_charged,
       });
     }
 
-    // --- Step 3: Record the daily charge with only the menu cost portion ---
-    const rawMenuCostPerStudent = studentsToChargeCount > 0 ? totalServedMenuCostForDay / studentsToChargeCount : 0;
+    // --- Step 3: Record the daily charge with cost per serving ---
+    const costPerServing = parseFloat(schedule.cost_per_serving) || 0;
     
     const finalDailyCharges = dailyChargesToCreate.map(charge => ({
         ...charge,
-        amount: charge.is_charged ? rawMenuCostPerStudent : 0
+        amount: charge.is_charged ? costPerServing : 0
     }));
 
-    if (finalDailyCharges.length > 0) {
-      await DailyMessCharge.bulkCreate(finalDailyCharges, {
-        updateOnDuplicate: ['amount', 'attendance_status', 'is_charged'],
-        transaction
-      });
+    // Log the full array of statuses before bulkCreate for debugging
+    console.log(`[markMenuAsServed] Final statuses for bulkCreate (${finalDailyCharges.length} charges):`, finalDailyCharges.map(c => ({ student: c.student_id, status: c.attendance_status, length: c.attendance_status.length })));
+
+    // Alternative: Accumulate in markMenuAsServed (single row per student/date)
+
+// After preparing finalDailyCharges...
+if (finalDailyCharges.length > 0) {
+  // Group charges by student_id (since date is same for all)
+  const chargesByStudent = {};
+  finalDailyCharges.forEach(charge => {
+    if (!chargesByStudent[charge.student_id]) {
+      chargesByStudent[charge.student_id] = charge;
+    } else {
+      // Add to existing amount (accumulate meal costs)
+      chargesByStudent[charge.student_id].amount += charge.amount;
     }
+  });
+
+  const accumulatedCharges = Object.values(chargesByStudent);
+
+  // Now bulkCreate with updateOnDuplicate to handle accumulation
+  await DailyMessCharge.bulkCreate(accumulatedCharges, {
+    updateOnDuplicate: ['amount', 'attendance_status', 'is_charged'],  // Overwrites other fields but amount is now summed
+    transaction
+  });
+}
     
     await schedule.update({ status: 'served' }, { transaction });
     await transaction.commit();
     
     res.status(200).json({
       success: true,
-      message: `Menu served. Raw menu cost of ₹${rawMenuCostPerStudent.toFixed(2)} recorded for ${studentsToChargeCount} present students.`,
-      data: { lowStockItems }
+      message: `Menu served. Cost per serving of ₹${costPerServing.toFixed(2)} recorded for ${studentsToChargeCount} present students. Skipped ${invalidStatuses.length} due to invalid status.`,
+      data: { lowStockItems, invalidStatuses } // Include for frontend debugging if needed
     });
 
   } catch (error) {
     await transaction.rollback();
     console.error('[markMenuAsServed] Error:', error.message, error.stack);
-    res.status(500).json({ success: false, message: `Server error: ${error.message}` });
+    res.status(500).json({success: false, message: `Server error: ${error.message}` });
   }
 };
 // DEPRECATED: This function is replaced by the new monthly calculation in generateMonthlyMessReport.
@@ -4182,7 +4520,12 @@ const generateMonthlyMessReport = async (req, res) => {
     console.log(`[LOG] Found ${students.length} active students.`);
 
     // 2. Calculate Total Man-Days for the Month
-    const totalManDays = await DailyMessCharge.count({ where: { hostel_id, student_id: { [Op.in]: studentIds }, is_charged: true, date: { [Op.between]: [startDate, endDate] } } });
+    const totalManDays = await Attendance.count({
+      where: {
+        date: { [Op.between]: [startDate, endDate] },
+        status: { [Op.not]: 'OD' } 
+      }
+    });
     console.log(`[LOG] Total Man-Days for the month: ${totalManDays}`);
     
     // 3. Calculate Total Gross Expenses
@@ -4193,16 +4536,22 @@ const generateMonthlyMessReport = async (req, res) => {
 
     // 4. Calculate Total Deductions/Income
     console.log('[LOG] Summing all deductions...');
-    const creditSisterConcernBill = (await CreditToken.sum('amount', { 
-        where: { hostel_id, date: { [Op.between]: [startDate, endDate] } } 
-    })) || 0;
+    // Credit Token (Sister Concern Bill) - from AdditionalIncome
+    const sisterConcernIncomeType = await IncomeType.findOne({ where: { name: 'Sister Concern Bill' } });
+    let creditSisterConcernBill = 0;
+    if (sisterConcernIncomeType) {
+      creditSisterConcernBill = (await AdditionalIncome.sum('amount', { 
+          where: { hostel_id, income_type_id: sisterConcernIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } 
+      })) || 0;
+    }
     console.log(`[LOG] Deduction - Credit Token (Sister Concern): ${creditSisterConcernBill}`);
     
     const cashTokenIncomeType = await IncomeType.findOne({ where: { name: 'Cash Token' } });
     let cashToken = 0; if (cashTokenIncomeType) { cashToken = (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: cashTokenIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0; }
     console.log(`[LOG] Deduction - Cash Token: ${cashToken}`);
     
-    const studentAdditionalCreditToken = (await FoodOrder.sum('total_amount', { where: { hostel_id, status: 'delivered', payment_status: 'paid', order_date: { [Op.between]: [startDate, endDate] } } })) || 0;
+    // Student Special Orders - sum with payment_status 'pending'
+    const studentAdditionalCreditToken = (await FoodOrder.sum('total_amount', { where: { hostel_id, status: 'confirmed', payment_status: 'pending', order_date: { [Op.between]: [startDate, endDate] } } })) || 0;
     console.log(`[LOG] Deduction - Student Special Orders: ${studentAdditionalCreditToken}`);
     
     const studentGuestIncomeType = await IncomeType.findOne({ where: { name: 'Student Guest Income' } });
@@ -4213,7 +4562,8 @@ const generateMonthlyMessReport = async (req, res) => {
     console.log(`[LOG] Total Deductions: ${totalDeductions}`);
     
     // 5. Calculate Adjusted Total Expenses and Monthly Daily Rate
-    const adjustedTotalExpenses = grandTotalGrossExpenses - totalDeductions;
+    // Exclude food ingredient cost from adjusted expenses to match accurate daily rate calculation (food covered by tokens; daily rate for net other expenses)
+    const adjustedTotalExpenses = totalOtherMessExpenses - totalDeductions;
     const monthlyDailyRate = totalManDays > 0 ? adjustedTotalExpenses / totalManDays : 0;
     console.log(`[LOG] Adjusted Total Expenses: ${adjustedTotalExpenses}`);
     console.log(`[LOG] Calculated Daily Rate: ${monthlyDailyRate}`);
@@ -4232,6 +4582,7 @@ const generateMonthlyMessReport = async (req, res) => {
     const newspaperBillMap = new Map();
 
     otherFees.forEach(fee => {
+      console.log(`[LOG] Fee for student ${fee.student_id}: type "${fee.fee_type}", amount ${fee.amount}`);
       const studentId = fee.student_id;
       const amount = parseFloat(fee.amount);
       if (fee.fee_type === 'bed_charge') {
@@ -4248,7 +4599,7 @@ const generateMonthlyMessReport = async (req, res) => {
     // 7. Fetch Mess Days and Special Order amounts per student
     const studentMessDaysData = await DailyMessCharge.findAll({ attributes: ['student_id', [sequelize.fn('COUNT', sequelize.col('id')), 'mess_days']], where: { hostel_id, student_id: { [Op.in]: studentIds }, is_charged: true, date: { [Op.between]: [startDate, endDate] } }, group: ['student_id'], raw: true, });
     const messDaysMap = new Map(studentMessDaysData.map(item => [item.student_id, item.mess_days]));
-    const studentFoodOrdersData = await FoodOrder.findAll({ attributes: ['student_id', [sequelize.fn('SUM', sequelize.col('total_amount')), 'total_special_food_cost']], where: { hostel_id, student_id: { [Op.in]: studentIds }, status: 'delivered', payment_status: 'paid', order_date: { [Op.between]: [startDate, endDate] } }, group: ['student_id'], raw: true, });
+    const studentFoodOrdersData = await FoodOrder.findAll({ attributes: ['student_id', [sequelize.fn('SUM', sequelize.col('total_amount')), 'total_special_food_cost']], where: { hostel_id, student_id: { [Op.in]: studentIds }, status: 'confirmed', payment_status: 'pending', order_date: { [Op.between]: [startDate, endDate] } }, group: ['student_id'], raw: true, });
     const foodOrderMap = new Map(studentFoodOrdersData.map(item => [item.student_id, parseFloat(item.total_special_food_cost)]));
 
     // 8. Generate Final Report Data for Each Student
@@ -4268,7 +4619,14 @@ const generateMonthlyMessReport = async (req, res) => {
       }
       
       const totalRaw = messAmount + additionalAmount + bedCharges + totalPaperAndNewspaper;
-      const finalAmount = Math.round(totalRaw);
+      const floorAmount = Math.floor(totalRaw);
+      const frac = totalRaw - floorAmount;
+      let finalAmount;
+      if (frac <= 0.20) {
+        finalAmount = floorAmount;
+      } else {
+        finalAmount = Math.ceil(totalRaw);
+      }
       const roundingUp = finalAmount - totalRaw;
 
       return {
@@ -4276,8 +4634,8 @@ const generateMonthlyMessReport = async (req, res) => {
         messDays: studentMessDays, dailyRate: monthlyDailyRate, messAmount,
         additionalAmount, bedCharges,
         paperBill: paperBillAmount,
-        hinduIndianExpress: newspaperAmount,
-        total: totalRaw, netAmount: totalRaw, roundingUp, finalAmount,
+        hinduIndianExpress: totalPaperAndNewspaper,
+        total: totalRaw, netAmount: finalAmount, roundingUp, finalAmount,
       };
     }).sort((a, b) => a.regNo.localeCompare(b.regNo));
     
@@ -5052,8 +5410,229 @@ const deleteCreditToken = async (req, res) => {
         res.status(500).json({ success: false, message: `Server error: ${error.message}` });
     }
 };
+const generateDailyRateReport = async (req, res) => {
+  try {
+    const { month, year, export: exportToExcel } = req.query;
+    const { hostel_id } = req.user;
 
+    if (!month || !year) {
+      return res.status(400).json({ success: false, message: 'Month and year are required.' });
+    }
 
+    const startDate = moment({ year, month: month - 1 }).startOf('month').toDate();
+    const endDate = moment({ year, month: month - 1 }).endOf('month').toDate();
+
+    console.log(`[DEBUG] Report for hostel_id: ${hostel_id}, month: ${month}, year: ${year}`);
+    console.log(`[DEBUG] Date range: startDate=${startDate.toISOString()}, endDate=${endDate.toISOString()}`);
+
+    // 1. Fetch Gross Expenses (Item Consumptions + Other Expenses)
+    // a) Item Consumption grouped by category (includes daily menu costs)
+    const consumptionByCategory = await DailyConsumption.findAll({
+      where: { hostel_id, consumption_date: { [Op.between]: [startDate, endDate] } },
+      attributes: [
+        [sequelize.col('tbl_Item->tbl_ItemCategory.name'), 'name'],
+        [sequelize.fn('SUM', sequelize.col('DailyConsumption.total_cost')), 'amount']
+      ],
+      include: [{ model: Item, as: 'tbl_Item', attributes: [], include: [{ model: ItemCategory, as: 'tbl_ItemCategory', attributes: [] }] }],
+      group: [sequelize.col('tbl_Item->tbl_ItemCategory.name')],
+      raw: true,
+    });
+    // Consolidate all consumption under "Rice & Grocery"
+    const totalConsumptionCost = consumptionByCategory.reduce((sum, cat) => sum + parseFloat(cat.amount), 0);
+    const expenses = [{ name: 'Rice & Grocery', amount: totalConsumptionCost }];
+
+    // b) Other Mess Daily Expenses grouped by type
+    const otherExpenses = await MessDailyExpense.findAll({
+      where: { hostel_id, expense_date: { [Op.between]: [startDate, endDate] } },
+      attributes: [
+        [sequelize.col('ExpenseType.name'), 'name'],
+        [sequelize.fn('SUM', sequelize.col('MessDailyExpense.amount')), 'amount']
+      ],
+      include: [{ model: ExpenseType, as: 'ExpenseType', attributes: [] }],
+      group: [sequelize.col('ExpenseType.name')],
+      order: [[sequelize.col('ExpenseType.name'), 'ASC']],
+      raw: true,
+    });
+    expenses.push(...otherExpenses);
+    const subTotal = expenses.reduce((sum, item) => sum + parseFloat(item.amount), 0);
+
+    // 2. Fetch Deductions (Incomes & Credits)
+    // a) Cash Token (from AdditionalIncome)
+    const cashTokenIncomeType = await IncomeType.findOne({ where: { name: 'Cash Token' } });
+    const cashTokenAmount = cashTokenIncomeType ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: cashTokenIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0 : 0;
+
+    // b) Credit Token (Sister Concern Bill) - from AdditionalIncome
+    const sisterConcernIncomeType = await IncomeType.findOne({ where: { name: 'Sister Concern Bill' } });
+    let creditTokenAmount = 0;
+    let creditTokenDescription = '';
+    if (sisterConcernIncomeType) {
+      const sisterConcernEntries = await AdditionalIncome.findAll({
+        where: { 
+          hostel_id, 
+          income_type_id: sisterConcernIncomeType.id,
+          received_date: { [Op.between]: [startDate, endDate] } 
+        },
+      });
+      creditTokenAmount = sisterConcernEntries.reduce((sum, entry) => sum + parseFloat(entry.amount), 0);
+      creditTokenDescription = sisterConcernEntries.map(e => e.description).filter(d => d).join(', ') || 'N/A';
+    }
+
+    // c) Student Special Food Orders (V & NV Meals) - sum of all delivered/paid orders by all students from tbl_foodorder
+    // DEBUG: First, count matching records to see if any exist
+    const matchingFoodOrdersCount = await FoodOrder.count({
+      where: { hostel_id, status: 'confirmed', payment_status: 'paid', order_date: { [Op.between]: [startDate, endDate] } }
+    });
+    console.log(`[DEBUG] Count of matching FoodOrders (hostel_id=${hostel_id}, status='confirmed', payment_status='paid', date between ${startDate} and ${endDate}): ${matchingFoodOrdersCount}`);
+
+    // DEBUG: If count > 0, fetch a sample to inspect data
+    if (matchingFoodOrdersCount > 0) {
+      const sampleOrders = await FoodOrder.findAll({
+        where: { hostel_id, status: 'confirmed', payment_status: 'paid', order_date: { [Op.between]: [startDate, endDate] } },
+        limit: 5, // Limit to 5 for logging
+        attributes: ['id', 'total_amount', 'order_date', 'status', 'payment_status', 'hostel_id']
+      });
+      console.log(`[DEBUG] Sample matching FoodOrders:`, JSON.stringify(sampleOrders.map(o => o.toJSON()), null, 2));
+    } else {
+      // DEBUG: Check if there are any orders in the month regardless of status/payment
+      const allOrdersInMonthCount = await FoodOrder.count({
+        where: { hostel_id, order_date: { [Op.between]: [startDate, endDate] } }
+      });
+      console.log(`[DEBUG] Total FoodOrders in date range (ignoring status/payment): ${allOrdersInMonthCount}`);
+
+      // DEBUG: Check orders with status='delivered' regardless of payment
+      const deliveredOrdersCount = await FoodOrder.count({
+        where: { hostel_id, status: 'confirmed', order_date: { [Op.between]: [startDate, endDate] } }
+      });
+      console.log(`[DEBUG] FoodOrders with status='confirmed' in date range: ${deliveredOrdersCount}`);
+
+      // DEBUG: Check orders with payment_status='paid' regardless of status
+      const paidOrdersCount = await FoodOrder.count({
+        where: { hostel_id, payment_status: 'paid', order_date: { [Op.between]: [startDate, endDate] } }
+      });
+      console.log(`[DEBUG] FoodOrders with payment_status='paid' in date range: ${paidOrdersCount}`);
+    }
+
+    const specialOrdersAmount = (await FoodOrder.sum('total_amount', { where: { hostel_id, status: 'confirmed', payment_status: 'pending', order_date: { [Op.between]: [startDate, endDate] } } })) || 0;
+    console.log(`[DEBUG] Calculated specialOrdersAmount (sum of total_amount): ${specialOrdersAmount}`);
+    
+    // d) Student Guest Income (from AdditionalIncome)
+    const guestIncomeType = await IncomeType.findOne({ where: { name: 'Student Guest Income' } });
+    const guestIncomeAmount = guestIncomeType ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: guestIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0 : 0;
+    
+    // 3. Final Calculations - Deduct special additional credit token (specialOrdersAmount) along with other deductions
+    const totalDeductions = cashTokenAmount + creditTokenAmount + specialOrdersAmount + guestIncomeAmount;
+    const totalExpenses = subTotal - totalDeductions;
+
+    // 4. Calculate Total Man Days (1 if present or absent, 0 if OD)
+const totalManDays = await Attendance.count({
+  where: {
+    // hostel_id,
+    date: { [Op.between]: [startDate, endDate] },
+    status: { [Op.not]: 'OD' } 
+  }
+});
+
+    console.log(`[DEBUG] Calculated totalManDays: ${totalManDays}`);
+
+    // 5. Calculate Daily Rate
+    const dailyRate = totalManDays > 0 ? totalExpenses / totalManDays : 0;
+    console.log(`[DEBUG] Calculated dailyRate: ${dailyRate}`);
+
+    const reportData = {
+      expenses,
+      subTotal,
+      deductions: {
+        cashToken: { amount: cashTokenAmount },
+        creditToken: { amount: creditTokenAmount, description: creditTokenDescription },
+        specialOrders: { amount: specialOrdersAmount },
+        guestIncome: { amount: guestIncomeAmount },
+      },
+      totalDeductions,
+      totalExpenses,
+      totalManDays,
+      dailyRate
+    };
+
+    // 6. Handle Response (JSON or Excel)
+    if (exportToExcel === 'true') {
+      // --- Excel Generation Logic ---
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Daily Rate Calculation');
+      
+      const hostel = await Hostel.findByPk(hostel_id);
+      
+      // Headers
+      worksheet.addRow([`${hostel.name}, K.R.Nagar`]);
+      worksheet.mergeCells('A1:B1');
+      worksheet.getCell('A1').font = { bold: true, size: 14, name: 'Arial' };
+      worksheet.getCell('A1').alignment = { horizontal: 'center' };
+
+      worksheet.addRow([`DAILY RATE CALCULATION ${moment(startDate).format('MMMM YYYY').toUpperCase()}`]);
+      worksheet.mergeCells('A2:B2');
+      worksheet.getCell('A2').font = { bold: true, size: 12, name: 'Arial' };
+      worksheet.getCell('A2').alignment = { horizontal: 'center' };
+      worksheet.addRow([]);
+
+      // Expense Table
+      const expenseHeader = worksheet.addRow(['Particulars', 'Amount (Rs)']);
+      expenseHeader.font = { bold: true };
+      expenseHeader.eachCell(cell => cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' } });
+      
+      reportData.expenses.forEach((exp, index) => {
+        worksheet.addRow([`${index + 1}. ${exp.name}`, parseFloat(exp.amount)]);
+      });
+
+      // Sub Total
+      const subTotalRow = worksheet.addRow(['Sub total', reportData.subTotal]);
+      subTotalRow.font = { bold: true };
+      subTotalRow.getCell(2).border = { top: { style: 'thin' }, bottom: { style: 'double' }};
+
+      // Deductions
+      worksheet.addRow([]);
+      worksheet.addRow(['Cash Token : (Less)', reportData.deductions.cashToken.amount > 0 ? -reportData.deductions.cashToken.amount : 0]);
+      
+      const creditTokenRow = worksheet.addRow([`Credit Token : (Sister Concern Bill.) ${reportData.deductions.creditToken.description}`]);
+      creditTokenRow.getCell(2).value = reportData.deductions.creditToken.amount > 0 ? -reportData.deductions.creditToken.amount : 0;
+
+      worksheet.addRow(['Student Additional Credit Token(V & NV meals)', reportData.deductions.specialOrders.amount > 0 ? -reportData.deductions.specialOrders.amount : 0]);
+      worksheet.addRow(['Student Guest Income', reportData.deductions.guestIncome.amount > 0 ? -reportData.deductions.guestIncome.amount : 0]);
+
+      // Total Expenses
+      worksheet.addRow([]);
+      const totalRow = worksheet.addRow(['Total Expenses =', reportData.totalExpenses]);
+      totalRow.font = { bold: true };
+      totalRow.getCell(2).border = { top: { style: 'thin' }, bottom: { style: 'double' }};
+
+      // Mess Days
+      const messDaysRow = worksheet.addRow([`Mess Days = ${reportData.totalManDays}`, '']);
+      messDaysRow.font = { bold: true };
+
+      // Daily Rate
+      const dailyRateRow = worksheet.addRow(['Daily Rate = Total Expenses / Mess Days', reportData.dailyRate]);
+      dailyRateRow.font = { bold: true };
+      dailyRateRow.getCell(2).numFmt = '#,##0.00';
+
+      // Formatting
+      worksheet.getColumn('A').width = 60;
+      worksheet.getColumn('B').width = 20;
+      worksheet.getColumn('B').numFmt = '#,##0.00';
+      worksheet.getColumn('B').alignment = { horizontal: 'right' };
+
+      // Send file
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="DailyRateCalculation_${year}_${month}.xlsx"`);
+      await workbook.xlsx.write(res);
+      res.end();
+    } else {
+      // Send JSON data
+      res.json({ success: true, data: reportData });
+    }
+
+  } catch (error) {
+    console.error('Error generating daily rate report:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
 module.exports = {
   createMenu,
   getMenus,
@@ -5155,4 +5734,5 @@ module.exports = {
   deleteConcern,
   getIncomeEntries,
   createIncomeEntry,
+  generateDailyRateReport
 };

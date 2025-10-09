@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { wardenAPI } from '../../services/api';
 // MODIFIED: Added the 'School' icon
-import { User, Lock, Calendar, CheckCircle, AlertCircle, Bed, CreditCard, School } from 'lucide-react';
+import { User, Lock, Calendar, CheckCircle, AlertCircle, Bed, CreditCard, School, Hash } from 'lucide-react';
 
 const EnrollStudent = () => {
-  // MODIFIED: Added 'college' to the initial state
+  // MODIFIED: Added 'college' and 'roll_number' to the initial state
   const [formData, setFormData] = useState({
     username: '',
+    roll_number: '',
     password: '',
     email: '',
     session_id: '',
     college: '', // <-- ADDED
-    requires_bed: false,
-    paid_initial_emi: false
+    requires_bed: false
+    // REMOVED: paid_initial_emi
   });
 
   const [sessions, setSessions] = useState([]);
@@ -66,32 +67,26 @@ const EnrollStudent = () => {
     setLoading(true);
     setMessage({ type: '', text: '' });
 
-    if (formData.requires_bed && !formData.paid_initial_emi) {
-      setMessage({
-        type: 'error',
-        text: 'Initial 5-month EMI payment is required for bed allocation'
-      });
-      setLoading(false);
-      return;
-    }
+    // REMOVED: Check for paid_initial_emi
 
     try {
-      // The updated formData (with college) will be sent automatically
+      // The updated formData (with college and roll_number) will be sent automatically
       await wardenAPI.enrollStudent({
         ...formData,
         session_id: parseInt(formData.session_id)
       });
 
       setMessage({ type: 'success', text: 'Student enrolled successfully!' });
-      // MODIFIED: Reset the 'college' field as well
+      // MODIFIED: Reset the 'college' and 'roll_number' fields as well
       setFormData({
         username: '',
+        roll_number: '',
         password: '',
         email: '',
         session_id: '',
         college: '', // <-- ADDED
-        requires_bed: false,
-        paid_initial_emi: false
+        requires_bed: false
+        // REMOVED: paid_initial_emi
       });
     } catch (error) {
       setMessage({
@@ -127,7 +122,7 @@ const EnrollStudent = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Username, Email, Password fields */}
+          {/* Username Field */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Student Username *</label>
             <div className="relative">
@@ -135,6 +130,17 @@ const EnrollStudent = () => {
               <input type="text" name="username" value={formData.username} onChange={handleChange} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Enter student username" required />
             </div>
           </div>
+
+          {/* MODIFIED: ADDED ROLL NUMBER FIELD */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Roll Number</label>
+            <div className="relative">
+              <Hash className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <input type="text" name="roll_number" value={formData.roll_number} onChange={handleChange} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Enter student roll number (optional)" />
+            </div>
+          </div>
+
+          {/* Email Field */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
             <div className="relative">
@@ -143,6 +149,8 @@ const EnrollStudent = () => {
               <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Enter student email (optional)" />
             </div>
           </div>
+
+          {/* Password Field */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Password *</label>
             <div className="relative">
@@ -178,7 +186,7 @@ const EnrollStudent = () => {
             </div>
           </div>
 
-          {/* Bed and EMI section */}
+          {/* Bed allocation section - REMOVED EMI checkbox */}
           <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
             <div className="flex items-center">
               <input type="checkbox" name="requires_bed" id="requires_bed" checked={formData.requires_bed} onChange={handleChange} className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
@@ -186,23 +194,13 @@ const EnrollStudent = () => {
                 <Bed size={20} className="mr-2 text-blue-500" />Student requires bed allocation
               </label>
             </div>
-            {formData.requires_bed && (
-              <div className="ml-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <div className="flex items-center mt-2">
-                  <input type="checkbox" name="paid_initial_emi" id="paid_initial_emi" checked={formData.paid_initial_emi} onChange={handleChange} className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
-                  <label htmlFor="paid_initial_emi" className="ml-3 text-sm font-medium text-gray-700 flex items-center">
-                    <CreditCard size={20} className="mr-2 text-green-500" />Initial 5-month EMI payment received (₹{(emiAmount * 5).toLocaleString()})
-                  </label>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="flex gap-4">
-            <button type="submit" disabled={loading || sessions.length === 0 || (formData.requires_bed && !formData.paid_initial_emi)} className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <button type="submit" disabled={loading || sessions.length === 0} className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               {loading ? 'Enrolling...' : 'Enroll Student'}
             </button>
-            <button type="button" onClick={() => setFormData({ username: '', password: '', email: '', session_id: '', college: '', requires_bed: false, paid_initial_emi: false })} className="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 transition-colors">
+            <button type="button" onClick={() => setFormData({ username: '', roll_number: '', password: '', email: '', session_id: '', college: '', requires_bed: false })} className="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 transition-colors">
               Reset
             </button>
           </div>

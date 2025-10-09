@@ -18,7 +18,7 @@ const PaperBillGenerator = () => {
   const fetchSessions = async () => {
     try {
       // This call will now work because of the backend route fix
-      const response = await wardenAPI.getSessions();
+      const response = await messAPI.getSessions();
       console.log('[PaperBillGenerator] Fetched sessions:', response.data.data); // LOG
       setSessions(response.data.data || []);
     } catch (error) {
