@@ -298,6 +298,33 @@ const getDashboardStats = async (req, res) => {
       limit: 5
     });
 
+    // --- New: Today's Attendance Stats for Chart ---
+    const today = new Date().toISOString().split('T')[0]; // Get current date in YYYY-MM-DD format
+
+    const attendanceCounts = await Attendance.findAll({
+      attributes: ['status', [sequelize.fn('COUNT', sequelize.col('Attendance.id')), 'count']],
+      where: {
+        date: today,
+        '$Student.hostel_id$': hostel_id // Ensure attendance is for students in this hostel
+      },
+      include: [{
+        model: User,
+        as: 'Student',
+        attributes: [], // Only needed for filtering
+        required: true
+      }],
+      group: ['status'],
+      raw: true
+    });
+
+    const attendanceStatus = attendanceCounts.reduce((acc, curr) => {
+      acc[curr.status] = curr.count;
+      return acc;
+    }, { P: 0, A: 0, OD: 0 }); // Initialize with all statuses
+
+    const totalTodayAttendance = attendanceCounts.reduce((sum, curr) => sum + curr.count, 0);
+    // --- End New Block ---
+
     res.json({
       success: true,
       data: {
@@ -308,14 +335,19 @@ const getDashboardStats = async (req, res) => {
         
         pendingLeaves,
         totalLeaves,
-        leaveStatus, // For chart
+        leaveStatus,
 
         pendingComplaints,
         totalComplaints,
-        complaintStatus, // For chart
+        complaintStatus,
 
         recentLeaves,
-        recentComplaints
+        recentComplaints,
+
+        // --- Added for Attendance Chart ---
+        attendanceStatus,
+        totalTodayAttendance
+        // --- End Added Block ---
       }
     });
   } catch (error) {
@@ -323,6 +355,7 @@ const getDashboardStats = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+
 
 
 const getSessions = async (req, res) => {
