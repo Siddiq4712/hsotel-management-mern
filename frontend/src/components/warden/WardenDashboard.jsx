@@ -29,7 +29,7 @@ ChartJS.register(
 const WardenDashboard = () => {
   const [stats, setStats] = useState({
     totalStudents: 0,
-    totalCapacity: 0, // Total available beds based on room types
+    totalCapacity: 0,
     occupiedBeds: 0,
     availableBeds: 0,
     pendingLeaves: 0,
@@ -39,7 +39,11 @@ const WardenDashboard = () => {
     totalComplaints: 0,
     complaintStatus: { submitted: 0, in_progress: 0, resolved: 0, closed: 0 },
     recentLeaves: [],
-    recentComplaints: []
+    recentComplaints: [],
+    // --- Added for Attendance Chart ---
+    attendanceStatus: { P: 0, A: 0, OD: 0 },
+    totalTodayAttendance: 0
+    // --- End Added Block ---
   });
   const [loading, setLoading] = useState(true);
 
@@ -294,6 +298,61 @@ const WardenDashboard = () => {
             <p className="text-gray-500">No leave request data available.</p>
           )}
         </div>
+
+        {/* New: Today's Attendance Chart */}
+        <div className="bg-white rounded-lg shadow-md p-6 flex flex-col items-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Today's Attendance Overview</h2>
+          {stats.totalTodayAttendance > 0 ? (
+            <div className="w-full max-w-sm">
+              <Doughnut
+                data={{
+                  labels: ['Present', 'Absent', 'On Duty'],
+                  datasets: [
+                    {
+                      data: [
+                        stats.attendanceStatus.P,
+                        stats.attendanceStatus.A,
+                        stats.attendanceStatus.OD,
+                      ],
+                      backgroundColor: ['#22c55e', '#ef4444', '#facc15'], // Green, Red, Yellow
+                      borderColor: ['#16a34a', '#dc2626', '#eab308'],
+                      borderWidth: 1,
+                    },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  plugins: {
+                    legend: {
+                      position: 'bottom',
+                    },
+                    title: {
+                      display: true,
+                      text: `Total Marked: ${stats.totalTodayAttendance} Students`,
+                    },
+                    tooltip: {
+                      callbacks: {
+                        label: function(context) {
+                          let label = context.label || '';
+                          if (label) {
+                              label += ': ';
+                          }
+                          if (context.parsed !== null) {
+                              label += context.parsed + ' (' + (context.parsed / stats.totalTodayAttendance * 100).toFixed(1) + '%)';
+                          }
+                          return label;
+                        }
+                      }
+                    }
+                  },
+                }}
+              />
+            </div>
+          ) : (
+            <p className="text-gray-500">No attendance marked for today.</p>
+          )}
+        </div>
+        {/* End New Block */}
       </div>
     </div>
   );
