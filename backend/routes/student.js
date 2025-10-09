@@ -30,7 +30,9 @@ const {
   getDashboardStats,
   getAvailableSpecialFoodItems,
   getSpecialFoodItemCategories,
-  getMyDailyMessCharges
+  getMyDailyMessCharges,
+  getMonthlyMessExpensesChartData, // Add this
+  getMonthlyAttendanceChartData,   // Add this
 } = require('../controllers/studentController');
 const {
   createFoodOrder,
@@ -105,4 +107,6 @@ router.get('/food-orders/:id', getFoodOrderById);
 router.put('/food-orders/:id/cancel', cancelFoodOrder);
 // KEEP THIS LINE
 router.get('/daily-mess-charges', auth, getMyDailyMessCharges);
+router.get('/chart-data/mess-expenses', auth, authorize(['student', 'lapc']), getMonthlyMessExpensesChartData);
+router.get('/chart-data/attendance', auth, authorize(['student', 'lapc']), getMonthlyAttendanceChartData);
 module.exports = router;
