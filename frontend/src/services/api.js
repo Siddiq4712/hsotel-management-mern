@@ -216,6 +216,8 @@ export const studentAPI = {
 
   // Meal Tokens
   getMyTokens: () => api.get('/student/tokens'),
+  getMonthlyMessExpensesChart: () => api.get('/student/chart-data/mess-expenses'),
+  getMonthlyAttendanceChart: () => api.get('/student/chart-data/attendance'),
 };
 // Mess API - Complete with all CRUD operations
 export const messAPI = {
