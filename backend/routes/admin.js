@@ -3,40 +3,41 @@ const express = require('express');
 const {
   // Hostel Management
   createHostel, getHostels, getHostelById, updateHostel, deleteHostel,
-  
-  // User Management  
+
+  // User Management
   createUser, getUsers, updateUser, deleteUser,
-  
+
   // Room Type Management
   createRoomType, getRoomTypes, updateRoomType, deleteRoomType,
-  
+
   // Room Management
   createRoom, getRooms, updateRoom, deleteRoom,
-  
+
   // Session Management
   createSession, getSessions, updateSession, deleteSession,
-  
+
   // Facility Type Management
   createFacilityType, getFacilityTypes, updateFacilityType, deleteFacilityType,
-  
+
   // Facility Management
   createFacility, getFacilities, updateFacility, deleteFacility,
-  
+
   // Maintenance Management
   createMaintenance, getMaintenance, updateMaintenance, deleteMaintenance,
-  
+
   // Finance Management
   createIncomeType, getIncomeTypes, updateIncomeType, deleteIncomeType,
   createExpenseType, getExpenseTypes, updateExpenseType, deleteExpenseType,
-  
+
   // Supplier Management
   createSupplier, getSuppliers, getSupplierById, updateSupplier, deleteSupplier,
-  
+
   // UOM Management
   createUOM, getUOMs, updateUOM, deleteUOM,
-  
+
   // Dashboard
-  getDashboardStats
+  getDashboardStats,
+  getAdminChartData // ADD THIS LINE
 } = require('../controllers/adminController');
 
 const { auth, authorize } = require('../middleware/auth');
@@ -49,6 +50,7 @@ router.use(authorize(['admin']));
 
 // Dashboard
 router.get('/dashboard-stats', getDashboardStats);
+router.get('/chart-data', getAdminChartData); // ADD THIS LINE
 
 // Hostel Management
 router.post('/hostels', createHostel);

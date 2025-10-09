@@ -1328,6 +1328,78 @@ const getMyDailyMessCharges = async (req, res) => {
   }
 };
 
+
+const getMonthlyMessExpensesChartData = async (req, res) => {
+  try {
+    const student_id = req.user.id;
+    // Fetch data for the last 12 months (current month included)
+    const twelveMonthsAgo = moment().subtract(11, 'months').startOf('month');
+
+    const monthlyExpenses = await MessBill.findAll({
+      attributes: [
+        'year',
+        'month',
+        [sequelize.fn('SUM', sequelize.col('amount')), 'total_amount'],
+      ],
+      where: {
+        student_id,
+        [Op.or]: [
+          {
+            year: { [Op.gt]: twelveMonthsAgo.year() },
+          },
+          {
+            year: twelveMonthsAgo.year(),
+            month: { [Op.gte]: twelveMonthsAgo.month() + 1 }, // moment().month() is 0-indexed, DB month is 1-indexed
+          },
+        ],
+      },
+      group: ['year', 'month'],
+      order: [['year', 'ASC'], ['month', 'ASC']],
+      raw: true,
+    });
+
+    res.json({ success: true, data: monthlyExpenses });
+  } catch (error) {
+    console.error('Error fetching monthly mess expenses chart data:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const getMonthlyAttendanceChartData = async (req, res) => {
+  try {
+    const student_id = req.user.id;
+    // Fetch data for the last 12 months (current month included)
+    const twelveMonthsAgo = moment().subtract(11, 'months').startOf('month');
+
+    const monthlyAttendance = await Attendance.findAll({
+      attributes: [
+        [sequelize.fn('YEAR', sequelize.col('date')), 'year'],
+        [sequelize.fn('MONTH', sequelize.col('date')), 'month'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN status = 'P' THEN 1 ELSE 0 END")), 'present_days'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN status = 'A' THEN 1 ELSE 0 END")), 'absent_days'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN status = 'OD' THEN 1 ELSE 0 END")), 'on_duty_days'],
+        // Optionally, you could also count total days marked in the month if needed
+        // [sequelize.fn('COUNT', sequelize.col('id')), 'total_marked_days'],
+      ],
+      where: {
+        student_id,
+        date: {
+          [Op.gte]: twelveMonthsAgo.format('YYYY-MM-DD')
+        }
+      },
+      group: [sequelize.fn('YEAR', sequelize.col('date')), sequelize.fn('MONTH', sequelize.col('date'))],
+      order: [[sequelize.fn('YEAR', sequelize.col('date')), 'ASC'], [sequelize.fn('MONTH', sequelize.col('date')), 'ASC']],
+      raw: true,
+    });
+
+    res.json({ success: true, data: monthlyAttendance });
+  } catch (error) {
+    console.error('Error fetching monthly attendance chart data:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+
 module.exports = {
   // Profile Management
   getProfile,
@@ -1376,5 +1448,7 @@ module.exports = {
   // Special Food Orders
   getAvailableSpecialFoodItems,
   getSpecialFoodItemCategories,
-  getMyDailyMessCharges
+  getMyDailyMessCharges,
+  getMonthlyMessExpensesChartData,
+  getMonthlyAttendanceChartData,
 };
