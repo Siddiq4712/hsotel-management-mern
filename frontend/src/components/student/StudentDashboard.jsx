@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { studentAPI } from '../../services/api';
 import { User, Bed, Receipt, Calendar } from 'lucide-react';
+import { CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
 // NEW: Chart.js Imports
 import { Bar } from 'react-chartjs-2';
 import {
@@ -32,6 +33,8 @@ const StudentDashboard = () => {
   const [messExpenseChartData, setMessExpenseChartData] = useState(null);
   const [attendanceChartData, setAttendanceChartData] = useState(null);
   const [chartLoading, setChartLoading] = useState(true);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+
 
   // Function to process mess expense data for Chart.js
   const processMessExpenseData = (data) => {
@@ -238,11 +241,11 @@ const StudentDashboard = () => {
   const getStatusDisplay = (status) => {
     switch (status) {
       case 'P':
-        return { icon: <CheckCircle className="text-green-600" size={48} />, text: 'Present', color: 'bg-green-50 border-green-200 text-green-800' };
+        return { icon: <CheckCircleOutlined  className="text-green-600" size={48} />, text: 'Present', color: 'bg-green-50 border-green-200 text-green-800' };
       case 'A':
-        return { icon: <XCircle className="text-red-600" size={48} />, text: 'Absent', color: 'bg-red-50 border-red-200 text-red-800' };
+        return { icon: <CloseCircleOutlined className="text-red-600" size={48} />, text: 'Absent', color: 'bg-red-50 border-red-200 text-red-800' };
       case 'OD':
-        return { icon: <Clock className="text-blue-600" size={48} />, text: 'On Duty', color: 'bg-blue-50 border-blue-200 text-blue-800' };
+        return { icon: <ClockCircleOutlined className="text-blue-600" size={48} />, text: 'On Duty', color: 'bg-blue-50 border-blue-200 text-blue-800' };
       default:
         return { icon: null, text: 'Not Marked', color: 'bg-gray-50 border-gray-200 text-gray-500' };
     }

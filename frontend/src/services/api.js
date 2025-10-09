@@ -35,6 +35,9 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
   getProfile: () => api.get('/auth/profile'),
+  googleLogin: () => {
+    window.location.href = `${API_BASE_URL}/auth/google`;
+  },
 };
 
 // Admin API - Complete CRUD operations

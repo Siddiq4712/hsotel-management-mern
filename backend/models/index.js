@@ -43,7 +43,16 @@ const User = sequelize.define('User', {
   is_active: {  // ADD THIS FIELD
     type: DataTypes.BOOLEAN,
     defaultValue: true
-  }
+  },
+  google_id: {
+  type: DataTypes.STRING,
+  allowNull: true,
+  unique: true
+},
+profile_picture: {
+  type: DataTypes.TEXT,
+  allowNull: true
+}
 }, {
   tableName: 'tbl_Users',
   timestamps: true

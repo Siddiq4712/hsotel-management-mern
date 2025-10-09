@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { StockProvider } from './context/StockContext'; // Import StockProvider
 import Layout from './components/common/Layout';
 import Login from './components/auth/Login';
+import OAuthCallback from './components/auth/OAuthCallback';
 
 // Admin Components
 import AdminDashboard from './components/admin/AdminDashboard';
@@ -274,7 +275,7 @@ function App() {
           <div className="App">
             <Routes>
               <Route path="/login" element={<Login />} />
-              
+              <Route path="/auth/callback" element={<OAuthCallback />} />
               <Route
                 path="/*"
                 element={
