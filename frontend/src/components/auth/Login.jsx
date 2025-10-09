@@ -1,18 +1,66 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Building, User, Lock, AlertCircle } from 'lucide-react';
+import { Building, User, Lock, AlertCircle, Info } from 'lucide-react';
+import { Divider, Button, Alert, message } from 'antd';
+import { GoogleOutlined } from '@ant-design/icons';
+import { authAPI } from '../../services/api';
 
 const Login = () => {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [oauthError, setOauthError] = useState('');
   const { login } = useAuth();
+  const location = useLocation();
+
+  // Handle OAuth error messages from URL parameters
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const error = urlParams.get('error');
+    const errorMessage = urlParams.get('message');
+    
+    if (error) {
+      let displayMessage = 'Authentication failed';
+      
+      switch (error) {
+        case 'access_denied':
+          displayMessage = 'Access denied. Please try again.';
+          break;
+        case 'not_registered':
+          displayMessage = errorMessage ? 
+            decodeURIComponent(errorMessage) : 
+            'Your account is not registered in the system. Please contact your administrator.';
+          break;
+        case 'account_inactive':
+          displayMessage = 'Your account is inactive. Please contact your administrator.';
+          break;
+        case 'invalid_role':
+          displayMessage = 'Your account does not have valid permissions.';
+          break;
+        case 'server_error':
+          displayMessage = 'Server error occurred. Please try again later.';
+          break;
+        case 'oauth_failed':
+          displayMessage = 'Google authentication failed. Please try again.';
+          break;
+        default:
+          displayMessage = 'An error occurred during authentication.';
+      }
+      
+      setOauthError(displayMessage);
+      message.error(displayMessage, 8); // Show for 8 seconds
+      
+      // Clear URL parameters after showing the error
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [location]);
 
   const handleSubmit = async (e) => {
-    
     e.preventDefault();
     setLoading(true);
     setError('');
+    setOauthError(''); // Clear OAuth errors when attempting regular login
 
     const result = await login(credentials);
 
@@ -30,6 +78,16 @@ const Login = () => {
       ...credentials,
       [e.target.name]: e.target.value
     });
+    // Clear errors when user starts typing
+    if (error) setError('');
+    if (oauthError) setOauthError('');
+  };
+
+  // Google login handler
+  const handleGoogleLogin = () => {
+    setError('');
+    setOauthError('');
+    authAPI.googleLogin();
   };
 
   return (
@@ -52,13 +110,27 @@ const Login = () => {
         {/* Login Form Card */}
         <div className="bg-white py-8 px-6 shadow-sm rounded-lg border border-gray-200">
           
-          {/* Error Message */}
+          {/* Regular Login Error Message */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-400 rounded-r">
               <div className="flex">
                 <AlertCircle className="h-5 w-5 text-red-400 mr-3 mt-0.5" />
                 <p className="text-sm text-red-700">{error}</p>
               </div>
+            </div>
+          )}
+
+          {/* OAuth Error Message */}
+          {oauthError && (
+            <div className="mb-6">
+              <Alert
+                message="Google Sign-In Error"
+                description={oauthError}
+                type="error"
+                showIcon
+                closable
+                onClose={() => setOauthError('')}
+              />
             </div>
           )}
 
@@ -129,6 +201,32 @@ const Login = () => {
               </button>
             </div>
           </form>
+
+          {/* Divider */}
+          <Divider>OR</Divider>
+          
+          {/* Google Login Info Alert */}
+          <div className="mb-4">
+            <Alert
+              message="Google Sign-In"
+              description="Only users with pre-registered accounts can sign in with Google. Contact your administrator if you need access."
+              type="info"
+              showIcon
+              icon={<Info className="h-4 w-4" />}
+            />
+          </div>
+
+          {/* Google Login Button */}
+          <Button 
+            type="default" 
+            size="large" 
+            icon={<GoogleOutlined />}
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full h-12 text-base font-medium border-gray-300 hover:border-blue-500 hover:text-blue-500 focus:border-blue-500 focus:text-blue-500"
+          >
+            Continue with Google
+          </Button>
 
           {/* Admin Credentials Info */}
           <div className="mt-6 pt-6 border-t border-gray-200">

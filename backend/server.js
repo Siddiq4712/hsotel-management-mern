@@ -3,6 +3,9 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
+const session = require('express-session'); // <-- Add this
+const passport = require('./config/passport'); // <-- Add this
+
 const { sequelize, User } = require('./models');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
@@ -15,6 +18,18 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// ----- SESSION & PASSPORT CONFIG -----
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-session-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false } // Set to true in production with HTTPS
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+// ------------------------------------
 
 // Routes
 app.use('/api/auth', authRoutes);
