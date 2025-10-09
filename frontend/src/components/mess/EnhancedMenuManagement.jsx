@@ -57,6 +57,7 @@ const EnhancedMenuManagement = () => {
       const response = await messAPI.getMenus(params);
       setMenus(response.data.data || []);
     } catch (error) {
+      console.error('Failed to fetch menus:', error);
       message.error('Failed to fetch menus');
     } finally {
       setLoading(false);
@@ -68,6 +69,7 @@ const EnhancedMenuManagement = () => {
       const response = await messAPI.getItems();
       setItems(response.data.data || []);
     } catch (error) {
+      console.error('Failed to fetch items:', error);
       message.error('Failed to fetch items');
     }
   };
@@ -77,6 +79,7 @@ const EnhancedMenuManagement = () => {
       const response = await messAPI.getItemCategories();
       setCategories(response.data.data || []);
     } catch (error) {
+      console.error('Failed to fetch categories:', error);
       message.error('Failed to fetch categories');
     }
   };
@@ -87,7 +90,7 @@ const EnhancedMenuManagement = () => {
     setModalVisible(true);
   };
 
-  const handleEdit = (menu) => {
+  const handleEdit = async (menu) => {
     setEditingMenu(menu);
     form.setFieldsValue({
       name: menu.name,
@@ -102,14 +105,15 @@ const EnhancedMenuManagement = () => {
   const handleDelete = async (id) => {
     Modal.confirm({
       title: 'Are you sure you want to delete this menu?',
-      content: 'This action cannot be undone.',
+      content: 'This action cannot be undone and will also delete associated items.',
       onOk: async () => {
         try {
           await messAPI.deleteMenu(id);
           message.success('Menu deleted successfully');
           fetchMenus();
         } catch (error) {
-          message.error('Failed to delete menu');
+          console.error('Delete error:', error);
+          message.error('Failed to delete menu: ' + (error.response?.data?.message || 'Unknown error'));
         }
       },
     });
@@ -128,7 +132,8 @@ const EnhancedMenuManagement = () => {
       setModalVisible(false);
       fetchMenus();
     } catch (error) {
-      message.error('Failed to save menu');
+      console.error('Submit error:', error);
+      message.error('Failed to save menu: ' + (error.response?.data?.message || 'Unknown error'));
     } finally {
       setConfirmLoading(false);
     }
@@ -141,7 +146,8 @@ const EnhancedMenuManagement = () => {
       setCurrentMenu(response.data.data);
       setDrawerVisible(true);
     } catch (error) {
-      message.error('Failed to load menu details');
+      console.error('Failed to load menu details:', error);
+      message.error('Failed to load menu details: ' + (error.response?.data?.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -158,7 +164,8 @@ const EnhancedMenuManagement = () => {
       setCurrentMenu(response.data.data);
       itemForm.resetFields();
     } catch (error) {
-      message.error('Failed to add item');
+      console.error('Add item error:', error);
+      message.error('Failed to add item: ' + (error.response?.data?.message || 'Unknown error'));
     }
   };
 
@@ -170,7 +177,8 @@ const EnhancedMenuManagement = () => {
       const response = await messAPI.getMenuWithItems(currentMenu.menu.id);
       setCurrentMenu(response.data.data);
     } catch (error) {
-      message.error('Failed to remove item');
+      console.error('Remove item error:', error);
+      message.error('Failed to remove item: ' + (error.response?.data?.message || 'Unknown error'));
     }
   };
 
@@ -227,18 +235,25 @@ const EnhancedMenuManagement = () => {
             size="small"
             type="primary"
             ghost
-          />
+          >
+            View
+          </Button>
           <Button 
             icon={<EditOutlined />} 
             onClick={() => handleEdit(record)} 
             size="small"
-          />
+          >
+            Edit
+          </Button>
           <Button 
             icon={<DeleteOutlined />} 
             onClick={() => handleDelete(record.id)} 
             size="small"
             danger
-          />
+            loading={loading}
+          >
+            Delete
+          </Button>
           <Button 
             icon={<CalendarOutlined />} 
             onClick={() => handleScheduleMenu(record)} 
@@ -298,7 +313,7 @@ const EnhancedMenuManagement = () => {
       {/* Create/Edit Menu Modal */}
       <Modal
         title={editingMenu ? 'Edit Menu' : 'Create Menu'}
-        visible={modalVisible}
+        open={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}
         confirmLoading={confirmLoading}
@@ -371,7 +386,14 @@ const EnhancedMenuManagement = () => {
         placement="right"
         width={600}
         onClose={() => setDrawerVisible(false)}
-        visible={drawerVisible}
+        open={drawerVisible}
+        extra={
+          <Space>
+            <Button onClick={() => setDrawerVisible(false)}>
+              Close
+            </Button>
+          </Space>
+        }
       >
         {currentMenu && (
           <>
@@ -401,6 +423,7 @@ const EnhancedMenuManagement = () => {
                             type="link" 
                             danger
                             onClick={() => handleRemoveItem(item.item_id)}
+                            loading={loading}
                           >
                             Remove
                           </Button>
@@ -471,7 +494,7 @@ const EnhancedMenuManagement = () => {
                   </Form.Item>
                   
                   <Form.Item>
-                    <Button type="primary" htmlType="submit">
+                    <Button type="primary" htmlType="submit" loading={loading}>
                       Add Item
                     </Button>
                   </Form.Item>

@@ -27,6 +27,11 @@ const User = sequelize.define('User', {
     type: DataTypes.ENUM('student', 'warden', 'admin', 'mess','lapc'),
     allowNull: false
   },
+  roll_number: {  // NEW FIELD
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true
+  },
   hostel_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
@@ -202,6 +207,11 @@ const Enrollment = sequelize.define('Enrollment', {
       key: 'id'
     }
   },
+  roll_number: {  // NEW FIELD
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true
+  },
   hostel_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -227,10 +237,6 @@ const Enrollment = sequelize.define('Enrollment', {
   requires_bed: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
-  },
-  initial_emi_status: {
-    type: DataTypes.ENUM('not_required', 'pending', 'paid'),
-    defaultValue: 'not_required'
   },
   status: {
     type: DataTypes.ENUM('active', 'inactive', 'suspended'),
@@ -750,12 +756,17 @@ const Attendance = sequelize.define('Attendance', {
     allowNull: false,
     references: { model: 'tbl_Users', key: 'id' }
   },
+  hostel_id: {  // NEW FIELD
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Hostel', key: 'id' }
+  },
   date: { // This 'date' is the primary date of the record
     type: DataTypes.DATEONLY,
     allowNull: false
   },
  status: {
-    type: DataTypes.ENUM('P', 'A', 'OD'), 
+    type: DataTypes.ENUM('P', 'A', 'OD'),
     allowNull: false
   },
   from_date: {
@@ -2145,7 +2156,7 @@ const DailyMessCharge = sequelize.define('DailyMessCharge', {
     defaultValue: 0.00
   },
   attendance_status: {
-    type: DataTypes.ENUM('present', 'absent', 'leave', 'not_marked'),
+    type: DataTypes.ENUM('present', 'absent', 'on_duty', 'not_marked'),
     allowNull: false
   },
   is_charged: {

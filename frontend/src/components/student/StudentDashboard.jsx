@@ -26,6 +26,7 @@ ChartJS.register(
 
 const StudentDashboard = () => {
   const [profile, setProfile] = useState(null);
+  const [attendance, setAttendance] = useState(null);
   const [loading, setLoading] = useState(true);
   // NEW: State for chart data and loading
   const [messExpenseChartData, setMessExpenseChartData] = useState(null);
@@ -220,6 +221,33 @@ const StudentDashboard = () => {
     },
   };
 
+  const fetchAttendance = async () => {
+    setAttendanceLoading(true);
+    try {
+      const date = moment().format('YYYY-MM-DD');
+      const response = await studentAPI.getMyAttendance({ date });
+      const records = response.data.data || [];
+      setAttendance(records.length > 0 ? records[0] : null);
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const getStatusDisplay = (status) => {
+    switch (status) {
+      case 'P':
+        return { icon: <CheckCircle className="text-green-600" size={48} />, text: 'Present', color: 'bg-green-50 border-green-200 text-green-800' };
+      case 'A':
+        return { icon: <XCircle className="text-red-600" size={48} />, text: 'Absent', color: 'bg-red-50 border-red-200 text-red-800' };
+      case 'OD':
+        return { icon: <Clock className="text-blue-600" size={48} />, text: 'On Duty', color: 'bg-blue-50 border-blue-200 text-blue-800' };
+      default:
+        return { icon: null, text: 'Not Marked', color: 'bg-gray-50 border-gray-200 text-gray-500' };
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -227,6 +255,8 @@ const StudentDashboard = () => {
       </div>
     );
   }
+
+  const statusInfo = attendance ? getStatusDisplay(attendance.status) : getStatusDisplay(null);
 
   return (
     <div>
