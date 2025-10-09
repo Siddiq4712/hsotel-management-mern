@@ -218,9 +218,11 @@ const getRoomOccupants = async (req, res) => {
 const getDashboardStats = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
-    const totalStudents = await User.count({ where: { role: 'student', hostel_id, is_active: true } });
-    const totalRooms = await HostelRoom.count({ where: { hostel_id, is_active: true } });
     
+    // Total Students
+    const totalStudents = await User.count({ where: { role: 'student', hostel_id, is_active: true } });
+
+    // Room Occupancy Stats (already good, just using occupiedBeds and totalCapacity for chart)
     const totalCapacityResult = await HostelRoom.findOne({
         attributes: [[sequelize.fn('SUM', sequelize.col('RoomType.capacity')), 'totalCapacity']],
         include: [{ model: RoomType, attributes: [], required: true }],
@@ -229,40 +231,99 @@ const getDashboardStats = async (req, res) => {
     });
     const totalCapacity = totalCapacityResult ? Number(totalCapacityResult.totalCapacity) : 0;
     const occupiedBeds = await HostelRoom.sum('occupancy_count', { where: { hostel_id, is_active: true } }) || 0;
-    const availableBeds = totalCapacity - occupiedBeds;
+    const availableBeds = totalCapacity - occupiedBeds; // Ensure it's not negative
 
-    const pendingLeaves = await Leave.count({
-      where: { status: 'pending' },
-      include: [{ model: User, as: 'Student', where: { hostel_id }, attributes: [] }]
+    // Leave Request Stats for Chart
+    const leaveCounts = await Leave.findAll({
+      attributes: ['status', [sequelize.fn('COUNT', sequelize.col('Leave.id')), 'count']],
+      where: {
+        '$Student.hostel_id$': hostel_id // Access hostel_id through the associated Student model
+      },
+      include: [{
+        model: User,
+        as: 'Student',
+        attributes: [], // We only need it for the WHERE clause
+        required: true
+      }],
+      group: ['status'],
+      raw: true
     });
-    const pendingComplaints = await Complaint.count({
-      where: { status: ['submitted', 'in_progress'] },
-      include: [{ model: User, as: 'Student', where: { hostel_id }, attributes: [] }]
+    const leaveStatus = leaveCounts.reduce((acc, curr) => {
+      acc[curr.status] = curr.count;
+      return acc;
+    }, { pending: 0, approved: 0, rejected: 0 });
+    const totalLeaves = leaveCounts.reduce((sum, curr) => sum + curr.count, 0);
+
+    // Complaint Status Stats for Chart
+    const complaintCounts = await Complaint.findAll({
+      attributes: ['status', [sequelize.fn('COUNT', sequelize.col('Complaint.id')), 'count']],
+      where: {
+        '$Student.hostel_id$': hostel_id // Access hostel_id through the associated Student model
+      },
+      include: [{
+        model: User,
+        as: 'Student',
+        attributes: [], // We only need it for the WHERE clause
+        required: true
+      }],
+      group: ['status'],
+      raw: true
     });
+    const complaintStatus = complaintCounts.reduce((acc, curr) => {
+      acc[curr.status] = curr.count;
+      return acc;
+    }, { submitted: 0, in_progress: 0, resolved: 0, closed: 0 });
+    const totalComplaints = complaintCounts.reduce((sum, curr) => sum + curr.count, 0);
+
+    // Quick Actions (existing)
+    const pendingLeaves = leaveStatus.pending;
+    const pendingComplaints = complaintStatus.submitted + complaintStatus.in_progress; // Pending includes submitted and in_progress
+
     const recentLeaves = await Leave.findAll({
-      where: { createdAt: { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-      include: [{ model: User, as: 'Student', where: { hostel_id }, attributes: ['id', 'username'] }],
+      where: { 
+        createdAt: { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        '$Student.hostel_id$': hostel_id
+      },
+      include: [{ model: User, as: 'Student', attributes: ['id', 'username'], required: true }],
       order: [['createdAt', 'DESC']],
       limit: 5
     });
     const recentComplaints = await Complaint.findAll({
-      where: { createdAt: { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-      include: [{ model: User, as: 'Student', where: { hostel_id }, attributes: ['id', 'username'] }],
+      where: { 
+        createdAt: { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        '$Student.hostel_id$': hostel_id
+      },
+      include: [{ model: User, as: 'Student', attributes: ['id', 'username'], required: true }],
       order: [['createdAt', 'DESC']],
       limit: 5
     });
+
     res.json({
       success: true,
       data: {
-        totalStudents, totalRooms, occupiedBeds, availableBeds,
-        pendingLeaves, pendingComplaints, recentLeaves, recentComplaints
+        totalStudents,
+        totalCapacity, // Total available bed capacity in the hostel
+        occupiedBeds,
+        availableBeds: Math.max(0, availableBeds), // Ensure availableBeds is not negative
+        
+        pendingLeaves,
+        totalLeaves,
+        leaveStatus, // For chart
+
+        pendingComplaints,
+        totalComplaints,
+        complaintStatus, // For chart
+
+        recentLeaves,
+        recentComplaints
       }
     });
   } catch (error) {
     console.error('Dashboard stats error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+
 
 const getSessions = async (req, res) => {
   try {
