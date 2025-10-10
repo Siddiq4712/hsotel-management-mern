@@ -46,6 +46,9 @@ export const adminAPI = {
   getDashboardStats: () => api.get('/admin/dashboard-stats'),
   getAdminChartData: () => api.get('/admin/chart-data'), // ADD THIS LINE
 
+  getMonthlyExpensesChartData: (params) => api.get('/mess/chart-data/monthly-expenses', { params }),
+  getItemStockChartData: () => api.get('/mess/chart-data/item-stock'),
+
   // Hostel Management - Complete CRUD
   createHostel: (data) => api.post('/admin/hostels', data),
   getHostels: (params) => api.get('/admin/hostels', { params }),
@@ -226,6 +229,8 @@ export const studentAPI = {
 export const messAPI = {
   // Dashboard
   getMessDashboardStats: () => api.get('/mess/dashboard-stats'),
+   getMonthlyExpensesChartData: (params) => api.get('/mess/chart-data/monthly-expenses', { params }),
+  getItemStockChartData: () => api.get('/mess/chart-data/item-stock'),
 
   // Menu Management - Complete CRUD
   // Expected data: { name, meal_type, description, estimated_servings, preparation_time, items: [{ item_id, quantity, unit, preparation_notes }] }

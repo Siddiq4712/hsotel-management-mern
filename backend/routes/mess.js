@@ -130,6 +130,8 @@ const {
 
   getIncomeEntries,
   createIncomeEntry,
+  getMonthlyExpensesChartData, // Add this
+  getItemStockChartData, 
   getSessions,
 
   generateDailyRateReport
@@ -197,6 +199,9 @@ router.use(auth);
 
 // Dashboard (accessible to mess, warden, admin)
 router.get('/dashboard-stats', authorize(['mess', 'warden', 'admin']), getMessDashboardStats);
+
+router.get('/chart-data/monthly-expenses', authorize(['mess', 'admin']), getMonthlyExpensesChartData);
+router.get('/chart-data/item-stock', authorize(['mess', 'admin']), getItemStockChartData);
 
 // Menu Management - Complete CRUD
 router.post('/menus', authorize(['mess', 'admin']), validateMenu, createMenu);
