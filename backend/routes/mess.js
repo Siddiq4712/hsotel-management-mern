@@ -132,11 +132,12 @@ const {
   createIncomeEntry,
   getSessions,
 
-  generateDailyRateReport
+  generateDailyRateReport,
+  getStudents,
+  recordStaffRecordedSpecialFoodConsumption
 
 
 } = require('../controllers/messController');
-const { getStudents } = require('../controllers/wardenController');
 const { auth, authorize } = require('../middleware/auth');
 
 const router = express.Router();
@@ -321,7 +322,6 @@ router.post('/student-fees/bulk', authorize(['mess', 'admin']), createBulkStuden
 router.get('/student-fees', authorize(['mess', 'admin']), getStudentFees);
 router.get('/sessions', authorize(['mess', 'warden', 'admin']), getSessions);
 
-router.get('/students',authorize(['warden','mess']), getStudents);
 
 router.post('/credit-token',authorize(['mess', 'admin']),createCreditToken);
 router.get('/credit-token', authorize(['mess', 'admin']),getCreditTokens);
@@ -337,6 +337,9 @@ router.get('/income-entries', authorize(['mess', 'admin']), getIncomeEntries);
 router.post('/income-entries', authorize(['mess', 'admin']), createIncomeEntry);
 
 router.get('/reports/daily-rate-calculation', authorize(['mess', 'admin']), generateDailyRateReport);
+
+router.get('/students',authorize(['mess', 'admin']),getStudents);
+router.post('/student-special-consumption-staff',authorize(['mess', 'admin']),recordStaffRecordedSpecialFoodConsumption);
 
 
 module.exports = router;

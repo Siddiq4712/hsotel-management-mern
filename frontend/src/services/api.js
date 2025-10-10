@@ -374,6 +374,9 @@ export const messAPI = {
 
   generateDailyRateReport: (params) => api.get('/mess/reports/daily-rate-calculation', { params }),
   exportDailyRateReport: (params) => api.get('/mess/reports/daily-rate-calculation', { params: { ...params, export: true }, responseType: 'blob' }),
+
+  getStudents: () => api.get('/mess/students'), // Endpoint to fetch students for dropdown
+  recordStaffRecordedSpecialFoodConsumption: (data) => api.post('/mess/student-special-consumption-staff', data),
 };
 
 export default api;
