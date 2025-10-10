@@ -19,6 +19,7 @@ import ManageFacilities from './components/admin/ManageFacilities';
 import ManageMaintenance from './components/admin/ManageMaintenance';
 import ManageIncomeTypes from './components/admin/ManageIncomeTypes';
 import ManageExpenseTypes from './components/admin/ManageExpenseTypes';
+import RecordStudentSpecialMeal from './components/mess/RecordStudentSpecialMeal';
 
 // Warden Components
 import WardenDashboard from './components/warden/WardenDashboard';
@@ -208,7 +209,7 @@ const DashboardRouter = () => {
           case 'stock':
             return <StockManagement />;
           case 'consumption':
-            return <DailyConsumption />;
+            return <RecordStudentSpecialMeal />;
           case 'daily-operations':
             return <DailyOperations />;
           case 'consumption-report':

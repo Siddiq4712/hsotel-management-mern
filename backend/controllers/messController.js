@@ -4379,6 +4379,24 @@ const getMessFeeSummary = async (req, res) => {
     });
   }
 };
+const getStudents = async (req, res) => {
+  try {
+    const hostel_id = req.user.hostel_id; // Get hostel_id from authenticated user
+    const students = await User.findAll({
+      where: {
+        hostel_id,
+        role: 'student', // Filter for users with 'student' role
+        is_active: true // Only active students
+      },
+      attributes: ['id', 'username', 'email', 'roll_number'], // Customize attributes as needed
+      order: [['username', 'ASC']] // Order by name for easy lookup
+    });
+    res.json({ success: true, data: students });
+  } catch (error) {
+    console.error('Error fetching students for special meal form:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
 // Add this new function to messController.js
 const getStudentFeeBreakdown = async (req, res) => {
   try {
@@ -5777,6 +5795,131 @@ const totalManDays = await Attendance.count({
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+
+const recordStaffRecordedSpecialFoodConsumption = async (req, res) => {
+  const transaction = await sequelize.transaction(); // Start a transaction for atomicity
+  try {
+    const { student_id, consumption_date, items, description } = req.body;
+    const hostel_id = req.user.hostel_id;
+    const recorded_by = req.user.id; // The mess staff user recording this
+
+    // Input validation
+    if (!student_id || !consumption_date || !items || !Array.isArray(items) || items.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Student ID, consumption date, and at least one food item are required.'
+      });
+    }
+
+    // 1. Validate student and special food items
+    const student = await User.findOne({ where: { id: student_id, hostel_id, role: 'student' }, transaction });
+    if (!student) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'Student not found or not associated with this hostel.' });
+    }
+
+    const foodItemIds = items.map(item => item.food_item_id);
+    const specialFoodItemsDetails = await SpecialFoodItem.findAll({
+      where: {
+        id: { [Op.in]: foodItemIds },
+        is_available: true // Ensure only available items can be recorded
+      },
+      transaction
+    });
+
+    if (specialFoodItemsDetails.length !== foodItemIds.length) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'One or more selected special food items are not available or do not exist.' });
+    }
+    const foodItemMap = new Map(specialFoodItemsDetails.map(item => [item.id, item]));
+
+    let totalOrderAmount = 0;
+    const foodOrderItemsToCreate = [];
+
+    for (const item of items) {
+      const foodItem = foodItemMap.get(item.food_item_id);
+      if (!foodItem) { // Should not happen if previous check passed, but good for safety
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: `Food item with ID ${item.food_item_id} details not found.` });
+      }
+      if (item.quantity <= 0) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: `Quantity for item "${foodItem.name}" must be a positive number.` });
+      }
+      
+      const subtotal = parseFloat(foodItem.price) * item.quantity;
+      totalOrderAmount += subtotal;
+
+      foodOrderItemsToCreate.push({
+        food_item_id: item.food_item_id,
+        quantity: item.quantity,
+        unit_price: foodItem.price, // Record the price at the time of consumption
+        subtotal,
+        // special_instructions could be derived from 'description' or left blank
+      });
+    }
+
+    // 2. Create a FoodOrder record
+    // This records the "order" as if the staff placed it for the student.
+    const foodOrder = await FoodOrder.create({
+      student_id,
+      hostel_id,
+      // `requested_time` can be set to the consumption date/time.
+      // `moment(consumption_date)` creates a moment object from the date string.
+      // `.format('YYYY-MM-DD HH:mm:ss')` formats it for SQL DATETIME.
+      requested_time: moment(consumption_date).format('YYYY-MM-DD HH:mm:ss'), 
+      total_amount: totalOrderAmount,
+      notes: description || `Special meal recorded by mess staff on ${moment(consumption_date).format('DD-MM-YYYY')}`,
+      status: 'confirmed', // Mark as delivered because staff is recording post-consumption
+      payment_status: 'pending', // Payment is pending, to be added to student's bill
+      order_date: consumption_date,
+      // You might consider adding `is_staff_recorded: true` column to FoodOrder model for clearer distinction.
+    }, { transaction });
+
+    // 3. Create FoodOrderItem records linked to the new FoodOrder
+    await Promise.all(foodOrderItemsToCreate.map(item =>
+      FoodOrderItem.create({
+        food_order_id: foodOrder.id,
+        ...item
+      }, { transaction })
+    ));
+
+    // 4. Create a StudentFee entry to add the cost to the student's bill
+    const feeMonth = moment(consumption_date).month() + 1; // Moment.js months are 0-indexed (0-11), DB months are 1-12
+    const feeYear = moment(consumption_date).year();
+
+    const studentFee = await StudentFee.create({
+      student_id,
+      hostel_id,
+      fee_type: 'special_food_charge', // Ensure 'special_food_charge' is a valid fee_type in your StudentFee model's ENUM/validation
+      amount: totalOrderAmount,
+      description: `Special meal charges for ${moment(consumption_date).format('DD-MM-YYYY')} (Order #${foodOrder.id})`,
+      month: feeMonth,
+      year: feeYear,
+      issued_by: recorded_by, // The staff member who issued this charge
+      // If you added `food_order_id` to your StudentFee model, you could link it here.
+      // food_order_id: foodOrder.id,
+    }, { transaction });
+
+    await transaction.commit(); // Commit the transaction if all operations succeed
+
+    res.status(201).json({
+      success: true,
+      message: 'Special meal recorded, order created, and charges added to student fees successfully.',
+      data: {
+        foodOrder,
+        studentFee
+      }
+    });
+
+  } catch (error) {
+    await transaction.rollback(); // Rollback if any error occurs
+    console.error('Error recording staff-initiated special food consumption:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + (error.message || 'Unknown error') });
+  }
+};
+
 module.exports = {
   createMenu,
   getMenus,
@@ -5878,6 +6021,9 @@ module.exports = {
   deleteConcern,
   getIncomeEntries,
   createIncomeEntry,
+  generateDailyRateReport,
+  getStudents,
+  recordStaffRecordedSpecialFoodConsumption
   getMonthlyExpensesChartData, // Add this
   getItemStockChartData,  
   generateDailyRateReport
