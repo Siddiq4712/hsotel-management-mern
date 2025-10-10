@@ -8,6 +8,7 @@ const {
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
 const moment = require('moment');
+const { getMonthDateRange } = require('../utils/dateUtils'); // Assuming dateUtils is in ../utils
 // const { getSessions } = require('./wardenController');
 
 // Custom rounding function: <= 0.20 rounds down, > 0.20 rounds up
@@ -1131,6 +1132,149 @@ const getMessDashboardStats = async (req, res) => {
   } catch (error) {
     console.error('Dashboard stats error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const getMonthlyExpensesChartData = async (req, res) => {
+  try {
+    const { month, year } = req.query; // Expect month (1-12) and year
+    const hostel_id = req.user.hostel_id;
+
+    if (!month || !year) {
+      return res.status(400).json({ success: false, message: 'Month and year are required query parameters.' });
+    }
+
+    const { startDate, endDate } = getMonthDateRange(parseInt(month), parseInt(year));
+
+    console.log(`[Chart Data] Fetching monthly expenses for hostel ${hostel_id} from ${startDate} to ${endDate}`);
+
+    // 1. Get Food Ingredient Costs (from DailyConsumption)
+    const foodConsumptionCosts = await DailyConsumption.sum('total_cost', {
+      where: {
+        hostel_id,
+        consumption_date: { [Op.between]: [startDate, endDate] }
+      }
+    });
+
+    // 2. Get Other Mess Daily Expenses (from MessDailyExpense)
+    const otherMessExpenses = await MessDailyExpense.findAll({
+      attributes: [
+        [sequelize.col('ExpenseType.name'), 'expense_type_name'],
+        [sequelize.fn('SUM', sequelize.col('MessDailyExpense.amount')), 'total_amount']
+      ],
+      where: {
+        hostel_id,
+        expense_date: { [Op.between]: [startDate, endDate] }
+      },
+      include: [{
+        model: ExpenseType,
+        as: 'ExpenseType',
+        attributes: [], // We only need the name, which is aliased
+        required: true
+      }],
+      group: ['ExpenseType.name'],
+      raw: true
+      });
+
+    // Combine and format data
+    const labels = [];
+    const data = [];
+    let totalMonthlyExpense = 0;
+
+    if (foodConsumptionCosts > 0) {
+      labels.push('Food Ingredients');
+      data.push(parseFloat(foodConsumptionCosts));
+      totalMonthlyExpense += parseFloat(foodConsumptionCosts);
+    }
+
+    otherMessExpenses.forEach(exp => {
+      labels.push(exp.expense_type_name);
+      data.push(parseFloat(exp.total_amount));
+      totalMonthlyExpense += parseFloat(exp.total_amount);
+    });
+
+    res.json({
+      success: true,
+      data: {
+        labels,
+        datasets: [{
+          label: 'Monthly Expenses (₹)',
+          data,
+          backgroundColor: [
+            'rgba(255, 99, 132, 0.6)', 'rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)',
+            'rgba(75, 192, 192, 0.6)', 'rgba(153, 102, 255, 0.6)', 'rgba(255, 159, 64, 0.6)',
+            'rgba(199, 199, 199, 0.6)', 'rgba(83, 102, 103, 0.6)'
+          ],
+          borderColor: [
+            'rgba(255, 99, 132, 1)', 'rgba(54, 162, 235, 1)', 'rgba(255, 206, 86, 1)',
+            'rgba(75, 192, 192, 1)', 'rgba(153, 102, 255, 1)', 'rgba(255, 159, 64, 1)',
+            'rgba(199, 199, 199, 1)', 'rgba(83, 102, 103, 1)'
+          ],
+          borderWidth: 1,
+        }]
+      },
+      totalMonthlyExpense: totalMonthlyExpense.toFixed(2),
+      message: 'Monthly expenses chart data fetched successfully'
+    });
+
+  } catch (error) {
+    console.error('Error fetching monthly expenses chart data:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+// NEW: API for Item Stock Chart Data (Top 10 items by quantity)
+const getItemStockChartData = async (req, res) => {
+  try {
+    const hostel_id = req.user.hostel_id;
+
+    console.log(`[Chart Data] Fetching item stock data for hostel ${hostel_id}`);
+
+    const itemStocks = await ItemStock.findAll({
+      where: { hostel_id },
+      attributes: [
+        'item_id',
+        'current_stock',
+      ],
+      include: [{
+        model: Item,
+        attributes: ['name'],
+        required: true,
+        include: [{
+          model: UOM,
+          as: 'UOM',
+          attributes: ['abbreviation'],
+          required: false
+        }]
+      }],
+      order: [['current_stock', 'DESC']], // Order by current stock to get top items
+      limit: 10, // Limit to top 10 items for the chart
+      raw: true,
+      nest: true // Return nested results for easy access to Item.name, Item.UOM.abbreviation
+    });
+
+    // Format for Chart.js
+    const labels = itemStocks.map(stock => `${stock.Item.name} (${stock.Item.UOM.abbreviation})`);
+    const data = itemStocks.map(stock => parseFloat(stock.current_stock));
+
+    res.json({
+      success: true,
+      data: {
+        labels,
+        datasets: [{
+          label: 'Current Stock Quantity',
+          data,
+          backgroundColor: 'rgba(75, 192, 192, 0.6)',
+          borderColor: 'rgba(75, 192, 192, 1)',
+          borderWidth: 1,
+        }]
+      },
+      message: 'Item stock chart data fetched successfully'
+    });
+
+  } catch (error) {
+    console.error('Error fetching item stock chart data:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 
@@ -5155,4 +5299,6 @@ module.exports = {
   deleteConcern,
   getIncomeEntries,
   createIncomeEntry,
+  getMonthlyExpensesChartData, // Add this
+  getItemStockChartData,  
 };
