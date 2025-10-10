@@ -1206,78 +1206,125 @@ const getSpecialFoodItemCategories = async (req, res) => {
 
 // In studentController.js
 
+// In studentController.js - Modified getMyDailyMessCharges to include special food costs
+
+// Updated getMyDailyMessCharges in studentController.js to sum cost_per_serving from served menus
+
 const getMyDailyMessCharges = async (req, res) => {
   try {
+    const { month, year } = req.query;
     const student_id = req.user.id;
     const hostel_id = req.user.hostel_id;
-    const { month, year } = req.query;
 
-    const targetMonth = month ? parseInt(month) : moment().month() + 1;
-    const targetYear = year ? parseInt(year) : moment().year();
-
-    const startDate = moment({ year: targetYear, month: targetMonth - 1, day: 1 }).format('YYYY-MM-DD');
-    const endDate = moment({ year: targetYear, month: targetMonth - 1 }).endOf('month').format('YYYY-MM-DD');
-
-    const dailyMessCharges = await DailyMessCharge.findAll({
-      where: {
-        student_id,
-        hostel_id,
-        date: { [Op.between]: [startDate, endDate] },
-      },
-      order: [['date', 'ASC']],
-      raw: true
-    });
-
-    const detailedCharges = [];
-
-    for (const dmc of dailyMessCharges) {
-        const baseMessChargeAmountFromDB = parseFloat(dmc.amount || 0);
-
-        const date = dmc.date;
-        const startOfDay = moment(date).startOf('day').toDate();
-        const endOfDay = moment(date).endOf('day').toDate();
-
-        const specialFoodOrders = await FoodOrder.findAll({
-            where: {
-                student_id, hostel_id,
-                order_date: { [Op.between]: [startOfDay, endOfDay] },
-                status: { [Op.in]: ['delivered', 'ready', 'confirmed', 'preparing'] },
-                payment_status: { [Op.ne]: 'refunded' }
-            },
-            raw: true // Using raw: true simplifies the next step
-        });
-
-        // Sum up the total special food cost directly
-        const totalSpecialFoodCostRaw = specialFoodOrders.reduce((sum, order) => sum + parseFloat(order.total_amount), 0);
-        
-        // REMOVED: Rounding for special food cost
-        // const totalSpecialFoodCostRounded = customRounding(totalSpecialFoodCostRaw);
-
-        let waterBill = 0;
-        if (dmc.attendance_status !== 'on_duty') { // Assuming 'on_duty' corresponds to OD
-            waterBill = 10.00; // Example fixed charge
-        }
-        
-        // MODIFIED: Use raw values for the total
-        const dailyTotalCharge = baseMessChargeAmountFromDB + totalSpecialFoodCostRaw + waterBill;
-        
-        detailedCharges.push({
-            id: dmc.id,
-            date: dmc.date,
-            attendance_status: dmc.attendance_status,
-            baseMessCharge: baseMessChargeAmountFromDB.toFixed(4), // Show more precision
-            specialFoodCost: totalSpecialFoodCostRaw.toFixed(2),
-            waterBill: waterBill.toFixed(2),
-            dailyTotalCharge: dailyTotalCharge.toFixed(2),
-            // The detailed breakdown part can be simplified or removed if not needed for the student view
-        });
+    if (!month || !year) {
+      return res.status(400).json({ success: false, message: 'Month and year are required.' });
     }
 
-    res.status(200).json({ success: true, data: detailedCharges });
+    const startDate = moment({ year, month: month - 1 }).startOf('month').toDate();
+    const endDate = moment().isSame(moment({ year, month: month - 1 }), 'month')
+      ? moment().endOf('day').toDate() // stop at today if current month
+      : moment({ year, month: month - 1 }).endOf('month').toDate();
 
+    // ✅ Step 1: Daily menu cost (served)
+    const dailyMenuCosts = await sequelize.query(`
+      SELECT 
+        DATE(scheduled_date) as date,
+        SUM(cost_per_serving) as daily_menu_total_cost
+      FROM tbl_MenuSchedule 
+      WHERE hostel_id = :hostel_id
+        AND status = 'served'
+        AND scheduled_date BETWEEN :startDate AND :endDate
+      GROUP BY DATE(scheduled_date)
+      ORDER BY date DESC
+    `, {
+      replacements: { hostel_id, startDate, endDate },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    // ✅ Step 2: Student attendance
+    const attendanceRecords = await Attendance.findAll({
+      where: {
+        student_id,
+        date: { [Op.between]: [startDate, endDate] },
+        status: 'P'
+      },
+      attributes: ['date'],
+      raw: true
+    });
+    const presentDates = new Set(attendanceRecords.map(r => moment(r.date).format('YYYY-MM-DD')));
+
+    // ✅ Step 3: Daily base charges
+    const charges = dailyMenuCosts.map(dayCost => {
+      const dateStr = moment(dayCost.date).format('YYYY-MM-DD');
+      const wasPresent = presentDates.has(dateStr);
+      const baseCharge = wasPresent ? parseFloat(dayCost.daily_menu_total_cost) : 0;
+
+      return {
+        id: dateStr,
+        date: dateStr,
+        baseMessCharge: baseCharge,
+        specialFoodCost: 0,
+        dailyTotalCharge: baseCharge,
+        attendance_status: wasPresent ? 'P' : 'A'
+      };
+    });
+
+    // ✅ Step 4: Fetch special food costs
+    const specialFoodSums = await sequelize.query(`
+      SELECT 
+        DATE(order_date) as date,
+        SUM(total_amount) as paid_special_food_cost
+      FROM tbl_FoodOrder 
+      WHERE student_id = :student_id 
+        AND hostel_id = :hostel_id
+        AND status IN ('confirmed')
+        AND payment_status = 'pending'
+        AND order_date BETWEEN :startDate AND :endDate
+      GROUP BY DATE(order_date)
+    `, {
+      replacements: { student_id, hostel_id, startDate, endDate },
+      type: sequelize.QueryTypes.SELECT
+    });
+
+    const specialFoodMap = {};
+    specialFoodSums.forEach(sum => {
+      specialFoodMap[moment(sum.date).format('YYYY-MM-DD')] = parseFloat(sum.paid_special_food_cost || 0);
+    });
+
+    // ✅ Step 5: Merge special food into charges
+    charges.forEach(charge => {
+      const specialCost = specialFoodMap[charge.date] || 0;
+      charge.specialFoodCost = specialCost;
+      charge.dailyTotalCharge += specialCost;
+    });
+
+    // ✅ Step 6: Fill missing days till *today only*, not future
+    const allDays = [];
+    const currentDate = moment(startDate);
+    const today = moment().endOf('day');
+
+    while (currentDate.isSameOrBefore(endDate) && currentDate.isSameOrBefore(today)) {
+      const dateStr = currentDate.format('YYYY-MM-DD');
+      if (!charges.find(c => c.date === dateStr)) {
+        allDays.push({
+          id: dateStr,
+          date: dateStr,
+          baseMessCharge: 0,
+          specialFoodCost: specialFoodMap[dateStr] || 0,
+          dailyTotalCharge: specialFoodMap[dateStr] || 0,
+          attendance_status: 'A'
+        });
+      }
+      currentDate.add(1, 'day');
+    }
+
+    charges.push(...allDays);
+    charges.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    res.json({ success: true, data: charges });
   } catch (error) {
     console.error('Error fetching student daily mess charges:', error);
-    res.status(500).json({ success: false, message: `Server Error: ${error.message}` });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 

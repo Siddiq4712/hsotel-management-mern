@@ -170,6 +170,16 @@ const handleSaveAll = async () => {
     }
   };
 
+  const handleMarkAllPresent = () => {
+    const newTemp = { ...tempAttendance };
+    students.forEach((student) => {
+      if (!getAttendanceForStudent(student.id) && !newTemp[student.id]) {
+        newTemp[student.id] = { status: 'P' };
+      }
+    });
+    setTempAttendance(newTemp);
+  };
+
   const getAttendanceForStudent = (studentId) => {
     return attendance.find(att => att.Student?.id === studentId);
   };
@@ -223,6 +233,58 @@ const handleSaveAll = async () => {
     od: attendance.filter(att => att.status === 'OD').length,
   };
 
+  const handleConfirmEditOrOd = async () => {
+    const studentId = showOdDialog;
+    const tempData = tempAttendance[studentId];
+    if (!tempData) return;
+
+    let isValid = false;
+    if (editAttendanceId) {
+      if (tempData.status !== 'OD') {
+        isValid = true;
+      } else if (tempData.from_date && tempData.to_date && tempData.reason) {
+        isValid = true;
+      }
+    } else {
+      // New OD
+      if (tempData.from_date && tempData.to_date && tempData.reason) {
+        isValid = true;
+      }
+    }
+
+    if (!isValid) {
+      alert('Please provide from date, to date, and reason for OD status');
+      return;
+    }
+
+    try {
+      setMarkingAttendance(true);
+      await handleMarkAttendance(
+        parseInt(studentId),
+        tempData.status,
+        tempData.reason,
+        tempData.otherReason || tempData.remarks,
+        tempData.from_date,
+        tempData.to_date,
+        tempData.attendanceId
+      );
+      // Clear temp for this student
+      const newTemp = { ...tempAttendance };
+      delete newTemp[studentId];
+      setTempAttendance(newTemp);
+      setShowOdDialog(null);
+      setEditAttendanceId(null);
+      await fetchAttendance();
+      await fetchStudents();
+      alert('Attendance updated successfully!');
+    } catch (error) {
+      console.error('Error saving attendance edit/OD:', error);
+      alert('Error saving attendance: ' + (error.message || 'Unknown error'));
+    } finally {
+      setMarkingAttendance(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -246,23 +308,37 @@ const handleSaveAll = async () => {
             className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
           />
           <button
-            onClick={() => setShowMarkModal(true)}
+            onClick={handleMarkAllPresent}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+          >
+            <CheckCircle size={20} className="mr-2" />
+            Mark All Present
+          </button>
+          <button
+            onClick={() => {
+              const unmarked = students.filter(s => !getAttendanceForStudent(s.id));
+              const initialSelected = {};
+              unmarked.forEach(s => initialSelected[s.id] = 'P');
+              setSelectedStudents(initialSelected);
+              setOdDetails({});
+              setShowMarkModal(true);
+            }}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
           >
             <Plus size={20} className="mr-2" />
-            Mark Attendance
+            Bulk Mark
           </button>
         </div>
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <div className="bg-white rounded-lg shadow-md p-4">
           <div className="flex items-center">
             <Users className="text-gray-600" size={24} />
             <div className="ml-3">
               <p className="text-sm text-gray-600">Total Students</p>
-              <p className="text-2xl font-bold text-gray-900">{attendanceStats.total}</p>
+              <p className="text-2xl font-bold text-gray-900">{attendanceStats.total + attendanceStats.od}</p>
             </div>
           </div>
         </div>
@@ -281,6 +357,15 @@ const handleSaveAll = async () => {
             <div className="ml-3">
               <p className="text-sm text-gray-600">Absent</p>
               <p className="text-2xl font-bold text-red-900">{attendanceStats.absent}</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="flex items-center">
+            <Clock className="text-blue-600" size={24} />
+            <div className="ml-3">
+              <p className="text-sm text-gray-600">On Duty</p>
+              <p className="text-2xl font-bold text-blue-900">{attendanceStats.od}</p>
             </div>
           </div>
         </div>
@@ -318,7 +403,11 @@ const handleSaveAll = async () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {students.map((student) => {
                 const studentAttendance = getAttendanceForStudent(student.id);
-                const tempStatus = tempAttendance[student.id]?.status;
+                const tempData = tempAttendance[student.id];
+                const tempStatus = tempData?.status;
+                const currentStatus = tempStatus || (studentAttendance ? studentAttendance.status : null);
+                const currentReason = tempStatus === 'OD' ? tempData?.reason : (studentAttendance?.reason || null);
+                const currentRemarks = tempStatus === 'OD' ? tempData?.otherReason : (studentAttendance?.remarks || null);
                 return (
                   <tr key={student.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -334,11 +423,11 @@ const handleSaveAll = async () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {studentAttendance ? (
+                      {currentStatus ? (
                         <div className="flex items-center">
-                          {getStatusIcon(studentAttendance.status)}
-                          <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(studentAttendance.status)}`}>
-                            {studentAttendance.status === 'P' ? 'Present' : studentAttendance.status === 'A' ? 'Absent' : 'On Duty'}
+                          {getStatusIcon(currentStatus)}
+                          <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(currentStatus)}`}>
+                            {currentStatus === 'P' ? 'Present' : currentStatus === 'A' ? 'Absent' : 'On Duty'}
                           </span>
                         </div>
                       ) : (
@@ -346,22 +435,21 @@ const handleSaveAll = async () => {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {studentAttendance?.reason || '-'}
-                      {studentAttendance?.reason === 'Other' && studentAttendance?.remarks ? `: ${studentAttendance.remarks}` : ''}
+                      {currentReason ? `${currentReason}${currentReason === 'Other' && currentRemarks ? `: ${currentRemarks}` : ''}` : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                       {!studentAttendance ? (
                         <div className="flex space-x-2">
                           <button
                             onClick={() => setTempAttendance({ ...tempAttendance, [student.id]: { status: 'P' } })}
-                            className={`w-8 h-8 rounded-full flex items-center justify-center ${tempStatus === 'P' ? 'bg-green-600 text-white' : 'bg-green-100 text-green-600'} hover:bg-green-700 hover:text-white transition-colors`}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center ${(tempStatus === 'P' || currentStatus === 'P') ? 'bg-green-600 text-white' : 'bg-green-100 text-green-600'} hover:bg-green-700 hover:text-white transition-colors`}
                             title="Present"
                           >
                             P
                           </button>
                           <button
                             onClick={() => setTempAttendance({ ...tempAttendance, [student.id]: { status: 'A' } })}
-                            className={`w-8 h-8 rounded-full flex items-center justify-center ${tempStatus === 'A' ? 'bg-red-600 text-white' : 'bg-red-100 text-red-600'} hover:bg-red-700 hover:text-white transition-colors`}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center ${(tempStatus === 'A' || currentStatus === 'A') ? 'bg-red-600 text-white' : 'bg-red-100 text-red-600'} hover:bg-red-700 hover:text-white transition-colors`}
                             title="Absent"
                           >
                             A
@@ -369,9 +457,10 @@ const handleSaveAll = async () => {
                           <button
                             onClick={() => {
                               setShowOdDialog(student.id);
-                              setEditAttendanceId(null); // New attendance
+                              setEditAttendanceId(null);
+                              setTempAttendance({ ...tempAttendance, [student.id]: { status: 'OD', from_date: '', to_date: '', reason: null, attendanceId: null } });
                             }}
-                            className={`w-8 h-8 rounded-full flex items-center justify-center ${tempStatus === 'OD' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'} hover:bg-blue-700 hover:text-white transition-colors`}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center ${(tempStatus === 'OD' || currentStatus === 'OD') ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'} hover:bg-blue-700 hover:text-white transition-colors`}
                             title="On Duty"
                           >
                             OD
@@ -402,7 +491,7 @@ const handleSaveAll = async () => {
             disabled={markingAttendance}
             className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {markingAttendance ? 'Saving...' : 'Save All'}
+            {markingAttendance ? 'Saving...' : `Save All (${Object.keys(tempAttendance).length} changes)`}
           </button>
         </div>
       )}
@@ -418,14 +507,14 @@ const handleSaveAll = async () => {
               {editAttendanceId && (
                 <div className="flex space-x-2">
                   <button
-                    onClick={() => setTempAttendance({ ...tempAttendance, [showOdDialog]: { ...tempAttendance[showOdDialog], status: 'P', from_date: '', to_date: '', reason: '', otherReason: '', attendanceId: editAttendanceId } })}
+                    onClick={() => setTempAttendance({ ...tempAttendance, [showOdDialog]: { ...tempAttendance[showOdDialog], status: 'P', from_date: null, to_date: null, reason: null, otherReason: null, attendanceId: editAttendanceId } })}
                     className={`w-8 h-8 rounded-full flex items-center justify-center ${tempAttendance[showOdDialog]?.status === 'P' ? 'bg-green-600 text-white' : 'bg-green-100 text-green-600'} hover:bg-green-700 hover:text-white transition-colors`}
                     title="Present"
                   >
                     P
                   </button>
                   <button
-                    onClick={() => setTempAttendance({ ...tempAttendance, [showOdDialog]: { ...tempAttendance[showOdDialog], status: 'A', from_date: '', to_date: '', reason: '', otherReason: '', attendanceId: editAttendanceId } })}
+                    onClick={() => setTempAttendance({ ...tempAttendance, [showOdDialog]: { ...tempAttendance[showOdDialog], status: 'A', from_date: null, to_date: null, reason: null, otherReason: null, attendanceId: editAttendanceId } })}
                     className={`w-8 h-8 rounded-full flex items-center justify-center ${tempAttendance[showOdDialog]?.status === 'A' ? 'bg-red-600 text-white' : 'bg-red-100 text-red-600'} hover:bg-red-700 hover:text-white transition-colors`}
                     title="Absent"
                   >
@@ -503,16 +592,11 @@ const handleSaveAll = async () => {
             </div>
             <div className="flex gap-3 mt-6 justify-end">
               <button
-                onClick={() => {
-                  if (!editAttendanceId || tempAttendance[showOdDialog]?.status !== 'OD' || (tempAttendance[showOdDialog]?.from_date && tempAttendance[showOdDialog]?.to_date && tempAttendance[showOdDialog]?.reason)) {
-                    setShowOdDialog(null);
-                  } else {
-                    alert('Please provide from date, to date, and reason for OD status');
-                  }
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                onClick={handleConfirmEditOrOd}
+                disabled={markingAttendance}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
-                Confirm
+                {markingAttendance ? 'Saving...' : 'Confirm & Save'}
               </button>
               <button
                 onClick={() => {
@@ -535,6 +619,7 @@ const handleSaveAll = async () => {
           <div className="relative top-20 mx-auto p-5 border w-4/5 max-w-4xl shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Bulk Mark Attendance</h3>
+              <p className="text-sm text-gray-600 mb-4">All unmarked students are pre-selected as Present. Change as needed for absentees or on-duty.</p>
               
               <div className="max-h-96 overflow-y-auto">
                 <table className="min-w-full">
@@ -663,10 +748,10 @@ const handleSaveAll = async () => {
               <div className="flex gap-3 pt-4 mt-4 border-t">
                 <button
                   onClick={handleBulkMarkAttendance}
-                  disabled={markingAttendance || Object.keys(selectedStudents).length === 0}
+                  disabled={markingAttendance || Object.values(selectedStudents).filter(s => s).length === 0}
                   className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
-                  {markingAttendance ? 'Marking...' : 'Mark Attendance'}
+                  {markingAttendance ? 'Marking...' : `Mark Attendance (${Object.values(selectedStudents).filter(s => s).length} students)`}
                 </button>
                 <button
                   onClick={() => {

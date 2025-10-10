@@ -8,6 +8,7 @@ const {
 
 // STUDENT ENROLLMENT
 // STUDENT ENROLLMENT - MODIFIED
+// STUDENT ENROLLMENT - MODIFIED
 const enrollStudent = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
@@ -19,6 +20,7 @@ const enrollStudent = async (req, res) => {
       requires_bed, 
       paid_initial_emi,
       college,
+      roll_number,
       // New field to support student creation without password
       create_with_default_password 
     } = req.body;
@@ -44,8 +46,13 @@ const enrollStudent = async (req, res) => {
         await existingUser.update({ 
           hostel_id, 
           role: 'student',
-          is_active: true 
+          is_active: true,
+          roll_number: roll_number || existingUser.roll_number
         }, { transaction });
+      }
+      // Update roll_number if provided
+      if (roll_number && existingUser.roll_number !== roll_number) {
+        await existingUser.update({ roll_number }, { transaction });
       }
       student = existingUser;
     } else {
@@ -70,6 +77,7 @@ const enrollStudent = async (req, res) => {
         password: hashedPassword,
         role: 'student',
         hostel_id,
+        roll_number: roll_number || null,
         is_active: true
       }, { transaction });
     }
@@ -81,7 +89,8 @@ const enrollStudent = async (req, res) => {
       session_id,
       requires_bed: requires_bed || false,
       initial_emi_status: requires_bed ? (paid_initial_emi ? 'paid' : 'pending') : 'not_required',
-      college: college || 'nec' // Default to 'nec' if not provided
+      college: college || 'nec', // Default to 'nec' if not provided
+      roll_number: roll_number || null
     }, { transaction });
 
     // If bed is required and initial EMI is paid, create fee records for the 5 EMIs
@@ -374,6 +383,7 @@ const markAttendance = async (req, res) => {
   try {
     const { student_id, date, status, from_date, to_date, reason, remarks } = req.body;
     const marked_by = req.user?.id;
+    const hostel_id = req.user.hostel_id;
 
     // Validate inputs
     if (!student_id || !date || !status) {
@@ -388,7 +398,7 @@ const markAttendance = async (req, res) => {
 
     // Validate student
     const student = await User.findOne({
-      where: { id: student_id, role: 'student', hostel_id: req.user.hostel_id, is_active: true },
+      where: { id: student_id, role: 'student', hostel_id, is_active: true },
       transaction
     });
     if (!student) {
@@ -422,6 +432,7 @@ const markAttendance = async (req, res) => {
       date,
       status,
       marked_by,
+      hostel_id,
       reason,
       remarks,
       from_date: status === 'OD' ? from_date : null,
@@ -440,7 +451,17 @@ const markAttendance = async (req, res) => {
         const currentDate = d.toISOString().split('T')[0];
         if (currentDate === date) continue;
         await Attendance.upsert(
-          { student_id, date: currentDate, status: 'OD', from_date, to_date, marked_by, reason, remarks },
+          { 
+            student_id, 
+            date: currentDate, 
+            status: 'OD', 
+            from_date, 
+            to_date, 
+            marked_by, 
+            hostel_id,
+            reason, 
+            remarks 
+          },
           { transaction }
         );
       }
@@ -460,51 +481,193 @@ const markAttendance = async (req, res) => {
   }
 };
 const updateAttendance = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
     const { status, reason, remarks, from_date, to_date } = req.body;
     const hostel_id = req.user.hostel_id;
     const marked_by = req.user.id;
 
-    const attendance = await Attendance.findOne({
+    if (!['P', 'A', 'OD'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status. Must be P, A, or OD' });
+    }
+
+    const oldAttendance = await Attendance.findOne({
       where: { id },
-      include: [{ model: User, as: 'Student', where: { hostel_id } }]
+      include: [{ model: User, as: 'Student', where: { hostel_id } }],
+      transaction
     });
 
-    if (!attendance) {
+    if (!oldAttendance) {
+      await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Attendance record not found' });
     }
 
-    await attendance.update({
+    const oldStatus = oldAttendance.status;
+    const student_id = oldAttendance.student_id;
+    const currentDate = oldAttendance.date;
+
+    // Prepare update data for the current record
+    const updateData = {
       status,
       reason,
       remarks,
       from_date: status === 'OD' ? from_date : null,
       to_date: status === 'OD' ? to_date : null,
-      marked_by
+      marked_by,
+      hostel_id
+    };
+
+    // Validate dates for OD
+    if (status === 'OD') {
+      if (!from_date || !to_date) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: 'from_date and to_date are required for OD status' });
+      }
+      const startDate = new Date(from_date);
+      const endDate = new Date(to_date);
+      if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: 'Invalid from_date or to_date' });
+      }
+    }
+
+    // Handle range cleanup/creation
+    if (oldStatus === 'OD' && status !== 'OD') {
+      // Changing from OD to non-OD: Delete all records in old range except current (which we'll update)
+      const oldStart = new Date(oldAttendance.from_date);
+      const oldEnd = new Date(oldAttendance.to_date);
+      for (let d = new Date(oldStart); d <= oldEnd; d.setDate(d.getDate() + 1)) {
+        const rangeDate = d.toISOString().split('T')[0];
+        if (rangeDate === currentDate) continue; // Skip current, update it below
+        await Attendance.destroy({
+          where: { student_id, date: rangeDate },
+          transaction
+        });
+      }
+    } else if (status === 'OD' && oldStatus !== 'OD') {
+      // Changing to OD: Upsert the full new range (including current)
+      const startDate = new Date(from_date);
+      const endDate = new Date(to_date);
+      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const rangeDate = d.toISOString().split('T')[0];
+        await Attendance.upsert(
+          {
+            student_id,
+            date: rangeDate,
+            status: 'OD',
+            from_date,
+            to_date,
+            marked_by,
+            hostel_id,
+            reason,
+            remarks
+          },
+          { transaction }
+        );
+      }
+      // For the current record, use the upserted one below
+    }
+    // Else: No range change needed (P/A to P/A, or OD to OD - just update single)
+
+    // Update the current record
+    await oldAttendance.update(updateData, { transaction });
+
+    await transaction.commit();
+
+    // Refetch the updated record for response
+    const updatedAttendance = await Attendance.findByPk(id, {
+      include: [
+        { model: User, as: 'Student', attributes: ['id', 'username', 'email'] },
+        { model: User, as: 'MarkedBy', attributes: ['id', 'username'] }
+      ]
     });
 
-    res.json({ success: true, data: attendance, message: 'Attendance updated successfully' });
+    res.json({ success: true, data: updatedAttendance, message: 'Attendance updated successfully' });
   } catch (error) {
+    await transaction.rollback();
     console.error('Attendance update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 const bulkMarkAttendance = async (req, res) => {
     const { date, attendanceData } = req.body;
     const marked_by = req.user.id;
+    const hostel_id = req.user.hostel_id;
     const transaction = await sequelize.transaction();
     try {
         if (!date || !Array.isArray(attendanceData)) throw new Error("Date and attendance data are required.");
+        
+        // Validate all students belong to the hostel
+        const studentIds = attendanceData.map(record => record.student_id);
+        const students = await User.findAll({
+            where: { 
+                id: { [Op.in]: studentIds },
+                role: 'student',
+                hostel_id,
+                is_active: true
+            },
+            attributes: ['id']
+        });
+        if (students.length !== studentIds.length) {
+            throw new Error('One or more students not found in this hostel');
+        }
+
         for (const record of attendanceData) {
-            await Attendance.upsert({ student_id: record.student_id, date: date, status: record.status, marked_by }, { transaction });
+            const { student_id, status, from_date, to_date, reason, remarks } = record;
+
+            if (!['P', 'A', 'OD'].includes(status)) {
+                throw new Error(`Invalid status for student ${student_id}: ${status}`);
+            }
+
+            const upsertData = {
+                student_id,
+                date,
+                status,
+                marked_by,
+                hostel_id,
+                reason: status === 'OD' ? (reason || null) : null,
+                remarks: status === 'OD' ? (remarks || null) : null,
+                from_date: status === 'OD' ? (from_date || null) : null,
+                to_date: status === 'OD' ? (to_date || null) : null
+            };
+
+            await Attendance.upsert(upsertData, { transaction });
+
+            // If OD, create range entries
+            if (status === 'OD' && from_date && to_date) {
+                const startDate = new Date(from_date);
+                const endDate = new Date(to_date);
+                if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) {
+                    throw new Error(`Invalid OD date range for student ${student_id}`);
+                }
+                if (!reason) {
+                    throw new Error(`Reason required for OD for student ${student_id}`);
+                }
+
+                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                    const rangeDate = d.toISOString().split('T')[0];
+                    if (rangeDate === date) continue; // Skip the current date as it's already upserted
+                    await Attendance.upsert({
+                        student_id,
+                        date: rangeDate,
+                        status: 'OD',
+                        from_date,
+                        to_date,
+                        marked_by,
+                        hostel_id,
+                        reason,
+                        remarks
+                    }, { transaction });
+                }
+            }
         }
         await transaction.commit();
         res.json({ success: true, message: 'Attendance saved successfully.' });
     } catch (error) {
         await transaction.rollback();
         console.error('Bulk attendance marking error:', error);
-        res.status(500).json({ success: false, message: 'Server error' });
+        res.status(400).json({ success: false, message: error.message });
     }
 };
 

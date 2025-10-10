@@ -1,5 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const passport = require('passport');
+
 const { User, Hostel } = require('../models');
 
 const login = async (req, res) => {
@@ -66,5 +68,52 @@ const getProfile = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+const googleAuth = (req, res, next) => {
+  // This will redirect to Google
+  passport.authenticate('google', { 
+    scope: ['profile', 'email'] 
+  })(req, res, next);
+};
 
-module.exports = { login, getProfile };
+const googleCallback = (req, res, next) => {
+  passport.authenticate('google', { 
+    failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=access_denied`,
+    session: false 
+  }, async (err, user, info) => {
+    if (err || !user) {
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=not_registered`);
+    }
+
+    // Generate JWT using only Gmail and user ID
+    const token = jwt.sign(
+      { 
+        userId: user.id, 
+        email: user.email // only Gmail
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '30d' }
+    );
+
+    // Prepare user data to send to frontend
+    const userData = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      role: user.role,
+      hostel_id: user.hostel_id
+    };
+
+    // Redirect with token **and user data**
+    const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userData))}`;
+    res.redirect(redirectUrl);
+
+  })(req, res, next);
+};
+
+module.exports = { 
+  login,
+  getProfile,
+  googleAuth,
+  googleCallback, };

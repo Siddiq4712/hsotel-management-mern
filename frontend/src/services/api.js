@@ -35,6 +35,9 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
   getProfile: () => api.get('/auth/profile'),
+  googleLogin: () => {
+    window.location.href = `${API_BASE_URL}/auth/google`;
+  },
 };
 
 // Admin API - Complete CRUD operations
@@ -373,6 +376,9 @@ export const messAPI = {
 
   getIncomeEntries: (params) => api.get('/mess/income-entries', { params }),
   createIncomeEntry: (data) => api.post('/mess/income-entries', data),
+
+  generateDailyRateReport: (params) => api.get('/mess/reports/daily-rate-calculation', { params }),
+  exportDailyRateReport: (params) => api.get('/mess/reports/daily-rate-calculation', { params: { ...params, export: true }, responseType: 'blob' }),
 };
 
 export default api;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { studentAPI } from '../../services/api';
-import { Receipt, Calendar, CheckCircle, XCircle, ChevronDown, ChevronUp, Droplet } from 'lucide-react';
+import { Receipt, Calendar, CheckCircle, XCircle, ChevronDown, ChevronUp, Droplet, Clock } from 'lucide-react';
 import moment from 'moment';
 
 const MyMessCharges = () => {
@@ -9,9 +9,12 @@ const MyMessCharges = () => {
   const [currentMonth, setCurrentMonth] = useState(moment().month() + 1);
   const [currentYear, setCurrentYear] = useState(moment().year());
   const [expandedRow, setExpandedRow] = useState(null);
+  const [attendance, setAttendance] = useState(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(true);
 
   useEffect(() => {
     fetchCharges();
+    fetchAttendance();
   }, [currentMonth, currentYear]);
 
   const fetchCharges = async () => {
@@ -23,6 +26,20 @@ const MyMessCharges = () => {
       console.error('Error fetching mess charges:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAttendance = async () => {
+    setAttendanceLoading(true);
+    try {
+      const date = moment().format('YYYY-MM-DD');
+      const response = await studentAPI.getMyAttendance({ date });
+      const records = response.data.data || [];
+      setAttendance(records.length > 0 ? records[0] : null);
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+    } finally {
+      setAttendanceLoading(false);
     }
   };
   
@@ -37,6 +54,12 @@ const MyMessCharges = () => {
 
   const getStatusInfo = (status) => {
     switch (status) {
+      case 'P':
+        return { icon: <CheckCircle className="text-green-500 w-4 h-4" />, text: 'Present', color: 'text-green-700' };
+      case 'A':
+        return { icon: <XCircle className="text-red-500 w-4 h-4" />, text: 'Absent', color: 'text-red-700' };
+      case 'OD':
+        return { icon: <Clock className="text-blue-500 w-4 h-4" />, text: 'On Duty', color: 'text-blue-700' };
       case 'present': return { icon: <CheckCircle className="text-green-500 w-4 h-4" />, text: 'Present', color: 'text-green-700' };
       case 'absent': return { icon: <XCircle className="text-red-500 w-4 h-4" />, text: 'Absent', color: 'text-red-700' };
       case 'leave': return { icon: <Calendar className="text-purple-500 w-4 h-4" />, text: 'On Leave', color: 'text-purple-700' };
@@ -46,9 +69,28 @@ const MyMessCharges = () => {
     }
   };
 
+  const getAttendanceStatusDisplay = (status) => {
+    switch (status) {
+      case 'P':
+        return { icon: <CheckCircle className="text-green-600" size={48} />, text: 'Present', color: 'bg-green-50 border-green-200 text-green-800' };
+      case 'A':
+        return { icon: <XCircle className="text-red-600" size={48} />, text: 'Absent', color: 'bg-red-50 border-red-200 text-red-800' };
+      case 'OD':
+        return { icon: <Clock className="text-blue-600" size={48} />, text: 'On Duty', color: 'bg-blue-50 border-blue-200 text-blue-800' };
+      default:
+        return { icon: null, text: 'Not Marked', color: 'bg-gray-50 border-gray-200 text-gray-500' };
+    }
+  };
+
+  const attendanceStatusInfo = attendance ? getAttendanceStatusDisplay(attendance.status) : getAttendanceStatusDisplay(null);
+
   const toggleRow = (id) => {
     setExpandedRow(expandedRow === id ? null : id);
   };
+
+  // Get today's charge row for special status override
+  const today = moment().format('YYYY-MM-DD');
+  const todayCharge = charges.find(charge => charge.date === today);
 
   return (
     <div className="container mx-auto p-4 sm:p-6 lg:p-8">
@@ -105,7 +147,12 @@ const MyMessCharges = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {charges.map((charge) => {
-                  const statusInfo = getStatusInfo(charge.attendance_status);
+                  // Use fetched attendance status for today's row, fallback to charge.attendance_status
+                  let rowStatus = charge.attendance_status;
+                  if (charge.date === today && attendance) {
+                    rowStatus = attendance.status;
+                  }
+                  const statusInfo = getStatusInfo(rowStatus);
                   const isExpanded = expandedRow === charge.id;
                   
                   return (
@@ -128,61 +175,67 @@ const MyMessCharges = () => {
                           {isExpanded ? <ChevronUp className="w-4 h-4 inline-block text-gray-600" /> : <ChevronDown className="w-4 h-4 inline-block text-gray-600" />}
                         </td>
                       </tr>
-                      {isExpanded && (
-                        <tr className="bg-gray-50">
-                          <td colSpan="5" className="px-6 py-4 text-sm text-gray-700">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-l-4 border-blue-500 pl-4">
-                              
-                              {/* MODIFIED: This section is simplified to show the direct value */}
-                              <div>
-                                <h4 className="font-semibold text-gray-800 mb-2">Base Mess Charge</h4>
-                                <ul className="list-none space-y-1 text-gray-700">
-                                  <li className="font-bold flex justify-between">
-                                    <span>Your Daily Share:</span>
-                                    <span>₹{parseFloat(charge.baseMessCharge).toFixed(2)}</span>
-                                  </li>
-                                </ul>
-                              </div>
-
-                              <div>
-                                <h4 className="font-semibold text-gray-800 mb-2">Your Direct Charges</h4>
-                                <ul className="list-none space-y-1 text-gray-700">
-                                  {parseFloat(charge.waterBill) > 0 && (
-                                    <li className="flex items-center justify-between">
-                                      <div className='flex items-center'>
-                                        <Droplet className="w-4 h-4 text-blue-500 mr-2" />
-                                        <span className="font-medium">Water Bill:</span>
-                                      </div>
-                                      <span>₹{parseFloat(charge.waterBill).toFixed(2)}</span>
-                                    </li>
-                                  )}
-                                  {parseFloat(charge.specialFoodCost) > 0 ? (
-                                    <li className="flex items-center justify-between">
-                                      <span className="font-medium">Special Food Orders:</span>
-                                      <span className="font-bold">₹{parseFloat(charge.specialFoodCost).toFixed(2)}</span>
-                                    </li>
-                                  ) : (
-                                    <li className="flex items-center justify-between">
-                                      <span className="font-medium">Special Food Orders:</span>
-                                      <span>₹0.00</span>
-                                    </li>
-                                  )}
-                                </ul>
-                              </div>
-
-                              <div>
-                                <h4 className="font-semibold text-gray-800 mb-2">Daily Summary</h4>
-                                <ul className="list-none space-y-1 text-gray-700">
-                                  <li className="mt-4 pt-2 border-t border-gray-300 font-bold text-lg flex justify-between">
-                                    <span>Your Total Charge for Day:</span>
-                                    <span className="text-blue-600">₹{parseFloat(charge.dailyTotalCharge).toFixed(2)}</span>
-                                  </li>
-                                </ul>
-                              </div>
+                    {isExpanded && (
+                      <tr className="bg-gray-50">
+                        <td colSpan="5" className="px-6 py-4 text-sm text-gray-700">
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-l-4 border-blue-500 pl-4">
+                            
+                            {/* Base Mess Charge */}
+                            <div>
+                              <h4 className="font-semibold text-gray-800 mb-2">Base Mess Charge</h4>
+                              <ul className="list-none space-y-1 text-gray-700">
+                                <li className="font-bold flex justify-between">
+                                  <span>Your Daily Share (Cost per Serving):</span>
+                                  <span>₹{parseFloat(charge.baseMessCharge).toFixed(2)}</span>
+                                </li>
+                              </ul>
                             </div>
-                          </td>
-                        </tr>
-                      )}
+
+                            {/* Special Food Orders */}
+                            <div>
+                              <h4 className="font-semibold text-gray-800 mb-2">Special Food Orders</h4>
+                              <ul className="list-none space-y-1 text-gray-700">
+                                <li className="flex items-center justify-between">
+                                  <span className="font-medium">Total Ordered:</span>
+                                  <span className={parseFloat(charge.specialFoodCost) > 0 ? 'font-bold text-green-600' : 'text-gray-500'}>
+                                    ₹{parseFloat(charge.specialFoodCost).toFixed(2)}
+                                  </span>
+                                </li>
+                                {/* {charge.pendingSpecialFoodCost > 0 && (
+                                  <li className="flex items-center justify-between text-sm">
+                                    <span className="text-orange-600">Pending Payment:</span>
+                                    <span className="font-semibold text-orange-600">₹{parseFloat(charge.pendingSpecialFoodCost).toFixed(2)}</span>
+                                  </li>
+                                )} */}
+                                {charge.paidSpecialFoodCost > 0 && (
+                                  <li className="flex items-center justify-between text-sm">
+                                    <span className="text-green-600">Paid:</span>
+                                    <span className="font-semibold text-green-600">₹{parseFloat(charge.paidSpecialFoodCost).toFixed(2)}</span>
+                                  </li>
+                                )}
+                              </ul>
+                            </div>
+
+                            {/* Daily Summary */}
+                            <div>
+                              <h4 className="font-semibold text-gray-800 mb-2">Daily Summary</h4>
+                              <ul className="list-none space-y-1 text-gray-700">
+                                <li className="mt-4 pt-2 border-t border-gray-300 font-bold text-lg flex justify-between">
+                                  <span>Your Total Charge for Day (Paid Only):</span>
+                                  <span className="text-blue-600">
+                                    ₹
+                                    {(
+                                      parseFloat(charge.dailyTotalCharge || 0) +
+                                      parseFloat(charge.pendingSpecialFoodCost || 0)
+                                    ).toFixed(2)}
+                                  </span>
+                                </li>
+                              </ul>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                     </React.Fragment>
                   );
                 })}

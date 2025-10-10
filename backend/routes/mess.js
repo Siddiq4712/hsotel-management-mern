@@ -132,10 +132,13 @@ const {
   createIncomeEntry,
   getMonthlyExpensesChartData, // Add this
   getItemStockChartData, 
+  getSessions,
+
+  generateDailyRateReport
 
 
 } = require('../controllers/messController');
-const { getSessions,getStudents } = require('../controllers/wardenController');
+const { getStudents } = require('../controllers/wardenController');
 const { auth, authorize } = require('../middleware/auth');
 
 const router = express.Router();
@@ -338,6 +341,7 @@ router.delete('/concerns/:id', authorize(['mess', 'admin']), deleteConcern);
 router.get('/income-entries', authorize(['mess', 'admin']), getIncomeEntries);
 router.post('/income-entries', authorize(['mess', 'admin']), createIncomeEntry);
 
+router.get('/reports/daily-rate-calculation', authorize(['mess', 'admin']), generateDailyRateReport);
 
 
 module.exports = router;
