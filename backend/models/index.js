@@ -27,11 +27,12 @@ const User = sequelize.define('User', {
     type: DataTypes.ENUM('student', 'warden', 'admin', 'mess','lapc'),
     allowNull: false
   },
-  roll_number: {  // NEW FIELD
-    type: DataTypes.STRING,
-    allowNull: true,
-    unique: true
-  },
+  // Comment this out temporarily until DB is fixed
+  // roll_number: {
+  //   type: DataTypes.STRING,
+  //   allowNull: true,
+  //   unique: true
+  // },
   hostel_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
@@ -40,19 +41,19 @@ const User = sequelize.define('User', {
       key: 'id'
     }
   },
-  is_active: {  // ADD THIS FIELD
+  is_active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
   },
   google_id: {
-  type: DataTypes.STRING,
-  allowNull: true,
-  unique: true
-},
-profile_picture: {
-  type: DataTypes.TEXT,
-  allowNull: true
-}
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true
+  },
+  profile_picture: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  }
 }, {
   tableName: 'tbl_Users',
   timestamps: true

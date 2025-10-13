@@ -6,10 +6,11 @@ import {
   Tabs, Typography, Space, Divider, Spin, Alert, Empty
 } from 'antd';
 import {
-  AppstoreOutlined, FileTextOutlined, ScheduleOutlined, 
+  AppstoreOutlined, FileTextOutlined, ScheduleOutlined,
   UserOutlined, WarningOutlined, CheckCircleOutlined, ClockCircleOutlined,
-  CalendarOutlined, ForkOutlined, CoffeeOutlined, LineChartOutlined, BarChartOutlined
-} from '@ant-design/icons';
+  CalendarOutlined, ForkOutlined, CoffeeOutlined, LineChartOutlined, BarChartOutlined,
+  PlusCircleOutlined, ShoppingCartOutlined, DollarCircleOutlined, CalculatorOutlined // NEW ICONS
+} from '@ant-design/icons'; // ✅ FIXED IMPORT PATH
 import { messAPI } from '../../services/api';
 import moment from 'moment';
 import { useNavigate } from 'react-router-dom';
@@ -35,6 +36,7 @@ ChartJS.register(
   Tooltip,
   Legend
 );
+
 // END NEW CHART.JS IMPORTS
 
 const { TabPane } = Tabs;
@@ -451,22 +453,22 @@ const MessDashboard = () => {
           <Card title="Quick Actions">
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
               <Button type="primary" size="large" icon={<CoffeeOutlined />} onClick={() => navigate('/mess/menu-planner')}>
-                Schedule Menu
+                Menu Planner
               </Button>
-              <Button size="large" icon={<ForkOutlined />} onClick={() => navigate('/mess/daily-operations')}>
-                Record Consumption
+              <Button size="large" icon={<CalendarOutlined />} onClick={() => navigate('/mess/menu-schedule')}>
+                Menu Schedule
               </Button>
-              <Button size="large" icon={<WarningOutlined />} onClick={() => navigate('/mess/inventory')}>
-                Update Inventory
+              <Button size="large" icon={<PlusCircleOutlined />} onClick={() => navigate('/mess/create-menu')}>
+                Create Menu
               </Button>
-              <Button size="large" icon={<FileTextOutlined />} onClick={() => navigate('/mess/food-orders')}>
-                Manage Orders
+              <Button size="large" icon={<ShoppingCartOutlined />} onClick={() => navigate('/mess/food-orders-dashboard')}>
+                Order Dashboard
               </Button>
-              <Button size="large" icon={<AppstoreOutlined />} onClick={() => navigate('/mess/menu-management')}>
-                Manage Menus
+              <Button size="large" icon={<DollarCircleOutlined />} onClick={() => navigate('/mess/mess-fee')}>
+                Mess Fee Summary
               </Button>
-              <Button size="large" icon={<ScheduleOutlined />} onClick={() => navigate('/mess/reports/consumption')}>
-                View Reports
+              <Button size="large" icon={<CalculatorOutlined />} onClick={() => navigate('/mess/daily-rate-report')}>
+                Daily Rate
               </Button>
             </div>
           </Card>
