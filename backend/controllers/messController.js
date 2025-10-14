@@ -6023,7 +6023,7 @@ module.exports = {
   createIncomeEntry,
   generateDailyRateReport,
   getStudents,
-  recordStaffRecordedSpecialFoodConsumption
+  recordStaffRecordedSpecialFoodConsumption,
   getMonthlyExpensesChartData, // Add this
   getItemStockChartData,  
   generateDailyRateReport

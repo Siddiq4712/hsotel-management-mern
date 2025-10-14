@@ -12,7 +12,7 @@ const User = sequelize.define('User', {
   username: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true
+    unique: false
   },
   email: {
     type: DataTypes.STRING,
@@ -27,12 +27,12 @@ const User = sequelize.define('User', {
     type: DataTypes.ENUM('student', 'warden', 'admin', 'mess','lapc'),
     allowNull: false
   },
-  // Comment this out temporarily until DB is fixed
-  // roll_number: {
-  //   type: DataTypes.STRING,
-  //   allowNull: true,
-  //   unique: true
-  // },
+  //Comment this out temporarily until DB is fixed
+  roll_number: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true
+  },
   hostel_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
