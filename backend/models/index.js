@@ -12,7 +12,7 @@ const User = sequelize.define('User', {
   username: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true
+    unique: false
   },
   email: {
     type: DataTypes.STRING,
@@ -27,7 +27,7 @@ const User = sequelize.define('User', {
     type: DataTypes.ENUM('student', 'warden', 'admin', 'mess','lapc'),
     allowNull: false
   },
-  roll_number: {  // NEW FIELD
+  roll_number: {  // NEW FIELD FOR STUDENTS ONLY  
     type: DataTypes.STRING,
     allowNull: true,
     unique: true
@@ -799,6 +799,10 @@ const Attendance = sequelize.define('Attendance', {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: { model: 'tbl_Users', key: 'id' }
+  },
+  totalManDays:{
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 }, {
   tableName: 'tbl_Attendance',
