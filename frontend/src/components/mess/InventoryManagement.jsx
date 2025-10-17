@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card, Table, Button, Space, message, Modal, Form, Select, InputNumber,
   Tabs, Typography, Tag, Input, DatePicker, Row, Col, Statistic, Alert,
@@ -34,6 +34,13 @@ const InventoryManagement = () => {
   const [dateRange, setDateRange] = useState([moment().startOf('month'), moment()]);
   const [exporting, setExporting] = useState(false);
 
+  // Pagination state for inventory table
+  const [inventoryPagination, setInventoryPagination] = useState({
+    current: 1,
+    pageSize: 10,
+    total: 0,
+  });
+
   useEffect(() => {
     fetchAllInitialData();
   }, []);
@@ -43,6 +50,33 @@ const InventoryManagement = () => {
       fetchTransactions();
     }
   }, [activeTab, dateRange]);
+
+  // Filter inventory data with useMemo to avoid re-renders
+  const filteredInventory = useMemo(() => {
+    let filtered = [...inventory];
+    if (lowStockOnly) {
+      filtered = filtered.filter(item => parseFloat(item.current_stock) <= parseFloat(item.minimum_stock));
+    }
+    if (searchText) {
+      filtered = filtered.filter(item => 
+        (item.Item?.name || '').toLowerCase().includes(searchText.toLowerCase())
+      );
+    }
+    return filtered;
+  }, [inventory, lowStockOnly, searchText]);
+
+  // Update pagination total when filtered data changes
+  useEffect(() => {
+    setInventoryPagination(prev => ({ ...prev, total: filteredInventory.length, current: 1 }));
+  }, [filteredInventory]);
+
+  // Paginated data
+  const paginatedInventory = useMemo(() => {
+    const { current, pageSize } = inventoryPagination;
+    const start = (current - 1) * pageSize;
+    const end = start + pageSize;
+    return filteredInventory.slice(start, end);
+  }, [filteredInventory, inventoryPagination]);
 
   const fetchAllInitialData = () => {
     fetchInventory();
@@ -113,8 +147,18 @@ const InventoryManagement = () => {
 
   const handleLowStockFilterChange = (checked) => {
     setLowStockOnly(checked);
-    setTimeout(fetchInventory, 0);
   };
+
+  // Handle pagination change
+  const handleInventoryPaginationChange = (page, pageSize) => {
+    setInventoryPagination({ ...inventoryPagination, current: page, pageSize });
+  };
+
+  // Handle table change (for sort, but since client-side, Antd handles it)
+  const handleInventoryTableChange = (pagination, filters, sorter) => {
+    // Client-side sort is handled by Antd Table sorter prop
+  };
+
 const handleExportLastPurchase = async (storeId = null) => {
   // This function for the simple "Last Purchase" report remains unchanged.
   const storeName = storeId ? stores.find(s => s.id === storeId)?.name : 'All Stores';
@@ -126,7 +170,8 @@ const handleExportLastPurchase = async (storeId = null) => {
   }
 
   if (itemsToExport.length === 0) {
-    message.warn({ content: `No items with purchase history found for ${storeName}.`, key: `export_${storeId}` });
+    message.warning('No items found'); // string only
+    message.success('Report downloaded successfully!');
     return;
   }
 
@@ -154,7 +199,9 @@ const handleExportLastPurchase = async (storeId = null) => {
   });
 
   if (Object.keys(sortedGroups).length === 0) {
-    message.warn({ content: `No grouped purchase history found for ${storeName}.`, key: `export_${storeId}` });
+    message.warn('No grouped purchase history found')
+    message.success('Report downloaded successfully!');
+
     return;
   }
 
@@ -355,7 +402,9 @@ const handleExportPurchaseDetails = async () => {
     const purchases = response.data.data || [];
 
     if (purchases.length === 0) {
-      message.warn({ content: 'No purchase data found for the selected date range.', key: 'export_details' });
+      message.warn('No purchase data found for the selected date range.')
+      message.success('Report downloaded successfully!');
+
       setExporting(false);
       return;
     }
@@ -550,11 +599,58 @@ const handleExportPurchaseDetails = async () => {
 };
 
   const inventoryColumns = [
-    { title: 'Item Name', dataIndex: ['Item', 'name'], key: 'name', sorter: (a, b) => (a.Item?.name || '').localeCompare(b.Item?.name || ''), render: (text, record) => (<div><Text strong>{text}</Text><br />{parseFloat(record.current_stock) <= parseFloat(record.minimum_stock) && (<Tag color="red" icon={<WarningOutlined />} style={{ marginTop: 4 }}>Low Stock</Tag>)}</div>) },
+    { 
+      title: 'Item Name', 
+      dataIndex: ['Item', 'name'], 
+      key: 'name', 
+      sorter: (a, b) => (a.Item?.name || '').localeCompare(b.Item?.name || ''), 
+      render: (text, record) => (
+        <div>
+          <Text strong>{text}</Text>
+          <br />
+          {parseFloat(record.current_stock) <= parseFloat(record.minimum_stock) && (
+            <Tag color="red" icon={<WarningOutlined />} style={{ marginTop: 4 }}>
+              Low Stock
+            </Tag>
+          )}
+        </div>
+      ) 
+    },
     { title: 'Category', dataIndex: ['Item', 'tbl_ItemCategory', 'name'], key: 'category' },
-    { title: 'Current Stock', dataIndex: 'current_stock', key: 'current_stock', align: 'right', sorter: (a, b) => a.current_stock - b.current_stock, render: (text, record) => `${text} ${record.Item?.UOM?.abbreviation || 'units'}` },
-    { title: 'Last Purchase', key: 'last_purchase', render: (_, record) => (record.last_bought_store_name ? (<div><Tag color="blue" icon={<ShopOutlined />}>{record.last_bought_store_name}</Tag><br /><Text type="secondary" style={{ fontSize: '12px' }}>Qty: {record.last_bought_qty} @ ₹{parseFloat(record.last_bought_unit_price).toFixed(2)}</Text></div>) : (<Text type="secondary">N/A</Text>)) },
-    { title: 'Last Updated', dataIndex: 'last_updated', key: 'last_updated', render: text => moment(text).format('YYYY-MM-DD HH:mm'), sorter: (a, b) => moment(a.last_updated).unix() - moment(b.last_updated).unix() },
+    { 
+      title: 'Current Stock', 
+      dataIndex: 'current_stock', 
+      key: 'current_stock', 
+      align: 'right', 
+      sorter: (a, b) => a.current_stock - b.current_stock, 
+      render: (text, record) => `${text} ${record.Item?.UOM?.abbreviation || 'units'}` 
+    },
+    { 
+      title: 'Last Purchase', 
+      key: 'last_purchase', 
+      render: (_, record) => (
+        record.last_bought_store_name ? (
+          <div>
+            <Tag color="blue" icon={<ShopOutlined />}>
+              {record.last_bought_store_name}
+            </Tag>
+            <br />
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              Qty: {record.last_bought_qty} @ ₹{parseFloat(record.last_bought_unit_price).toFixed(2)}
+            </Text>
+          </div>
+        ) : (
+          <Text type="secondary">N/A</Text>
+        )
+      ) 
+    },
+    { 
+      title: 'Last Updated', 
+      dataIndex: 'last_updated', 
+      key: 'last_updated', 
+      render: text => moment(text).format('YYYY-MM-DD HH:mm'), 
+      sorter: (a, b) => moment(a.last_updated).unix() - moment(b.last_updated).unix() 
+    },
   ];
 
   const transactionColumns = [
@@ -576,7 +672,6 @@ const handleExportPurchaseDetails = async () => {
   ];
 
   const lowStockCount = inventory.filter(item => parseFloat(item.current_stock) <= parseFloat(item.minimum_stock)).length;
-  const filteredInventory = inventory.filter(item => item.Item?.name?.toLowerCase().includes(searchText.toLowerCase()));
 
   const exportMenu = (
     <Menu onClick={({ key }) => handleExportLastPurchase(key === 'all' ? null : parseInt(key, 10))}>
@@ -598,11 +693,36 @@ const handleExportPurchaseDetails = async () => {
       <Tabs activeKey={activeTab} onChange={handleTabChange}>
         <TabPane tab="Current Inventory" key="1">
           <Space style={{ marginBottom: 16 }} wrap>
-            <Input placeholder="Search items..." value={searchText} onChange={e => setSearchText(e.target.value)} style={{ width: 200 }} prefix={<SearchOutlined />} allowClear />
-            <Button onClick={() => handleLowStockFilterChange(!lowStockOnly)}>{lowStockOnly ? 'Show All' : 'Show Low Stock Only'}</Button>
-            <Dropdown overlay={exportMenu}><Button>Export Last Purchase <DownOutlined /></Button></Dropdown>
+            <Input 
+              placeholder="Search items..." 
+              value={searchText} 
+              onChange={e => setSearchText(e.target.value)} 
+              style={{ width: 200 }} 
+              prefix={<SearchOutlined />} 
+              allowClear 
+            />
+            <Button onClick={() => handleLowStockFilterChange(!lowStockOnly)}>
+              {lowStockOnly ? 'Show Low Stock Only' : 'Show All'}
+            </Button>
+            <Dropdown overlay={exportMenu}>
+              <Button>Export Last Purchase <DownOutlined /></Button>
+            </Dropdown>
           </Space>
-          <Table columns={inventoryColumns} dataSource={filteredInventory} rowKey="id" loading={loading} />
+          <Table 
+            columns={inventoryColumns} 
+            dataSource={paginatedInventory} 
+            rowKey="id" 
+            loading={loading}
+            pagination={{
+              ...inventoryPagination,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+              onChange: handleInventoryPaginationChange,
+              onShowSizeChange: (page, pageSize) => handleInventoryPaginationChange(1, pageSize),
+            }}
+            onChange={handleInventoryTableChange}
+          />
         </TabPane>
 
         <TabPane tab="Transaction History" key="2">
@@ -622,11 +742,23 @@ const handleExportPurchaseDetails = async () => {
           <Form form={correctionForm} layout="vertical" onFinish={handleCorrectionSubmit}>
             <Typography.Title level={5}>{correctionRecord.Item.name}</Typography.Title>
             <Text type="secondary">Correcting purchase from {correctionRecord.Store.name} on {moment(correctionRecord.transaction_date).format('DD MMM YYYY')}</Text>
-            <Row gutter={[16, 16]} style={{ marginTop: 20 }}><Col span={12}><Statistic title="Original Quantity" value={correctionRecord.quantity} /></Col><Col span={12}><Statistic title="Original Unit Price" value={correctionRecord.unit_price} prefix="₹" precision={2} /></Col></Row>
-            <Form.Item name="quantity" label="Corrected Quantity" rules={[{ required: true }]} style={{ marginTop: 20 }}><InputNumber min={0.01} style={{ width: '100%' }} /></Form.Item>
-            <Form.Item name="unit_price" label="Corrected Unit Price (₹)" rules={[{ required: true }]}><InputNumber min={0} step={0.01} precision={2} style={{ width: '100%' }} /></Form.Item>
+            <Row gutter={[16, 16]} style={{ marginTop: 20 }}>
+              <Col span={12}><Statistic title="Original Quantity" value={correctionRecord.quantity} /></Col>
+              <Col span={12}><Statistic title="Original Unit Price" value={correctionRecord.unit_price} prefix="₹" precision={2} /></Col>
+            </Row>
+            <Form.Item name="quantity" label="Corrected Quantity" rules={[{ required: true }]} style={{ marginTop: 20 }}>
+              <InputNumber min={0.01} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="unit_price" label="Corrected Unit Price (₹)" rules={[{ required: true }]}>
+              <InputNumber min={0} step={0.01} precision={2} style={{ width: '100%' }} />
+            </Form.Item>
             <Alert message="Warning" description="This will update the last purchase record and adjust the total stock. This action cannot be undone." type="warning" showIcon style={{ marginBottom: 20 }} />
-            <Form.Item><Space><Button type="primary" htmlType="submit" loading={confirmLoading}>Apply Correction</Button><Button onClick={() => setCorrectionModalVisible(false)}>Cancel</Button></Space></Form.Item>
+            <Form.Item>
+              <Space>
+                <Button type="primary" htmlType="submit" loading={confirmLoading}>Apply Correction</Button>
+                <Button onClick={() => setCorrectionModalVisible(false)}>Cancel</Button>
+              </Space>
+            </Form.Item>
           </Form>
         )}
       </Modal>

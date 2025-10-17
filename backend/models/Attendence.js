@@ -41,6 +41,10 @@ const Attendance = sequelize.define('Attendance', {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: { model: 'tbl_Users', key: 'id' }
+  },
+  totalManDays : {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 }, {
   tableName: 'tbl_Attendance',

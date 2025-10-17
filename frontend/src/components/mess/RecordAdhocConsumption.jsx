@@ -1,37 +1,81 @@
-import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Card, Table, InputNumber, message, Row, Col, DatePicker, Spin, Tooltip } from 'antd';
-import { SaveOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Form, Input, Button, Card, Table, InputNumber, message, Row, Col, DatePicker, Spin, Tooltip, Space, Select } from 'antd';
+import { SaveOutlined, InfoCircleOutlined, SearchOutlined } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
+
+const { Option } = Select;
 
 const RecordAdhocConsumption = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [items, setItems] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchText, setSearchText] = useState('');
   const [consumptionQuantities, setConsumptionQuantities] = useState({});
 
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+    total: 0,
+  });
+
   useEffect(() => {
-    const fetchItems = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await messAPI.getItems();
-        console.log('Fetched items response:', response.data); // Log the items response
-        const availableItems = response.data.data.map(item => ({
+        const [itemsResponse, categoriesResponse] = await Promise.all([
+          messAPI.getItems(),
+          messAPI.getItemCategories()
+        ]);
+        console.log('Fetched items response:', itemsResponse.data);
+        const availableItems = itemsResponse.data.data.map(item => ({
           ...item,
           key: item.id,
         }));
         setItems(availableItems);
+        setCategories(categoriesResponse.data.data || []);
       } catch (error) {
-        console.error('Item fetch error:', error.response || error); // Log detailed error
-        message.error('Failed to fetch inventory items.');
+        console.error('Data fetch error:', error.response || error);
+        message.error('Failed to fetch data.');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchItems();
+    fetchData();
   }, []);
+
+  // Memoized filtered and searched items
+  const filteredItems = useMemo(() => {
+    let filtered = [...items];
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(item => item.category_id === parseInt(selectedCategory));
+    }
+    if (searchText) {
+      filtered = filtered.filter(item =>
+        item.name.toLowerCase().includes(searchText.toLowerCase()) ||
+        (item.tbl_ItemCategory?.name || '').toLowerCase().includes(searchText.toLowerCase())
+      );
+    }
+    return filtered;
+  }, [items, selectedCategory, searchText]);
+
+  // Update pagination total when filtered data changes
+  useEffect(() => {
+    setPagination(prev => ({ ...prev, total: filteredItems.length, current: 1 }));
+  }, [filteredItems]);
+
+  // Paginated data
+  const paginatedItems = useMemo(() => {
+    const { current, pageSize } = pagination;
+    const start = (current - 1) * pageSize;
+    const end = start + pageSize;
+    return filteredItems.slice(start, end);
+  }, [filteredItems, pagination]);
 
   const handleQuantityChange = (itemId, value) => {
     setConsumptionQuantities(prev => ({
@@ -47,7 +91,7 @@ const RecordAdhocConsumption = () => {
       .map(([itemId, quantity]) => {
         const itemDetails = items.find(i => i.id === parseInt(itemId));
         if (!itemDetails) {
-          console.warn(`Item not found for ID: ${itemId}`); // Log missing item
+          console.warn(`Item not found for ID: ${itemId}`);
           return null;
         }
         return {
@@ -71,16 +115,16 @@ const RecordAdhocConsumption = () => {
       items: itemsToConsume,
     };
 
-    console.log('Submitting payload to /mess/special-consumption:', JSON.stringify(payload, null, 2)); // Log formatted payload
+    console.log('Submitting payload to /mess/special-consumption:', JSON.stringify(payload, null, 2));
 
     try {
       const response = await messAPI.recordAdhocConsumption(payload);
-      console.log('Create special consumption response:', response.data); // Log full response
+      console.log('Create special consumption response:', response.data);
       message.success('Ad-hoc consumption recorded successfully!');
       
       const lowStock = response.data.data?.lowStockItems || [];
       if (lowStock.length > 0) {
-        console.log('Low stock items:', lowStock); // Log low stock items
+        console.log('Low stock items:', lowStock);
         lowStock.forEach(item => {
           message.warning(`Low stock alert for ${item.name}: ${item.current_stock} ${item.unit} remaining.`);
         });
@@ -99,11 +143,16 @@ const RecordAdhocConsumption = () => {
           data: error.config?.data,
           headers: error.config?.headers,
         },
-      }); // Detailed error logging
+      });
       message.error(error.response?.data?.message || 'Failed to record consumption.');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Handle pagination change
+  const handlePaginationChange = (page, pageSize) => {
+    setPagination({ ...pagination, current: page, pageSize });
   };
 
   const columns = [
@@ -125,6 +174,7 @@ const RecordAdhocConsumption = () => {
       dataIndex: 'stock_quantity',
       key: 'stock_quantity',
       sorter: (a, b) => a.stock_quantity - b.stock_quantity,
+      align: 'right',
       render: (text, record) => (
         <span>
           {text || 0} {record.UOM?.abbreviation || 'units'}
@@ -198,10 +248,42 @@ const RecordAdhocConsumption = () => {
         </Form.Item>
 
         <h3 style={{ marginTop: 24, marginBottom: 16 }}>Consumed Items</h3>
+        <Space style={{ marginBottom: 16 }} wrap>
+          <Select
+            placeholder="Filter by category"
+            style={{ width: 200 }}
+            value={selectedCategory}
+            onChange={setSelectedCategory}
+            allowClear
+          >
+            <Option value="all">All Categories</Option>
+            {categories.map(category => (
+              <Option key={category.id} value={category.id}>
+                {category.name}
+              </Option>
+            ))}
+          </Select>
+          <Input
+            placeholder="Search items..."
+            allowClear
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            style={{ width: 200 }}
+            prefix={<SearchOutlined />}
+          />
+        </Space>
         <Table
+          rowKey="id"
           columns={columns}
-          dataSource={items}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
+          dataSource={paginatedItems}
+          pagination={{
+            ...pagination,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+            onChange: handlePaginationChange,
+            onShowSizeChange: (page, pageSize) => handlePaginationChange(1, pageSize),
+          }}
           bordered
           size="small"
           loading={loading}

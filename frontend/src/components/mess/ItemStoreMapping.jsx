@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Table, Button, Space, Select, InputNumber, message, Modal,
-  Form, Switch, Popconfirm, Tag, Tabs, Typography, Input
+  Form, Switch, Popconfirm, Tag, Tabs, Typography, Input, Row, Col
 } from 'antd';
 import {
-  PlusOutlined, DownloadOutlined, // Import DownloadOutlined for the Excel button
-  DeleteOutlined, SearchOutlined
+  PlusOutlined, DownloadOutlined, DeleteOutlined, SearchOutlined
 } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
-import * as XLSX from 'xlsx'; // Import xlsx library
+import * as XLSX from 'xlsx';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
@@ -110,12 +109,21 @@ const ItemStoreMapping = () => {
   const handleSubmit = async (values) => {
     setConfirmLoading(true);
     try {
-      await messAPI.mapItemToStore(values);
-      message.success('Item mapped to store successfully');
+      const store_id = values.store_id;
+      const mappings = values.items || [];
+      for (const mapping of mappings) {
+        await messAPI.mapItemToStore({
+          item_id: mapping.item_id,
+          store_id,
+          price: mapping.price,
+          is_preferred: mapping.is_preferred || false,
+        });
+      }
+      message.success(`${mappings.length} items mapped to store successfully`);
       setModalVisible(false);
       fetchItemStores();
     } catch (error) {
-      message.error('Failed to map item to store');
+      message.error('Failed to create mappings');
     } finally {
       setConfirmLoading(false);
     }
@@ -379,41 +387,29 @@ const ItemStoreMapping = () => {
       </Tabs>
 
       <Modal
-        title="Map Item to Store"
+        title="Map Multiple Items to Store"
         visible={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}
+        width={1000}
       >
         <Form
           form={form}
           layout="vertical"
           onFinish={handleSubmit}
+          initialValues={{ store_id: undefined, items: [{}] }} // Start with one empty item row
         >
-          <Form.Item
-            name="item_id"
-            label="Item"
-            rules={[{ required: true, message: 'Please select an item' }]}
-          >
-            <Select
-              placeholder="Select item"
-              showSearch
-              optionFilterProp="children"
-            >
-              {items.map(item => (
-                <Option key={item.id} value={item.id}>{item.name}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-
+          {/* Store Selection - Single at the top */}
           <Form.Item
             name="store_id"
-            label="Store"
+            label="Select Store"
             rules={[{ required: true, message: 'Please select a store' }]}
           >
             <Select
-              placeholder="Select store"
+              placeholder="Choose a store to map items to"
               showSearch
               optionFilterProp="children"
+              style={{ width: '100%' }}
             >
               {stores.map(store => (
                 <Option key={store.id} value={store.id}>{store.name}</Option>
@@ -421,37 +417,90 @@ const ItemStoreMapping = () => {
             </Select>
           </Form.Item>
 
-          <Form.Item
-            name="price"
-            label="Price (₹)"
-            rules={[{ required: true, message: 'Please enter price' }]}
-          >
-            <InputNumber
-              min={0}
-              step={0.01}
-              precision={2}
-              style={{ width: '100%' }}
-            />
-          </Form.Item>
+          <Text type="secondary" style={{ marginBottom: 16 }}>
+            Select the store above, then add items below. All selected items will be mapped to this store.
+          </Text>
+          
+          {/* Items Form.List */}
+          <Form.List name="items">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, ...restField }, index) => (
+                  <Card key={key} style={{ marginBottom: 16 }} size="small">
+                    <Row gutter={16} align="middle">
+                      <Col span={8}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'item_id']}
+                          label="Item"
+                          rules={[{ required: true, message: 'Please select an item' }]}
+                        >
+                          <Select
+                            placeholder="Select item"
+                            showSearch
+                            optionFilterProp="children"
+                          >
+                            {items.map(item => (
+                              <Option key={item.id} value={item.id}>{item.name}</Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                      <Col span={5}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'price']}
+                          label="Price (₹)"
+                          rules={[{ required: true, message: 'Please enter price' }]}
+                        >
+                          <InputNumber
+                            min={0}
+                            step={0.01}
+                            precision={2}
+                            style={{ width: '100%' }}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col span={4}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'is_preferred']}
+                          label="Preferred"
+                          valuePropName="checked"
+                        >
+                          <Switch />
+                        </Form.Item>
+                      </Col>
+                      <Col span={7} style={{ display: 'flex', alignItems: 'center' }}>
+                        <Text type="secondary">This item will be mapped to the selected store above.</Text>
+                      </Col>
+                      <Col span={0} style={{ textAlign: 'right' }}>
+                        <Popconfirm title="Remove this item row?" onConfirm={() => remove(name)}>
+                          <DeleteOutlined style={{ color: 'red', fontSize: 16, cursor: 'pointer' }} />
+                        </Popconfirm>
+                      </Col>
+                    </Row>
+                  </Card>
+                ))}
+                <Form.Item>
+                  <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
+                    Add Another Item
+                  </Button>
+                </Form.Item>
+              </>
+            )}
+          </Form.List>
 
-          <Form.Item
-            name="is_preferred"
-            label="Preferred"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-
-          <Form.Item>
+          <Row justify="end" style={{ marginTop: 16 }}>
             <Space>
-              <Button type="primary" htmlType="submit" loading={confirmLoading}>
-                Save Mapping
-              </Button>
               <Button onClick={() => setModalVisible(false)}>
                 Cancel
               </Button>
+              <Button type="primary" htmlType="submit" loading={confirmLoading}>
+                Save All Mappings to Store
+              </Button>
             </Space>
-          </Form.Item>
+          </Row>
         </Form>
       </Modal>
     </Card>
@@ -459,4 +508,3 @@ const ItemStoreMapping = () => {
 };
 
 export default ItemStoreMapping;
-

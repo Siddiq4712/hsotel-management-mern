@@ -11,6 +11,7 @@ const DailyConsumptionForm = ({ onSuccess }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [items, setItems] = useState([]);
+  const [students, setStudents] = useState([]); // New: Students state
   const [mealTypes] = useState(['breakfast', 'lunch', 'dinner', 'snacks']);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -19,6 +20,7 @@ const DailyConsumptionForm = ({ onSuccess }) => {
   useEffect(() => {
     fetchItems();
     fetchCategories();
+    fetchStudents(); // New: Fetch students
   }, []);
 
   useEffect(() => {
@@ -36,6 +38,16 @@ const DailyConsumptionForm = ({ onSuccess }) => {
       setItems(response.data.data || []);
     } catch (error) {
       message.error('Failed to fetch items');
+    }
+  };
+
+  const fetchStudents = async () => { // New: Fetch students
+    try {
+      // Assuming messAPI has getStudents; adjust if using a different API like userAPI
+      const response = await messAPI.getStudents(); // Or replace with appropriate API call
+      setStudents(response.data.data || []);
+    } catch (error) {
+      message.error('Failed to fetch students');
     }
   };
 
@@ -57,16 +69,21 @@ const DailyConsumptionForm = ({ onSuccess }) => {
     try {
       const consumption_date = values.consumption_date.format('YYYY-MM-DD');
       const meal_type = values.meal_type;
+      const student_id = values.student_id; // New: Include student_id
       
       const consumptionsToSubmit = values.consumptions.map(consumption => ({
         item_id: consumption.item_id,
         quantity_consumed: consumption.quantity,
         unit: consumption.unit || getUnitForItem(consumption.item_id),
         consumption_date,
-        meal_type
+        meal_type,
+        student_id // New: Add student_id to each consumption if needed; adjust based on API
       }));
 
-      await messAPI.recordBulkConsumption({ consumptions: consumptionsToSubmit });
+      await messAPI.recordBulkConsumption({ 
+        student_id, // New: Pass student_id at top level if API expects it
+        consumptions: consumptionsToSubmit 
+      });
       message.success('Consumption recorded successfully');
       form.resetFields();
       if (onSuccess) onSuccess();
@@ -92,6 +109,25 @@ const DailyConsumptionForm = ({ onSuccess }) => {
     }
   };
 
+  // New: Filter students for search by roll_number or name
+  const handleStudentSearch = (input, option) => {
+    const student = students.find(s => s.id === option.key);
+    if (!student) return false;
+    const searchValue = input.toLowerCase();
+    return (
+      student.roll_number.toLowerCase().includes(searchValue) ||
+      student.username.toLowerCase().includes(searchValue) ||
+      student.username.toLowerCase().includes(searchValue) // Optional: include username if available
+    );
+  };
+
+  // New: Display format for student option
+  const studentOptionRender = (option) => {
+    const student = students.find(s => s.id === option.key);
+    if (!student) return option.label;
+    return `${student.roll_number} - ${student.username}`;
+  };
+
   return (
     <Card>
       <Title level={4}>Record Daily Consumption</Title>
@@ -102,11 +138,34 @@ const DailyConsumptionForm = ({ onSuccess }) => {
         initialValues={{
           consumption_date: moment(),
           meal_type: 'lunch',
+          student_id: undefined, // New: Initial student
           consumptions: [{}]
         }}
       >
         <Row gutter={16}>
-          <Col xs={24} md={12}>
+          <Col xs={24} md={8}>
+            <Form.Item
+              name="student_id" // New: Student selection field
+              label="Student"
+              rules={[{ required: true, message: 'Please select student' }]}
+            >
+              <Select
+                showSearch
+                placeholder="Search student by roll number or name"
+                optionFilterProp="label" // Use custom filter
+                filterOption={handleStudentSearch}
+                optionRender={studentOptionRender}
+                style={{ width: '100%' }}
+              >
+                {students.map(student => (
+                  <Option key={student.id} value={student.id}>
+                    {`${student.roll_number} - ${student.username}`} // Fallback for display
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={8}>
             <Form.Item
               name="consumption_date"
               label="Consumption Date"
@@ -115,7 +174,7 @@ const DailyConsumptionForm = ({ onSuccess }) => {
               <DatePicker style={{ width: '100%' }} />
             </Form.Item>
           </Col>
-          <Col xs={24} md={12}>
+          <Col xs={24} md={8}>
             <Form.Item
               name="meal_type"
               label="Meal Type"

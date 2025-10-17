@@ -1,5 +1,6 @@
 // src/services/api.js
 import axios from 'axios';
+// import { generateMessBills } from '../../../backend/controllers/messController';
 
 const API_BASE_URL = 'http://localhost:5001/api';
 
@@ -382,6 +383,8 @@ export const messAPI = {
 
   getStudents: () => api.get('/mess/students'), // Endpoint to fetch students for dropdown
   recordStaffRecordedSpecialFoodConsumption: (data) => api.post('/mess/student-special-consumption-staff', data),
+  generateMessBills: (data, config) => api.post('/mess/generate-mess-bills', data, config),
+
 };
 
 export default api;
