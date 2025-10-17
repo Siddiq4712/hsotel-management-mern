@@ -3,7 +3,7 @@ const {
   User, HostelRoom, RoomType, MessBill, MessCharge,DailyMessCharge,MenuSchedule,MessDailyExpense,ExpenseType,
   Leave, Complaint, Transaction, Attendance, Token,
   HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel,
-  SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, sequelize
+  SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, sequelize,DailyConsumption,IncomeType,AdditionalIncome,StudentFee, FeeType, 
 } = require('../models');
 const { Op } = require('sequelize'); // <-- NEW LINE: Import 'sequelize' object
 const moment = require('moment'); 
@@ -1210,6 +1210,14 @@ const getSpecialFoodItemCategories = async (req, res) => {
 
 // Updated getMyDailyMessCharges in studentController.js to sum cost_per_serving from served menus
 
+// controllers/studentController.js
+
+// const {
+//   User, HostelRoom, RoomType, MessBill, MessCharge, DailyMessCharge, MenuSchedule, MessDailyExpense, ExpenseType,
+//   Leave, Complaint, Transaction, Attendance, Token, Enrollment, StudentFee,
+//   HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel,
+//   SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, sequelize,
+//   DailyConsumption, IncomeType, AdditionalIncome // ADDED for daily rate calculation
 const getMyDailyMessCharges = async (req, res) => {
   try {
     const { month, year } = req.query;
@@ -1225,109 +1233,181 @@ const getMyDailyMessCharges = async (req, res) => {
       ? moment().endOf('day').toDate() // stop at today if current month
       : moment({ year, month: month - 1 }).endOf('month').toDate();
 
-    // ✅ Step 1: Daily menu cost (served)
-    const dailyMenuCosts = await sequelize.query(`
-      SELECT 
-        DATE(scheduled_date) as date,
-        SUM(cost_per_serving) as daily_menu_total_cost
-      FROM tbl_MenuSchedule 
-      WHERE hostel_id = :hostel_id
-        AND status = 'served'
-        AND scheduled_date BETWEEN :startDate AND :endDate
-      GROUP BY DATE(scheduled_date)
-      ORDER BY date DESC
-    `, {
-      replacements: { hostel_id, startDate, endDate },
-      type: sequelize.QueryTypes.SELECT
-    });
+    console.log(`[Student Charges] Fetching charges for student ${student_id}, hostel ${hostel_id} for ${month}/${year}`);
+    console.log(`[Student Charges] Date range: ${moment(startDate).format('YYYY-MM-DD')} to ${moment(endDate).format('YYYY-MM-DD')}`);
 
-    // ✅ Step 2: Student attendance
+    // --- Step 1: Calculate the Hostel's Monthly Averaged Daily Rate ---
+    // This logic is largely taken from the messController's generateDailyRateReport.
+    // It is calculated once per month for the whole hostel.
+
+    // Get total Man-Days for the *entire hostel* for the given month
+    const hostelManDaysData = await Attendance.findAll({
+      attributes: [[sequelize.fn('SUM', sequelize.col('totalManDays')), 'manDays']],
+      where: {
+        hostel_id,
+        date: { [Op.between]: [startDate, endDate] }
+      },
+      group: ['hostel_id'], // Group by hostel_id to get a single sum
+      raw: true
+    });
+    const totalHostelManDays = hostelManDaysData[0] ? parseInt(hostelManDaysData[0].manDays) : 0;
+    console.log(`[Student Charges] Total Hostel Man-Days: ${totalHostelManDays}`);
+
+    // Get Gross Expenses (Food Ingredients + Other Mess Expenses)
+    const totalFoodIngredientCost = (await DailyConsumption.sum('total_cost', { where: { hostel_id, consumption_date: { [Op.between]: [startDate, endDate] } } })) || 0;
+    const totalOtherMessExpenses = (await MessDailyExpense.sum('amount', { where: { hostel_id, expense_date: { [Op.between]: [startDate, endDate] } } })) || 0;
+    const grandTotalGrossExpenses = totalFoodIngredientCost + totalOtherMessExpenses;
+    console.log(`[Student Charges] Grand Total Gross Expenses: ${grandTotalGrossExpenses.toFixed(2)}`);
+
+    // Get Deductions (Cash Token, Sister Concern, Special Orders pending (hostel-wide), Guest Income)
+    const cashTokenIncomeType = await IncomeType.findOne({ where: { name: 'Cash Token' } });
+    const cashTokenAmount = cashTokenIncomeType
+      ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: cashTokenIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0
+      : 0;
+
+    const sisterConcernIncomeType = await IncomeType.findOne({ where: { name: 'Sister Concern Bill' } });
+    const creditTokenAmount = sisterConcernIncomeType
+      ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: sisterConcernIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0
+      : 0;
+
+    // Sum of special food orders confirmed by hostel staff but *still pending payment* from any student
+    // This is counted as a deduction from gross mess expenses as it will be individually billed to students.
+    const studentSpecialOrdersPendingPaymentForHostel = (await FoodOrder.sum('total_amount', {
+        where: {
+            hostel_id,
+            status: 'confirmed',
+            payment_status: 'pending',
+            order_date: { [Op.between]: [startDate, endDate] }
+        }
+    })) || 0;
+
+    const studentGuestIncomeType = await IncomeType.findOne({ where: { name: 'Student Guest Income' } });
+    const studentGuestIncomeAmount = studentGuestIncomeType
+        ? (await AdditionalIncome.sum('amount', {
+            where: { hostel_id, income_type_id: studentGuestIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } }
+        })) || 0
+        : 0;
+
+    const totalDeductions = cashTokenAmount + creditTokenAmount + studentSpecialOrdersPendingPaymentForHostel + studentGuestIncomeAmount;
+    console.log(`[Student Charges] Total Deductions: ${totalDeductions.toFixed(2)}`);
+
+    const netMessCost = grandTotalGrossExpenses - totalDeductions;
+    const monthlyCalculatedDailyRate = totalHostelManDays > 0 ? netMessCost / totalHostelManDays : 0;
+    console.log(`[Student Charges] Monthly Calculated Daily Rate: ${monthlyCalculatedDailyRate.toFixed(2)}`);
+    // --- End of Hostel-Wide Daily Rate Calculation ---
+
+
+    // --- Step 2: Get Student's Specific Data for the Month ---
+
+    // Student's daily attendance records
     const attendanceRecords = await Attendance.findAll({
       where: {
         student_id,
-        date: { [Op.between]: [startDate, endDate] },
-        status: 'P'
+        date: { [Op.between]: [startDate, endDate] }
       },
-      attributes: ['date'],
+      attributes: ['date', 'status', 'totalManDays'], // totalManDays will be 1 for present/on-duty, 0 for absent
       raw: true
     });
-    const presentDates = new Set(attendanceRecords.map(r => moment(r.date).format('YYYY-MM-DD')));
+    const attendanceMap = new Map(attendanceRecords.map(att => [moment(att.date).format('YYYY-MM-DD'), { status: att.status, manDays: att.totalManDays }]));
+    
+    // Sum student's total Man-Days for the month
+    const studentTotalManDaysForMonth = attendanceRecords.reduce((sum, att) => sum + parseInt(att.totalManDays || 0), 0);
+    console.log(`[Student Charges] Student Total Man-Days for month: ${studentTotalManDaysForMonth}`);
 
-    // ✅ Step 3: Daily base charges
-    const charges = dailyMenuCosts.map(dayCost => {
-      const dateStr = moment(dayCost.date).format('YYYY-MM-DD');
-      const wasPresent = presentDates.has(dateStr);
-      const baseCharge = wasPresent ? parseFloat(dayCost.daily_menu_total_cost) : 0;
-
-      return {
-        id: dateStr,
-        date: dateStr,
-        baseMessCharge: baseCharge,
-        specialFoodCost: 0,
-        dailyTotalCharge: baseCharge,
-        attendance_status: wasPresent ? 'P' : 'A'
-      };
+    // Student's special food costs (pending payment only)
+    const studentSpecialFoodOrdersData = await FoodOrder.findAll({
+      attributes: [
+        [sequelize.fn('DATE', sequelize.col('order_date')), 'date'],
+        [sequelize.fn('SUM', sequelize.col('total_amount')), 'total_special_food_cost']
+      ],
+      where: {
+        student_id,
+        hostel_id,
+        status: 'confirmed',
+        payment_status: 'pending', // Only pending payments are added to student's current bill
+        order_date: { [Op.between]: [startDate, endDate] }
+      },
+      group: [sequelize.fn('DATE', sequelize.col('order_date'))],
+      raw: true
     });
+    const studentSpecialFoodOrderMap = new Map(studentSpecialFoodOrdersData.map(item => [moment(item.date).format('YYYY-MM-DD'), parseFloat(item.total_special_food_cost)]));
+    
+    // Sum student's total pending special food cost for the month
+    const totalMonthlySpecialFoodCost = studentSpecialFoodOrdersData.reduce((sum, item) => sum + parseFloat(item.total_special_food_cost || 0), 0);
+    console.log(`[Student Charges] Student Total Monthly Special Food Cost (pending): ${totalMonthlySpecialFoodCost.toFixed(2)}`);
 
-    // ✅ Step 4: Fetch special food costs
-    const specialFoodSums = await sequelize.query(`
-      SELECT 
-        DATE(order_date) as date,
-        SUM(total_amount) as paid_special_food_cost
-      FROM tbl_FoodOrder 
-      WHERE student_id = :student_id 
-        AND hostel_id = :hostel_id
-        AND status IN ('confirmed')
-        AND payment_status = 'pending'
-        AND order_date BETWEEN :startDate AND :endDate
-      GROUP BY DATE(order_date)
-    `, {
-      replacements: { student_id, hostel_id, startDate, endDate },
-      type: sequelize.QueryTypes.SELECT
-    });
 
-    const specialFoodMap = {};
-    specialFoodSums.forEach(sum => {
-      specialFoodMap[moment(sum.date).format('YYYY-MM-DD')] = parseFloat(sum.paid_special_food_cost || 0);
-    });
+    // --- Step 3: Combine daily charges for the student ---
+    const dailyCharges = [];
+    let currentDate = moment(startDate);
+    const today = moment().startOf('day'); // Only calculate up to today, not future days
+    const endOfReportPeriod = moment(endDate).startOf('day'); // Ensure end date is also start of day for comparison
 
-    // ✅ Step 5: Merge special food into charges
-    charges.forEach(charge => {
-      const specialCost = specialFoodMap[charge.date] || 0;
-      charge.specialFoodCost = specialCost;
-      charge.dailyTotalCharge += specialCost;
-    });
-
-    // ✅ Step 6: Fill missing days till *today only*, not future
-    const allDays = [];
-    const currentDate = moment(startDate);
-    const today = moment().endOf('day');
-
-    while (currentDate.isSameOrBefore(endDate) && currentDate.isSameOrBefore(today)) {
+    while (currentDate.isSameOrBefore(endOfReportPeriod) && currentDate.isSameOrBefore(today)) {
       const dateStr = currentDate.format('YYYY-MM-DD');
-      if (!charges.find(c => c.date === dateStr)) {
-        allDays.push({
-          id: dateStr,
-          date: dateStr,
-          baseMessCharge: 0,
-          specialFoodCost: specialFoodMap[dateStr] || 0,
-          dailyTotalCharge: specialFoodMap[dateStr] || 0,
-          attendance_status: 'A'
-        });
-      }
+      const studentAttendance = attendanceMap.get(dateStr) || { status: 'A', manDays: 0 }; // Default to Absent if no record
+
+      // Student is charged base mess cost if present ('P') or on duty ('OD')
+      const isChargedDay = (studentAttendance.status === 'P' || studentAttendance.status === 'OD');
+
+      const baseMessCharge = isChargedDay ? parseFloat(monthlyCalculatedDailyRate) : 0;
+      const specialFoodCost = studentSpecialFoodOrderMap.get(dateStr) || 0; // Per day special food cost
+      const dailyTotalCharge = baseMessCharge + specialFoodCost;
+
+      dailyCharges.push({
+        id: dateStr, // Unique ID for the day
+        date: dateStr,
+        attendance_status: studentAttendance.status, // Use the actual attendance status (P, A, OD)
+        baseMessCharge: parseFloat(baseMessCharge.toFixed(2)),
+        specialFoodCost: parseFloat(specialFoodCost.toFixed(2)),
+        dailyTotalCharge: parseFloat(dailyTotalCharge.toFixed(2)),
+      });
       currentDate.add(1, 'day');
     }
 
-    charges.push(...allDays);
-    charges.sort((a, b) => new Date(b.date) - new Date(a.date));
+    // --- Step 4: Fetch other monthly flat fees for this student ---
+    const otherMonthlyFees = await StudentFee.findAll({
+      where: { student_id, hostel_id, month, year },
+      attributes: ['fee_type', 'amount', 'description'],
+      raw: true
+    });
 
-    res.json({ success: true, data: charges });
+    const formattedFlatFees = [];
+    // Aggregate by fee_type if multiple entries for the same type (e.g., multiple staff-recorded special_food_charge entries)
+    const flatFeesMap = new Map();
+    otherMonthlyFees.forEach(fee => {
+      let key = fee.fee_type;
+      if (flatFeesMap.has(key)) {
+        flatFeesMap.get(key).amount += parseFloat(fee.amount);
+        if (fee.description && !flatFeesMap.get(key).description.includes(fee.description)) {
+          flatFeesMap.get(key).description += `; ${fee.description}`;
+        }
+      } else {
+        flatFeesMap.set(key, { ...fee, amount: parseFloat(fee.amount) });
+      }
+    });
+
+    flatFeesMap.forEach(fee => formattedFlatFees.push(fee));
+    console.log(`[Student Charges] Student Other Flat Fees:`, formattedFlatFees);
+
+
+    res.json({
+      success: true,
+      data: {
+        dailyCharges: dailyCharges, // Breakdown for the table
+        monthlySummary: {
+          monthlyCalculatedDailyRate: parseFloat(monthlyCalculatedDailyRate.toFixed(2)),
+          studentTotalManDaysForMonth: studentTotalManDaysForMonth,
+          totalMonthlySpecialFoodCost: parseFloat(totalMonthlySpecialFoodCost.toFixed(2)), // Sum of pending special food
+          flatFees: formattedFlatFees, // Array of other flat fees (e.g., newspaper, bed charge)
+        },
+      }
+    });
   } catch (error) {
     console.error('Error fetching student daily mess charges:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-
 
 const getMonthlyMessExpensesChartData = async (req, res) => {
   try {

@@ -136,7 +136,8 @@ const {
 
   generateDailyRateReport,
   getStudents,
-  recordStaffRecordedSpecialFoodConsumption
+  recordStaffRecordedSpecialFoodConsumption,
+  generateMessBills
 
 
 } = require('../controllers/messController');
@@ -346,5 +347,6 @@ router.get('/reports/daily-rate-calculation', authorize(['mess', 'admin']), gene
 router.get('/students',authorize(['mess', 'admin']),getStudents);
 router.post('/student-special-consumption-staff',authorize(['mess', 'admin']),recordStaffRecordedSpecialFoodConsumption);
 
+router.post('/generate-mess-bills',authorize(['mess', 'admin']),generateMessBills);
 
 module.exports = router;

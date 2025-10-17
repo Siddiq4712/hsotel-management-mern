@@ -4657,13 +4657,17 @@ const getIncomeEntries = async (req, res) => {
     res.status(500).json({ success: false, message: `Server error: ${error.message}` });
   }
 };
+// In messController.js
+
+// ... (previous imports and functions)
+
 const generateMonthlyMessReport = async (req, res) => {
   console.log('--- [START] Generating Monthly Mess Report (Final Version) ---');
   try {
-    const { month, year } = req.query;
+    const { month, year, college } = req.query; // Added college filter from frontend
     const { hostel_id } = req.user;
 
-    console.log(`[LOG] Report requested for Month: ${month}, Year: ${year}, Hostel ID: ${hostel_id}`);
+    console.log(`[LOG] Report requested for Month: ${month}, Year: ${year}, Hostel ID: ${hostel_id}, College: ${college}`);
 
     if (!month || !year) {
       return res.status(400).json({ success: false, message: 'Month and year are required.' });
@@ -4673,32 +4677,72 @@ const generateMonthlyMessReport = async (req, res) => {
     const endDate = moment({ year, month: month - 1 }).endOf('month').toDate();
     
     // 1. Get all active students for the report
-    const students = await User.findAll({ where: { hostel_id, role: 'student', is_active: true }, attributes: ['id', 'username'], raw: true });
+    let studentWhereClause = { hostel_id, role: 'student', is_active: true };
+    if (college && college !== 'all') {
+      const studentEnrollments = await Enrollment.findAll({
+        where: {
+          hostel_id,
+          college: college,
+          status: 'active'
+        },
+        attributes: ['student_id'],
+        raw: true
+      });
+      const enrolledStudentIds = studentEnrollments.map(e => e.student_id);
+      if (enrolledStudentIds.length === 0) {
+        console.log(`[LOG] No active students found for college ${college}. Exiting.`);
+        return res.json({ success: true, data: [], summary: {} });
+      }
+      studentWhereClause.id = { [Op.in]: enrolledStudentIds };
+    }
+
+    const students = await User.findAll({ 
+      where: studentWhereClause, 
+      attributes: ['id', 'username', 'roll_number'], 
+      raw: true 
+    });
+
     if (students.length === 0) {
       console.log('[LOG] No active students found. Exiting.');
       return res.json({ success: true, data: [], summary: {} });
     }
+
     const studentIds = students.map(s => s.id);
     console.log(`[LOG] Found ${students.length} active students.`);
 
-    // 2. Calculate Total Man-Days for the Month
-    const totalManDays = await Attendance.count({
+    // 2. Total Man-Days (overall)
+    const totalManDaysForMess = (
+      await Attendance.sum('totalManDays', {
+        where: {
+          hostel_id,
+          student_id: { [Op.in]: studentIds },
+          date: { [Op.between]: [startDate, endDate] }
+        }
+      })
+    ) || 0;
+
+    console.log(`[LOG] Total Man-Days for the month (charged days): ${totalManDaysForMess}`);
+
+    // 2b. Per-student Man-Days
+    const studentManDaysData = await Attendance.findAll({
+      attributes: ['student_id', [sequelize.fn('SUM', sequelize.col('totalManDays')), 'manDays']],
       where: {
-        date: { [Op.between]: [startDate, endDate] },
-        status: { [Op.not]: 'OD' } 
-      }
+        hostel_id,
+        student_id: { [Op.in]: studentIds },
+        date: { [Op.between]: [startDate, endDate] }
+      },
+      group: ['student_id'],
+      raw: true
     });
-    console.log(`[LOG] Total Man-Days for the month: ${totalManDays}`);
-    
-    // 3. Calculate Total Gross Expenses
+    const studentManDaysMap = new Map(studentManDaysData.map(item => [item.student_id, parseInt(item.manDays)]));
+
+    // 3. Total Gross Expenses
     const totalFoodIngredientCost = (await DailyConsumption.sum('total_cost', { where: { hostel_id, consumption_date: { [Op.between]: [startDate, endDate] } } })) || 0;
     const totalOtherMessExpenses = (await MessDailyExpense.sum('amount', { where: { hostel_id, expense_date: { [Op.between]: [startDate, endDate] } } })) || 0;
     const grandTotalGrossExpenses = totalFoodIngredientCost + totalOtherMessExpenses;
-    console.log(`[LOG] Total Gross Expenses: ${grandTotalGrossExpenses} (Food: ${totalFoodIngredientCost} + Other: ${totalOtherMessExpenses})`);
+    console.log(`[LOG] Total Gross Expenses: ${grandTotalGrossExpenses.toFixed(2)} (Food: ${totalFoodIngredientCost.toFixed(2)} + Other: ${totalOtherMessExpenses.toFixed(2)})`);
 
-    // 4. Calculate Total Deductions/Income
-    console.log('[LOG] Summing all deductions...');
-    // Credit Token (Sister Concern Bill) - from AdditionalIncome
+    // 4. Total Deductions/Income
     const sisterConcernIncomeType = await IncomeType.findOne({ where: { name: 'Sister Concern Bill' } });
     let creditSisterConcernBill = 0;
     if (sisterConcernIncomeType) {
@@ -4706,124 +4750,155 @@ const generateMonthlyMessReport = async (req, res) => {
           where: { hostel_id, income_type_id: sisterConcernIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } 
       })) || 0;
     }
-    console.log(`[LOG] Deduction - Credit Token (Sister Concern): ${creditSisterConcernBill}`);
-    
+
     const cashTokenIncomeType = await IncomeType.findOne({ where: { name: 'Cash Token' } });
-    let cashToken = 0; if (cashTokenIncomeType) { cashToken = (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: cashTokenIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0; }
-    console.log(`[LOG] Deduction - Cash Token: ${cashToken}`);
-    
-    // Student Special Orders - sum with payment_status 'pending'
-    const studentAdditionalCreditToken = (await FoodOrder.sum('total_amount', { where: { hostel_id, status: 'confirmed', payment_status: 'pending', order_date: { [Op.between]: [startDate, endDate] } } })) || 0;
-    console.log(`[LOG] Deduction - Student Special Orders: ${studentAdditionalCreditToken}`);
-    
+    let cashToken = 0;
+    if (cashTokenIncomeType) {
+      cashToken = (await AdditionalIncome.sum('amount', { 
+        where: { hostel_id, income_type_id: cashTokenIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } 
+      })) || 0;
+    }
+
+    const studentSpecialOrdersPendingPayment = (await FoodOrder.sum('total_amount', { 
+        where: { 
+            hostel_id, 
+            student_id: { [Op.in]: studentIds }, 
+            status: 'confirmed', 
+            payment_status: 'pending',
+            order_date: { [Op.between]: [startDate, endDate] } 
+        } 
+    })) || 0;
+
     const studentGuestIncomeType = await IncomeType.findOne({ where: { name: 'Student Guest Income' } });
-    let studentGuestIncome = 0; if (studentGuestIncomeType) { studentGuestIncome = (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: studentGuestIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0; }
-    console.log(`[LOG] Deduction - Student Guest Income: ${studentGuestIncome}`);
-    
-    const totalDeductions = creditSisterConcernBill + cashToken + studentAdditionalCreditToken + studentGuestIncome;
-    console.log(`[LOG] Total Deductions: ${totalDeductions}`);
-    
-    // 5. Calculate Adjusted Total Expenses and Monthly Daily Rate
-    // Exclude food ingredient cost from adjusted expenses to match accurate daily rate calculation (food covered by tokens; daily rate for net other expenses)
-    const adjustedTotalExpenses = totalOtherMessExpenses - totalDeductions;
-    const monthlyDailyRate = totalManDays > 0 ? adjustedTotalExpenses / totalManDays : 0;
-    console.log(`[LOG] Adjusted Total Expenses: ${adjustedTotalExpenses}`);
-    console.log(`[LOG] Calculated Daily Rate: ${monthlyDailyRate}`);
-    
-    // 6. Fetch and Map ALL other fees for the month
-    console.log(`[LOG] Fetching StudentFee records for Month: ${month}, Year: ${year}`);
+    let studentGuestIncome = 0;
+    if (studentGuestIncomeType) {
+      studentGuestIncome = (await AdditionalIncome.sum('amount', { 
+        where: { hostel_id, income_type_id: studentGuestIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } 
+      })) || 0;
+    }
+
+    const totalDeductions = creditSisterConcernBill + cashToken + studentSpecialOrdersPendingPayment + studentGuestIncome;
+
+    // 5. Adjusted Expenses and Daily Rate
+    const netMessCost = grandTotalGrossExpenses - totalDeductions;
+    const monthlyDailyRate = totalManDaysForMess > 0 ? netMessCost / totalManDaysForMess : 0;
+
+    // 6. Other Fees (bed, newspaper, etc.)
     const otherFees = await StudentFee.findAll({
       where: { hostel_id, month, year, student_id: { [Op.in]: studentIds } },
       attributes: ['student_id', 'fee_type', 'amount'],
       raw: true
     });
-    console.log('[LOG] Raw `otherFees` fetched from DB:', otherFees);
 
     const bedChargeMap = new Map();
-    const paperBillMap = new Map();
     const newspaperBillMap = new Map();
+    const additionalOtherChargesMap = new Map();
 
     otherFees.forEach(fee => {
-      console.log(`[LOG] Fee for student ${fee.student_id}: type "${fee.fee_type}", amount ${fee.amount}`);
       const studentId = fee.student_id;
       const amount = parseFloat(fee.amount);
-      if (fee.fee_type === 'bed_charge') {
-        bedChargeMap.set(studentId, (bedChargeMap.get(studentId) || 0) + amount);
-      } else if (fee.fee_type === 'paper_bill') {
-        paperBillMap.set(studentId, (paperBillMap.get(studentId) || 0) + amount);
-      } else if (fee.fee_type === 'newspaper') {
-        newspaperBillMap.set(studentId, (newspaperBillMap.get(studentId) || 0) + amount);
-      }
+      if (fee.fee_type === 'bed_charge') bedChargeMap.set(studentId, (bedChargeMap.get(studentId) || 0) + amount);
+      else if (fee.fee_type === 'newspaper') newspaperBillMap.set(studentId, (newspaperBillMap.get(studentId) || 0) + amount);
+      else additionalOtherChargesMap.set(studentId, (additionalOtherChargesMap.get(studentId) || 0) + amount);
     });
-    console.log('[LOG] `paperBillMap` after processing:', Object.fromEntries(paperBillMap));
-    console.log('[LOG] `newspaperBillMap` after processing:', Object.fromEntries(newspaperBillMap));
-    
-    // 7. Fetch Mess Days and Special Order amounts per student
-    const studentMessDaysData = await DailyMessCharge.findAll({ attributes: ['student_id', [sequelize.fn('COUNT', sequelize.col('id')), 'mess_days']], where: { hostel_id, student_id: { [Op.in]: studentIds }, is_charged: true, date: { [Op.between]: [startDate, endDate] } }, group: ['student_id'], raw: true, });
-    const messDaysMap = new Map(studentMessDaysData.map(item => [item.student_id, item.mess_days]));
-    const studentFoodOrdersData = await FoodOrder.findAll({ attributes: ['student_id', [sequelize.fn('SUM', sequelize.col('total_amount')), 'total_special_food_cost']], where: { hostel_id, student_id: { [Op.in]: studentIds }, status: 'confirmed', payment_status: 'pending', order_date: { [Op.between]: [startDate, endDate] } }, group: ['student_id'], raw: true, });
-    const foodOrderMap = new Map(studentFoodOrdersData.map(item => [item.student_id, parseFloat(item.total_special_food_cost)]));
 
-    // 8. Generate Final Report Data for Each Student
+    // 7. Special Orders per student
+    const studentSpecialFoodOrdersData = await FoodOrder.findAll({ 
+        attributes: ['student_id', [sequelize.fn('SUM', sequelize.col('total_amount')), 'total_special_food_cost']], 
+        where: { 
+            hostel_id, 
+            student_id: { [Op.in]: studentIds }, 
+            status: 'confirmed', 
+            payment_status: 'pending',
+            order_date: { [Op.between]: [startDate, endDate] } 
+        }, 
+        group: ['student_id'], 
+        raw: true
+    });
+    const studentSpecialFoodOrderMap = new Map(studentSpecialFoodOrdersData.map(item => [item.student_id, parseFloat(item.total_special_food_cost)]));
+
+    // Summary accumulators
+    let totalReportMessAmount = 0, totalReportAdditionalAmount = 0, totalReportBedCharges = 0, totalReportHinduIndianExpress = 0, totalReportFinalAmount = 0;
+
+    // 8. Build reportData
     const reportData = students.map(student => {
-      const studentMessDays = parseInt(messDaysMap.get(student.id) || 0);
+      const studentMessDays = studentManDaysMap.get(student.id) || 0; // <-- Per-student mandays
       const messAmount = monthlyDailyRate * studentMessDays;
-      const additionalAmount = foodOrderMap.get(student.id) || 0;
+      const additionalAmount = studentSpecialFoodOrderMap.get(student.id) || 0;
       const bedCharges = bedChargeMap.get(student.id) || 0;
-      const paperBillAmount = paperBillMap.get(student.id) || 0;
       const newspaperAmount = newspaperBillMap.get(student.id) || 0;
+      const otherCustomCharges = additionalOtherChargesMap.get(student.id) || 0;
+      const totalAdditionalChargesForStudent = additionalAmount + otherCustomCharges;
 
-      // Combine paper and newspaper bills into a single value for the total calculation
-      const totalPaperAndNewspaper = paperBillAmount + newspaperAmount;
-
-      if (student.id < students[5].id) {
-          console.log(`[LOG] For student ${student.id} (${student.username}), found combined paper/newspaper amount: ${totalPaperAndNewspaper}`);
-      }
-      
-      const totalRaw = messAmount + additionalAmount + bedCharges + totalPaperAndNewspaper;
+      const totalRaw = messAmount + totalAdditionalChargesForStudent + bedCharges + newspaperAmount;
       const floorAmount = Math.floor(totalRaw);
       const frac = totalRaw - floorAmount;
-      let finalAmount;
-      if (frac <= 0.20) {
-        finalAmount = floorAmount;
-      } else {
-        finalAmount = Math.ceil(totalRaw);
-      }
-      const roundingUp = finalAmount - totalRaw;
+      let finalAmount = frac <= 0.20 ? floorAmount : Math.ceil(totalRaw);
+      const roundingUp = parseFloat((finalAmount - totalRaw).toFixed(2));
+
+      // Accumulate for summary
+      totalReportMessAmount += messAmount;
+      totalReportAdditionalAmount += totalAdditionalChargesForStudent;
+      totalReportBedCharges += bedCharges;
+      totalReportHinduIndianExpress += newspaperAmount;
+      totalReportFinalAmount += finalAmount;
 
       return {
-        studentId: student.id, name: student.username, regNo: student.username,
-        messDays: studentMessDays, dailyRate: monthlyDailyRate, messAmount,
-        additionalAmount, bedCharges,
-        paperBill: paperBillAmount,
-        hinduIndianExpress: totalPaperAndNewspaper,
-        total: totalRaw, netAmount: finalAmount, roundingUp, finalAmount,
-      };
-    }).sort((a, b) => a.regNo.localeCompare(b.regNo));
-    
-    // 9. Construct the Final Summary Object
-    const summary = {
-        subTotal: grandTotalGrossExpenses,
-        totalFoodIngredientCost: totalFoodIngredientCost,
-        totalOtherMessExpenses: totalOtherMessExpenses,
-        cashToken,
-        creditToken: creditSisterConcernBill,
-        studentAdditionalCreditToken,
-        studentGuestIncome,
-        totalDeductions,
-        totalExpenses: adjustedTotalExpenses,
-        messDays: totalManDays,
+        studentId: student.id,
+        name: student.username,
+        regNo: student.roll_number || 'N/A',
+        messDays: studentMessDays,
         dailyRate: monthlyDailyRate,
+        messAmount: parseFloat(messAmount.toFixed(2)),
+        additionalAmount: parseFloat(totalAdditionalChargesForStudent.toFixed(2)),
+        bedCharges: parseFloat(bedCharges.toFixed(2)),
+        hinduIndianExpress: parseFloat(newspaperAmount.toFixed(2)),
+        total: parseFloat(totalRaw.toFixed(2)),
+        netAmount: parseFloat(finalAmount.toFixed(2)),
+        roundingUp,
+        finalAmount: parseFloat(finalAmount.toFixed(0))
+      };
+    }).sort((a, b) => a.name.localeCompare(b.name));
+
+    // 9. Summary
+    const summary = {
+        subTotal: grandTotalGrossExpenses.toFixed(2),
+        totalFoodIngredientCost: totalFoodIngredientCost.toFixed(2),
+        totalOtherMessExpenses: totalOtherMessExpenses.toFixed(2),
+        cashToken: cashToken.toFixed(2),
+        creditToken: creditSisterConcernBill.toFixed(2),
+        studentSpecialOrdersPendingPayment: studentSpecialOrdersPendingPayment.toFixed(2),
+        studentGuestIncome: studentGuestIncome.toFixed(2),
+        totalDeductions: totalDeductions.toFixed(2),
+        totalExpenses: netMessCost.toFixed(2),
+        messDays: totalManDaysForMess,
+        dailyRate: monthlyDailyRate.toFixed(2),
+        totalMessAmount: totalReportMessAmount.toFixed(2),
+        totalAdditionalAmount: totalReportAdditionalAmount.toFixed(2),
+        totalBedCharges: totalReportBedCharges.toFixed(2),
+        totalHinduIndianExpress: totalReportHinduIndianExpress.toFixed(2),
+        grandTotal: totalReportFinalAmount.toFixed(0),
     };
-    
+
     console.log('--- [END] Mess Report Generation Successful ---');
     res.json({ success: true, data: reportData, summary });
 
   } catch (error) {
     console.error('--- [ERROR] Generating monthly mess report:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      originalError: error.original ? {
+        message: error.original.message,
+        code: error.original.code,
+        sqlState: error.original.sqlState,
+        sql: error.original.sql
+      } : 'No original error'
+    });
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+
 const createConcern = async (req, res) => {
   try {
     const { name, description } = req.body;
@@ -5587,8 +5662,70 @@ const generateDailyRateReport = async (req, res) => {
     console.log(`[DEBUG] Report for hostel_id: ${hostel_id}, month: ${month}, year: ${year}`);
     console.log(`[DEBUG] Date range: startDate=${startDate.toISOString()}, endDate=${endDate.toISOString()}`);
 
-    // 1. Fetch Gross Expenses (Item Consumptions + Other Expenses)
-    // a) Item Consumption grouped by category (includes daily menu costs)
+    // 0. Fetch all active students and their IDs
+    const students = await User.findAll({
+      where: { hostel_id, role: 'student', is_active: true },
+      attributes: ['id', 'username', 'roll_number'],
+      raw: true
+    });
+    const studentIds = students.map(s => s.id);
+
+    if (studentIds.length === 0) {
+      return res.json({ success: true, data: { expenses: [], totalManDays: 0, dailyRate: 0 }, message: 'No students found' });
+    }
+
+    // 4. Fetch totalManDays per student (moved up for water charges calculation)
+    const studentManDaysData = await Attendance.findAll({
+      attributes: ['student_id', [sequelize.fn('SUM', sequelize.col('totalManDays')), 'manDays']],
+      where: {
+        hostel_id,
+        student_id: { [Op.in]: studentIds },
+        date: { [Op.between]: [startDate, endDate] }
+      },
+      group: ['student_id'],
+      raw: true
+    });
+
+    const studentManDaysMap = new Map(studentManDaysData.map(item => [item.student_id, parseInt(item.manDays)]));
+    const totalManDays = studentManDaysData.reduce((sum, item) => sum + parseInt(item.manDays), 0);
+
+    // Handle Water Charges: Create or update the entry for the month
+    const waterExpenseType = await ExpenseType.findOne({ where: { name: 'Water Charges' } });
+    if (waterExpenseType) {
+      const waterAmount = totalManDays * 10;
+      const existingWaterEntry = await MessDailyExpense.findOne({
+        where: {
+          hostel_id,
+          expense_type_id: waterExpenseType.id,
+          expense_date: { [Op.between]: [startDate, endDate] }
+        },
+        order: [['createdAt', 'DESC']]
+      });
+
+      if (existingWaterEntry) {
+        // Update existing entry
+        await existingWaterEntry.update({
+          amount: waterAmount,
+          description: `Water charges for ${moment(startDate).format('MMMM YYYY')} (Updated)`
+        });
+        console.log(`[Water Charges] Updated existing entry for ${moment(startDate).format('MMMM YYYY')} with amount: ${waterAmount}`);
+      } else {
+        // Create new entry
+        await MessDailyExpense.create({
+          hostel_id,
+          expense_type_id: waterExpenseType.id,
+          amount: waterAmount,
+          expense_date: startDate,
+          description: `Water charges for ${moment(startDate).format('MMMM YYYY')}`,
+          recorded_by: req.user.id
+        });
+        console.log(`[Water Charges] Created new entry for ${moment(startDate).format('MMMM YYYY')} with amount: ${waterAmount}`);
+      }
+    } else {
+      console.warn('[Water Charges] ExpenseType "Water Charges" not found.');
+    }
+
+    // 1. Fetch Gross Expenses (Item Consumptions + Other Expenses, now includes water)
     const consumptionByCategory = await DailyConsumption.findAll({
       where: { hostel_id, consumption_date: { [Op.between]: [startDate, endDate] } },
       attributes: [
@@ -5599,11 +5736,10 @@ const generateDailyRateReport = async (req, res) => {
       group: [sequelize.col('tbl_Item->tbl_ItemCategory.name')],
       raw: true,
     });
-    // Consolidate all consumption under "Rice & Grocery"
+
     const totalConsumptionCost = consumptionByCategory.reduce((sum, cat) => sum + parseFloat(cat.amount), 0);
     const expenses = [{ name: 'Rice & Grocery', amount: totalConsumptionCost }];
 
-    // b) Other Mess Daily Expenses grouped by type
     const otherExpenses = await MessDailyExpense.findAll({
       where: { hostel_id, expense_date: { [Op.between]: [startDate, endDate] } },
       attributes: [
@@ -5612,93 +5748,45 @@ const generateDailyRateReport = async (req, res) => {
       ],
       include: [{ model: ExpenseType, as: 'ExpenseType', attributes: [] }],
       group: [sequelize.col('ExpenseType.name')],
-      order: [[sequelize.col('ExpenseType.name'), 'ASC']],
       raw: true,
     });
     expenses.push(...otherExpenses);
+
     const subTotal = expenses.reduce((sum, item) => sum + parseFloat(item.amount), 0);
 
-    // 2. Fetch Deductions (Incomes & Credits)
-    // a) Cash Token (from AdditionalIncome)
+    // 2. Fetch Deductions
     const cashTokenIncomeType = await IncomeType.findOne({ where: { name: 'Cash Token' } });
-    const cashTokenAmount = cashTokenIncomeType ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: cashTokenIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0 : 0;
+    const cashTokenAmount = cashTokenIncomeType
+      ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: cashTokenIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0
+      : 0;
 
-    // b) Credit Token (Sister Concern Bill) - from AdditionalIncome
     const sisterConcernIncomeType = await IncomeType.findOne({ where: { name: 'Sister Concern Bill' } });
-    let creditTokenAmount = 0;
-    let creditTokenDescription = '';
+    let creditTokenAmount = 0, creditTokenDescription = '';
     if (sisterConcernIncomeType) {
       const sisterConcernEntries = await AdditionalIncome.findAll({
-        where: { 
-          hostel_id, 
-          income_type_id: sisterConcernIncomeType.id,
-          received_date: { [Op.between]: [startDate, endDate] } 
-        },
+        where: { hostel_id, income_type_id: sisterConcernIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } },
+        raw: true
       });
       creditTokenAmount = sisterConcernEntries.reduce((sum, entry) => sum + parseFloat(entry.amount), 0);
       creditTokenDescription = sisterConcernEntries.map(e => e.description).filter(d => d).join(', ') || 'N/A';
     }
 
-    // c) Student Special Food Orders (V & NV Meals) - sum of all delivered/paid orders by all students from tbl_foodorder
-    // DEBUG: First, count matching records to see if any exist
-    const matchingFoodOrdersCount = await FoodOrder.count({
-      where: { hostel_id, status: 'confirmed', payment_status: 'paid', order_date: { [Op.between]: [startDate, endDate] } }
-    });
-    console.log(`[DEBUG] Count of matching FoodOrders (hostel_id=${hostel_id}, status='confirmed', payment_status='paid', date between ${startDate} and ${endDate}): ${matchingFoodOrdersCount}`);
+    const specialOrdersAmount = (await FoodOrder.sum('total_amount', {
+      where: { hostel_id, status: 'confirmed', payment_status: 'pending', order_date: { [Op.between]: [startDate, endDate] } }
+    })) || 0;
 
-    // DEBUG: If count > 0, fetch a sample to inspect data
-    if (matchingFoodOrdersCount > 0) {
-      const sampleOrders = await FoodOrder.findAll({
-        where: { hostel_id, status: 'confirmed', payment_status: 'paid', order_date: { [Op.between]: [startDate, endDate] } },
-        limit: 5, // Limit to 5 for logging
-        attributes: ['id', 'total_amount', 'order_date', 'status', 'payment_status', 'hostel_id']
-      });
-      console.log(`[DEBUG] Sample matching FoodOrders:`, JSON.stringify(sampleOrders.map(o => o.toJSON()), null, 2));
-    } else {
-      // DEBUG: Check if there are any orders in the month regardless of status/payment
-      const allOrdersInMonthCount = await FoodOrder.count({
-        where: { hostel_id, order_date: { [Op.between]: [startDate, endDate] } }
-      });
-      console.log(`[DEBUG] Total FoodOrders in date range (ignoring status/payment): ${allOrdersInMonthCount}`);
-
-      // DEBUG: Check orders with status='delivered' regardless of payment
-      const deliveredOrdersCount = await FoodOrder.count({
-        where: { hostel_id, status: 'confirmed', order_date: { [Op.between]: [startDate, endDate] } }
-      });
-      console.log(`[DEBUG] FoodOrders with status='confirmed' in date range: ${deliveredOrdersCount}`);
-
-      // DEBUG: Check orders with payment_status='paid' regardless of status
-      const paidOrdersCount = await FoodOrder.count({
-        where: { hostel_id, payment_status: 'paid', order_date: { [Op.between]: [startDate, endDate] } }
-      });
-      console.log(`[DEBUG] FoodOrders with payment_status='paid' in date range: ${paidOrdersCount}`);
-    }
-
-    const specialOrdersAmount = (await FoodOrder.sum('total_amount', { where: { hostel_id, status: 'confirmed', payment_status: 'pending', order_date: { [Op.between]: [startDate, endDate] } } })) || 0;
-    console.log(`[DEBUG] Calculated specialOrdersAmount (sum of total_amount): ${specialOrdersAmount}`);
-    
-    // d) Student Guest Income (from AdditionalIncome)
     const guestIncomeType = await IncomeType.findOne({ where: { name: 'Student Guest Income' } });
-    const guestIncomeAmount = guestIncomeType ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: guestIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0 : 0;
-    
-    // 3. Final Calculations - Deduct special additional credit token (specialOrdersAmount) along with other deductions
+    const guestIncomeAmount = guestIncomeType
+      ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: guestIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0
+      : 0;
+
     const totalDeductions = cashTokenAmount + creditTokenAmount + specialOrdersAmount + guestIncomeAmount;
+
+    // 3. Total Expenses after deductions
     const totalExpenses = subTotal - totalDeductions;
 
-    // 4. Calculate Total Man Days (1 if present or absent, 0 if OD)
-const totalManDays = await Attendance.count({
-  where: {
-    // hostel_id,
-    date: { [Op.between]: [startDate, endDate] },
-    status: { [Op.not]: 'OD' } 
-  }
-});
-
-    console.log(`[DEBUG] Calculated totalManDays: ${totalManDays}`);
-
-    // 5. Calculate Daily Rate
+    // 5. Daily Rate
     const dailyRate = totalManDays > 0 ? totalExpenses / totalManDays : 0;
-    console.log(`[DEBUG] Calculated dailyRate: ${dailyRate}`);
 
     const reportData = {
       expenses,
@@ -5712,7 +5800,8 @@ const totalManDays = await Attendance.count({
       totalDeductions,
       totalExpenses,
       totalManDays,
-      dailyRate
+      dailyRate,
+      studentManDaysMap, // For frontend to show per-student mess days
     };
 
     // 6. Handle Response (JSON or Excel)
@@ -5795,7 +5884,6 @@ const totalManDays = await Attendance.count({
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-
 const recordStaffRecordedSpecialFoodConsumption = async (req, res) => {
   const transaction = await sequelize.transaction(); // Start a transaction for atomicity
   try {
@@ -5919,7 +6007,238 @@ const recordStaffRecordedSpecialFoodConsumption = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + (error.message || 'Unknown error') });
   }
 };
+// NEW: Generate and store consolidated MessBill records for a month
+const generateMessBills = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { month, year, college } = req.query; // Optional college filter
+    const { hostel_id } = req.user;
 
+    if (!month || !year) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Month and year are required.' });
+    }
+
+    const startDate = moment({ year, month: parseInt(month) - 1 }).startOf('month').toDate();
+    const endDate = moment({ year, month: parseInt(month) - 1 }).endOf('month').toDate();
+    const dueDate = moment(endDate).add(7, 'days').toDate(); // Due 7 days after month-end
+
+    console.log(`[generateMessBills] Generating bills for Hostel ${hostel_id}, Month: ${month}/${year}`);
+
+    // Reuse core calculation logic from generateMonthlyMessReport (extracted for DRYness)
+    // 1. Get active students (with optional college filter)
+    let studentWhereClause = { hostel_id, role: 'student', is_active: true };
+    if (college && college !== 'all') {
+      const studentEnrollments = await Enrollment.findAll({
+        where: { hostel_id, college, status: 'active' },
+        attributes: ['student_id'],
+        raw: true,
+        transaction
+      });
+      const enrolledStudentIds = studentEnrollments.map(e => e.student_id);
+      if (enrolledStudentIds.length === 0) {
+        await transaction.rollback();
+        return res.json({ success: true, data: [], message: 'No students found for the selected college.' });
+      }
+      studentWhereClause.id = { [Op.in]: enrolledStudentIds };
+    }
+
+    const students = await User.findAll({ 
+      where: studentWhereClause, 
+      attributes: ['id', 'username', 'roll_number'], 
+      raw: true,
+      transaction 
+    });
+
+    if (students.length === 0) {
+      await transaction.rollback();
+      return res.json({ success: true, data: [], message: 'No active students found.' });
+    }
+
+    const studentIds = students.map(s => s.id);
+
+    // 2. Calculate totalManDays, dailyRate, etc. (simplified reuse from generateMonthlyMessReport)
+    const totalManDaysForMess = (
+      await Attendance.sum('totalManDays', {
+        where: { hostel_id, student_id: { [Op.in]: studentIds }, date: { [Op.between]: [startDate, endDate] } },
+        transaction
+      })
+    ) || 0;
+
+    // Gross expenses (food + other, including water)
+    const totalFoodIngredientCost = (await DailyConsumption.sum('total_cost', { 
+      where: { hostel_id, consumption_date: { [Op.between]: [startDate, endDate] } }, 
+      transaction 
+    })) || 0;
+    const totalOtherMessExpenses = (await MessDailyExpense.sum('amount', { 
+      where: { hostel_id, expense_date: { [Op.between]: [startDate, endDate] } }, 
+      transaction 
+    })) || 0;
+    const grandTotalGrossExpenses = totalFoodIngredientCost + totalOtherMessExpenses;
+
+    // Deductions (cash token, sister concern, etc.)
+    const sisterConcernIncomeType = await IncomeType.findOne({ where: { name: 'Sister Concern Bill' }, transaction });
+    let creditSisterConcernBill = 0;
+    if (sisterConcernIncomeType) {
+      creditSisterConcernBill = (await AdditionalIncome.sum('amount', { 
+        where: { hostel_id, income_type_id: sisterConcernIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } }, 
+        transaction 
+      })) || 0;
+    }
+    const cashTokenIncomeType = await IncomeType.findOne({ where: { name: 'Cash Token' }, transaction });
+    let cashToken = 0;
+    if (cashTokenIncomeType) {
+      cashToken = (await AdditionalIncome.sum('amount', { 
+        where: { hostel_id, income_type_id: cashTokenIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } }, 
+        transaction 
+      })) || 0;
+    }
+    const studentSpecialOrdersPendingPayment = (await FoodOrder.sum('total_amount', { 
+      where: { hostel_id, student_id: { [Op.in]: studentIds }, status: 'confirmed', payment_status: 'pending', order_date: { [Op.between]: [startDate, endDate] } }, 
+      transaction 
+    })) || 0;
+    const studentGuestIncomeType = await IncomeType.findOne({ where: { name: 'Student Guest Income' }, transaction });
+    let studentGuestIncome = 0;
+    if (studentGuestIncomeType) {
+      studentGuestIncome = (await AdditionalIncome.sum('amount', { 
+        where: { hostel_id, income_type_id: studentGuestIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } }, 
+        transaction 
+      })) || 0;
+    }
+    const totalDeductions = creditSisterConcernBill + cashToken + studentSpecialOrdersPendingPayment + studentGuestIncome;
+    const netMessCost = grandTotalGrossExpenses - totalDeductions;
+    const monthlyDailyRate = totalManDaysForMess > 0 ? netMessCost / totalManDaysForMess : 0;
+
+    // Per-student man-days
+    const studentManDaysData = await Attendance.findAll({
+      attributes: ['student_id', [sequelize.fn('SUM', sequelize.col('totalManDays')), 'manDays']],
+      where: { hostel_id, student_id: { [Op.in]: studentIds }, date: { [Op.between]: [startDate, endDate] } },
+      group: ['student_id'],
+      raw: true,
+      transaction
+    });
+    const studentManDaysMap = new Map(studentManDaysData.map(item => [item.student_id, parseInt(item.manDays)]));
+
+    // Other fees per student
+    const otherFees = await StudentFee.findAll({
+      where: { hostel_id, month, year, student_id: { [Op.in]: studentIds } },
+      attributes: ['student_id', 'fee_type', 'amount'],
+      raw: true,
+      transaction
+    });
+    const bedChargeMap = new Map();
+    const newspaperBillMap = new Map();
+    const additionalOtherChargesMap = new Map();
+    otherFees.forEach(fee => {
+      const studentId = fee.student_id;
+      const amount = parseFloat(fee.amount);
+      if (fee.fee_type === 'bed_charge') bedChargeMap.set(studentId, (bedChargeMap.get(studentId) || 0) + amount);
+      else if (fee.fee_type === 'newspaper') newspaperBillMap.set(studentId, (newspaperBillMap.get(studentId) || 0) + amount);
+      else additionalOtherChargesMap.set(studentId, (additionalOtherChargesMap.get(studentId) || 0) + amount);
+    });
+
+    // Special food per student
+    const studentSpecialFoodOrdersData = await FoodOrder.findAll({ 
+      attributes: ['student_id', [sequelize.fn('SUM', sequelize.col('total_amount')), 'total_special_food_cost']], 
+      where: { hostel_id, student_id: { [Op.in]: studentIds }, status: 'confirmed', payment_status: 'pending', order_date: { [Op.between]: [startDate, endDate] } }, 
+      group: ['student_id'], 
+      raw: true,
+      transaction
+    });
+    const studentSpecialFoodOrderMap = new Map(studentSpecialFoodOrdersData.map(item => [item.student_id, parseFloat(item.total_special_food_cost)]));
+
+    // 3. For each student: Calculate final amount and create/update MessBill
+    const createdBills = [];
+    let roundingAdjustmentTotal = 0; // For potential AdditionalIncome entry
+
+    for (const student of students) {
+      const studentMessDays = studentManDaysMap.get(student.id) || 0;
+      const messAmount = monthlyDailyRate * studentMessDays;
+      const additionalAmount = (studentSpecialFoodOrderMap.get(student.id) || 0) + (additionalOtherChargesMap.get(student.id) || 0);
+      const bedCharges = bedChargeMap.get(student.id) || 0;
+      const newspaperAmount = newspaperBillMap.get(student.id) || 0;
+      const totalRaw = messAmount + additionalAmount + bedCharges + newspaperAmount;
+      const floorAmount = Math.floor(totalRaw);
+      const frac = totalRaw - floorAmount;
+      let finalAmount = frac <= 0.20 ? floorAmount : Math.ceil(totalRaw);
+      const roundingUp = finalAmount - totalRaw; // Positive if rounded up, negative if down
+      roundingAdjustmentTotal += roundingUp;
+
+      // Check if bill already exists for this student/month/year
+      let messBill = await MessBill.findOne({
+        where: { student_id: student.id, hostel_id, month, year },
+        transaction
+      });
+
+      if (messBill) {
+        // Update existing
+        await messBill.update({
+          amount: finalAmount,
+          status: 'pending', // Reset to pending if regenerating
+          due_date: dueDate,
+          // Optionally update other fields like description with breakdown
+          description: `Mess: ₹${messAmount.toFixed(2)} | Special: ₹${additionalAmount.toFixed(2)} | Bed: ₹${bedCharges.toFixed(2)} | Newspaper: ₹${newspaperAmount.toFixed(2)} | Rounding: ₹${roundingUp.toFixed(2)}`
+        }, { transaction });
+      } else {
+        // Create new
+        messBill = await MessBill.create({
+          student_id: student.id,
+          hostel_id,
+          month,
+          year,
+          amount: finalAmount,
+          status: 'pending',
+          due_date: dueDate,
+          description: `Mess: ₹${messAmount.toFixed(2)} | Special: ₹${additionalAmount.toFixed(2)} | Bed: ₹${bedCharges.toFixed(2)} | Newspaper: ₹${newspaperAmount.toFixed(2)} | Rounding: ₹${roundingUp.toFixed(2)}`
+        }, { transaction });
+      }
+
+      createdBills.push({
+        ...messBill.toJSON(),
+        breakdown: { // For response only; not stored
+          messAmount: parseFloat(messAmount.toFixed(2)),
+          additionalAmount: parseFloat(additionalAmount.toFixed(2)),
+          bedCharges: parseFloat(bedCharges.toFixed(2)),
+          newspaperAmount: parseFloat(newspaperAmount.toFixed(2)),
+          roundingUp: parseFloat(roundingUp.toFixed(2))
+        }
+      });
+    }
+
+    // 4. Optional: Create a single AdditionalIncome for total rounding (if >0)
+    if (roundingAdjustmentTotal > 0 && UNIVERSAL_ROUNDING_INCOME_TYPE_NAME) {
+      const roundingIncomeType = await IncomeType.findOne({ where: { name: UNIVERSAL_ROUNDING_INCOME_TYPE_NAME }, transaction });
+      if (roundingIncomeType) {
+        await AdditionalIncome.create({
+          hostel_id,
+          income_type_id: roundingIncomeType.id,
+          amount: roundingAdjustmentTotal,
+          description: `Rounding adjustment for ${month}/${year} mess bills (${students.length} students)`,
+          received_date: endDate,
+          received_by: req.user.id
+        }, { transaction });
+      }
+    }
+
+    await transaction.commit();
+
+    res.json({
+      success: true,
+      message: `Generated/updated ${createdBills.length} MessBill records for ${month}/${year}.`,
+      data: createdBills,
+      summary: {
+        totalBills: createdBills.length,
+        totalAmount: createdBills.reduce((sum, bill) => sum + parseFloat(bill.amount), 0),
+        roundingTotal: roundingAdjustmentTotal.toFixed(2)
+      }
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+    console.error('[generateMessBills] Error:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
 module.exports = {
   createMenu,
   getMenus,
@@ -6026,5 +6345,6 @@ module.exports = {
   recordStaffRecordedSpecialFoodConsumption,
   getMonthlyExpensesChartData, // Add this
   getItemStockChartData,  
-  generateDailyRateReport
+  generateDailyRateReport,
+  generateMessBills,
 };

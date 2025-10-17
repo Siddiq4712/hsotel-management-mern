@@ -1,22 +1,22 @@
 {
   "development": {
     "username": "root",
-    "password": "MySQL2312060$",
-    "database": "hostel",
+    "password": "R@phael001",
+    "database": "hostels_db",
     "host": "127.0.0.1",
     "dialect": "mysql"
   },
   "test": {
     "username": "root",
-    "password": "MySQL2312060$",
-    "database": "hostel",
+    "password": "R@phael001",
+    "database": "hostels_db",
     "host": "127.0.0.1",
     "dialect": "mysql"
   },
   "production": {
     "username": "root",
-    "password": "MySQL2312060$",
-    "database": "hostel",
+    "password": "R@phael001",
+    "database": "hostels_db",
     "host": "127.0.0.1",
     "dialect": "mysql"
   }

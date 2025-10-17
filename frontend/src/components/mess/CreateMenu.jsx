@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Card, Form, Input, Button, Select, DatePicker,
   InputNumber, message, Space, Typography, Divider,
@@ -6,7 +6,7 @@ import {
 } from 'antd';
 import {
   SaveOutlined, CloseOutlined, InfoCircleOutlined,
-  CalculatorOutlined, PlusOutlined, EditOutlined
+  CalculatorOutlined, PlusOutlined, EditOutlined, SearchOutlined
 } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
@@ -22,6 +22,15 @@ const mealTypes = [
   { value: 'snacks', label: 'Snacks' }
 ];
 
+// Debounce utility
+const debounce = (func, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func(...args), delay);
+  };
+};
+
 const CreateMenu = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
@@ -33,11 +42,25 @@ const CreateMenu = () => {
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchText, setSearchText] = useState('');
   const [menuItems, setMenuItems] = useState([]);
   const [costCalculation, setCostCalculation] = useState({
     totalCost: 0,
     costPerServing: 0
   });
+
+  // Pagination state for ingredients table
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+    total: 0,
+  });
+
+  // Debounced setSearchText
+  const debouncedSetSearchText = useCallback(
+    debounce((value) => setSearchText(value), 300),
+    []
+  );
 
   useEffect(() => {
     fetchItems();
@@ -50,6 +73,26 @@ const CreateMenu = () => {
     calculateCosts();
     // eslint-disable-next-line
   }, [menuItems]);
+
+  // Filtered items with useMemo
+  const filteredItems = useMemo(() => {
+    let filtered = items;
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(item => item.category_id === selectedCategory);
+    }
+    if (searchText) {
+      filtered = filtered.filter(item =>
+        item.name.toLowerCase().includes(searchText.toLowerCase()) ||
+        (item.tbl_ItemCategory?.name || '').toLowerCase().includes(searchText.toLowerCase())
+      );
+    }
+    return filtered;
+  }, [items, selectedCategory, searchText]);
+
+  // Update pagination total and reset current when filteredItems change
+  useEffect(() => {
+    setPagination(prev => ({ ...prev, total: filteredItems.length, current: 1 }));
+  }, [filteredItems]);
 
   async function fetchMenus() {
     try {
@@ -405,6 +448,11 @@ const CreateMenu = () => {
     });
   };
 
+  // --- Handle pagination change ---
+  const handlePaginationChange = (page, pageSize) => {
+    setPagination({ ...pagination, current: page, pageSize });
+  };
+
   // --- Table columns use FIFO/Multi-batch ---
   const columns = [
     {
@@ -578,11 +626,6 @@ const CreateMenu = () => {
       ellipsis: true
     }
   ];
-
-  const getFilteredItems = () => {
-    if (selectedCategory === 'all') return items;
-    return items.filter(item => item.category_id === selectedCategory);
-  };
 
   // Menu select dropdown
   const menuDropdown =
@@ -762,28 +805,46 @@ const CreateMenu = () => {
         title="Select Ingredients"
         bordered={false}
         extra={
-          <Select
-            placeholder="Filter by category"
-            style={{ width: 180 }}
-            value={selectedCategory}
-            onChange={setSelectedCategory}
-          >
-            <Option value="all">All Categories</Option>
-            {categories.map(category => (
-              <Option key={category.id} value={category.id}>
-                {category.name}
-              </Option>
-            ))}
-          </Select>
+          <Space>
+            <Select
+              placeholder="Filter by category"
+              style={{ width: 180 }}
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+            >
+              <Option value="all">All Categories</Option>
+              {categories.map(category => (
+                <Option key={category.id} value={category.id}>
+                  {category.name}
+                </Option>
+              ))}
+            </Select>
+            <Input
+              placeholder="Search items..."
+              allowClear
+              value={searchText}
+              onChange={e => debouncedSetSearchText(e.target.value)}
+              style={{ width: 200 }}
+              prefix={<SearchOutlined />}
+            />
+          </Space>
         }
       >
         <Table
-          dataSource={getFilteredItems()}
+          dataSource={filteredItems}
           columns={columns}
           rowKey="id"
           loading={dataLoading}
-          pagination={{ pageSize: 10 }}
+          pagination={{
+            ...pagination,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+            onChange: handlePaginationChange,
+            onShowSizeChange: (page, pageSize) => handlePaginationChange(1, pageSize),
+          }}
           size="middle"
+          scroll={{ x: 1000 }} // For better horizontal scroll
         />
       </Card>
       <Divider />
@@ -795,6 +856,8 @@ const CreateMenu = () => {
             setMenuItems([]);
             setCostCalculation({ totalCost: 0, costPerServing: 0 });
             setSelectedMenuId(null);
+            setSearchText('');
+            setSelectedCategory('all');
           }} icon={<CloseOutlined />}>Reset All</Button>
           <Button
             type="primary"

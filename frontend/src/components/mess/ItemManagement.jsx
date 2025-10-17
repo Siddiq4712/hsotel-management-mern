@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card, Table, Button, Space, Popconfirm, Tag, message, Modal, Form,
   Input, Select, InputNumber, Typography, Tooltip, Row, Col, Tabs
@@ -34,23 +34,88 @@ const ItemManagement = () => {
   const [categoryLoading, setCategoryLoading] = useState(false);
   const [categorySearchText, setCategorySearchText] = useState('');
 
+  // Pagination and sorting states for items
+  const [itemPagination, setItemPagination] = useState({
+    current: 1,
+    pageSize: 10,
+    total: 0,
+  });
+  const [itemSort, setItemSort] = useState({ field: null, order: null });
+
+  // Pagination and sorting states for categories
+  const [categoryPagination, setCategoryPagination] = useState({
+    current: 1,
+    pageSize: 10,
+    total: 0,
+  });
+  const [categorySort, setCategorySort] = useState({ field: null, order: null });
+
+  // Debounce hook for search
+  const debounce = (func, delay) => {
+    let timeoutId;
+    return (...args) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => func(...args), delay);
+    };
+  };
+
   useEffect(() => {
     if (activeTab === 'items') {
-      fetchItems();
+      fetchItems({ resetPage: true });
+    } else {
+      fetchCategories({ resetPage: true });
     }
-    fetchCategories();
     fetchUOMs();
   }, [activeTab]);
 
-  const fetchItems = async () => {
+  // Debounced fetch for items
+  const debouncedFetchItems = useCallback(
+    debounce((resetPage = false) => {
+      fetchItems({ resetPage });
+    }, 500),
+    [selectedCategory, searchText, itemSort]
+  );
+
+  // Debounced fetch for categories
+  const debouncedFetchCategories = useCallback(
+    debounce((resetPage = false) => {
+      fetchCategories({ resetPage });
+    }, 500),
+    [categorySearchText, categorySort]
+  );
+
+  useEffect(() => {
+    debouncedFetchItems(true);
+  }, [selectedCategory, searchText, itemSort, debouncedFetchItems]);
+
+  useEffect(() => {
+    debouncedFetchCategories(true);
+  }, [categorySearchText, categorySort, debouncedFetchCategories]);
+
+  const fetchItems = async ({ resetPage = false } = {}) => {
+    if (resetPage) {
+      setItemPagination(prev => ({ ...prev, current: 1 }));
+    }
     setLoading(true);
     try {
-      const params = {};
+      const params = {
+        page: itemPagination.current,
+        limit: itemPagination.pageSize,
+      };
       if (selectedCategory !== 'all') params.category_id = selectedCategory;
       if (searchText) params.search = searchText;
+      if (itemSort.field) {
+        params.sort_by = itemSort.field;
+        params.sort_order = itemSort.order; // 'asc' or 'desc'
+      }
       
       const response = await messAPI.getItems(params);
       setItems(response.data.data || []);
+      setItemPagination(prev => ({
+        ...prev,
+        total: response.data.total || 0,
+        current: response.data.current_page || prev.current,
+      }));
       console.log("[ItemManagement] Items fetched:", response.data.data?.length || 0);
     } catch (error) {
       message.error('Failed to fetch items');
@@ -60,15 +125,34 @@ const ItemManagement = () => {
     }
   };
 
-  const fetchCategories = async () => {
+  const fetchCategories = async ({ resetPage = false } = {}) => {
+    if (resetPage) {
+      setCategoryPagination(prev => ({ ...prev, current: 1 }));
+    }
+    setCategoryLoading(true);
     try {
-      const params = {};
+      const params = {
+        page: categoryPagination.current,
+        limit: categoryPagination.pageSize,
+      };
       if (categorySearchText) params.search = categorySearchText;
+      if (categorySort.field) {
+        params.sort_by = categorySort.field;
+        params.sort_order = categorySort.order;
+      }
       
       const response = await messAPI.getItemCategories(params);
       setCategories(response.data.data || []);
+      setCategoryPagination(prev => ({
+        ...prev,
+        total: response.data.total || 0,
+        current: response.data.current_page || prev.current,
+      }));
     } catch (error) {
       message.error('Failed to fetch categories');
+      console.error("[ItemManagement] Error fetching categories:", error);
+    } finally {
+      setCategoryLoading(false);
     }
   };
 
@@ -79,6 +163,32 @@ const ItemManagement = () => {
     } catch (error) {
       message.error('Failed to fetch UOMs');
     }
+  };
+
+  // Handle pagination change for items
+  const handleItemPaginationChange = (page, pageSize) => {
+    setItemPagination({ ...itemPagination, current: page, pageSize });
+  };
+
+  // Handle sorting change for items
+  const handleItemSortChange = (pagination, filters, sorter) => {
+    setItemSort({
+      field: sorter.field || null,
+      order: sorter.order === 'ascend' ? 'asc' : sorter.order === 'descend' ? 'desc' : null,
+    });
+  };
+
+  // Handle pagination change for categories
+  const handleCategoryPaginationChange = (page, pageSize) => {
+    setCategoryPagination({ ...categoryPagination, current: page, pageSize });
+  };
+
+  // Handle sorting change for categories
+  const handleCategorySortChange = (pagination, filters, sorter) => {
+    setCategorySort({
+      field: sorter.field || null,
+      order: sorter.order === 'ascend' ? 'asc' : sorter.order === 'descend' ? 'desc' : null,
+    });
   };
 
   const handleCreate = () => {
@@ -103,7 +213,7 @@ const ItemManagement = () => {
     try {
       await messAPI.deleteItem(id);
       message.success('Item deleted successfully');
-      fetchItems();
+      fetchItems({ resetPage: false }); // Keep current page
     } catch (error) {
       message.error('Failed to delete item: ' + (error.response?.data?.message || error.message));
     }
@@ -120,20 +230,12 @@ const ItemManagement = () => {
         message.success('Item created successfully');
       }
       setModalVisible(false);
-      fetchItems();
+      fetchItems({ resetPage: true }); // Reset to page 1 after create/update
     } catch (error) {
       message.error('Failed to save item: ' + (error.response?.data?.message || error.message));
     } finally {
       setConfirmLoading(false);
     }
-  };
-
-  const handleSearch = () => {
-    fetchItems();
-  };
-  
-  const handleCategorySearch = () => {
-    fetchCategories();
   };
 
   // Function to verify inventory consistency
@@ -144,7 +246,7 @@ const ItemManagement = () => {
       message.success(response.data.message);
       
       // Refresh the items list
-      fetchItems();
+      fetchItems({ resetPage: false });
     } catch (error) {
       message.error('Failed to verify inventory: ' + (error.response?.data?.message || error.message));
     } finally {
@@ -256,7 +358,7 @@ const ItemManagement = () => {
     try {
       await messAPI.deleteItemCategory(id);
       message.success('Category deleted successfully');
-      fetchCategories();
+      fetchCategories({ resetPage: false });
     } catch (error) {
       if (error.response?.status === 400) {
         message.error('Cannot delete category that is being used by items');
@@ -277,7 +379,7 @@ const ItemManagement = () => {
         message.success('Category created successfully');
       }
       setCategoryModalVisible(false);
-      fetchCategories();
+      fetchCategories({ resetPage: true });
     } catch (error) {
       message.error('Failed to save category: ' + (error.response?.data?.message || error.message));
     } finally {
@@ -290,7 +392,7 @@ const ItemManagement = () => {
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
-      sorter: (a, b) => a.name.localeCompare(b.name),
+      sorter: true, // Enables sorting
     },
     {
       title: 'Category',
@@ -311,7 +413,7 @@ const ItemManagement = () => {
       dataIndex: 'unit_price',
       key: 'unit_price',
       render: price => parseFloat(price || 0).toFixed(2),
-      sorter: (a, b) => a.unit_price - b.unit_price,
+      sorter: true,
     },
     {
       title: 'Current Stock',
@@ -368,7 +470,7 @@ const ItemManagement = () => {
       title: 'Name',
       dataIndex: 'name',
       key: 'name',
-      sorter: (a, b) => a.name.localeCompare(b.name),
+      sorter: true,
     },
     {
       title: 'Description',
@@ -457,10 +559,9 @@ const ItemManagement = () => {
               placeholder="Filter by category"
               style={{ width: 200 }}
               value={selectedCategory}
-              onChange={(value) => {
-                setSelectedCategory(value);
-                setTimeout(handleSearch, 0);
-              }}
+              onChange={setSelectedCategory}
+              showSearch
+              optionFilterProp="children"
             >
               <Option value="all">All Categories</Option>
               {categories.map(category => (
@@ -469,18 +570,13 @@ const ItemManagement = () => {
             </Select>
             
             <Input
-              placeholder="Search items"
+              placeholder="Search items..."
               allowClear
               value={searchText}
               onChange={e => setSearchText(e.target.value)}
-              onPressEnter={handleSearch}
               style={{ width: 200 }}
               prefix={<SearchOutlined />}
             />
-            
-            <Button type="default" icon={<SearchOutlined />} onClick={handleSearch}>
-              Search
-            </Button>
           </Space>
 
           <Table
@@ -488,7 +584,16 @@ const ItemManagement = () => {
             dataSource={items}
             rowKey="id"
             loading={loading}
-            pagination={{ pageSize: 10 }}
+            pagination={{
+              ...itemPagination,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+              onChange: handleItemPaginationChange,
+              onShowSizeChange: handleItemPaginationChange,
+            }}
+            onChange={handleItemSortChange}
+            scroll={{ x: 800 }} // Horizontal scroll for wide tables
           />
         </TabPane>
         
@@ -498,18 +603,13 @@ const ItemManagement = () => {
         >
           <Space style={{ marginBottom: 16 }}>
             <Input
-              placeholder="Search categories"
+              placeholder="Search categories..."
               allowClear
               value={categorySearchText}
               onChange={e => setCategorySearchText(e.target.value)}
-              onPressEnter={handleCategorySearch}
               style={{ width: 200 }}
               prefix={<SearchOutlined />}
             />
-            
-            <Button type="default" icon={<SearchOutlined />} onClick={handleCategorySearch}>
-              Search
-            </Button>
           </Space>
           
           <Table
@@ -517,7 +617,16 @@ const ItemManagement = () => {
             dataSource={categories}
             rowKey="id"
             loading={categoryLoading}
-            pagination={{ pageSize: 10 }}
+            pagination={{
+              ...categoryPagination,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} categories`,
+              onChange: handleCategoryPaginationChange,
+              onShowSizeChange: handleCategoryPaginationChange,
+            }}
+            onChange={handleCategorySortChange}
+            scroll={{ x: 600 }}
           />
         </TabPane>
       </Tabs>

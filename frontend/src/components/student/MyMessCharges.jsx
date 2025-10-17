@@ -1,96 +1,91 @@
+// frontend/src/components/Student/MyMessCharges.js
+
 import React, { useState, useEffect } from 'react';
 import { studentAPI } from '../../services/api';
-import { Receipt, Calendar, CheckCircle, XCircle, ChevronDown, ChevronUp, Droplet, Clock } from 'lucide-react';
+import { Receipt, Calendar, CheckCircle, XCircle, ChevronDown, ChevronUp, Clock, DollarSign, BookOpen} from 'lucide-react'; // Added BookOpen for newspaper
+import { Droplet } from "lucide-react";
+
 import moment from 'moment';
 
 const MyMessCharges = () => {
-  const [charges, setCharges] = useState([]);
+  const [dailyCharges, setDailyCharges] = useState([]);
+  const [monthlyFlatFees, setMonthlyFlatFees] = useState([]);
+  const [monthlyCalculatedDailyRate, setMonthlyCalculatedDailyRate] = useState(0);
+  const [studentTotalManDaysForMonth, setStudentTotalManDaysForMonth] = useState(0); // NEW
+  const [totalMonthlySpecialFoodCost, setTotalMonthlySpecialFoodCost] = useState(0); // NEW (sum of pending special food for the month)
+
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(moment().month() + 1);
   const [currentYear, setCurrentYear] = useState(moment().year());
   const [expandedRow, setExpandedRow] = useState(null);
-  const [attendance, setAttendance] = useState(null);
-  const [attendanceLoading, setAttendanceLoading] = useState(true);
+  // Removed individual attendance state as table uses dailyCharges.attendance_status now
+  // const [attendance, setAttendance] = useState(null);
+  // const [attendanceLoading, setAttendanceLoading] = useState(true); // No longer strictly needed for summary card
 
   useEffect(() => {
-    fetchCharges();
-    fetchAttendance();
+    fetchChargesAndSummary();
+    // No longer need a separate fetchAttendance here, as the daily table gets its status from dailyCharges
+    // The attendance card for today can be removed or simplified.
   }, [currentMonth, currentYear]);
 
-  const fetchCharges = async () => {
+  const fetchChargesAndSummary = async () => {
     setLoading(true);
     try {
       const response = await studentAPI.getMyDailyMessCharges({ month: currentMonth, year: currentYear });
-      setCharges(response.data.data || []);
+      const data = response.data.data;
+      console.log("[MyMessCharges] Received data:", data); // Debugging log
+
+      setDailyCharges(data.dailyCharges || []);
+      setMonthlyFlatFees(data.monthlySummary.flatFees || []);
+      setMonthlyCalculatedDailyRate(data.monthlySummary.monthlyCalculatedDailyRate || 0);
+      setStudentTotalManDaysForMonth(data.monthlySummary.studentTotalManDaysForMonth || 0); // Set new state
+      setTotalMonthlySpecialFoodCost(data.monthlySummary.totalMonthlySpecialFoodCost || 0); // Set new state
+
     } catch (error) {
-      console.error('Error fetching mess charges:', error);
+      console.error('Error fetching mess charges and summary:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchAttendance = async () => {
-    setAttendanceLoading(true);
-    try {
-      const date = moment().format('YYYY-MM-DD');
-      const response = await studentAPI.getMyAttendance({ date });
-      const records = response.data.data || [];
-      setAttendance(records.length > 0 ? records[0] : null);
-    } catch (error) {
-      console.error('Error fetching attendance:', error);
-    } finally {
-      setAttendanceLoading(false);
-    }
-  };
+  // --- Calculate total monthly bill based on new logic ---
+  const attendanceBasedMessCharge = monthlyCalculatedDailyRate * studentTotalManDaysForMonth;
+  const totalFlatFeesSum = monthlyFlatFees.reduce((sum, fee) => sum + parseFloat(fee.amount || 0), 0);
   
-  const totalMonthlyCharge = charges.reduce((sum, charge) => sum + parseFloat(charge.dailyTotalCharge || 0), 0);
+  // Total Monthly Bill = (Daily Rate * Student Man-Days) + Total Monthly Special Food (Pending) + Other Flat Fees
+  const totalMonthlyBill = attendanceBasedMessCharge + totalMonthlySpecialFoodCost + totalFlatFeesSum;
 
   const handleMonthChange = (e) => {
     const [year, month] = e.target.value.split('-');
     setCurrentYear(parseInt(year));
     setCurrentMonth(parseInt(month));
-    setExpandedRow(null);
+    setExpandedRow(null); // Collapse any expanded rows on month change
   };
 
   const getStatusInfo = (status) => {
+    // This function is for the icons/text in the daily charges table
     switch (status) {
-      case 'P':
-        return { icon: <CheckCircle className="text-green-500 w-4 h-4" />, text: 'Present', color: 'text-green-700' };
-      case 'A':
-        return { icon: <XCircle className="text-red-500 w-4 h-4" />, text: 'Absent', color: 'text-red-700' };
-      case 'OD':
-        return { icon: <Clock className="text-blue-500 w-4 h-4" />, text: 'On Duty', color: 'text-blue-700' };
-      case 'present': return { icon: <CheckCircle className="text-green-500 w-4 h-4" />, text: 'Present', color: 'text-green-700' };
-      case 'absent': return { icon: <XCircle className="text-red-500 w-4 h-4" />, text: 'Absent', color: 'text-red-700' };
-      case 'leave': return { icon: <Calendar className="text-purple-500 w-4 h-4" />, text: 'On Leave', color: 'text-purple-700' };
-      case 'on_duty': return { icon: <Calendar className="text-blue-500 w-4 h-4" />, text: 'On Duty', color: 'text-blue-700' };
-      case 'not_marked': return { icon: <XCircle className="text-gray-500 w-4 h-4" />, text: 'Not Marked', color: 'text-gray-700' };
-      default: return { icon: <XCircle className="text-gray-500 w-4 h-4" />, text: 'Unknown', color: 'text-gray-700' };
+      case 'P': return { icon: <CheckCircle className="text-green-500 w-4 h-4" />, text: 'Present', color: 'text-green-700' };
+      case 'A': return { icon: <XCircle className="text-red-500 w-4 h-4" />, text: 'Absent', color: 'text-red-700' };
+      case 'OD': return { icon: <Clock className="text-blue-500 w-4 h-4" />, text: 'On Duty', color: 'text-blue-700' };
+      default: return { icon: <XCircle className="text-gray-500 w-4 h-4" />, text: 'Not Marked', color: 'text-gray-700' };
+    }
+  };
+  
+  const getFeeIcon = (feeType) => {
+    switch (feeType) {
+      case 'bed_charge': return <DollarSign className="w-5 h-5 text-purple-600 mr-2" />;
+      case 'newspaper': return <BookOpen className="w-5 h-5 text-yellow-600 mr-2" />;
+      case 'water_bill': return <Droplet className="w-5 h-5 text-blue-600 mr-2" />;
+      case 'special_food_charge': return <Receipt className="w-5 h-5 text-orange-600 mr-2" />; // Staff recorded special food
+      default: return <DollarSign className="w-5 h-5 text-gray-500 mr-2" />;
     }
   };
 
-  const getAttendanceStatusDisplay = (status) => {
-    switch (status) {
-      case 'P':
-        return { icon: <CheckCircle className="text-green-600" size={48} />, text: 'Present', color: 'bg-green-50 border-green-200 text-green-800' };
-      case 'A':
-        return { icon: <XCircle className="text-red-600" size={48} />, text: 'Absent', color: 'bg-red-50 border-red-200 text-red-800' };
-      case 'OD':
-        return { icon: <Clock className="text-blue-600" size={48} />, text: 'On Duty', color: 'bg-blue-50 border-blue-200 text-blue-800' };
-      default:
-        return { icon: null, text: 'Not Marked', color: 'bg-gray-50 border-gray-200 text-gray-500' };
-    }
-  };
-
-  const attendanceStatusInfo = attendance ? getAttendanceStatusDisplay(attendance.status) : getAttendanceStatusDisplay(null);
 
   const toggleRow = (id) => {
     setExpandedRow(expandedRow === id ? null : id);
   };
-
-  // Get today's charge row for special status override
-  const today = moment().format('YYYY-MM-DD');
-  const todayCharge = charges.find(charge => charge.date === today);
 
   return (
     <div className="container mx-auto p-4 sm:p-6 lg:p-8">
@@ -108,32 +103,60 @@ const MyMessCharges = () => {
         />
       </div>
 
-      {/* Monthly Summary Card */}
+      {/* Monthly Summary Card (ENHANCED) */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-8">
         <h2 className="text-xl font-semibold text-gray-900">
           Summary for {moment(new Date(currentYear, currentMonth - 1)).format('MMMM YYYY')}
         </h2>
-        <div className="mt-4 flex items-center justify-between">
-          <p className="text-lg text-gray-700">Total Monthly Charge:</p>
-          <p className="text-2xl font-bold text-blue-600">₹{totalMonthlyCharge.toFixed(2)}</p>
+        <div className="mt-4 space-y-2">
+            <div className="flex items-center justify-between">
+                <p className="text-lg text-gray-700">Hostel's Monthly Averaged Daily Rate:</p>
+                <p className="text-lg font-bold text-gray-800">₹{monthlyCalculatedDailyRate.toFixed(2)}</p>
+            </div>
+            <div className="flex items-center justify-between border-t border-gray-100 pt-2">
+                <p className="text-lg text-gray-700">Your Total Man-Days Present/On-Duty:</p>
+                <p className="text-lg font-bold text-gray-800">{studentTotalManDaysForMonth}</p>
+            </div>
+            <div className="flex items-center justify-between border-t border-gray-100 pt-2">
+                <p className="text-lg text-gray-700">Total Mess Charges: ({studentTotalManDaysForMonth} x ₹{monthlyCalculatedDailyRate.toFixed(2)})</p>
+                <p className="text-lg font-bold text-gray-800">₹{attendanceBasedMessCharge.toFixed(2)}</p>
+            </div>
+            <div className="flex items-center justify-between border-t border-gray-100 pt-2">
+                <p className="text-lg text-gray-700">Additional Token :</p>
+                <p className="text-lg font-bold text-gray-800">₹{totalMonthlySpecialFoodCost.toFixed(2)}</p>
+            </div>
+
+            {monthlyFlatFees.map((fee, index) => (
+                <div key={fee.fee_type || index} className="flex items-center justify-between border-t border-gray-100 pt-2">
+                    <p className="text-lg text-gray-700 flex items-center">
+                      {getFeeIcon(fee.fee_type)} {fee.fee_type.replace(/_/g, ' ').toUpperCase()}
+                      {fee.description && <span className="ml-2 text-gray-500 text-sm italic">({fee.description})</span>}
+                    </p>
+                    <p className="text-lg font-bold text-gray-800">₹{parseFloat(fee.amount).toFixed(2)}</p>
+                </div>
+            ))}
         </div>
-        <button className="mt-4 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
+        <div className="mt-4 flex items-center justify-between border-t-2 border-gray-300 pt-4">
+          <p className="text-xl font-bold text-gray-900">Total Monthly Bill:</p>
+          <p className="text-3xl font-bold text-blue-600">₹{totalMonthlyBill.toFixed(2)}</p>
+        </div>
+        <button className="mt-6 w-full sm:w-auto bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors text-lg">
           Pay Now
         </button>
       </div>
 
-      {/* Daily Charges Breakdown Table */}
+      {/* Daily Charges Breakdown Table (ENHANCED) */}
       <div className="bg-white shadow-md rounded-lg overflow-hidden">
         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
           <h2 className="text-lg font-medium text-gray-900">Daily Charges Breakdown</h2>
         </div>
-        
+
         {loading ? (
           <div className="flex justify-center p-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <span className="ml-3 text-gray-600">Loading daily charges...</span>
           </div>
-        ) : charges.length > 0 ? (
+        ) : dailyCharges.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -141,20 +164,16 @@ const MyMessCharges = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Attendance</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Base Mess Charge</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Special Food Cost</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Daily Charge</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Details</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {charges.map((charge) => {
-                  // Use fetched attendance status for today's row, fallback to charge.attendance_status
-                  let rowStatus = charge.attendance_status;
-                  if (charge.date === today && attendance) {
-                    rowStatus = attendance.status;
-                  }
-                  const statusInfo = getStatusInfo(rowStatus);
+                {dailyCharges.map((charge) => {
+                  const statusInfo = getStatusInfo(charge.attendance_status); // Use charge.attendance_status directly from backend
                   const isExpanded = expandedRow === charge.id;
-                  
+
                   return (
                     <React.Fragment key={charge.id}>
                       <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => toggleRow(charge.id)}>
@@ -168,7 +187,10 @@ const MyMessCharges = () => {
                         <td className={`px-6 py-4 whitespace-nowrap text-right text-sm font-medium ${parseFloat(charge.baseMessCharge) > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
                           ₹{parseFloat(charge.baseMessCharge).toFixed(2)}
                         </td>
-                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-blue-600">
+                        <td className={`px-6 py-4 whitespace-nowrap text-right text-sm font-medium ${parseFloat(charge.specialFoodCost) > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
+                          ₹{parseFloat(charge.specialFoodCost).toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-blue-600">
                           ₹{parseFloat(charge.dailyTotalCharge).toFixed(2)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">
@@ -177,42 +199,37 @@ const MyMessCharges = () => {
                       </tr>
                     {isExpanded && (
                       <tr className="bg-gray-50">
-                        <td colSpan="5" className="px-6 py-4 text-sm text-gray-700">
+                        <td colSpan="6" className="px-6 py-4 text-sm text-gray-700">
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 border-l-4 border-blue-500 pl-4">
-                            
-                            {/* Base Mess Charge */}
+
+                            {/* Base Mess Charge Details */}
                             <div>
                               <h4 className="font-semibold text-gray-800 mb-2">Base Mess Charge</h4>
                               <ul className="list-none space-y-1 text-gray-700">
                                 <li className="font-bold flex justify-between">
-                                  <span>Your Daily Share (Cost per Serving):</span>
+                                  <span>Your Daily Share (Monthly Averaged Daily Rate):</span>
                                   <span>₹{parseFloat(charge.baseMessCharge).toFixed(2)}</span>
+                                </li>
+                                <li className="flex justify-between text-sm text-gray-600">
+                                  <span>Hostel's Monthly Calculated Daily Rate:</span>
+                                  <span>₹{monthlyCalculatedDailyRate.toFixed(2)}</span>
                                 </li>
                               </ul>
                             </div>
 
-                            {/* Special Food Orders */}
+                            {/* Special Food Orders Details */}
                             <div>
-                              <h4 className="font-semibold text-gray-800 mb-2">Special Food Orders</h4>
+                              <h4 className="font-semibold text-gray-800 mb-2">Special Food Orders (Pending Payment)</h4>
                               <ul className="list-none space-y-1 text-gray-700">
                                 <li className="flex items-center justify-between">
-                                  <span className="font-medium">Total Ordered:</span>
+                                  <span className="font-medium">Amount:</span>
                                   <span className={parseFloat(charge.specialFoodCost) > 0 ? 'font-bold text-green-600' : 'text-gray-500'}>
                                     ₹{parseFloat(charge.specialFoodCost).toFixed(2)}
                                   </span>
                                 </li>
-                                {/* {charge.pendingSpecialFoodCost > 0 && (
-                                  <li className="flex items-center justify-between text-sm">
-                                    <span className="text-orange-600">Pending Payment:</span>
-                                    <span className="font-semibold text-orange-600">₹{parseFloat(charge.pendingSpecialFoodCost).toFixed(2)}</span>
-                                  </li>
-                                )} */}
-                                {charge.paidSpecialFoodCost > 0 && (
-                                  <li className="flex items-center justify-between text-sm">
-                                    <span className="text-green-600">Paid:</span>
-                                    <span className="font-semibold text-green-600">₹{parseFloat(charge.paidSpecialFoodCost).toFixed(2)}</span>
-                                  </li>
-                                )}
+                                <li className="text-sm text-gray-600 italic">
+                                  This is the cost of special food items you ordered for this day, which is still pending payment and added to your bill.
+                                </li>
                               </ul>
                             </div>
 
@@ -221,13 +238,9 @@ const MyMessCharges = () => {
                               <h4 className="font-semibold text-gray-800 mb-2">Daily Summary</h4>
                               <ul className="list-none space-y-1 text-gray-700">
                                 <li className="mt-4 pt-2 border-t border-gray-300 font-bold text-lg flex justify-between">
-                                  <span>Your Total Charge for Day (Paid Only):</span>
+                                  <span>Your Total Daily Charge:</span>
                                   <span className="text-blue-600">
-                                    ₹
-                                    {(
-                                      parseFloat(charge.dailyTotalCharge || 0) +
-                                      parseFloat(charge.pendingSpecialFoodCost || 0)
-                                    ).toFixed(2)}
+                                    ₹{parseFloat(charge.dailyTotalCharge).toFixed(2)}
                                   </span>
                                 </li>
                               </ul>
