@@ -1,6 +1,6 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const { User } = require('../models'); // Import your User model
+const { User } = require('../models');
 
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
@@ -18,8 +18,17 @@ passport.use(new GoogleStrategy({
       user = await User.findOne({ where: { email: profile.emails[0].value, is_active: true } });
 
       if (user) {
-        // Link Google account
-        await user.update({ google_id: profile.id });
+        // Extract profile photo URL from Google profile
+        const profilePicture = profile.photos && profile.photos.length > 0 
+          ? profile.photos[0].value 
+          : null;
+
+        // Link Google account and update profile picture if available
+        await user.update({ 
+          google_id: profile.id,
+          // Update profile picture only if user doesn't have one already
+          profile_picture: user.profile_picture || profilePicture
+        });
       }
     }
 
@@ -28,8 +37,12 @@ passport.use(new GoogleStrategy({
       return done(null, false, { message: 'Access denied. Your account is not registered in the system.' });
     }
 
-    return done(null, user);
+    // Add the profile picture to user object for the callback
+    if (!user.profile_picture && profile.photos && profile.photos.length > 0) {
+      user.dataValues.profile_picture = profile.photos[0].value;
+    }
 
+    return done(null, user);
   } catch (error) {
     console.error('Google OAuth Error:', error);
     return done(error, null);

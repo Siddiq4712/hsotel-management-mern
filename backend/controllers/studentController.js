@@ -58,7 +58,67 @@ const getProfile = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message }); // Add error.message for better debugging
   }
 };
+// Updated getRoommates function in controllers/studentController.js
 
+const getRoommates = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+
+    // First, get the student's current active room allotment
+    const studentAllotment = await RoomAllotment.findOne({
+      where: { 
+        student_id: studentId, 
+        is_active: true 
+      },
+      include: [
+        {
+          model: HostelRoom,
+          as: 'HostelRoom'
+        }
+      ]
+    });
+
+    if (!studentAllotment || !studentAllotment.HostelRoom) {
+      return res.json({ 
+        success: true, 
+        data: [] 
+      });
+    }
+
+    const roomId = studentAllotment.HostelRoom.id;
+
+    // Get all active allotments for this room
+    const roomAllotments = await RoomAllotment.findAll({
+      where: { 
+        room_id: roomId, 
+        is_active: true 
+      },
+      include: [
+        {
+          model: User,
+          as: 'AllotmentStudent',
+          attributes: ['id', 'username', 'email', 'profile_picture', 'roll_number']
+        }
+      ]
+    });
+
+    // Filter out the current user and extract student data
+    const roommates = roomAllotments
+      .filter(allotment => allotment.AllotmentStudent.id !== studentId)
+      .map(allotment => allotment.AllotmentStudent);
+
+    res.json({ 
+      success: true, 
+      data: roommates 
+    });
+  } catch (error) {
+    console.error('Error fetching roommates:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error: ' + error.message 
+    });
+  }
+};
 const updateProfile = async (req, res) => {
   try {
     const { username, email } = req.body;
@@ -1531,4 +1591,5 @@ module.exports = {
   getMyDailyMessCharges,
   getMonthlyMessExpensesChartData,
   getMonthlyAttendanceChartData,
+  getRoommates
 };

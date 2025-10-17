@@ -84,11 +84,11 @@ const googleCallback = (req, res, next) => {
       return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=not_registered`);
     }
 
-    // Generate JWT using only Gmail and user ID
+    // Generate JWT
     const token = jwt.sign(
       { 
         userId: user.id, 
-        email: user.email // only Gmail
+        email: user.email
       },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '30d' }
@@ -102,18 +102,51 @@ const googleCallback = (req, res, next) => {
       first_name: user.first_name,
       last_name: user.last_name,
       role: user.role,
-      hostel_id: user.hostel_id
+      hostel_id: user.hostel_id,
+      profile_picture: user.profile_picture || user.dataValues.profile_picture
     };
 
-    // Redirect with token **and user data**
+    // Redirect with token and user data
     const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify(userData))}`;
     res.redirect(redirectUrl);
-
   })(req, res, next);
+};
+
+const changePassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
+    const userId = req.user.id;
+    
+    // Get the user with their current password
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    // Verify the old password
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+    
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    
+    // Update the user's password
+    await user.update({ password: hashedPassword });
+    
+    res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
 };
 
 module.exports = { 
   login,
   getProfile,
   googleAuth,
-  googleCallback, };
+  googleCallback,
+  changePassword
+};

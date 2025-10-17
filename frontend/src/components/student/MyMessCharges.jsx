@@ -140,9 +140,13 @@ const MyMessCharges = () => {
           <p className="text-xl font-bold text-gray-900">Total Monthly Bill:</p>
           <p className="text-3xl font-bold text-blue-600">₹{totalMonthlyBill.toFixed(2)}</p>
         </div>
-        <button className="mt-6 w-full sm:w-auto bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors text-lg">
+        <button
+          className="mt-6 w-full sm:w-auto bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors text-lg"
+          onClick={() => window.open("https://www.iobnet.co.in/iobpay/commonpage.do?type=MESS%20FEES", "_blank")}
+        >
           Pay Now
         </button>
+
       </div>
 
       {/* Daily Charges Breakdown Table (ENHANCED) */}

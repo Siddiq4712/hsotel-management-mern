@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { wardenAPI } from '../../services/api';
-import { Calendar, Users, CheckCircle, XCircle, Clock, Plus } from 'lucide-react';
+import { Calendar, Users, CheckCircle, XCircle, Clock, Plus, Search, ArrowUpDown, Filter } from 'lucide-react';
 import axios from "axios";
 const token = localStorage.getItem("token");
 
@@ -16,11 +16,94 @@ const AttendanceManagement = () => {
   const [showOdDialog, setShowOdDialog] = useState(null); // Track which student's OD dialog is open
   const [tempAttendance, setTempAttendance] = useState({}); // Temporary attendance state for each student
   const [editAttendanceId, setEditAttendanceId] = useState(null); // Track attendance ID being edited
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [modalSearchTerm, setModalSearchTerm] = useState('');
+  const [selectedCollege, setSelectedCollege] = useState('All'); // College filter
 
   useEffect(() => {
     fetchStudents();
     fetchAttendance();
   }, [selectedDate]);
+
+  const getRoomNumber = (student) => {
+    return student.tbl_RoomAllotments?.[0]?.HostelRoom?.room_number || 'N/A';
+  };
+
+  const getValueForSort = (student, key) => {
+    switch (key) {
+      case 'name':
+        return student.username.toLowerCase();
+      case 'roll':
+        return (student.roll_number || '').toLowerCase();
+      case 'room':
+        return getRoomNumber(student).toLowerCase();
+      default:
+        return '';
+    }
+  };
+
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const getFilteredAndSortedStudents = () => {
+    let filtered = [...students];
+
+    // College filter
+    if (selectedCollege !== 'All') {
+      filtered = filtered.filter(student => student.college === selectedCollege);
+    }
+
+    // Search filter
+    if (searchTerm) {
+      const lowerSearch = searchTerm.toLowerCase();
+      filtered = filtered.filter(student =>
+        student.username.toLowerCase().includes(lowerSearch) ||
+        (student.roll_number && student.roll_number.toLowerCase().includes(lowerSearch)) ||
+        getRoomNumber(student).toLowerCase().includes(lowerSearch) ||
+        student.college.toLowerCase().includes(lowerSearch)
+      );
+    }
+
+    // Sort
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        const aVal = getValueForSort(a, sortConfig.key);
+        const bVal = getValueForSort(b, sortConfig.key);
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  };
+
+  const getFilteredUnmarkedStudents = () => {
+    let unmarked = students.filter(student => !getAttendanceForStudent(student.id));
+
+    // College filter for modal (assuming same filter applies)
+    if (selectedCollege !== 'All') {
+      unmarked = unmarked.filter(student => student.college === selectedCollege);
+    }
+
+    // Search filter for modal
+    if (modalSearchTerm) {
+      const lowerSearch = modalSearchTerm.toLowerCase();
+      unmarked = unmarked.filter(student =>
+        student.username.toLowerCase().includes(lowerSearch) ||
+        (student.roll_number && student.roll_number.toLowerCase().includes(lowerSearch)) ||
+        getRoomNumber(student).toLowerCase().includes(lowerSearch) ||
+        student.college.toLowerCase().includes(lowerSearch)
+      );
+    }
+
+    return unmarked;
+  };
 
   const fetchStudents = async () => {
     try {
@@ -159,6 +242,7 @@ const handleSaveAll = async () => {
       setShowMarkModal(false);
       setSelectedStudents({});
       setOdDetails({});
+      setModalSearchTerm('');
       fetchAttendance();
       fetchStudents();
       alert('Bulk attendance marked successfully!');
@@ -172,8 +256,8 @@ const handleSaveAll = async () => {
 
   const handleMarkAllPresent = () => {
     const newTemp = { ...tempAttendance };
-    students.forEach((student) => {
-      if (!getAttendanceForStudent(student.id) && !newTemp[student.id]) {
+    students.filter(s => !getAttendanceForStudent(s.id)).forEach((student) => {
+      if (!newTemp[student.id]) {
         newTemp[student.id] = { status: 'P' };
       }
     });
@@ -285,6 +369,12 @@ const handleSaveAll = async () => {
     }
   };
 
+  const filteredStudents = getFilteredAndSortedStudents();
+  const unmarkedStudents = getFilteredUnmarkedStudents();
+
+  // Dynamic colleges from students data
+  const colleges = ['All', ...new Set(students.map(s => s.college).filter(Boolean))];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -316,9 +406,8 @@ const handleSaveAll = async () => {
           </button>
           <button
             onClick={() => {
-              const unmarked = students.filter(s => !getAttendanceForStudent(s.id));
               const initialSelected = {};
-              unmarked.forEach(s => initialSelected[s.id] = 'P');
+              students.filter(s => !getAttendanceForStudent(s.id)).forEach(s => initialSelected[s.id] = 'P');
               setSelectedStudents(initialSelected);
               setOdDetails({});
               setShowMarkModal(true);
@@ -374,11 +463,55 @@ const handleSaveAll = async () => {
       {/* Attendance List */}
       <div className="bg-white shadow-md rounded-lg overflow-hidden">
         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center">
-            <Calendar className="text-gray-400 mr-2" size={20} />
-            <h2 className="text-lg font-medium text-gray-900">
-              Attendance for {new Date(selectedDate).toLocaleDateString()}
-            </h2>
+          <div className="flex justify-between items-center mb-2">
+            <div className="flex items-center">
+              <Calendar className="text-gray-400 mr-2" size={20} />
+              <h2 className="text-lg font-medium text-gray-900">
+                Attendance for {new Date(selectedDate).toLocaleDateString()}
+              </h2>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="Search students..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 w-64"
+                />
+              </div>
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <select
+                  value={selectedCollege}
+                  onChange={(e) => setSelectedCollege(e.target.value)}
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 w-48"
+                >
+                  {colleges.map(college => (
+                    <option key={college} value={college}>{college}</option>
+                  ))}
+                </select>
+              </div>
+              <select
+                value={sortConfig.key || ''}
+                onChange={(e) => handleSort(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Sort by</option>
+                <option value="name">Name</option>
+                <option value="roll">Roll Number</option>
+                <option value="room">Room Number</option>
+              </select>
+              {sortConfig.key && (
+                <button
+                  onClick={() => setSortConfig(prev => ({ ...prev, direction: prev.direction === 'asc' ? 'desc' : 'asc' }))}
+                  className="p-1 text-gray-500 hover:text-gray-700"
+                >
+                  <ArrowUpDown size={16} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -388,6 +521,15 @@ const handleSaveAll = async () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Student
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  College
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Roll Number
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Room Number
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -401,7 +543,7 @@ const handleSaveAll = async () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {students.map((student) => {
+              {filteredStudents.map((student) => {
                 const studentAttendance = getAttendanceForStudent(student.id);
                 const tempData = tempAttendance[student.id];
                 const tempStatus = tempData?.status;
@@ -421,6 +563,15 @@ const handleSaveAll = async () => {
                           </div>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {student.college}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {student.roll_number || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {getRoomNumber(student)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {currentStatus ? (
@@ -621,12 +772,32 @@ const handleSaveAll = async () => {
               <h3 className="text-lg font-medium text-gray-900 mb-4">Bulk Mark Attendance</h3>
               <p className="text-sm text-gray-600 mb-4">All unmarked students are pre-selected as Present. Change as needed for absentees or on-duty.</p>
               
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="Search unmarked students..."
+                  value={modalSearchTerm}
+                  onChange={(e) => setModalSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 w-full"
+                />
+              </div>
+
               <div className="max-h-96 overflow-y-auto">
                 <table className="min-w-full">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                         Student
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        College
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Roll Number
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        Room Number
                       </th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                         Present
@@ -643,10 +814,19 @@ const handleSaveAll = async () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {students.filter(student => !getAttendanceForStudent(student.id)).map((student) => (
+                    {unmarkedStudents.map((student) => (
                       <tr key={student.id}>
                         <td className="px-4 py-2 text-sm text-gray-900">
-                          {student.username}
+                          <div className="text-sm font-medium text-gray-900">{student.username}</div>
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-900">
+                          {student.college}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-900">
+                          {student.roll_number || 'N/A'}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-900">
+                          {getRoomNumber(student)}
                         </td>
                         <td className="px-4 py-2">
                           <input
@@ -758,6 +938,7 @@ const handleSaveAll = async () => {
                     setShowMarkModal(false);
                     setSelectedStudents({});
                     setOdDetails({});
+                    setModalSearchTerm('');
                   }}
                   className="bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
                 >

@@ -1,16 +1,20 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Spin, message } from 'antd';
+import { Spin, message, Avatar } from 'antd';
+import { UserOutlined, GoogleOutlined } from '@ant-design/icons';
 
 const OAuthCallback = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [userData, setUserData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
     const handleOAuthCallback = () => {
       const urlParams = new URLSearchParams(location.search);
       const token = urlParams.get('token');
-      const userData = urlParams.get('user');
+      const userDataParam = urlParams.get('user');
       const error = urlParams.get('error');
       const errorMessage = urlParams.get('message');
 
@@ -37,48 +41,66 @@ const OAuthCallback = () => {
             displayMessage = 'An error occurred during authentication.';
         }
         
-        message.error(displayMessage, 5); // Show for 5 seconds
-        navigate('/login');
+        setErrorMsg(displayMessage);
+        message.error(displayMessage, 5);
+        setTimeout(() => navigate('/login'), 2000);
         return;
       }
 
-      if (token && userData) {
+      if (token && userDataParam) {
         try {
-          const user = JSON.parse(decodeURIComponent(userData));
+          const user = JSON.parse(decodeURIComponent(userDataParam));
+          
+          // Set the user data in state to display profile info while processing
+          setUserData(user);
+          
+          // Retrieve Google profile picture from localStorage if available
+          // This would need to be set during Google login
+          const googleProfilePic = localStorage.getItem('googleProfilePic');
           
           // Store token and user data
           localStorage.setItem('token', token);
-          localStorage.setItem('user', JSON.stringify(user));
+          localStorage.setItem('user', JSON.stringify({
+            ...user,
+            profile_picture: user.profile_picture || googleProfilePic || null
+          }));
           
           message.success(`Welcome back, ${user.first_name || user.username}!`);
           
-          // Redirect based on user role
-          switch (user.role) {
-            case 'admin':
-              navigate('/admin');
-              break;
-            case 'warden':
-              navigate('/warden');
-              break;
-            case 'mess':
-              navigate('/mess');
-              break;
-            case 'student':
-              navigate('/student');
-              break;
-            default:
-              message.error('Invalid user role');
-              navigate('/login');
-          }
+          // Add slight delay for better UX
+          setTimeout(() => {
+            // Redirect based on user role
+            switch (user.role) {
+              case 'admin':
+                navigate('/admin');
+                break;
+              case 'warden':
+                navigate('/warden');
+                break;
+              case 'mess':
+                navigate('/mess');
+                break;
+              case 'student':
+                navigate('/student');
+                break;
+              default:
+                message.error('Invalid user role');
+                navigate('/login');
+            }
+          }, 1000);
         } catch (err) {
           console.error('Error parsing user data:', err);
+          setErrorMsg('Error processing authentication data');
           message.error('Error processing authentication data');
-          navigate('/login');
+          setTimeout(() => navigate('/login'), 2000);
         }
       } else {
+        setErrorMsg('Authentication data not received');
         message.error('Authentication data not received');
-        navigate('/login');
+        setTimeout(() => navigate('/login'), 2000);
       }
+      
+      setLoading(false);
     };
 
     handleOAuthCallback();
@@ -90,12 +112,71 @@ const OAuthCallback = () => {
       flexDirection: 'column',
       justifyContent: 'center', 
       alignItems: 'center', 
-      height: '100vh' 
+      height: '100vh',
+      backgroundColor: '#f5f5f5' 
     }}>
-      <Spin size="large" />
-      <span style={{ marginTop: 16, fontSize: '16px' }}>
-        Verifying your account...
-      </span>
+      <div style={{
+        background: 'white',
+        padding: '30px',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+        textAlign: 'center',
+        maxWidth: '400px',
+        width: '90%'
+      }}>
+        {loading ? (
+          <>
+            <div style={{ marginBottom: '20px' }}>
+              {userData ? (
+                <Avatar 
+                  size={80} 
+                  src={userData.profile_picture} 
+                  icon={<UserOutlined />}
+                  style={{ border: '2px solid #1890ff' }}
+                />
+              ) : (
+                <Avatar 
+                  size={80} 
+                  icon={<GoogleOutlined />}
+                  style={{ backgroundColor: '#1890ff' }}
+                />
+              )}
+            </div>
+            <h2 style={{ marginBottom: '20px', fontWeight: 500 }}>
+              {userData ? `Welcome, ${userData.first_name || userData.username}!` : 'Verifying your account...'}
+            </h2>
+            <Spin size="large" />
+            <p style={{ marginTop: '20px', color: '#666' }}>
+              {errorMsg || 'Signing you in securely...'}
+            </p>
+          </>
+        ) : (
+          <>
+            <div style={{ marginBottom: '20px' }}>
+              {errorMsg ? (
+                <Avatar 
+                  size={80} 
+                  icon={<UserOutlined />}
+                  style={{ backgroundColor: '#ff4d4f' }}
+                />
+              ) : (
+                <Avatar 
+                  size={80} 
+                  src={userData?.profile_picture} 
+                  icon={<UserOutlined />}
+                  style={{ border: '2px solid #52c41a' }}
+                />
+              )}
+            </div>
+            <h2 style={{ marginBottom: '20px', fontWeight: 500 }}>
+              {errorMsg ? 'Authentication Failed' : `Welcome, ${userData?.first_name || userData?.username}!`}
+            </h2>
+            <p style={{ color: errorMsg ? '#ff4d4f' : '#52c41a' }}>
+              {errorMsg || 'Authentication successful! Redirecting...'}
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 };
