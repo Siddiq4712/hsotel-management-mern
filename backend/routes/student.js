@@ -33,6 +33,7 @@ const {
   getMyDailyMessCharges,
   getMonthlyMessExpensesChartData, // Add this
   getMonthlyAttendanceChartData,   // Add this
+  getRoommates
 } = require('../controllers/studentController');
 const {
   createFoodOrder,
@@ -109,4 +110,6 @@ router.put('/food-orders/:id/cancel', cancelFoodOrder);
 router.get('/daily-mess-charges', auth, getMyDailyMessCharges);
 router.get('/chart-data/mess-expenses', auth, authorize(['student', 'lapc']), getMonthlyMessExpensesChartData);
 router.get('/chart-data/attendance', auth, authorize(['student', 'lapc']), getMonthlyAttendanceChartData);
+
+router.get('/roommates', getRoommates);
 module.exports = router;

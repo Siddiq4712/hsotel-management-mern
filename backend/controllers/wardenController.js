@@ -436,7 +436,8 @@ const markAttendance = async (req, res) => {
       reason,
       remarks,
       from_date: status === 'OD' ? from_date : null,
-      to_date: status === 'OD' ? to_date : null
+      to_date: status === 'OD' ? to_date : null,
+      totalManDays: status === 'A' ? 0 : 1 // MODIFIED: Set totalManDays based on status (1 for P/OD, 0 for A)
     };
 
     const [attendance, created] = await Attendance.findOrCreate({
@@ -460,7 +461,8 @@ const markAttendance = async (req, res) => {
             marked_by, 
             hostel_id,
             reason, 
-            remarks 
+            remarks,
+            totalManDays: 1 // MODIFIED: Set to 1 for OD range days
           },
           { transaction }
         );
@@ -515,7 +517,8 @@ const updateAttendance = async (req, res) => {
       from_date: status === 'OD' ? from_date : null,
       to_date: status === 'OD' ? to_date : null,
       marked_by,
-      hostel_id
+      hostel_id,
+      totalManDays: status === 'A' ? 0 : 1 // MODIFIED: Update totalManDays based on new status
     };
 
     // Validate dates for OD
@@ -561,7 +564,8 @@ const updateAttendance = async (req, res) => {
             marked_by,
             hostel_id,
             reason,
-            remarks
+            remarks,
+            totalManDays: 1 // MODIFIED: Set to 1 for new OD range
           },
           { transaction }
         );
@@ -629,7 +633,8 @@ const bulkMarkAttendance = async (req, res) => {
                 reason: status === 'OD' ? (reason || null) : null,
                 remarks: status === 'OD' ? (remarks || null) : null,
                 from_date: status === 'OD' ? (from_date || null) : null,
-                to_date: status === 'OD' ? (to_date || null) : null
+                to_date: status === 'OD' ? (to_date || null) : null,
+                totalManDays: status === 'A' ? 0 : 1 // MODIFIED: Set totalManDays based on status
             };
 
             await Attendance.upsert(upsertData, { transaction });
@@ -657,7 +662,8 @@ const bulkMarkAttendance = async (req, res) => {
                         marked_by,
                         hostel_id,
                         reason,
-                        remarks
+                        remarks,
+                        totalManDays: 1 // MODIFIED: Set to 1 for OD range days
                     }, { transaction });
                 }
             }
@@ -1243,6 +1249,12 @@ const getStudents = async (req, res) => {
             model: HostelRoom,
             attributes: ['room_number']
           }]
+        },
+        {
+          model: Enrollment,
+          as: 'tbl_Enrollments',
+          required: false,
+          attributes: ['college']
         }
       ],
       order: [
@@ -1252,7 +1264,13 @@ const getStudents = async (req, res) => {
     });
 
     // Convert to plain objects to prevent circular reference errors
-    const students = studentsWithModels.map(instance => instance.get({ plain: true }));
+    const students = studentsWithModels.map(instance => {
+      const plain = instance.get({ plain: true });
+      // Add college from enrollment if available
+      plain.college = plain.tbl_Enrollments?.[0]?.college || 'N/A';
+      delete plain.tbl_Enrollments; // Clean up if not needed
+      return plain;
+    });
 
     res.json({ success: true, data: students });
   } catch (error) {
@@ -1260,7 +1278,6 @@ const getStudents = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
-
 const getAdditionalCollections = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;

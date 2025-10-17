@@ -45,6 +45,7 @@ import FacilityUsage from './components/student/FacilityUsage';
 import TransactionHistory from './components/student/TransactionHistory';
 import FoodOrderForm from './components/student/StudentFoodMenu';
 import MyFoodOrders from './components/student/MyFoodOrders';
+import StudentProfile from './components/student/StudentProfile';
 
 // Mess Components
 import MessDashboard from './components/mess/MessDashboard';
@@ -167,7 +168,7 @@ const DashboardRouter = () => {
       case 'lapc':
         switch (currentView) {
           case 'dashboard':
-            return <StudentDashboard />;
+            return <StudentDashboard setCurrentView={setCurrentView} />;
           case 'apply-leave':
             return <ApplyLeave />;
           case 'my-leaves':
@@ -176,8 +177,6 @@ const DashboardRouter = () => {
             return <SubmitComplaint />;
           case 'my-complaints':
             return <MyComplaints />;
-          case 'view-bills':
-            return <ViewBills />;
           case 'facilities':
             return <FacilityUsage />;
           case 'transactions':
@@ -190,6 +189,8 @@ const DashboardRouter = () => {
             return <MyFoodOrders />;
           case 'mess-history':
             return <StudentMessHistory />;
+          case 'profile':
+            return <StudentProfile />;
           default:
             return <StudentDashboard />;
         }

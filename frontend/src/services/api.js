@@ -39,6 +39,7 @@ export const authAPI = {
   googleLogin: () => {
     window.location.href = `${API_BASE_URL}/auth/google`;
   },
+  changePassword: (data) => api.put('/auth/change-password', data),
 };
 
 // Admin API - Complete CRUD operations
@@ -225,6 +226,7 @@ export const studentAPI = {
   getMyTokens: () => api.get('/student/tokens'),
   getMonthlyMessExpensesChart: () => api.get('/student/chart-data/mess-expenses'),
   getMonthlyAttendanceChart: () => api.get('/student/chart-data/attendance'),
+  getRoommates: () => api.get('/student/roommates'),
 };
 // Mess API - Complete with all CRUD operations
 export const messAPI = {
