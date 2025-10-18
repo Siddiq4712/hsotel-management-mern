@@ -4,9 +4,10 @@ import { wardenAPI } from '../../services/api';
 import { User, Lock, Calendar, CheckCircle, AlertCircle, Bed, CreditCard, School, Hash } from 'lucide-react';
 
 const EnrollStudent = () => {
-  // MODIFIED: Added 'college' and 'roll_number' to the initial state
+  // MODIFIED: Renamed 'username' to 'baseUsername' and added 'initial'
   const [formData, setFormData] = useState({
-    username: '',
+    baseUsername: '',
+    initial: '',
     roll_number: '',
     password: '',
     email: '',
@@ -20,11 +21,10 @@ const EnrollStudent = () => {
   const [loading, setLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [emiAmount, setEmiAmount] = useState(5000);
 
   useEffect(() => {
     fetchSessions();
-    fetchEmiSettings();
+    // fetchEmiSettings();
   }, []);
 
   const fetchSessions = async () => {
@@ -43,16 +43,16 @@ const EnrollStudent = () => {
     }
   };
 
-  const fetchEmiSettings = async () => {
-    try {
-      const response = await wardenAPI.getHostelSettings();
-      if (response.data?.monthly_emi_amount) {
-        setEmiAmount(response.data.monthly_emi_amount);
-      }
-    } catch (error) {
-      console.error('Error fetching EMI settings:', error);
-    }
-  };
+  // const fetchEmiSettings = async () => {
+  //   try {
+  //     const response = await wardenAPI.getHostelSettings();
+  //     if (response.data?.monthly_emi_amount) {
+  //       setEmiAmount(response.data.monthly_emi_amount);
+  //     }
+  //   } catch (error) {
+  //     console.error('Error fetching EMI settings:', error);
+  //   }
+  // };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -67,19 +67,26 @@ const EnrollStudent = () => {
     setLoading(true);
     setMessage({ type: '', text: '' });
 
+    // MODIFIED: Combine baseUsername and initial into username with proper capitalization and space
+const baseName = formData.baseUsername.trim();
+const init = formData.initial.trim().toUpperCase();
+const finalUsername = baseName.toUpperCase() + ' ' + init;
+
     // REMOVED: Check for paid_initial_emi
 
     try {
       // The updated formData (with college and roll_number) will be sent automatically
       await wardenAPI.enrollStudent({
         ...formData,
+        username: finalUsername,
         session_id: parseInt(formData.session_id)
       });
 
       setMessage({ type: 'success', text: 'Student enrolled successfully!' });
-      // MODIFIED: Reset the 'college' and 'roll_number' fields as well
+      // MODIFIED: Reset the 'baseUsername', 'initial', 'college' and 'roll_number' fields as well
       setFormData({
-        username: '',
+        baseUsername: '',
+        initial: '',
         roll_number: '',
         password: '',
         email: '',
@@ -122,12 +129,22 @@ const EnrollStudent = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Username Field */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Student Username *</label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input type="text" name="username" value={formData.username} onChange={handleChange} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Enter student username" required />
+          {/* MODIFIED: Split Username into Base Username and Initial */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Base Username *</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input type="text" name="baseUsername" value={formData.baseUsername} onChange={handleChange} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Enter base username" required />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Initial *</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input type="text" name="initial" value={formData.initial} onChange={handleChange} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="Enter initial (e.g., D)" required maxLength={1} />
+              </div>
             </div>
           </div>
 
@@ -200,7 +217,7 @@ const EnrollStudent = () => {
             <button type="submit" disabled={loading || sessions.length === 0} className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               {loading ? 'Enrolling...' : 'Enroll Student'}
             </button>
-            <button type="button" onClick={() => setFormData({ username: '', roll_number: '', password: '', email: '', session_id: '', college: '', requires_bed: false })} className="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 transition-colors">
+            <button type="button" onClick={() => setFormData({ baseUsername: '', initial: '', roll_number: '', password: '', email: '', session_id: '', college: '', requires_bed: false })} className="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 transition-colors">
               Reset
             </button>
           </div>

@@ -141,7 +141,7 @@ const DashboardRouter = () => {
       case 'warden':
         switch (currentView) {
           case 'dashboard':
-            return <WardenDashboard />;
+            return <WardenDashboard setCurrentView={setCurrentView}/>;
           case 'students':
             return <ManageStudents />;
           case 'enroll-student':

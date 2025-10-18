@@ -183,6 +183,9 @@ export const wardenAPI = {
   generateMessBills: (data) => api.post('/warden/mess-bills/generate', data),
   getMessBills: (params) => api.get('/warden/mess-bills', { params }),
   updateMessBillStatus: (id, data) => api.put(`/warden/mess-bills/${id}/status`, data),
+  // Add this to export const wardenAPI in src/services/api.js
+
+getRoomOccupants: (roomId) => api.get(`/warden/rooms/${roomId}/occupants`),
 };
 export const studentAPI = {
   // Profile
