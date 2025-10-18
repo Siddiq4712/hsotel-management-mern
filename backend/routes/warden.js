@@ -79,4 +79,8 @@ router.post('/mess-bills/generate', generateMessBills);
 router.get('/mess-bills', getMessBills);
 router.put('/mess-bills/:id/status', updateMessBillStatus);
 
+// Add this route to routes/wardenRoutes.js (inside the router, with auth and authorize middleware)
+
+router.get('/rooms/:id/occupants', getRoomOccupants);
+
 module.exports = router;
