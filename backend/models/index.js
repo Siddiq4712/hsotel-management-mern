@@ -755,6 +755,7 @@ const Suspension = sequelize.define('Suspension', {
 
 // ... (imports)
 
+// Updated Attendance Model
 const Attendance = sequelize.define('Attendance', {
   id: {
     type: DataTypes.INTEGER,
@@ -766,16 +767,16 @@ const Attendance = sequelize.define('Attendance', {
     allowNull: false,
     references: { model: 'tbl_Users', key: 'id' }
   },
-  hostel_id: {  // NEW FIELD
+  hostel_id: {  
     type: DataTypes.INTEGER,
     allowNull: false,
     references: { model: 'tbl_Hostel', key: 'id' }
   },
-  date: { // This 'date' is the primary date of the record
+  date: { 
     type: DataTypes.DATEONLY,
     allowNull: false
   },
- status: {
+  status: {
     type: DataTypes.ENUM('P', 'A', 'OD'),
     allowNull: false
   },
@@ -787,12 +788,11 @@ const Attendance = sequelize.define('Attendance', {
     type: DataTypes.DATEONLY,
     allowNull: true
   },
-  // NEW/UPDATED: Changed from remarks to reason with ENUM
   reason: {
     type: DataTypes.ENUM('NCC', 'NSS', 'Internship', 'Other'),
-    allowNull: true, // Only required for OD
+    allowNull: true, 
   },
-  remarks: { // Kept for general remarks or 'Other' reason
+  remarks: { 
     type: DataTypes.TEXT,
     allowNull: true
   },
@@ -804,12 +804,15 @@ const Attendance = sequelize.define('Attendance', {
   totalManDays:{
     type: DataTypes.INTEGER,
     allowNull: true
+  },
+  is_monthly: {  // NEW FIELD: To identify monthly summary records
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   tableName: 'tbl_Attendance',
   timestamps: true
 });
-
 const Holiday = sequelize.define('Holiday', {
   id: {
     type: DataTypes.INTEGER,
@@ -2256,6 +2259,8 @@ const ItemStore = sequelize.define('ItemStore', {
 });
 
 // Inventory Transaction Model for tracking purchases and consumption
+// models/index.js - PARTIAL UPDATE: Find this section and modify it.
+
 const InventoryTransaction = sequelize.define('InventoryTransaction', {
   id: {
     type: DataTypes.INTEGER,
@@ -2286,9 +2291,12 @@ const InventoryTransaction = sequelize.define('InventoryTransaction', {
       key: 'id'
     }
   },
+  // Removed the old 'transaction_date' (which was the inward_date)
+  // Renamed 'invoice_date' to 'transaction_date' to be the single date field
   transaction_date: {
     type: DataTypes.DATEONLY,
-    allowNull: false
+    allowNull: false,
+    comment: 'Date when the inventory transaction (e.g., purchase) occurred / Date on the supplier invoice'
   },
   quantity: {
     type: DataTypes.DECIMAL(10, 2),
@@ -2322,8 +2330,8 @@ const InventoryTransaction = sequelize.define('InventoryTransaction', {
   tableName: 'tbl_InventoryTransaction',
   timestamps: true
 });
-// SpecialFoodItem Model
-const SpecialFoodItem = sequelize.define('SpecialFoodItem', {
+
+  const SpecialFoodItem = sequelize.define('SpecialFoodItem', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,

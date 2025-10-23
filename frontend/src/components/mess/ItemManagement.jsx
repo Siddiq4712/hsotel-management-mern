@@ -528,13 +528,13 @@ const ItemManagement = () => {
         <Space>
           {activeTab === 'items' && (
             <>
-              <Button 
+              {/* <Button 
                 onClick={verifyInventory} 
                 icon={<CheckCircleOutlined />}
                 type="default"
               >
                 Verify Inventory
-              </Button>
+              </Button> */}
               <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
                 Add Item
               </Button>

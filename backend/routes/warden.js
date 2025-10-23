@@ -16,7 +16,7 @@ const {
   // Add these new imports
   generateMessBills, getMessBills, updateMessBillStatus,
   // Other imports
-  getRoomOccupants,getMessBillSummary
+  getRoomOccupants,getMessBillSummary, bulkMonthEndMandays
 } = require('../controllers/wardenController');
 const express = require('express'); 
 
@@ -82,5 +82,6 @@ router.put('/mess-bills/:id/status', updateMessBillStatus);
 // Add this route to routes/wardenRoutes.js (inside the router, with auth and authorize middleware)
 
 router.get('/rooms/:id/occupants', getRoomOccupants);
+router.post('/attendance/bulks', bulkMonthEndMandays); // NEW - Bulk month-end mandays
 
 module.exports = router;

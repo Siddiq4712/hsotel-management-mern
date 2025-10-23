@@ -40,8 +40,8 @@ const Sidebar = ({ currentView, setCurrentView }) => {
           { id: 'leave-requests', label: 'Leave Requests', icon: Calendar },
           { id: 'complaints', label: 'Complaints', icon: MessageCircle },
           { id: 'suspensions', label: 'Suspensions', icon: UserX },
-          { id: 'holidays', label: 'Holidays', icon: CalendarDays },
-          { id: 'mess-bills', label: 'Mess Bills', icon: Receipt },
+          // { id: 'holidays', label: 'Holidays', icon: CalendarDays },
+          // { id: 'mess-bills', label: 'Mess Bills', icon: Receipt },
         ];
       case 'student':
         return [
@@ -90,7 +90,7 @@ case 'mess':
     { id: 'uoms', label: 'Units of Measure', icon: Settings },
     { id: 'stock', label: 'Stock Management', icon: Database },
     { id: 'inventory', label: 'Inventory', icon: Package },
-    { id: 'consumption', label: 'Daily Consumption', icon: ClipboardCheck },
+    
     
     { id: 'section-store', label: 'Store Management', type: 'section' },
     { id: 'stores', label: 'Manage Stores', icon: Building },
@@ -103,6 +103,7 @@ case 'mess':
     
     { id: 'section-special', label: 'Special Food Orders', type: 'section' },
     { id: 'special-food-items', label: 'Special Food Items', icon: Coffee },
+    { id: 'consumption', label: 'Special Food Entry', icon: ClipboardCheck },
     { id: 'food-orders-dashboard', label: 'Order Dashboard', icon: ShoppingBag }, // Updated item
     
     { id: 'section-reports', label: 'Reports', type: 'section' },
@@ -110,9 +111,10 @@ case 'mess':
     { id: 'Daily-expenses', label: 'Daily Expenses', icon: Receipt }, // New item
 
     {id:'Fees Calculation', label:'Fees Calculation', type:'section'},
+    {id:'bed-fee-management', label:'Bed Fee Management', icon: Bed},
     {id:'paper-bill-generator', label:'Paper Bill Generator', icon: FileText},
-    {id:'calculate-daily-charges', label:'Calculate Daily Charges', icon: CreditCard},
-    {id: 'hostel-additional-income', label: 'Additional Income', icon: DollarSign },
+    // {id:'calculate-daily-charges', label:'Calculate Daily Charges', icon: CreditCard},
+    // {id: 'hostel-additional-income', label: 'Additional Income', icon: DollarSign },
     {id:'mess-fee', label:'Mess Fee Summary', icon: FileText},
     {id: 'daily-rate-report', label:'Daily Rate', icon : CreditCard},
     {id:'income-deduction-entry', label:'Income Entry', icon: DollarSign},

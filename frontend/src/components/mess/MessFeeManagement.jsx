@@ -1,5 +1,3 @@
-// In MessFeeManagement.js
-
 import React, { useState, useEffect } from 'react';
 import { Card, Table, message, DatePicker, Button, Space, Typography, Row, Col, Statistic, Modal, Form, Select, InputNumber, Input } from 'antd';
 import { SyncOutlined, PlusOutlined, UserOutlined, DownloadOutlined, CheckCircleOutlined } from '@ant-design/icons';
@@ -22,6 +20,11 @@ const MessFeeManagement = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [students, setStudents] = useState([]);
   const [form] = Form.useForm();
+
+  // --- NEW STATE FOR CONTROLLED PAGINATION ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  // --- END NEW STATE ---
   
   const fetchReportData = async (date, college) => { // Add college param
     setLoading(true);
@@ -34,6 +37,9 @@ const MessFeeManagement = () => {
       setSummary(response.data.summary || {});
       // Reset bills generated flag on refetch
       setBillsGenerated(false);
+      // Reset page to 1 and pageSize to default when new data is loaded
+      setCurrentPage(1);
+      setPageSize(10); 
     } catch (error) {
       console.error("Failed to fetch monthly report:", error);
       message.error('Failed to fetch monthly report data.');
@@ -48,8 +54,8 @@ const MessFeeManagement = () => {
       const month = selectedDate.format('M');
       const year = selectedDate.format('YYYY');
       const response = await messAPI.generateMessBills(null, { 
-  params: { month, year, college: selectedCollege }
-});
+        params: { month, year, college: selectedCollege }
+      });
 
       if (response.data.success) {
         message.success(`Bills generated/updated successfully for ${selectedDate.format('MMMM YYYY')}! Total: ₹${response.data.summary.totalAmount}`);
@@ -67,7 +73,8 @@ const MessFeeManagement = () => {
   
   const fetchStudents = async () => {
     try {
-      const response = await messAPI.getStudents();
+      // Assuming messAPI.getStudents returns all students without specific bed requirement filter for this modal
+      const response = await messAPI.getStudents(); 
       setStudents(response.data.data || []);
     } catch (error) {
       message.error('Failed to fetch students list.');
@@ -178,7 +185,7 @@ const MessFeeManagement = () => {
   };
 
   const columns = [
-    { title: 'S.No.', key: 'sno', render: (text, record, index) => index + 1, width: 60, fixed: 'left' },
+    { title: 'S.No.', key: 'sno', render: (text, record, index) => (currentPage - 1) * pageSize + index + 1, width: 60, fixed: 'left' },
     { title: 'Name', dataIndex: 'name', key: 'name', width: 200, fixed: 'left', sorter: (a, b) => a.name.localeCompare(b.name) },
     { title: 'REG NO', dataIndex: 'regNo', key: 'regNo', width: 120 },
     { title: 'M.Days', dataIndex: 'messDays', key: 'messDays', align: 'center', width: 80 },
@@ -193,6 +200,12 @@ const MessFeeManagement = () => {
     { title: 'Final Amount', dataIndex: 'finalAmount', key: 'finalAmount', align: 'right', fixed: 'right', width: 120, render: (val) => <Title level={5} style={{ margin: 0 }}>₹{parseFloat(val).toFixed(0)}</Title> },
     
   ];
+
+  // --- NEW: Pagination onChange handler ---
+  const handleTableChange = (pagination) => {
+    setCurrentPage(pagination.current);
+    setPageSize(pagination.pageSize);
+  };
 
   return (
     <Card>
@@ -234,7 +247,21 @@ const MessFeeManagement = () => {
         <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Grand Total (Final)" value={summary.grandTotal || 0} prefix="₹" precision={0} valueStyle={{ color: '#cf1322' }} /></Col>
       </Row>
 
-      <Table columns={columns} dataSource={reportData} rowKey="studentId" loading={loading} scroll={{ x: 1500 }} pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '50', '100'], showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items` }}/>
+      <Table 
+        columns={columns} 
+        dataSource={reportData} 
+        rowKey="studentId" 
+        loading={loading} 
+        scroll={{ x: 1500 }} 
+        pagination={{ 
+          current: currentPage, // <-- Pass current page from state
+          pageSize: pageSize,   // <-- Pass page size from state
+          showSizeChanger: true, 
+          pageSizeOptions: ['10', '20', '50', '100'], 
+          showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
+          onChange: handleTableChange // <-- Add onChange handler
+        }}
+      />
       
       <Modal title="Add New Fee or Expense" visible={isModalVisible} onCancel={() => setIsModalVisible(false)} onOk={() => form.submit()}>
         <Form form={form} layout="vertical" onFinish={handleModalSubmit}>
