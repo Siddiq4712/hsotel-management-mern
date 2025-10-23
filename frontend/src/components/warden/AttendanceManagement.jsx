@@ -21,6 +21,16 @@ const AttendanceManagement = () => {
   const [modalSearchTerm, setModalSearchTerm] = useState('');
   const [selectedCollege, setSelectedCollege] = useState('All'); // College filter
 
+  // NEW STATES FOR MONTH-END FEATURE
+  const [showMonthEndModal, setShowMonthEndModal] = useState(false);  // NEW: For month-end modal
+  const [monthEndLoading, setMonthEndLoading] = useState(false);      // NEW: Loading for month-end
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);  // NEW
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());     // NEW
+  const [totalOperationalDays, setTotalOperationalDays] = useState(0);             // NEW
+  const [studentReductions, setStudentReductions] = useState({});                  // NEW: {studentId: reduction}
+  const [monthEndSearchTerm, setMonthEndSearchTerm] = useState('');                // NEW: Search for month-end modal
+  const [monthEndSelectedCollege, setMonthEndSelectedCollege] = useState('All');   // NEW: College filter for modal
+
   useEffect(() => {
     fetchStudents();
     fetchAttendance();
@@ -132,6 +142,75 @@ const AttendanceManagement = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // NEW FUNCTIONS FOR MONTH-END FEATURE
+  const fetchStudentsForMonthEnd = () => {  // NEW: Can reuse fetchStudents
+    return students;  // Assuming students are already fetched
+  };
+
+  const getFilteredMonthEndStudents = () => {  // NEW
+    let filtered = fetchStudentsForMonthEnd();
+
+    // College filter
+    if (monthEndSelectedCollege !== 'All') {
+      filtered = filtered.filter(student => student.college === monthEndSelectedCollege);
+    }
+
+    // Search filter
+    if (monthEndSearchTerm) {
+      const lowerSearch = monthEndSearchTerm.toLowerCase();
+      filtered = filtered.filter(student =>
+        student.username.toLowerCase().includes(lowerSearch) ||
+        (student.roll_number && student.roll_number.toLowerCase().includes(lowerSearch)) ||
+        getRoomNumber(student).toLowerCase().includes(lowerSearch) ||
+        student.college.toLowerCase().includes(lowerSearch)
+      );
+    }
+
+    return filtered;
+  };
+
+  const handleMonthEndSubmit = async () => {  // NEW
+    setMonthEndLoading(true);
+    try {
+      const reductions = Object.entries(studentReductions)
+        .filter(([, reduction]) => reduction > 0)  // Only send non-zero reductions
+        .map(([studentId, reduction]) => ({
+          student_id: parseInt(studentId),
+          reduction_days: reduction
+        }));
+
+      await axios.post(
+        'http://localhost:5001/api/warden/attendance/bulks',  // NEW ENDPOINT
+        {
+          month: selectedMonth,
+          year: selectedYear,
+          total_operational_days: parseInt(totalOperationalDays),
+          student_reductions: reductions
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setShowMonthEndModal(false);
+      setStudentReductions({});
+      setMonthEndSearchTerm('');
+      setMonthEndSelectedCollege('All');
+      setTotalOperationalDays(0);
+      alert('Month-end mandays entry completed successfully!');
+    } catch (error) {
+      console.error('Error in month-end mandays:', error);
+      alert('Error: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setMonthEndLoading(false);
+    }
+  };
+
+  const handleReductionChange = (studentId, value) => {  // NEW
+    setStudentReductions({
+      ...studentReductions,
+      [studentId]: parseInt(value) || 0
+    });
   };
 
   const handleMarkAttendance = async (studentId, status, reason, remarks, fromDate, toDate, attendanceId) => {
@@ -416,6 +495,14 @@ const handleSaveAll = async () => {
           >
             <Plus size={20} className="mr-2" />
             Bulk Mark
+          </button>
+          {/* NEW BUTTON */}
+          <button
+            onClick={() => setShowMonthEndModal(true)}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center"
+          >
+            <Calendar size={20} className="mr-2" />
+            Month-End Mandays
           </button>
         </div>
       </div>
@@ -941,6 +1028,141 @@ const handleSaveAll = async () => {
                     setModalSearchTerm('');
                   }}
                   className="bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Month-End Mandays Modal */}
+      {showMonthEndModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-5 border w-11/12 max-w-6xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Month-End Mandays Entry</h3>
+              <p className="text-sm text-gray-600 mb-4">Enter total operational days for the month and day reductions per student (default 0).</p>
+              
+              {/* Month/Year and Total Operational Days */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Month</label>
+                  <select
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-purple-500"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <option key={i + 1} value={i + 1}>{new Date(0, i, 1).toLocaleString('default', { month: 'long' })}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                  <input
+                    type="number"
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                    min={2020}
+                    max={2030}
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Total Operational Days</label>
+                  <input
+                    type="number"
+                    value={totalOperationalDays}
+                    onChange={(e) => setTotalOperationalDays(parseInt(e.target.value) || 0)}
+                    min={0}
+                    className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              {/* Search and Filter for Students */}
+              <div className="relative mb-4">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="Search students..."
+                  value={monthEndSearchTerm}
+                  onChange={(e) => setMonthEndSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 w-full"
+                />
+              </div>
+              <div className="mb-4">
+                <select
+                  value={monthEndSelectedCollege}
+                  onChange={(e) => setMonthEndSelectedCollege(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500"
+                >
+                  {colleges.map(college => (
+                    <option key={college} value={college}>{college}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Students Table for Reductions */}
+              <div className="max-h-96 overflow-y-auto mb-4">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">College</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Roll Number</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Room</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Day Reduction</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Calculated Mandays</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {getFilteredMonthEndStudents().map((student) => {
+                      const reduction = studentReductions[student.id] || 0;
+                      const mandays = Math.max(0, totalOperationalDays - reduction);
+                      return (
+                        <tr key={student.id}>
+                          <td className="px-4 py-2 text-sm text-gray-900">{student.username}</td>
+                          <td className="px-4 py-2 text-sm text-gray-900">{student.college}</td>
+                          <td className="px-4 py-2 text-sm text-gray-900">{student.roll_number || 'N/A'}</td>
+                          <td className="px-4 py-2 text-sm text-gray-900">{getRoomNumber(student)}</td>
+                          <td className="px-4 py-2">
+                            <input
+                              type="number"
+                              value={reduction}
+                              onChange={(e) => handleReductionChange(student.id, e.target.value)}
+                              min={0}
+                              max={totalOperationalDays}
+                              className="w-20 px-2 py-1 border rounded text-center"
+                            />
+                          </td>
+                          <td className="px-4 py-2 text-sm font-medium text-gray-900">{mandays}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex gap-3 pt-4 mt-4 border-t justify-end">
+                <button
+                  onClick={handleMonthEndSubmit}
+                  disabled={monthEndLoading || totalOperationalDays === 0}
+                  className="bg-purple-600 text-white py-2 px-6 rounded-md hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center"
+                >
+                  {monthEndLoading ? 'Processing...' : 'Submit Mandays Entry'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowMonthEndModal(false);
+                    setStudentReductions({});
+                    setMonthEndSearchTerm('');
+                    setMonthEndSelectedCollege('All');
+                    setTotalOperationalDays(0);
+                  }}
+                  className="bg-gray-300 text-gray-700 py-2 px-6 rounded-md hover:bg-gray-400 transition-colors"
                 >
                   Cancel
                 </button>

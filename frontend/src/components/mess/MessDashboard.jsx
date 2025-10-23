@@ -13,7 +13,7 @@ import {
 } from '@ant-design/icons'; // ✅ FIXED IMPORT PATH
 import { messAPI } from '../../services/api';
 import moment from 'moment';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom'; // REMOVED: No longer needed for internal navigation
 
 // NEW CHART.JS IMPORTS
 import {
@@ -42,14 +42,14 @@ ChartJS.register(
 const { TabPane } = Tabs;
 const { Title, Text, Link } = Typography;
 
-const MessDashboard = () => {
+const MessDashboard = ({ setCurrentView }) => { // ADDED: setCurrentView prop
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [todayMenus, setTodayMenus] = useState([]);
   const [menusLoading, setMenusLoading] = useState(true);
   const [specialOrders, setSpecialOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
-  const navigate = useNavigate();
+  // const navigate = useNavigate(); // REMOVED
 
   // NEW STATE FOR CHARTS
   const [monthlyExpensesData, setMonthlyExpensesData] = useState(null);
@@ -362,7 +362,7 @@ const MessDashboard = () => {
                 <div style={{ marginTop: 16 }}>
                   <Button 
                     type="primary" 
-                    href={`/mess/menu-management?id=${upcomingMenu.Menu?.id}`}
+                    onClick={() => setCurrentView('menus')} // FIXED: Use setCurrentView; handle ID in EnhancedMenuManagement if needed (e.g., via URLSearchParams or context)
                   >
                     View Full Menu
                   </Button>
@@ -401,7 +401,7 @@ const MessDashboard = () => {
                     />
                     <Button 
                       size="small"
-                      onClick={() => navigate(`/mess/food-orders?id=${order.id}`)}
+                      onClick={() => setCurrentView('food-orders')} // FIXED: Use setCurrentView; handle order ID in FoodOrdersManagement if needed
                     >
                       Details
                     </Button>
@@ -452,22 +452,22 @@ const MessDashboard = () => {
         <Col span={24}>
           <Card title="Quick Actions">
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
-              <Button type="primary" size="large" icon={<CoffeeOutlined />} onClick={() => navigate('/mess/menu-planner')}>
+              <Button type="primary" size="large" icon={<CoffeeOutlined />} onClick={() => setCurrentView('menu-planner')}>
                 Menu Planner
               </Button>
-              <Button size="large" icon={<CalendarOutlined />} onClick={() => navigate('/mess/menu-schedule')}>
+              <Button size="large" icon={<CalendarOutlined />} onClick={() => setCurrentView('menu-schedule')}>
                 Menu Schedule
               </Button>
-              <Button size="large" icon={<PlusCircleOutlined />} onClick={() => navigate('/mess/create-menu')}>
+              <Button size="large" icon={<PlusCircleOutlined />} onClick={() => setCurrentView('create-menu')}>
                 Create Menu
               </Button>
-              <Button size="large" icon={<ShoppingCartOutlined />} onClick={() => navigate('/mess/food-orders-dashboard')}>
+              <Button size="large" icon={<ShoppingCartOutlined />} onClick={() => setCurrentView('food-orders-dashboard')}>
                 Order Dashboard
               </Button>
-              <Button size="large" icon={<DollarCircleOutlined />} onClick={() => navigate('/mess/mess-fee')}>
+              <Button size="large" icon={<DollarCircleOutlined />} onClick={() => setCurrentView('mess-fee')}>
                 Mess Fee Summary
               </Button>
-              <Button size="large" icon={<CalculatorOutlined />} onClick={() => navigate('/mess/daily-rate-report')}>
+              <Button size="large" icon={<CalculatorOutlined />} onClick={() => setCurrentView('daily-rate-report')}>
                 Daily Rate
               </Button>
             </div>

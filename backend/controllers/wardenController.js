@@ -433,63 +433,182 @@ const getDashboardStats = async (req, res) => {
 };
 
 // --- NEW DASHBOARD FUNCTIONS ---
+// Updated wardenController.js - Add this new function and update getMonthlyAttendance
+// ... (existing imports and functions remain the same)
 
+// NEW: Bulk Month-End Mandays Entry
+const bulkMonthEndMandays = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { month, year, total_operational_days, student_reductions = [] } = req.body;
+    const hostel_id = req.user.hostel_id;
+    const marked_by = req.user.id;
+
+    if (!month || !year || total_operational_days === undefined) {
+      throw new Error('Month, year, and total_operational_days are required');
+    }
+
+    const monthNum = parseInt(month, 10);
+    const yearNum = parseInt(year, 10);
+    if (monthNum < 1 || monthNum > 12) {
+      throw new Error('Invalid month (should be 1-12)');
+    }
+
+    // Calculate month start and end dates
+    const startDate = new Date(yearNum, monthNum - 1, 1);
+    const endDate = new Date(yearNum, monthNum, 0);
+
+    // Get all active students in the hostel
+    const students = await User.findAll({
+      where: { 
+        hostel_id,
+        role: 'student',
+        is_active: true
+      },
+      attributes: ['id'],
+      transaction
+    });
+
+    if (students.length === 0) {
+      throw new Error('No active students found in this hostel');
+    }
+
+    // Create a map for quick lookup of reductions
+    const reductionMap = {};
+    student_reductions.forEach(({ student_id, reduction_days }) => {
+      reductionMap[student_id] = parseInt(reduction_days) || 0;
+    });
+
+    // Delete existing attendance records for this month for all students
+    await Attendance.destroy({
+      where: {
+        student_id: { [Op.in]: students.map(s => s.id) },
+        date: {
+          [Op.between]: [startDate, endDate]
+        }
+      },
+      transaction
+    });
+
+    // Create monthly summary record for each student
+    const createdRecords = [];
+    for (const student of students) {
+      const reduction = reductionMap[student.id] || 0;
+      const mandays = Math.max(0, total_operational_days - reduction);
+
+      const monthlyRecord = await Attendance.create({
+        student_id: student.id,
+        hostel_id,
+        date: startDate,
+        status: 'P',
+        totalManDays: mandays,
+        is_monthly: true,
+        marked_by,
+        remarks: `Monthly mandays entry: ${mandays} present out of ${total_operational_days} operational days (reduction: ${reduction})`
+      }, { transaction });
+
+      createdRecords.push(monthlyRecord);
+    }
+
+    await transaction.commit();
+
+    res.status(201).json({
+      success: true,
+      message: `Monthly mandays entry completed for ${createdRecords.length} students`,
+      data: {
+        month,
+        year,
+        total_operational_days,
+        records_created: createdRecords.length
+      }
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Bulk month-end mandays error:', error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+// UPDATED: getMonthlyAttendance - Now calculates operational days using holidays
 const getMonthlyAttendance = async (req, res) => {
-  try {
-    const hostel_id = req.user.hostel_id;
-    const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  try {
+    const hostel_id = req.user.hostel_id;
+    const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
-    // Get the total number of enrolled students for the calculation base
-    const totalStudents = await User.count({ where: { role: 'student', hostel_id, is_active: true } });
-    
-    if (totalStudents === 0) {
-      return res.json({ success: true, data: [] });
-    }
+    // Get the total number of enrolled students for the calculation base
+    const totalStudents = await User.count({ where: { role: 'student', hostel_id, is_active: true } });
+    
+    if (totalStudents === 0) {
+      return res.json({ success: true, data: [] });
+    }
 
-    // Retrieve attendance counts per month (Present days are counted as 1 manday, Absent as 0)
-    const monthlyAttendanceRaw = await Attendance.findAll({
-      attributes: [
-        [sequelize.fn('YEAR', sequelize.col('date')), 'year'],
-        [sequelize.fn('MONTH', sequelize.col('date')), 'month'],
-        [sequelize.fn('SUM', sequelize.col('totalManDays')), 'totalPresentDays']
-      ],
-      where: {
-        date: { [Op.gte]: threeMonthsAgo },
-        '$Student.hostel_id$': hostel_id,
-        totalManDays: { [Op.ne]: null } // Only count records where totalManDays is set (P/OD)
-      },
-      include: [{ model: User, as: 'Student', attributes: [], required: true }],
-      group: ['year', 'month'],
-      order: [['year', 'ASC'], ['month', 'ASC']],
-      raw: true
-    });
+    // Fetch holidays in the period to calculate operational days per month
+    const holidays = await Holiday.findAll({
+      where: {
+        hostel_id,
+        date: { [Op.gte]: threeMonthsAgo }
+      },
+      raw: true
+    });
 
-    const result = monthlyAttendanceRaw.map(record => {
-      const totalDaysInMonth = new Date(record.year, record.month, 0).getDate();
-      const maxPossibleMandays = totalStudents * totalDaysInMonth;
-      const monthName = new Date(record.year, record.month - 1, 1).toLocaleString('default', { month: 'short' });
-      
-      const presentMandays = Number(record.totalPresentDays) || 0;
-      
-      // Present percentage calculation: (Total Mandays Present / Max Possible Mandays) * 100
-      const presentPercentage = maxPossibleMandays > 0 
-        ? Math.round((presentMandays / maxPossibleMandays) * 100)
-        : 0;
-      
-      const absentPercentage = 100 - presentPercentage;
+    // Group holiday counts by year-month
+    const holidayCounts = {};
+    holidays.forEach(holiday => {
+      const date = new Date(holiday.date);
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1;
+      const key = `${year}-${month}`;
+      holidayCounts[key] = (holidayCounts[key] || 0) + 1;
+    });
 
-      return {
-        month: monthName, // e.g., 'Oct'
-        present: presentPercentage,
-        absent: absentPercentage
-      };
-    });
+    // Retrieve attendance counts per month (includes both daily and monthly records)
+    const monthlyAttendanceRaw = await Attendance.findAll({
+      attributes: [
+        [sequelize.fn('YEAR', sequelize.col('date')), 'year'],
+        [sequelize.fn('MONTH', sequelize.col('date')), 'month'],
+        [sequelize.fn('SUM', sequelize.col('totalManDays')), 'totalPresentDays']
+      ],
+      where: {
+        date: { [Op.gte]: threeMonthsAgo },
+        '$Student.hostel_id$': hostel_id,
+        totalManDays: { [Op.ne]: null } 
+      },
+      include: [{ model: User, as: 'Student', attributes: [], required: true }],
+      group: ['year', 'month'],
+      order: [['year', 'ASC'], ['month', 'ASC']],
+      raw: true
+    });
 
-    res.json({ success: true, data: result });
-  } catch (error) {
-    console.error('Monthly attendance error:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-  }
+    const result = monthlyAttendanceRaw.map(record => {
+      const daysInMonth = new Date(record.year, record.month, 0).getDate();
+      const holidayKey = `${record.year}-${record.month}`;
+      const holidayCount = holidayCounts[holidayKey] || 0;
+      const operationalDays = daysInMonth - holidayCount;
+      const maxPossibleMandays = totalStudents * operationalDays;
+      const monthName = new Date(record.year, record.month - 1, 1).toLocaleString('default', { month: 'short' });
+       
+      const presentMandays = Number(record.totalPresentDays) || 0;
+       
+      const presentPercentage = maxPossibleMandays > 0 
+        ? Math.round((presentMandays / maxPossibleMandays) * 100)
+        : 0;
+       
+      const absentPercentage = 100 - presentPercentage;
+
+      return {
+        month: monthName, 
+        present: presentPercentage,
+        absent: absentPercentage,
+        operationalDays,  // NEW: Include for frontend if needed
+        presentMandays    // NEW: Include raw present mandays
+      };
+    });
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('Monthly attendance error:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
 };
 
 const getMonthlyComplaints = async (req, res) => {
@@ -1848,6 +1967,7 @@ module.exports = {
   approveLeave,
   // Complaint Management - Updated
   getComplaints,
+  bulkMonthEndMandays,
   getPendingComplaints,
   updateComplaint,
   // Suspension Management

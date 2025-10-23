@@ -137,7 +137,12 @@ const {
   generateDailyRateReport,
   getStudents,
   recordStaffRecordedSpecialFoodConsumption,
-  generateMessBills
+  generateMessBills,
+  createBedFee,
+  getStudentBedFees,
+  createBulkBedFees,
+  getAllBedFees,
+  deleteBedFee
 
 
 } = require('../controllers/messController');
@@ -348,5 +353,13 @@ router.get('/students',authorize(['mess', 'admin']),getStudents);
 router.post('/student-special-consumption-staff',authorize(['mess', 'admin']),recordStaffRecordedSpecialFoodConsumption);
 
 router.post('/generate-mess-bills',authorize(['mess', 'admin']),generateMessBills);
+router.post('/bed-fees', authorize(['mess', 'warden', 'admin']), createBedFee);
+router.get('/bed-fees', authorize(['mess', 'warden', 'admin']), getAllBedFees);
+router.get('/students/:student_id/bed-fees', authorize(['mess', 'warden', 'admin']), getStudentBedFees);
+router.delete('/bed-fees/:id', authorize(['mess', 'warden', 'admin']), deleteBedFee);
+
+// Bulk bed fee creation
+router.post('/bed-fees/bulk', authorize(['mess', 'warden', 'admin']), createBulkBedFees);
+
 
 module.exports = router;

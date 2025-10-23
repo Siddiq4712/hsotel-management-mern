@@ -1,5 +1,7 @@
 // src/services/api.js
 import axios from 'axios';
+// import { bulkMonthEndMandays } from '../../../backend/controllers/wardenController';
+// import { bulkMarkAttendance } from '../../../backend/controllers/wardenController';
 // import { generateMessBills } from '../../../backend/controllers/messController';
 
 const API_BASE_URL = 'http://localhost:5001/api';
@@ -186,6 +188,7 @@ export const wardenAPI = {
   // Add this to export const wardenAPI in src/services/api.js
 
 getRoomOccupants: (roomId) => api.get(`/warden/rooms/${roomId}/occupants`),
+bulkMonthEndMandays: (data) => api.post('/warden/attendance/bulks', data),
 };
 export const studentAPI = {
   // Profile
@@ -389,6 +392,16 @@ export const messAPI = {
   getStudents: () => api.get('/mess/students'), // Endpoint to fetch students for dropdown
   recordStaffRecordedSpecialFoodConsumption: (data) => api.post('/mess/student-special-consumption-staff', data),
   generateMessBills: (data, config) => api.post('/mess/generate-mess-bills', data, config),
+  createBedFee: (data) => api.post('/bed-fees', data),
+  getAllBedFees: (params) => api.get('/bed-fees', { params }),
+  getStudentBedFees: (studentId) => api.get(`/students/${studentId}/bed-fees`),
+  createBulkBedFees: (data) => api.post('/bed-fees/bulk', data),
+  deleteBedFee: (id) => api.delete(`/bed-fees/${id}`),
+  // Add this to the messAPI object
+  deleteStudentFee: (id) => api.delete(`/mess/student-fees/${id}`),
+// In src/services/api.js (in the messAPI object)
+  getStudents: (params) => api.get('/mess/students', { params }), // Add support for params
+
 
 };
 

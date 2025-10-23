@@ -30,7 +30,7 @@ const PaperBillGenerator = () => {
   const fetchRecentFees = async () => {
     setTableLoading(true);
     try {
-      const response = await messAPI.getStudentFees({ fee_type: 'paper_bill' });
+      const response = await messAPI.getStudentFees({ fee_type: 'newspaper' });
       const fees = response.data.data || [];
       console.log('[PaperBillGenerator] Fetched recent paper bill fees:', fees); // LOG
       setRecentFees(fees);
@@ -51,7 +51,7 @@ const PaperBillGenerator = () => {
     try {
       const payload = {
         ...values,
-        fee_type: 'paper_bill',
+        fee_type: 'newspaper',
         month: values.month.month() + 1,
         year: values.month.year(),
       };

@@ -77,6 +77,8 @@ import PaperBillGenerator from './components/mess/PaperBillGenerator'; // Import
 import SisterBillConcern from './components/mess/CreditTokenManager'; // Import the new component
 import IncomeEntryManager from './components/mess/IncomeEntryManager';
 import DailyRateReport from './components/mess/DailyRateReport'; // Import the new component
+// import bedFee from './components/mess/BedFeeManagement'; // Import Bed Fee component
+import BedFeeManagement from './components/mess/BedFeeManagement';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -194,68 +196,70 @@ const DashboardRouter = () => {
           default:
             return <StudentDashboard />;
         }
-      
-      case 'mess':
-        switch (currentView) {
-          case 'dashboard':
-            return <MessDashboard />;
-          case 'menus':
-            return <EnhancedMenuManagement />;
-          case 'items':
-            return <ItemManagement />;
-          case 'menu-schedule':
-            return <MenuScheduleManagement />;
-          case 'menu-planner':
-            return <MenuPlanner />;
-          case 'stock':
-            return <StockManagement />;
-          case 'consumption':
-            return <RecordStudentSpecialMeal />;
-          case 'daily-operations':
-            return <DailyOperations />;
-          case 'consumption-report':
-            return <ConsumptionReport />;
-          case 'create-menu':
-            return <CreateMenu />;
-          case 'uoms':
-            return <UOMManagement />;
-          case 'purchase-by-store':
-            return <PurchaseByStore />;
-          case 'food-orders-dashboard':
-            return <MessOrderDashboard />;
-          case 'record-consumption':
-            return <RecordAdhocConsumption />;
-          case 'inventory':
-            return <InventoryManagement />;
-          case 'inventory-transactions':
-            return <InventoryTransactions />;
-          case 'item-store-mapping':
-            return <ItemStoreMapping />;
-          case 'stores':
-            return <StoreManagement />;
-          case 'calculate-daily-charges':
-            return <CalculateDailyCharges />;
-          case 'special-food-items':
-            return <SpecialFoodItemsManagement />;
-          case 'food-orders':
-            return <FoodOrdersManagement />;
-          case 'sister-bill-concern':
-            return <SisterBillConcern />;
-          case 'Daily-expenses':
-            return <MessExpenses />;
-          case 'hostel-additional-income':
-            return <HostelAdditionalIncome />;
-          case 'mess-fee':
-            return <MessFee/>;
-          case 'paper-bill-generator':
-            return <PaperBillGenerator />;
-          case 'income-deduction-entry':
-            return <IncomeEntryManager />;
-          case 'daily-rate-report':
-            return <DailyRateReport />;
-          default:
-            return <MessDashboard />;
-        }
+
+case 'mess':
+  switch (currentView) {
+    case 'dashboard':
+      return <MessDashboard setCurrentView={setCurrentView} />; // FIXED: Pass setCurrentView prop
+    case 'menus':
+      return <EnhancedMenuManagement />;
+    case 'items':
+      return <ItemManagement />;
+    case 'menu-schedule':
+      return <MenuScheduleManagement />;
+    case 'menu-planner':
+      return <MenuPlanner />;
+    case 'stock':
+      return <StockManagement />;
+    case 'consumption':
+      return <RecordStudentSpecialMeal />;
+    case 'daily-operations':
+      return <DailyOperations />;
+    case 'consumption-report':
+      return <ConsumptionReport />;
+    case 'create-menu':
+      return <CreateMenu />;
+    case 'uoms':
+      return <UOMManagement />;
+    case 'purchase-by-store':
+      return <PurchaseByStore />;
+    case 'food-orders-dashboard':
+      return <MessOrderDashboard />;
+    case 'record-consumption':
+      return <RecordAdhocConsumption />;
+    case 'inventory':
+      return <InventoryManagement />;
+    case 'inventory-transactions':
+      return <InventoryTransactions />;
+    case 'item-store-mapping':
+      return <ItemStoreMapping />;
+    case 'stores':
+      return <StoreManagement />;
+    case 'calculate-daily-charges':
+      return <CalculateDailyCharges />;
+    case 'special-food-items':
+      return <SpecialFoodItemsManagement />;
+    case 'food-orders':
+      return <FoodOrdersManagement />;
+    case 'sister-bill-concern':
+      return <SisterBillConcern />;
+    case 'Daily-expenses':
+      return <MessExpenses />;
+    case 'hostel-additional-income':
+      return <HostelAdditionalIncome />;
+    case 'mess-fee':
+      return <MessFee/>;
+    case 'paper-bill-generator':
+      return <PaperBillGenerator />;
+    case 'income-deduction-entry':
+      return <IncomeEntryManager />;
+    case 'daily-rate-report':
+      return <DailyRateReport />;
+    case 'bed-fee-management':
+      return <BedFeeManagement />;
+    default:
+      return <MessDashboard setCurrentView={setCurrentView} />; // FIXED: Also pass prop in default
+  }
       
       default:
         return <div>Unknown role</div>;

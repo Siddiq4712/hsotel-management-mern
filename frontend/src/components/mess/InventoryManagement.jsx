@@ -33,6 +33,7 @@ const InventoryManagement = () => {
   const [transactionLoading, setTransactionLoading] = useState(false);
   const [dateRange, setDateRange] = useState([moment().startOf('month'), moment()]);
   const [exporting, setExporting] = useState(false);
+  const [selectedStoreId, setSelectedStoreId] = useState('');
 
   // Pagination state for inventory table
   const [inventoryPagination, setInventoryPagination] = useState({
@@ -54,6 +55,9 @@ const InventoryManagement = () => {
   // Filter inventory data with useMemo to avoid re-renders
   const filteredInventory = useMemo(() => {
     let filtered = [...inventory];
+    if (selectedStoreId && selectedStoreId !== '') {
+      filtered = filtered.filter(item => item.last_bought_store_id === parseInt(selectedStoreId));
+    }
     if (lowStockOnly) {
       filtered = filtered.filter(item => parseFloat(item.current_stock) <= parseFloat(item.minimum_stock));
     }
@@ -63,7 +67,7 @@ const InventoryManagement = () => {
       );
     }
     return filtered;
-  }, [inventory, lowStockOnly, searchText]);
+  }, [inventory, selectedStoreId, lowStockOnly, searchText]);
 
   // Update pagination total when filtered data changes
   useEffect(() => {
@@ -673,14 +677,6 @@ const handleExportPurchaseDetails = async () => {
 
   const lowStockCount = inventory.filter(item => parseFloat(item.current_stock) <= parseFloat(item.minimum_stock)).length;
 
-  const exportMenu = (
-    <Menu onClick={({ key }) => handleExportLastPurchase(key === 'all' ? null : parseInt(key, 10))}>
-      <Menu.Item key="all" icon={<DownloadOutlined />}>All Stores (Last Purchase)</Menu.Item>
-      <Menu.Divider />
-      {stores.map(store => (<Menu.Item key={store.id} icon={<ShopOutlined />}>{store.name} (Last Purchase)</Menu.Item>))}
-    </Menu>
-  );
-
   return (
     <Card title="Inventory Management">
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
@@ -701,12 +697,29 @@ const handleExportPurchaseDetails = async () => {
               prefix={<SearchOutlined />} 
               allowClear 
             />
+            <Select
+              placeholder="Filter by Last Purchase Store"
+              style={{ width: 250 }}
+              value={selectedStoreId}
+              onChange={(value) => setSelectedStoreId(value)}
+              allowClear
+            >
+              <Option value="">All Stores</Option>
+              {stores.map(store => (
+                <Option key={store.id} value={store.id}>{store.name}</Option>
+              ))}
+            </Select>
             <Button onClick={() => handleLowStockFilterChange(!lowStockOnly)}>
-              {lowStockOnly ? 'Show Low Stock Only' : 'Show All'}
+              {lowStockOnly ? 'Show All Items' : 'Show Low Stock Only'}
             </Button>
-            <Dropdown overlay={exportMenu}>
-              <Button>Export Last Purchase <DownOutlined /></Button>
-            </Dropdown>
+            <Button 
+              type="primary" 
+              icon={<DownloadOutlined />} 
+              onClick={() => handleExportLastPurchase(selectedStoreId && selectedStoreId !== '' ? parseInt(selectedStoreId) : null)} 
+              disabled={filteredInventory.length === 0}
+            >
+              Export Current View
+            </Button>
           </Space>
           <Table 
             columns={inventoryColumns} 
