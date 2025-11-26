@@ -1,25 +1,46 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
-  Card, Form, Input, Button, Select, DatePicker,
-  InputNumber, message, Space, Typography, Divider,
-  Table, Tag, Row, Col, Statistic, Empty, Tooltip, Modal
-} from 'antd';
+  Card,
+  Form,
+  Input,
+  Button,
+  Select,
+  DatePicker,
+  InputNumber,
+  message,
+  Space,
+  Typography,
+  Divider,
+  Table,
+  Tag,
+  Row,
+  Col,
+  Statistic,
+  Empty,
+  Tooltip,
+  Modal,
+} from "antd";
 import {
-  SaveOutlined, CloseOutlined, InfoCircleOutlined,
-  CalculatorOutlined, PlusOutlined, EditOutlined, SearchOutlined
-} from '@ant-design/icons';
-import { messAPI } from '../../services/api';
-import moment from 'moment';
+  SaveOutlined,
+  CloseOutlined,
+  InfoCircleOutlined,
+  CalculatorOutlined,
+  PlusOutlined,
+  EditOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
+import { messAPI } from "../../services/api";
+import moment from "moment";
 
 const { Option } = Select;
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 const mealTypes = [
-  { value: 'breakfast', label: 'Breakfast' },
-  { value: 'lunch', label: 'Lunch' },
-  { value: 'dinner', label: 'Dinner' },
-  { value: 'snacks', label: 'Snacks' }
+  { value: "breakfast", label: "Breakfast" },
+  { value: "lunch", label: "Lunch" },
+  { value: "dinner", label: "Dinner" },
+  { value: "snacks", label: "Snacks" },
 ];
 
 // Debounce utility
@@ -41,22 +62,21 @@ const CreateMenu = () => {
 
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [searchText, setSearchText] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [searchText, setSearchText] = useState("");
   const [menuItems, setMenuItems] = useState([]);
+  const [calculationDetails, setCalculationDetails] = useState({});
   const [costCalculation, setCostCalculation] = useState({
     totalCost: 0,
-    costPerServing: 0
+    costPerServing: 0,
   });
 
-  // Pagination state for ingredients table
   const [pagination, setPagination] = useState({
     current: 1,
     pageSize: 10,
     total: 0,
   });
 
-  // Debounced setSearchText
   const debouncedSetSearchText = useCallback(
     debounce((value) => setSearchText(value), 300),
     []
@@ -66,32 +86,39 @@ const CreateMenu = () => {
     fetchItems();
     fetchCategories();
     fetchMenus();
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     calculateCosts();
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuItems]);
 
-  // Filtered items with useMemo
   const filteredItems = useMemo(() => {
     let filtered = items;
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(item => item.category_id === selectedCategory);
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter(
+        (item) => item.category_id === selectedCategory
+      );
     }
     if (searchText) {
-      filtered = filtered.filter(item =>
-        item.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        (item.tbl_ItemCategory?.name || '').toLowerCase().includes(searchText.toLowerCase())
+      filtered = filtered.filter(
+        (item) =>
+          item.name.toLowerCase().includes(searchText.toLowerCase()) ||
+          (item.tbl_ItemCategory?.name || "")
+            .toLowerCase()
+            .includes(searchText.toLowerCase())
       );
     }
     return filtered;
   }, [items, selectedCategory, searchText]);
 
-  // Update pagination total and reset current when filteredItems change
   useEffect(() => {
-    setPagination(prev => ({ ...prev, total: filteredItems.length, current: 1 }));
+    setPagination((prev) => ({
+      ...prev,
+      total: filteredItems.length,
+      current: 1,
+    }));
   }, [filteredItems]);
 
   async function fetchMenus() {
@@ -99,7 +126,7 @@ const CreateMenu = () => {
       const response = await messAPI.getMenus();
       setMenus(response.data.data || []);
     } catch (error) {
-      message.error('Failed to fetch menus');
+      message.error("Failed to fetch menus");
     }
   }
 
@@ -107,19 +134,21 @@ const CreateMenu = () => {
     setDataLoading(true);
     try {
       const response = await messAPI.getItems();
-      setItems((response.data.data || []).map(item => ({
-        ...item,
-        quantity: 0,
-        preparation_notes: '',
-        fifo_price: null,
-        multi_batch_price: null,
-        multi_batch_breakdown: null,
-        average_unit_price: null,
-        is_multi_batch: false,
-        key: item.id
-      })));
+      setItems(
+        (response.data.data || []).map((item) => ({
+          ...item,
+          quantity: 0,
+          preparation_notes: "",
+          fifo_price: null,
+          multi_batch_price: null,
+          multi_batch_breakdown: null,
+          average_unit_price: null,
+          is_multi_batch: false,
+          key: item.id,
+        }))
+      );
     } catch (error) {
-      message.error('Failed to fetch items');
+      message.error("Failed to fetch items");
     } finally {
       setDataLoading(false);
     }
@@ -130,71 +159,122 @@ const CreateMenu = () => {
       const response = await messAPI.getItemCategories();
       setCategories(response.data.data || []);
     } catch (error) {
-      message.error('Failed to fetch categories');
+      message.error("Failed to fetch categories");
     }
   }
 
-  // --- FIFO Multi-batch Calculation ---
+  /**
+   * Weighted-average price calculator
+   */
   const calculateMultiBatchPrice = async (itemId, requestedQuantity) => {
     try {
+      console.log(
+        `[CreateMenu] Calculating weighted avg for item ${itemId} (qty ${requestedQuantity})`
+      );
       const response = await messAPI.getItemBatches(itemId);
-      const batches = response.data.data || [];
-      const activeBatches = batches
-        .filter(batch => batch.status === 'active' && batch.quantity_remaining > 0)
-        .sort((a, b) => new Date(a.purchase_date) - new Date(b.purchase_date));
+      const batches = (response.data?.data || [])
+        .filter(
+          (batch) =>
+            batch.status === "active" &&
+            parseFloat(batch.quantity_remaining) > 0
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.purchase_date).getTime() -
+            new Date(b.purchase_date).getTime()
+        );
 
-      if (activeBatches.length === 0) {
+      if (!batches.length || requestedQuantity <= 0) {
         return {
           totalCost: 0,
           batchBreakdown: [],
-          averageUnitPrice: 0
+          averageUnitPrice: 0,
+          consumedQuantity: 0,
+          shortage: requestedQuantity,
         };
       }
 
-      let remainingToConsume = requestedQuantity;
-      let totalCost = 0;
+      const totalAvailable = batches.reduce(
+        (sum, batch) => sum + parseFloat(batch.quantity_remaining),
+        0
+      );
+      const totalValue = batches.reduce(
+        (sum, batch) =>
+          sum +
+          parseFloat(batch.quantity_remaining) * parseFloat(batch.unit_price),
+        0
+      );
+
+      const averageUnitPrice =
+        totalAvailable > 0 ? totalValue / totalAvailable : 0;
+
+      console.log(
+        `[CreateMenu] -> totalQty=${totalAvailable.toFixed(
+          3
+        )}, totalValue=${totalValue.toFixed(2)}, avg=${averageUnitPrice.toFixed(
+          4
+        )}`
+      );
+
+      let remaining = requestedQuantity;
       const batchBreakdown = [];
 
-      for (const batch of activeBatches) {
-        if (remainingToConsume <= 0) break;
-        const batchRemaining = parseFloat(batch.quantity_remaining);
-        const batchPrice = parseFloat(batch.unit_price);
-        const consumeFromBatch = Math.min(remainingToConsume, batchRemaining);
-        const batchCost = consumeFromBatch * batchPrice;
+      for (const batch of batches) {
+        if (remaining <= 0) break;
 
-        totalCost += batchCost;
-        remainingToConsume -= consumeFromBatch;
+        const availableQty = parseFloat(batch.quantity_remaining);
+        const consumeQty = Math.min(remaining, availableQty);
 
         batchBreakdown.push({
           batch_id: batch.id,
-          quantity: consumeFromBatch,
-          unit_price: batchPrice,
-          cost: batchCost,
-          purchase_date: batch.purchase_date
+          quantity_used: consumeQty,
+          unit_price: parseFloat(batch.unit_price),
+          cost: consumeQty * averageUnitPrice, // cost booked at avg
+          purchase_date: batch.purchase_date,
         });
+
+        console.log(
+          `[CreateMenu]   using ${consumeQty.toFixed(
+            3
+          )} from batch #${batch.id} (actual price ₹${parseFloat(
+            batch.unit_price
+          ).toFixed(2)})`
+        );
+        remaining -= consumeQty;
       }
 
-      // Weighted avg. price for actual consumed
-      const consumedQuantity = requestedQuantity - remainingToConsume;
-      const averageUnitPrice = consumedQuantity > 0 ? totalCost / consumedQuantity : 0;
+      const consumedQuantity = requestedQuantity - Math.max(0, remaining);
+      const totalCost = consumedQuantity * averageUnitPrice;
+      const shortage = Math.max(0, remaining);
+
+      if (shortage > 0) {
+        console.warn(
+          `[CreateMenu]   !!! shortage => requested ${requestedQuantity}, consumed ${consumedQuantity}`
+        );
+      }
 
       return {
         totalCost,
         batchBreakdown,
         averageUnitPrice,
-        consumedQuantity
+        consumedQuantity,
+        shortage,
       };
     } catch (error) {
+      console.error(
+        `[CreateMenu] Weighted average calculation error for item ${itemId}:`,
+        error
+      );
       return {
         totalCost: 0,
         batchBreakdown: [],
         averageUnitPrice: 0,
-        error: error.message
+        consumedQuantity: 0,
+        shortage: requestedQuantity,
+        error: error.message,
       };
     }
   };
-
-  // --- Menu CRUD/Load code ---
 
   const handleMenuSelect = async (menuId) => {
     if (!menuId) {
@@ -202,6 +282,7 @@ const CreateMenu = () => {
       form.resetFields();
       resetQuantities();
       setMenuItems([]);
+      setCalculationDetails({});
       return;
     }
     setLoading(true);
@@ -217,303 +298,391 @@ const CreateMenu = () => {
         preparation_time: menu.preparation_time,
         date: menu.date ? moment(menu.date) : null,
       });
-      // Merge into our items state, call updateMenuItems to trigger summary
-      // (Adjust: Do not call updateMenuItems yet, as it will not trigger FIFO cost; redo via handleQuantityChange below)
-      const updatedItems = await Promise.all(items.map(async item => {
-        const found = (menu_items || []).find(mi => mi.item_id === item.id);
-        if (found && found.quantity) {
-          // Run FIFO so that cost summary fills up
-          const batchCalculation = await calculateMultiBatchPrice(item.id, found.quantity);
+
+      const calcDetails = {};
+      const updatedItems = await Promise.all(
+        items.map(async (item) => {
+          const matched = (menu_items || []).find(
+            (mi) => mi.item_id === item.id && mi.quantity
+          );
+          if (matched) {
+            const calc = await calculateMultiBatchPrice(
+              item.id,
+              matched.quantity
+            );
+            if (matched.quantity > 0) {
+              calcDetails[item.id] = {
+                requestedQuantity: matched.quantity,
+                averageUnitPrice: parseFloat(calc.averageUnitPrice || 0),
+                totalCost: parseFloat(calc.totalCost || 0),
+                consumedQuantity: calc.consumedQuantity,
+                shortage: calc.shortage || 0,
+                breakdown: calc.batchBreakdown,
+              };
+            }
+            return {
+              ...item,
+              quantity: matched.quantity,
+              preparation_notes: matched.preparation_notes || "",
+              multi_batch_price: calc.totalCost,
+              multi_batch_breakdown: calc.batchBreakdown,
+              average_unit_price: calc.averageUnitPrice,
+              fifo_price:
+                calc.batchBreakdown.length > 0
+                  ? calc.batchBreakdown[0].unit_price
+                  : null,
+              is_multi_batch: calc.batchBreakdown.length > 1,
+            };
+          }
           return {
             ...item,
-            quantity: found.quantity,
-            preparation_notes: found.preparation_notes || '',
-            multi_batch_price: batchCalculation.totalCost,
-            multi_batch_breakdown: batchCalculation.batchBreakdown,
-            average_unit_price: batchCalculation.averageUnitPrice,
-            fifo_price: batchCalculation.batchBreakdown.length > 0
-              ? batchCalculation.batchBreakdown[0].unit_price : null,
-            is_multi_batch: batchCalculation.batchBreakdown.length > 1
+            quantity: 0,
+            preparation_notes: "",
+            fifo_price: null,
+            multi_batch_price: null,
+            multi_batch_breakdown: null,
+            average_unit_price: null,
+            is_multi_batch: false,
           };
-        }
-        return {
-          ...item,
-          quantity: 0,
-          preparation_notes: '',
-          multi_batch_price: null,
-          multi_batch_breakdown: null,
-          average_unit_price: null,
-          fifo_price: null,
-          is_multi_batch: false
-        };
-      }));
+        })
+      );
       setItems(updatedItems);
+      setCalculationDetails(calcDetails);
       updateMenuItems(updatedItems);
     } catch (error) {
-      message.error('Failed to load menu');
+      message.error("Failed to load menu");
     } finally {
       setLoading(false);
     }
   };
 
-  // --- Ingredient input update handlers ---
   const handleQuantityChange = async (itemId, value) => {
     let updatedItems;
     if (value > 0) {
       setDataLoading(true);
       try {
-        const itemIndex = items.findIndex(item => item.id === itemId);
-        const currentItem = items[itemIndex];
-        const batchCalculation = await calculateMultiBatchPrice(itemId, value);
+        const idx = items.findIndex((item) => item.id === itemId);
+        const currentItem = items[idx];
+        const calc = await calculateMultiBatchPrice(itemId, value);
 
         updatedItems = [...items];
-        updatedItems[itemIndex] = {
+        updatedItems[idx] = {
           ...currentItem,
           quantity: value,
-          multi_batch_price: batchCalculation.totalCost,
-          multi_batch_breakdown: batchCalculation.batchBreakdown,
-          average_unit_price: batchCalculation.averageUnitPrice,
-          fifo_price: batchCalculation.batchBreakdown.length > 0
-            ? batchCalculation.batchBreakdown[0].unit_price : null,
-          is_multi_batch: batchCalculation.batchBreakdown.length > 1
+          multi_batch_price: calc.totalCost,
+          multi_batch_breakdown: calc.batchBreakdown,
+          average_unit_price: calc.averageUnitPrice,
+          fifo_price:
+            calc.batchBreakdown.length > 0
+              ? calc.batchBreakdown[0].unit_price
+              : null,
+          is_multi_batch: calc.batchBreakdown.length > 1,
         };
+
+        setCalculationDetails((prev) => ({
+          ...prev,
+          [itemId]: {
+            requestedQuantity: value,
+            averageUnitPrice: parseFloat(calc.averageUnitPrice || 0),
+            totalCost: parseFloat(calc.totalCost || 0),
+            consumedQuantity: calc.consumedQuantity,
+            shortage: calc.shortage || 0,
+            breakdown: calc.batchBreakdown,
+          },
+        }));
       } catch (error) {
-        updatedItems = items.map(item =>
+        console.error("Quantity change error", error);
+        updatedItems = items.map((item) =>
           item.id === itemId ? { ...item, quantity: value } : item
         );
       } finally {
         setDataLoading(false);
       }
     } else {
-      updatedItems = items.map(item =>
-        item.id === itemId ? {
-          ...item,
-          quantity: 0,
-          fifo_price: null,
-          multi_batch_price: null,
-          multi_batch_breakdown: null,
-          average_unit_price: null,
-          is_multi_batch: false
-        } : item
+      updatedItems = items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              quantity: 0,
+              fifo_price: null,
+              multi_batch_price: null,
+              multi_batch_breakdown: null,
+              average_unit_price: null,
+              is_multi_batch: false,
+            }
+          : item
       );
+      setCalculationDetails((prev) => {
+        const clone = { ...prev };
+        delete clone[itemId];
+        return clone;
+      });
     }
     setItems(updatedItems);
     updateMenuItems(updatedItems);
   };
 
   const handleNotesChange = (itemId, value) => {
-    const updatedItems = items.map(item =>
+    const updatedItems = items.map((item) =>
       item.id === itemId ? { ...item, preparation_notes: value } : item
     );
     setItems(updatedItems);
     updateMenuItems(updatedItems);
   };
 
-  // --- Menu item summary generation ---
   const updateMenuItems = (updatedItems) => {
-    const selectedItems = updatedItems.filter(item => item.quantity > 0)
-      .map(item => {
+    const selectedItems = updatedItems
+      .filter((item) => item.quantity > 0)
+      .map((item) => {
         let totalCost, unitPrice;
-        if (item.multi_batch_price !== null && item.multi_batch_price !== undefined) {
+        if (
+          item.multi_batch_price !== null &&
+          item.multi_batch_price !== undefined
+        ) {
           totalCost = parseFloat(item.multi_batch_price);
           unitPrice = parseFloat(item.average_unit_price || 0);
         } else {
-          unitPrice = item.fifo_price !== null ? parseFloat(item.fifo_price) : parseFloat(item.unit_price || 0);
-          totalCost = unitPrice * parseFloat(item.quantity || 0);
+          const fallback =
+            item.fifo_price !== null
+              ? parseFloat(item.fifo_price)
+              : parseFloat(item.unit_price || 0);
+          unitPrice = fallback;
+          totalCost = fallback * parseFloat(item.quantity || 0);
         }
+
         let batchDetails = null;
-        if (item.multi_batch_breakdown && item.multi_batch_breakdown.length > 0) {
-          batchDetails = item.multi_batch_breakdown.map(b =>
-            `${b.quantity} × ₹${parseFloat(b.unit_price).toFixed(2)} = ₹${parseFloat(b.cost).toFixed(2)}`
-          ).join(', ');
+        if (item.multi_batch_breakdown?.length) {
+          batchDetails = item.multi_batch_breakdown
+            .map((b) => {
+              const actualPrice = parseFloat(b.unit_price ?? unitPrice).toFixed(
+                2
+              );
+              const chargedPrice = parseFloat(
+                item.average_unit_price ?? unitPrice
+              ).toFixed(2);
+              const qty =
+                b.quantity_used !== undefined
+                  ? b.quantity_used.toFixed(3)
+                  : b.quantity?.toFixed(3);
+              return `${qty} × ₹${chargedPrice} (batch price ₹${actualPrice})`;
+            })
+            .join(", ");
         }
+
         return {
           item_id: item.id,
           name: item.name,
           quantity: item.quantity,
-          unit: item.UOM?.abbreviation || 'unit',
+          unit: item.UOM?.abbreviation || "unit",
           unit_price: unitPrice,
+          average_unit_price: item.average_unit_price,
           is_fifo_price: item.fifo_price !== null,
           is_multi_batch: item.is_multi_batch,
           batch_details: batchDetails,
-          category: item.tbl_ItemCategory?.name || 'N/A',
-          preparation_notes: item.preparation_notes || '',
+          category: item.tbl_ItemCategory?.name || "N/A",
+          preparation_notes: item.preparation_notes || "",
           total_cost: totalCost,
         };
       });
+
     setMenuItems(selectedItems);
   };
 
-  // --- Cost calculation for summary ---
   const calculateCosts = () => {
-    const totalCost = menuItems.reduce((sum, item) => sum + (parseFloat(item.total_cost) || 0), 0);
-    const estimatedServings = form.getFieldValue('estimated_servings') || 1;
+    const totalCost = menuItems.reduce(
+      (sum, item) => sum + (parseFloat(item.total_cost) || 0),
+      0
+    );
+    const estimatedServings = form.getFieldValue("estimated_servings") || 1;
     const costPerServing = totalCost / estimatedServings;
     setCostCalculation({
       totalCost,
-      costPerServing
+      costPerServing,
     });
   };
 
-  // --- Actual menu create/update handler ---
   const handleSubmit = async () => {
     try {
       const menuValues = await form.validateFields();
-      const selectedItems = items.filter(item => item.quantity > 0);
+      const selectedItems = items.filter((item) => item.quantity > 0);
+
       if (selectedItems.length === 0) {
-        return message.error('Please add at least one ingredient to the menu');
+        return message.error("Please add at least one ingredient to the menu");
       }
-      // Stock check...
-      const insufficientStock = selectedItems.filter(item =>
-        item.quantity > (item.stock_quantity || 0)
+
+      const insufficientStock = selectedItems.filter(
+        (item) => item.quantity > (item.stock_quantity || 0)
       );
+
       if (insufficientStock.length > 0) {
-        const itemNames = insufficientStock.map(item => item.name).join(', ');
-        return message.error(`Insufficient stock for: ${itemNames}`);
+        const names = insufficientStock.map((item) => item.name).join(", ");
+        return message.error(`Insufficient stock for: ${names}`);
       }
+
       const formattedMenuData = {
         ...menuValues,
-        date: menuValues.date ? menuValues.date.format('YYYY-MM-DD') : undefined,
-        items: selectedItems.map(item => ({
+        date: menuValues.date
+          ? menuValues.date.format("YYYY-MM-DD")
+          : undefined,
+        items: selectedItems.map((item) => ({
           item_id: item.id,
           quantity: item.quantity,
-          unit: item.UOM?.abbreviation || 'unit',
-          preparation_notes: item.preparation_notes || '',
-        }))
+          unit: item.UOM?.abbreviation || "unit",
+          preparation_notes: item.preparation_notes || "",
+        })),
       };
+
       setLoading(true);
 
       if (selectedMenuId) {
         await messAPI.updateMenuWithItems(selectedMenuId, formattedMenuData);
-        message.success('Menu updated successfully');
+        message.success("Menu updated successfully");
       } else {
         await messAPI.createMenu(formattedMenuData);
-        message.success('Menu created successfully with ingredients!');
+        message.success("Menu created successfully with ingredients!");
       }
 
       setSelectedMenuId(null);
       form.resetFields();
       resetQuantities();
       setMenuItems([]);
+      setCalculationDetails({});
       setCostCalculation({ totalCost: 0, costPerServing: 0 });
       fetchMenus();
-
     } catch (error) {
       message.error(
-        (selectedMenuId ? 'Failed to update menu: ' : 'Failed to create menu: ') +
-        (error.response?.data?.message || error.message)
+        (selectedMenuId ? "Failed to update menu: " : "Failed to create menu: ") +
+          (error.response?.data?.message || error.message)
       );
     } finally {
       setLoading(false);
     }
   };
 
-  // --- Reset all ---
   const resetQuantities = () => {
-    const resetItems = items.map(item => ({
+    const resetItems = items.map((item) => ({
       ...item,
       quantity: 0,
-      preparation_notes: '',
+      preparation_notes: "",
       fifo_price: null,
       multi_batch_price: null,
       multi_batch_breakdown: null,
       average_unit_price: null,
-      is_multi_batch: false
+      is_multi_batch: false,
     }));
     setItems(resetItems);
     setMenuItems([]);
+    setCalculationDetails({});
   };
 
-  // --- Delete menu for update mode ---
   const handleDeleteMenu = (menuId) => {
     Modal.confirm({
-      title: 'Delete Menu',
-      content: 'Are you sure you want to delete this menu? This action cannot be undone.',
+      title: "Delete Menu",
+      content:
+        "Are you sure you want to delete this menu? This action cannot be undone.",
       onOk: async () => {
         setLoading(true);
         try {
           await messAPI.deleteMenu(menuId);
-          message.success('Menu deleted.');
+          message.success("Menu deleted.");
           fetchMenus();
           setSelectedMenuId(null);
           form.resetFields();
           resetQuantities();
           setMenuItems([]);
         } catch (err) {
-          message.error('Failed to delete menu.');
+          message.error("Failed to delete menu.");
         } finally {
           setLoading(false);
         }
-      }
+      },
     });
   };
 
-  // --- Handle pagination change ---
   const handlePaginationChange = (page, pageSize) => {
     setPagination({ ...pagination, current: page, pageSize });
   };
 
-  // --- Table columns use FIFO/Multi-batch ---
   const columns = [
     {
-      title: 'Item Name',
-      dataIndex: 'name',
-      key: 'name',
+      title: "Item Name",
+      dataIndex: "name",
+      key: "name",
       render: (text, record) => (
         <Space direction="vertical" size={0}>
           <Text strong>{text}</Text>
           <Text type="secondary">{record.tbl_ItemCategory?.name}</Text>
         </Space>
-      )
+      ),
     },
     {
-      title: 'Unit',
-      key: 'unit',
+      title: "Unit",
+      key: "unit",
       width: 80,
-      render: (_, record) => record.UOM?.abbreviation || 'unit'
+      render: (_, record) => record.UOM?.abbreviation || "unit",
     },
     {
-      title: 'Price/Unit',
-      key: 'unit_price',
-      width: 120,
+      title: "Price/Unit",
+      key: "unit_price",
+      width: 140,
       render: (_, record) => {
-        if (record.loadingFIFOPrice) {
-          return <span style={{ fontStyle: 'italic' }}>Loading...</span>;
+        if (record.multi_batch_price !== null) {
+          const avg = parseFloat(record.average_unit_price || 0).toFixed(2);
+          const breakdownMessage = record.multi_batch_breakdown
+            ?.map((b) => {
+              const actual = parseFloat(b.unit_price || avg).toFixed(2);
+              const qty =
+                b.quantity_used !== undefined
+                  ? b.quantity_used.toFixed(3)
+                  : b.quantity?.toFixed(3);
+              return `Batch #${b.batch_id}: ${qty} @ ₹${actual}`;
+            })
+            .join("; ");
+
+          return (
+            <Tooltip
+              title={`Weighted avg ₹${avg}. ${breakdownMessage || ""}`}
+            >
+              <Text type="success">
+                ₹{parseFloat(record.average_unit_price || 0).toFixed(2)}
+              </Text>
+            </Tooltip>
+          );
         }
         if (record.fifo_price !== null) {
           return (
-            <Tooltip title="Price from oldest batch (FIFO)">
-              <Text type="success">₹{parseFloat(record.fifo_price).toFixed(2)}</Text>
+            <Tooltip title="Derived from batches">
+              <Text type="success">
+                ₹{parseFloat(record.fifo_price).toFixed(2)}
+              </Text>
             </Tooltip>
           );
         }
         return `₹${parseFloat(record.unit_price || 0).toFixed(2)}`;
-      }
+      },
     },
     {
-      title: 'Stock Level',
-      key: 'stock_level',
+      title: "Stock Level",
+      key: "stock_level",
       width: 120,
       render: (_, record) => {
         const stock = record.stock_quantity || 0;
         const minStock = record.minimum_stock || 0;
         return (
           <Space>
-            <Text>{`${stock} ${record.UOM?.abbreviation || 'unit'}`}</Text>
-            {stock <= minStock && stock > 0 && (
-              <Tag color="warning">Low Stock</Tag>
-            )}
-            {stock === 0 && (
-              <Tag color="error">Out of Stock</Tag>
-            )}
+            <Text>
+              {stock} {record.UOM?.abbreviation || "unit"}
+            </Text>
+            {stock <= minStock && stock > 0 && <Tag color="warning">Low</Tag>}
+            {stock === 0 && <Tag color="error">Out</Tag>}
           </Space>
         );
-      }
+      },
     },
     {
-      title: 'Quantity',
-      key: 'quantity',
-      width: 100,
+      title: "Quantity",
+      key: "quantity",
+      width: 120,
       render: (_, record) => (
         <InputNumber
           min={0}
@@ -522,113 +691,132 @@ const CreateMenu = () => {
           precision={2}
           value={record.quantity}
           onChange={(value) => handleQuantityChange(record.id, value)}
-          style={{ width: '100%' }}
-          placeholder="Enter quantity"
+          style={{ width: "100%" }}
+          placeholder="Qty"
         />
       ),
     },
     {
-      title: 'Notes',
-      key: 'notes',
+      title: "Notes",
+      key: "notes",
       width: 180,
       render: (_, record) => (
         <Input.TextArea
           rows={1}
           value={record.preparation_notes}
           onChange={(e) => handleNotesChange(record.id, e.target.value)}
-          placeholder="Preparation notes (optional)"
+          placeholder="Prep notes (optional)"
         />
-      )
+      ),
     },
     {
-      title: 'Cost',
-      key: 'cost',
-      width: 120,
+      title: "Cost",
+      key: "cost",
+      width: 140,
       render: (_, record) => {
-        if (record.multi_batch_price !== null && record.multi_batch_breakdown?.length > 1) {
+        if (
+          record.multi_batch_price !== null &&
+          record.multi_batch_breakdown?.length
+        ) {
+          const avg = parseFloat(record.average_unit_price || 0).toFixed(2);
+          const title = record.multi_batch_breakdown
+            .map((b) => {
+              const qty =
+                b.quantity_used !== undefined
+                  ? b.quantity_used.toFixed(3)
+                  : b.quantity?.toFixed(3);
+              return `Batch #${b.batch_id}: ${qty} @ avg ₹${avg}`;
+            })
+            .join("; ");
           return (
-            <Tooltip title={`Using multiple batches with different prices`}>
-              <Text style={{ textDecoration: 'underline' }}>
-                ₹{parseFloat(record.multi_batch_price).toFixed(2)}
-              </Text>
+            <Tooltip title={title || `Avg ₹${avg}`}>
+              <Text
+                style={{ textDecoration: "underline" }}
+              >{`₹${parseFloat(record.multi_batch_price).toFixed(2)}`}</Text>
             </Tooltip>
           );
         }
-        const priceToUse = record.fifo_price !== null ? record.fifo_price : record.unit_price || 0;
-        const cost = priceToUse * (record.quantity || 0);
+        const price =
+          record.fifo_price !== null
+            ? record.fifo_price
+            : record.unit_price || 0;
+        const cost = price * (record.quantity || 0);
         return `₹${cost.toFixed(2)}`;
-      }
+      },
     },
   ];
 
   const selectedColumns = [
     {
-      title: 'Name',
-      dataIndex: 'name',
-      key: 'name',
+      title: "Name",
+      dataIndex: "name",
+      key: "name",
       render: (text, record) => (
         <Space>
           <span>{text}</span>
           <Tag color="blue">{record.category}</Tag>
         </Space>
-      )
+      ),
     },
     {
-      title: 'Quantity',
-      dataIndex: 'quantity',
-      key: 'quantity',
-      render: (text, record) => `${text} ${record.unit}`
+      title: "Quantity",
+      dataIndex: "quantity",
+      key: "quantity",
+      render: (text, record) => `${text} ${record.unit}`,
     },
     {
-      title: 'Unit Price',
-      dataIndex: 'unit_price',
-      key: 'unit_price',
+      title: "Unit Price",
+      dataIndex: "unit_price",
+      key: "unit_price",
       render: (price, record) => {
-        if (record.is_multi_batch && record.batch_details) {
+        const shown = parseFloat(price || 0).toFixed(2);
+        if (record.is_multi_batch) {
           return (
-            <Tooltip title={`Multi-batch breakdown: ${record.batch_details}`}>
+            <Tooltip title={record.batch_details || ""}>
               <Space>
-                <Text style={{ textDecoration: 'underline' }}>₹{parseFloat(price).toFixed(2)}</Text>
-                <Tag color="orange" style={{ marginLeft: 5 }}>AVG</Tag>
+                <Text style={{ textDecoration: "underline" }}>
+                  ₹{shown}
+                </Text>
+                <Tag color="orange">AVG</Tag>
               </Space>
             </Tooltip>
           );
         }
         return (
           <span>
-            ₹{parseFloat(price).toFixed(2)}
-            {record.is_fifo_price && (
-              <Tag color="green" style={{ marginLeft: 5 }}>FIFO</Tag>
-            )}
+            ₹{shown}
+            {record.is_fifo_price && <Tag color="green">FIFO</Tag>}
           </span>
         );
-      }
+      },
     },
     {
-      title: 'Total Cost',
-      dataIndex: 'total_cost',
-      key: 'total_cost',
+      title: "Total Cost",
+      dataIndex: "total_cost",
+      key: "total_cost",
       render: (cost, record) => {
+        const displayed = parseFloat(cost || 0).toFixed(2);
         if (record.is_multi_batch && record.batch_details) {
           return (
-            <Tooltip title={`Multi-batch breakdown: ${record.batch_details}`}>
-              <Text style={{ textDecoration: 'underline' }}>₹{parseFloat(cost).toFixed(2)}</Text>
+            <Tooltip title={record.batch_details}>
+              <Text style={{ textDecoration: "underline" }}>
+                ₹{displayed}
+              </Text>
             </Tooltip>
           );
         }
-        return `₹${parseFloat(cost).toFixed(2)}`;
-      }
+        return `₹${displayed}`;
+      },
     },
     {
-      title: 'Notes',
-      dataIndex: 'preparation_notes',
-      key: 'preparation_notes',
-      ellipsis: true
-    }
+      title: "Notes",
+      dataIndex: "preparation_notes",
+      key: "preparation_notes",
+      ellipsis: true,
+    },
   ];
 
-  // Menu select dropdown
-  const menuDropdown =
+  const menuDropdown = (
     <Select
       style={{ width: 300 }}
       showSearch
@@ -638,14 +826,125 @@ const CreateMenu = () => {
       onChange={handleMenuSelect}
       optionFilterProp="children"
       filterOption={(input, option) =>
-        (option?.children?.toLowerCase().indexOf(input.toLowerCase()) >= 0)}
+        option?.children?.toLowerCase().indexOf(input.toLowerCase()) >= 0
+      }
     >
-      {menus.map(m => (
+      {menus.map((m) => (
         <Option key={m.id} value={m.id}>
-          {m.name} ({mealTypes.find(mt => mt.value === m.meal_type)?.label || m.meal_type})
+          {m.name} (
+          {mealTypes.find((mt) => mt.value === m.meal_type)?.label ||
+            m.meal_type}
+          )
         </Option>
       ))}
-    </Select>;
+    </Select>
+  );
+
+  const renderCalculationCard = () => {
+    const entries = Object.entries(calculationDetails);
+    if (!entries.length)
+      return <Empty description="Adjust quantities to see calculations" />;
+
+    return (
+      <Space direction="vertical" style={{ width: "100%" }} size="large">
+        {entries.map(([itemId, detail]) => {
+          const baseItem = items.find((item) => item.id === Number(itemId));
+          return (
+            <div
+              key={itemId}
+              style={{
+                background: "#f9f9f9",
+                borderRadius: 8,
+                padding: 12,
+                width: "100%",
+              }}
+            >
+              <Space direction="vertical" style={{ width: "100%" }} size="small">
+                <Space>
+                  <Text strong>
+                    {baseItem?.name || `Item #${itemId}`}
+                  </Text>
+                  {baseItem?.tbl_ItemCategory?.name && (
+                    <Tag color="blue">{baseItem.tbl_ItemCategory.name}</Tag>
+                  )}
+                </Space>
+                <Row gutter={16}>
+                  <Col span={8}>
+                    <Statistic
+                      title="Requested Qty"
+                      value={detail.requestedQuantity}
+                      precision={3}
+                    />
+                  </Col>
+                  <Col span={8}>
+                    <Statistic
+                      title="Used Qty"
+                      value={detail.consumedQuantity}
+                      precision={3}
+                    />
+                  </Col>
+                  <Col span={8}>
+                    <Statistic
+                      title="Shortage"
+                      value={detail.shortage}
+                      precision={3}
+                      valueStyle={{
+                        color: detail.shortage > 0 ? "#d4380d" : undefined,
+                      }}
+                    />
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Statistic
+                      title="Average Unit Price"
+                      prefix="₹"
+                      value={detail.averageUnitPrice}
+                      precision={2}
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Statistic
+                      title="Total Cost"
+                      prefix="₹"
+                      value={detail.totalCost}
+                      precision={2}
+                    />
+                  </Col>
+                </Row>
+
+                {Array.isArray(detail.breakdown) &&
+                  detail.breakdown.length > 0 && (
+                    <div style={{ marginTop: 8 }}>
+                      <Text type="secondary">Batch breakdown:</Text>
+                      <ul style={{ paddingLeft: 18, marginTop: 4 }}>
+                        {detail.breakdown.map((batch) => (
+                          <li key={batch.batch_id}>
+                            Batch #{batch.batch_id} (
+                            {moment(batch.purchase_date).format("DD-MMM-YYYY")})
+                            – used{" "}
+                            {batch.quantity_used?.toFixed(3) ?? "0.000"}{" "}
+                            {baseItem?.UOM?.abbreviation || "unit"} at actual price ₹
+                            {parseFloat(batch.unit_price || 0).toFixed(2)}; booked cost ₹
+                            {parseFloat(batch.cost || 0).toFixed(2)} (avg)
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                {!detail.breakdown?.length && (
+                  <Text type="secondary">
+                    No active batches – using base price.
+                  </Text>
+                )}
+              </Space>
+            </div>
+          );
+        })}
+      </Space>
+    );
+  };
 
   return (
     <Card
@@ -678,79 +977,75 @@ const CreateMenu = () => {
     >
       <Row gutter={[24, 24]}>
         <Col xs={24} lg={12}>
-          <Card title={selectedMenuId ? "Edit Menu Details" : "Menu Details"} bordered={false}>
+          <Card
+            title={selectedMenuId ? "Edit Menu Details" : "Menu Details"}
+            bordered={false}
+          >
             <Form
               form={form}
               layout="vertical"
               initialValues={{
-                estimated_servings: 50
+                estimated_servings: 50,
               }}
             >
               <Form.Item
                 name="name"
                 label="Menu Name"
-                rules={[{ required: true, message: 'Please enter menu name' }]}
+                rules={[{ required: true, message: "Please enter menu name" }]}
               >
                 <Input placeholder="Enter menu name" />
               </Form.Item>
+
               <Form.Item
                 name="meal_type"
                 label="Meal Type"
-                rules={[{ required: true, message: 'Please select meal type' }]}
+                rules={[{ required: true, message: "Please select meal type" }]}
               >
                 <Select placeholder="Select meal type">
-                  {mealTypes.map(type => (
+                  {mealTypes.map((type) => (
                     <Option key={type.value} value={type.value}>
                       {type.label}
                     </Option>
                   ))}
                 </Select>
               </Form.Item>
+
               <Form.Item
                 name="date"
                 label="Menu Date"
-                rules={[{ required: true, message: 'Please select date' }]}
+                rules={[{ required: true, message: "Please select date" }]}
               >
-                <DatePicker style={{ width: '100%' }} />
+                <DatePicker style={{ width: "100%" }} />
               </Form.Item>
+
               <Form.Item
                 name="estimated_servings"
                 label="Estimated Servings"
                 rules={[
-                  { required: true, message: 'Please enter estimated servings' },
-                  { type: 'number', min: 1, message: 'Must be at least 1' }
+                  { required: true, message: "Please enter estimated servings" },
+                  { type: "number", min: 1, message: "Must be at least 1" },
                 ]}
                 tooltip={{
-                  title: 'Number of people expected to be served with this menu',
-                  icon: <InfoCircleOutlined />
+                  title: "Number of people expected to be served with this menu",
+                  icon: <InfoCircleOutlined />,
                 }}
               >
-                <InputNumber
-                  min={1}
-                  style={{ width: '100%' }}
-                  onChange={calculateCosts}
-                />
+                <InputNumber min={1} style={{ width: "100%" }} onChange={calculateCosts} />
               </Form.Item>
-              <Form.Item
-                name="preparation_time"
-                label="Preparation Time (minutes)"
-              >
-                <InputNumber min={1} style={{ width: '100%' }} />
+
+              <Form.Item name="preparation_time" label="Preparation Time (minutes)">
+                <InputNumber min={1} style={{ width: "100%" }} />
               </Form.Item>
-              <Form.Item
-                name="description"
-                label="Description"
-              >
+
+              <Form.Item name="description" label="Description">
                 <TextArea rows={4} placeholder="Enter menu description (optional)" />
               </Form.Item>
             </Form>
           </Card>
         </Col>
+
         <Col xs={24} lg={12}>
-          <Card
-            title={<Space><CalculatorOutlined /> Cost Calculation</Space>}
-            bordered={false}
-          >
+          <Card title={<Space><CalculatorOutlined /> Cost Calculation</Space>} bordered={false}>
             <Row gutter={16}>
               <Col span={12}>
                 <Statistic
@@ -758,7 +1053,7 @@ const CreateMenu = () => {
                   value={costCalculation.totalCost}
                   precision={2}
                   prefix="₹"
-                  formatter={value => `₹${parseFloat(value || 0).toFixed(2)}`}
+                  formatter={(value) => `₹${parseFloat(value || 0).toFixed(2)}`}
                 />
               </Col>
               <Col span={12}>
@@ -767,7 +1062,7 @@ const CreateMenu = () => {
                   value={costCalculation.costPerServing}
                   precision={2}
                   prefix="₹"
-                  formatter={value => `₹${parseFloat(value || 0).toFixed(2)}`}
+                  formatter={(value) => `₹${parseFloat(value || 0).toFixed(2)}`}
                 />
               </Col>
             </Row>
@@ -787,8 +1082,12 @@ const CreateMenu = () => {
                 pagination={false}
                 summary={() => (
                   <Table.Summary.Row>
-                    <Table.Summary.Cell index={0} colSpan={3}><strong>Total Cost</strong></Table.Summary.Cell>
-                    <Table.Summary.Cell index={1}><strong>₹{costCalculation.totalCost.toFixed(2)}</strong></Table.Summary.Cell>
+                    <Table.Summary.Cell index={0} colSpan={3}>
+                      <strong>Total Cost</strong>
+                    </Table.Summary.Cell>
+                    <Table.Summary.Cell index={1}>
+                      <strong>₹{costCalculation.totalCost.toFixed(2)}</strong>
+                    </Table.Summary.Cell>
                     <Table.Summary.Cell index={2}></Table.Summary.Cell>
                   </Table.Summary.Row>
                 )}
@@ -797,8 +1096,17 @@ const CreateMenu = () => {
               <Empty description="No ingredients selected yet" />
             )}
           </Card>
+
+          <Card
+            title={<Space><CalculatorOutlined /> Item Cost Breakdown</Space>}
+            style={{ marginTop: 16 }}
+            bordered={false}
+          >
+            {renderCalculationCard()}
+          </Card>
         </Col>
       </Row>
+
       <Divider />
 
       <Card
@@ -813,7 +1121,7 @@ const CreateMenu = () => {
               onChange={setSelectedCategory}
             >
               <Option value="all">All Categories</Option>
-              {categories.map(category => (
+              {categories.map((category) => (
                 <Option key={category.id} value={category.id}>
                   {category.name}
                 </Option>
@@ -823,7 +1131,7 @@ const CreateMenu = () => {
               placeholder="Search items..."
               allowClear
               value={searchText}
-              onChange={e => debouncedSetSearchText(e.target.value)}
+              onChange={(e) => debouncedSetSearchText(e.target.value)}
               style={{ width: 200 }}
               prefix={<SearchOutlined />}
             />
@@ -844,21 +1152,28 @@ const CreateMenu = () => {
             onShowSizeChange: (page, pageSize) => handlePaginationChange(1, pageSize),
           }}
           size="middle"
-          scroll={{ x: 1000 }} // For better horizontal scroll
+          scroll={{ x: 1000 }}
         />
       </Card>
+
       <Divider />
-      <div style={{ textAlign: 'right', marginTop: 24 }}>
+
+      <div style={{ textAlign: "right", marginTop: 24 }}>
         <Space>
-          <Button onClick={() => {
-            form.resetFields();
-            resetQuantities();
-            setMenuItems([]);
-            setCostCalculation({ totalCost: 0, costPerServing: 0 });
-            setSelectedMenuId(null);
-            setSearchText('');
-            setSelectedCategory('all');
-          }} icon={<CloseOutlined />}>Reset All</Button>
+          <Button
+            onClick={() => {
+              form.resetFields();
+              resetQuantities();
+              setMenuItems([]);
+              setCostCalculation({ totalCost: 0, costPerServing: 0 });
+              setSelectedMenuId(null);
+              setSearchText("");
+              setSelectedCategory("all");
+            }}
+            icon={<CloseOutlined />}
+          >
+            Reset All
+          </Button>
           <Button
             type="primary"
             onClick={handleSubmit}

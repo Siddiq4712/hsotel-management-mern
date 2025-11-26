@@ -87,6 +87,7 @@ case 'mess':
     { id: 'section-menu', label: 'Menu Management', type: 'section' },
     { id: 'menus', label: 'Manage Menus', icon: ChefHat },
     { id: 'items', label: 'Manage Items', icon: Coffee },
+    {id: 'purchase-orders', label: 'Purchase Orders', icon: Truck },  
     { id: 'menu-planner', label: 'Menu Planner', icon: Calendar }, // New item
     { id: 'menu-schedule', label: 'Menu Schedule', icon: ClipboardCheck },
     { id: 'create-menu', label: 'Create Menu', icon: ChefHat },
