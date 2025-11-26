@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { StockProvider } from './context/StockContext'; // Import StockProvider
@@ -32,6 +32,9 @@ import ComplaintManagement from './components/warden/ComplaintManagement';
 import SuspensionManagement from './components/warden/SuspensionManagement';
 import HolidayManagement from './components/warden/HolidayManagement';
 import MessBillManagement from './components/warden/MessBillManagement';
+import CreateRoom from './components/warden/CreateRoom';
+import ViewLayout from './components/warden/ViewLayout';
+import RoomRequests from './components/warden/RoomRequests';
 
 // Student Components
 import StudentDashboard from './components/student/StudentDashboard';
@@ -46,7 +49,7 @@ import TransactionHistory from './components/student/TransactionHistory';
 import FoodOrderForm from './components/student/StudentFoodMenu';
 import MyFoodOrders from './components/student/MyFoodOrders';
 import StudentProfile from './components/student/StudentProfile';
-
+import ViewRooms from './components/student/ViewRooms';
 // Mess Components
 import MessDashboard from './components/mess/MessDashboard';
 import EnhancedMenuManagement from './components/mess/EnhancedMenuManagement';
@@ -79,6 +82,9 @@ import IncomeEntryManager from './components/mess/IncomeEntryManager';
 import DailyRateReport from './components/mess/DailyRateReport'; // Import the new component
 // import bedFee from './components/mess/BedFeeManagement'; // Import Bed Fee component
 import BedFeeManagement from './components/mess/BedFeeManagement';
+
+// Lazy load CreateRoom to avoid circular dependency issues
+const LazyCreateRoom = React.lazy(() => import('./components/warden/CreateRoom'));
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -148,6 +154,13 @@ const DashboardRouter = () => {
             return <ManageStudents />;
           case 'enroll-student':
             return <EnrollStudent />;
+          case 'create-room':
+            // Lazy load with Suspense to break circular dependency; pass hostelId from user
+            return (
+              <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading Create Room...</div>}>
+                <LazyCreateRoom hostelId={user?.hostel_id} />
+              </Suspense>
+            );
           case 'room-allotment':
             return <RoomAllotment />;
           case 'attendance':
@@ -162,6 +175,10 @@ const DashboardRouter = () => {
             return <HolidayManagement />;
           case 'mess-bills':
             return <MessBillManagement />;
+          case 'approve-room-requests':
+            return <RoomRequests hostelId={user?.hostel_id}/>;
+          case 'view-layout':
+            return <ViewLayout hostelId={user?.hostel_id} />;
           default:
             return <WardenDashboard />;
         }
@@ -171,6 +188,8 @@ const DashboardRouter = () => {
         switch (currentView) {
           case 'dashboard':
             return <StudentDashboard setCurrentView={setCurrentView} />;
+          case 'view-rooms':
+            return <ViewRooms hostelId={user?.hostel_id} />;
           case 'apply-leave':
             return <ApplyLeave />;
           case 'my-leaves':
@@ -197,69 +216,69 @@ const DashboardRouter = () => {
             return <StudentDashboard />;
         }
 
-case 'mess':
-  switch (currentView) {
-    case 'dashboard':
-      return <MessDashboard setCurrentView={setCurrentView} />; // FIXED: Pass setCurrentView prop
-    case 'menus':
-      return <EnhancedMenuManagement />;
-    case 'items':
-      return <ItemManagement />;
-    case 'menu-schedule':
-      return <MenuScheduleManagement />;
-    case 'menu-planner':
-      return <MenuPlanner />;
-    case 'stock':
-      return <StockManagement />;
-    case 'consumption':
-      return <RecordStudentSpecialMeal />;
-    case 'daily-operations':
-      return <DailyOperations />;
-    case 'consumption-report':
-      return <ConsumptionReport />;
-    case 'create-menu':
-      return <CreateMenu />;
-    case 'uoms':
-      return <UOMManagement />;
-    case 'purchase-by-store':
-      return <PurchaseByStore />;
-    case 'food-orders-dashboard':
-      return <MessOrderDashboard />;
-    case 'record-consumption':
-      return <RecordAdhocConsumption />;
-    case 'inventory':
-      return <InventoryManagement />;
-    case 'inventory-transactions':
-      return <InventoryTransactions />;
-    case 'item-store-mapping':
-      return <ItemStoreMapping />;
-    case 'stores':
-      return <StoreManagement />;
-    case 'calculate-daily-charges':
-      return <CalculateDailyCharges />;
-    case 'special-food-items':
-      return <SpecialFoodItemsManagement />;
-    case 'food-orders':
-      return <FoodOrdersManagement />;
-    case 'sister-bill-concern':
-      return <SisterBillConcern />;
-    case 'Daily-expenses':
-      return <MessExpenses />;
-    case 'hostel-additional-income':
-      return <HostelAdditionalIncome />;
-    case 'mess-fee':
-      return <MessFee/>;
-    case 'paper-bill-generator':
-      return <PaperBillGenerator />;
-    case 'income-deduction-entry':
-      return <IncomeEntryManager />;
-    case 'daily-rate-report':
-      return <DailyRateReport />;
-    case 'bed-fee-management':
-      return <BedFeeManagement />;
-    default:
-      return <MessDashboard setCurrentView={setCurrentView} />; // FIXED: Also pass prop in default
-  }
+      case 'mess':
+        switch (currentView) {
+          case 'dashboard':
+            return <MessDashboard setCurrentView={setCurrentView} />; // FIXED: Pass setCurrentView prop
+          case 'menus':
+            return <EnhancedMenuManagement />;
+          case 'items':
+            return <ItemManagement />;
+          case 'menu-schedule':
+            return <MenuScheduleManagement />;
+          case 'menu-planner':
+            return <MenuPlanner />;
+          case 'stock':
+            return <StockManagement />;
+          case 'consumption':
+            return <RecordStudentSpecialMeal />;
+          case 'daily-operations':
+            return <DailyOperations />;
+          case 'consumption-report':
+            return <ConsumptionReport />;
+          case 'create-menu':
+            return <CreateMenu />;
+          case 'uoms':
+            return <UOMManagement />;
+          case 'purchase-by-store':
+            return <PurchaseByStore />;
+          case 'food-orders-dashboard':
+            return <MessOrderDashboard />;
+          case 'record-consumption':
+            return <RecordAdhocConsumption />;
+          case 'inventory':
+            return <InventoryManagement />;
+          case 'inventory-transactions':
+            return <InventoryTransactions />;
+          case 'item-store-mapping':
+            return <ItemStoreMapping />;
+          case 'stores':
+            return <StoreManagement />;
+          case 'calculate-daily-charges':
+            return <CalculateDailyCharges />;
+          case 'special-food-items':
+            return <SpecialFoodItemsManagement />;
+          case 'food-orders':
+            return <FoodOrdersManagement />;
+          case 'sister-bill-concern':
+            return <SisterBillConcern />;
+          case 'Daily-expenses':
+            return <MessExpenses />;
+          case 'hostel-additional-income':
+            return <HostelAdditionalIncome />;
+          case 'mess-fee':
+            return <MessFee/>;
+          case 'paper-bill-generator':
+            return <PaperBillGenerator />;
+          case 'income-deduction-entry':
+            return <IncomeEntryManager />;
+          case 'daily-rate-report':
+            return <DailyRateReport />;
+          case 'bed-fee-management':
+            return <BedFeeManagement />;
+          default:
+            return <MessDashboard setCurrentView={setCurrentView} />; // FIXED: Also pass prop in default
+        }
       
       default:
         return <div>Unknown role</div>;

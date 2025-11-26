@@ -7,6 +7,7 @@ import {
   Package, Database, Coffee, ShoppingBag, List, Clock, BarChart2,
   Clipboard
 } from 'lucide-react';
+import { lastDayOfDecade } from 'date-fns';
 
 const Sidebar = ({ currentView, setCurrentView }) => {
   const { user } = useAuth();
@@ -36,10 +37,13 @@ const Sidebar = ({ currentView, setCurrentView }) => {
           { id: 'students', label: 'Manage Students', icon: Users },
           { id: 'enroll-student', label: 'Enroll Student', icon: UserPlus },
           { id: 'room-allotment', label: 'Room Allotment', icon: Bed },
+          { id: 'create-room',label:'Create Room', icon: Bed},
           { id: 'attendance', label: 'Attendance', icon: ClipboardCheck },
           { id: 'leave-requests', label: 'Leave Requests', icon: Calendar },
           { id: 'complaints', label: 'Complaints', icon: MessageCircle },
           { id: 'suspensions', label: 'Suspensions', icon: UserX },
+          { id: 'view-layout', label: 'View Layout', icon: Building },
+          { id: 'approve-room-requests', label: 'Room Requests', icon: Building },
           // { id: 'holidays', label: 'Holidays', icon: CalendarDays },
           // { id: 'mess-bills', label: 'Mess Bills', icon: Receipt },
         ];
@@ -58,6 +62,7 @@ const Sidebar = ({ currentView, setCurrentView }) => {
           { id: 'mess-charges', label: 'Mess Charges', icon: DollarSign },
           { id: 'food-order', label: 'Order Special Food', icon: Coffee },
           { id: 'my-food-orders', label: 'My Food Orders', icon: ShoppingBag },
+          { id: 'view-rooms', label: 'View Room', icon: Building}
         ];
         // case 'lapc':
         // return [

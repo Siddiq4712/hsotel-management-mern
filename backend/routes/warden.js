@@ -16,7 +16,13 @@ const {
   // Add these new imports
   generateMessBills, getMessBills, updateMessBillStatus,
   // Other imports
-  getRoomOccupants,getMessBillSummary, bulkMonthEndMandays
+  getRoomOccupants,getMessBillSummary, bulkMonthEndMandays,
+  // Room Type Management for Warden
+  createRoomTypeWarden, updateRoomTypeWarden, deleteRoomTypeWarden, getRoomTypesWarden,
+  // Room Management for Warden
+  createRoomWarden, updateRoomWarden, deleteRoomWarden, getRoomsWarden,getLayout, saveLayout,
+
+  getRoomRequestsWarden,decideRoomRequest
 } = require('../controllers/wardenController');
 const express = require('express'); 
 
@@ -83,5 +89,24 @@ router.put('/mess-bills/:id/status', updateMessBillStatus);
 
 router.get('/rooms/:id/occupants', getRoomOccupants);
 router.post('/attendance/bulks', bulkMonthEndMandays); // NEW - Bulk month-end mandays
+
+// Routes (add to your warden router file, e.g., routes/warden.js)
+
+router.post('/room-types',createRoomTypeWarden);
+router.get('/room-types',getRoomTypesWarden);
+router.put('/room-types/:id',updateRoomTypeWarden);
+router.delete('/room-types/:id',deleteRoomTypeWarden);
+
+router.post('/rooms',createRoomWarden);
+router.get('/rooms',getRoomsWarden);
+router.put('/rooms/:id',updateRoomWarden);
+router.delete('/rooms/:id',deleteRoomWarden);
+
+router.get('/layout', getLayout);
+router.post('/layout', saveLayout);
+
+router.get('/room-requests', getRoomRequestsWarden);
+router.put('/room-requests/:id', decideRoomRequest);
+
 
 module.exports = router;
