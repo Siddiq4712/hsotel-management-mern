@@ -82,6 +82,7 @@ import IncomeEntryManager from './components/mess/IncomeEntryManager';
 import DailyRateReport from './components/mess/DailyRateReport'; // Import the new component
 // import bedFee from './components/mess/BedFeeManagement'; // Import Bed Fee component
 import BedFeeManagement from './components/mess/BedFeeManagement';
+import PurchaseOrder from './components/mess/PurchaseOrder';
 
 // Lazy load CreateRoom to avoid circular dependency issues
 const LazyCreateRoom = React.lazy(() => import('./components/warden/CreateRoom'));
@@ -230,6 +231,8 @@ const DashboardRouter = () => {
             return <MenuPlanner />;
           case 'stock':
             return <StockManagement />;
+          case 'purchase-orders':
+            return <PurchaseOrder />;
           case 'consumption':
             return <RecordStudentSpecialMeal />;
           case 'daily-operations':

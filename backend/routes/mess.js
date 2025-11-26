@@ -142,9 +142,10 @@ const {
   getStudentBedFees,
   createBulkBedFees,
   getAllBedFees,
-  deleteBedFee
+  deleteBedFee,
 
-
+  getPurchaseOrders,
+  clearPurchaseOrders
 } = require('../controllers/messController');
 const { auth, authorize } = require('../middleware/auth');
 
@@ -165,7 +166,11 @@ const validateMenu = [
 
 const validateItem = [
   body('name').notEmpty().withMessage('Item name is required'),
-  body('category_id').notEmpty().withMessage('Category ID is required')
+  body('category_id').notEmpty().withMessage('Category ID is required'),
+  body('maximum_quantity')
+   .optional({ nullable: true })
+   .isFloat({ min: 0 })
+   .withMessage('Maximum quantity must be a non-negative number')
 ];
 
 const validateItemCategory = [
@@ -361,5 +366,7 @@ router.delete('/bed-fees/:id', authorize(['mess', 'warden', 'admin']), deleteBed
 // Bulk bed fee creation
 router.post('/bed-fees/bulk', authorize(['mess', 'warden', 'admin']), createBulkBedFees);
 
+router.get('/purchase-orders', authorize(['mess', 'admin']), getPurchaseOrders);
+router.put('/purchase-orders/clear', authorize(['mess', 'admin']), clearPurchaseOrders);
 
 module.exports = router;

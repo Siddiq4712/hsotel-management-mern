@@ -707,6 +707,14 @@ const ItemManagement = () => {
               placeholder="Enter unit price"
             />
           </Form.Item>
+          <Form.Item
+            label="Maximum Quantity"
+            name="maximum_quantity"
+            rules={[{ type: 'number', min: 0, message: 'Enter a non-negative number' }]}
+          >
+            <InputNumber style={{ width: '100%' }} placeholder="e.g. 500" />
+          </Form.Item>
+
 
           <Form.Item
             name="description"

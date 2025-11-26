@@ -426,6 +426,8 @@ export const messAPI = {
 // In src/services/api.js (in the messAPI object)
   getStudents: (params) => api.get('/mess/students', { params }), // Add support for params
 
+ getPurchaseOrders: (params) => api.get('/mess/purchase-orders', { params }),
+ clearPurchaseOrders: (ids) => api.put('/mess/purchase-orders/clear', { ids }),
 
 };
 

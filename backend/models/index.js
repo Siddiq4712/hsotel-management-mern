@@ -428,6 +428,11 @@ const Item = sequelize.define('Item', {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: true
   },
+ maximum_quantity: {
+   type: DataTypes.DECIMAL(10,2),
+   allowNull: true,
+   comment: 'Target stock maintained after procurement'
+ },
   unit_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
@@ -2942,7 +2947,21 @@ const RoomRequest = sequelize.define(
     timestamps: true,
   }
 );
+const RestockPlan = sequelize.define('RestockPlan', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: false },
+  item_id: { type: DataTypes.INTEGER, allowNull: false },
+  month: { type: DataTypes.TINYINT, allowNull: false },
+  year: { type: DataTypes.SMALLINT, allowNull: false },
+  quantity_needed: { type: DataTypes.DECIMAL(10,2), allowNull: false, defaultValue: 0 },
+  last_consumed_at: { type: DataTypes.DATEONLY, allowNull: false },
+  is_cleared: { type: DataTypes.BOOLEAN, defaultValue: false },
+  cleared_at: { type: DataTypes.DATE, allowNull: true }
+}, { tableName: 'tbl_RestockPlan', timestamps: true });
 
+RestockPlan.belongsTo(Item, { foreignKey: 'item_id' });
+RestockPlan.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+Item.hasMany(RestockPlan, { foreignKey: 'item_id' });
 
 
 // NEW Associations for Special Consumption
@@ -3277,5 +3296,6 @@ module.exports = {
   CreditToken,
   Concern,
   HostelLayout,
-  RoomRequest
+  RoomRequest,
+  RestockPlan
 };
