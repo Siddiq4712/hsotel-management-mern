@@ -2,7 +2,7 @@
 const { 
   User, HostelRoom, RoomType, MessBill, MessCharge,DailyMessCharge,MenuSchedule,MessDailyExpense,ExpenseType,
   Leave, Complaint, Transaction, Attendance, Token,
-  HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel,
+  HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel,HostelLayout,RoomRequest,
   SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, sequelize,DailyConsumption,IncomeType,AdditionalIncome,StudentFee, FeeType, 
 } = require('../models');
 const { Op } = require('sequelize'); // <-- NEW LINE: Import 'sequelize' object
@@ -1538,6 +1538,152 @@ const getMonthlyAttendanceChartData = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+/* ---------- shared helper ---------- */
+const ensureStudentHostel = (req) => {
+  const hostelId = req.user?.hostel_id;
+  if (!hostelId) throw new Error("Student is not linked to a hostel.");
+  return hostelId;
+};
+
+/* ---------- layout + booking ---------- */
+const getStudentHostelLayout = async (req, res) => {
+  try {
+    const hostel_id = ensureStudentHostel(req);
+    const layout = await HostelLayout.findOne({ where: { hostel_id } });
+    res.json({ success: true, data: layout });
+  } catch (error) {
+    console.error("Student layout fetch error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const getStudentRooms = async (req, res) => {
+  try {
+    const hostel_id = ensureStudentHostel(req);
+    const rooms = await HostelRoom.findAll({
+      where: { hostel_id, is_active: true },
+      order: [["room_number", "ASC"]],
+    });
+    res.json({ success: true, data: rooms });
+  } catch (error) {
+    console.error("Student rooms fetch error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const getStudentRoomTypes = async (req, res) => {
+  try {
+    const hostel_id = ensureStudentHostel(req);
+    const types = await RoomType.findAll({
+      where: { hostel_id },
+      order: [["name", "ASC"]],
+    });
+    res.json({ success: true, data: types });
+  } catch (error) {
+    console.error("Student room types fetch error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const getStudentRoomOccupants = async (req, res) => {
+  try {
+    const hostel_id = ensureStudentHostel(req);
+    const { id } = req.params;
+
+    const room = await HostelRoom.findOne({
+      where: { id, hostel_id, is_active: true },
+      attributes: ["id", "room_number"],
+    });
+    if (!room) throw new Error("Room not found");
+
+    const allotments = await RoomAllotment.findAll({
+      where: { room_id: id, is_active: true },
+      include: [
+        {
+          model: User,
+          as: "AllotmentStudent",
+          attributes: ["id", "username", "email", "roll_number", "profile_picture"],
+        },
+      ],
+    });
+
+    const occupants = allotments.map((row) => ({
+      user_id: row.student_id,
+      username: row.AllotmentStudent.username,
+      name: row.AllotmentStudent.username,
+      email: row.AllotmentStudent.email,
+      roll_number: row.AllotmentStudent.roll_number,
+      profile_picture: row.AllotmentStudent.profile_picture,
+    }));
+
+    res.json({ success: true, data: occupants });
+  } catch (error) {
+    console.error("Student room occupants error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const getMyRoomRequests = async (req, res) => {
+  try {
+    const requests = await RoomRequest.findAll({
+      where: { student_id: req.user.id },
+      order: [["createdAt", "DESC"]],
+    });
+    res.json({ success: true, data: requests });
+  } catch (error) {
+    console.error("Room request list error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const requestRoomBooking = async (req, res) => {
+  try {
+    const hostel_id = ensureStudentHostel(req);
+    const { room_id } = req.body;
+    if (!room_id) throw new Error("room_id is required.");
+
+    const room = await HostelRoom.findOne({
+      where: { id: room_id, hostel_id, is_active: true },
+    });
+    if (!room) throw new Error("Room not found or is inactive.");
+
+    const pending = await RoomRequest.findOne({
+      where: { student_id: req.user.id, room_id, status: "pending" },
+    });
+    if (pending) throw new Error("You already have a pending request for this room.");
+
+    const request = await RoomRequest.create({
+      hostel_id,
+      student_id: req.user.id,
+      room_id,
+      status: "pending",
+      requested_at: new Date(),
+    });
+
+    res.status(201).json({ success: true, data: request, message: "Room request submitted." });
+  } catch (error) {
+    console.error("Room request creation error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const cancelRoomRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const request = await RoomRequest.findOne({
+      where: { id, student_id: req.user.id },
+    });
+
+    if (!request) throw new Error("Request not found.");
+    if (request.status !== "pending") throw new Error("Only pending requests can be cancelled.");
+
+    await request.update({ status: "cancelled", cancelled_at: new Date() });
+    res.json({ success: true, message: "Room request cancelled." });
+  } catch (error) {
+    console.error("Room request cancellation error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
 
 
 module.exports = {
@@ -1591,5 +1737,12 @@ module.exports = {
   getMyDailyMessCharges,
   getMonthlyMessExpensesChartData,
   getMonthlyAttendanceChartData,
-  getRoommates
+  getRoommates,
+  getStudentHostelLayout,
+  getStudentRooms,
+  getStudentRoomTypes,
+  getStudentRoomOccupants,
+  getMyRoomRequests,
+  requestRoomBooking,
+  cancelRoomRequest,
 };

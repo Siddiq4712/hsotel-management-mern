@@ -1,8 +1,5 @@
 // src/services/api.js
 import axios from 'axios';
-// import { bulkMonthEndMandays } from '../../../backend/controllers/wardenController';
-// import { bulkMarkAttendance } from '../../../backend/controllers/wardenController';
-// import { generateMessBills } from '../../../backend/controllers/messController';
 
 const API_BASE_URL = 'http://localhost:5001/api';
 
@@ -146,6 +143,17 @@ export const wardenAPI = {
   updateInitialEmiStatus: (enrollmentId, data) => api.put(`/warden/enrollments/${enrollmentId}/emi-status`, data),
   getStudentEmiStatus: (studentId) => api.get(`/warden/students/${studentId}/emi-status`),
 
+  // Room Type Management - Complete CRUD (for warden)
+createRoomType: (data) => api.post('/warden/room-types', data),
+getRoomTypes: (params) => api.get('/warden/room-types', { params }),
+updateRoomType: (id, data) => api.put(`/warden/room-types/${id}`, data),
+deleteRoomType: (id) => api.delete(`/warden/room-types/${id}`),
+
+// Room Management - Complete CRUD (for warden)
+createRoom: (data) => api.post('/warden/rooms', data), // data may include layout_slot
+getRooms: (params) => api.get('/warden/rooms', { params }),
+updateRoom: (id, data) => api.put(`/warden/rooms/${id}`, data),
+deleteRoom: (id) => api.delete(`/warden/rooms/${id}`),
   // Room Management
   getAvailableRooms: () => api.get('/warden/available-rooms'),
   allotRoom: (data) => api.post('/warden/room-allotment', data),
@@ -189,10 +197,26 @@ export const wardenAPI = {
 
 getRoomOccupants: (roomId) => api.get(`/warden/rooms/${roomId}/occupants`),
 bulkMonthEndMandays: (data) => api.post('/warden/attendance/bulks', data),
+
+getLayout: () => api.get('/warden/layout'),
+saveLayout: (data) => api.post('/warden/layout', data),
+
+ getRoomRequests: (params) => api.get('/warden/room-requests', { params }),
+ updateRoomRequest: (id, data) => api.put(`/warden/room-requests/${id}`, data),
 };
 export const studentAPI = {
   // Profile
   getProfile: () => api.get('/student/profile'),
+  getLayout: () => api.get('/student/hostel-layout'),
+  getRooms: () => api.get('/student/rooms'),
+  getRoomTypes: () => api.get('/student/room-types'),
+  getRoomOccupants: (roomId) => api.get(`/student/rooms/${roomId}/occupants`),
+ getRoomRequests: () => api.get('/student/room-requests'),
+ getMyRoomRequests() {
+   return this.getRoomRequests();
+ },
+  requestRoom: (data) => api.post('/student/room-requests', data),
+  cancelRoomRequest: (id) => api.delete(`/student/room-requests/${id}`),
 
   // Mess Management
   getMessBills: (params) => api.get('/student/mess-bills', { params }),

@@ -33,7 +33,14 @@ const {
   getMyDailyMessCharges,
   getMonthlyMessExpensesChartData, // Add this
   getMonthlyAttendanceChartData,   // Add this
-  getRoommates
+  getRoommates,
+  getStudentHostelLayout,
+  getStudentRooms,
+  getStudentRoomTypes,
+  getStudentRoomOccupants,
+  getMyRoomRequests,
+  requestRoomBooking,
+  cancelRoomRequest,
 } = require('../controllers/studentController');
 const {
   createFoodOrder,
@@ -112,4 +119,13 @@ router.get('/chart-data/mess-expenses', auth, authorize(['student', 'lapc']), ge
 router.get('/chart-data/attendance', auth, authorize(['student', 'lapc']), getMonthlyAttendanceChartData);
 
 router.get('/roommates', getRoommates);
+
+router.get('/hostel-layout', getStudentHostelLayout);
+router.get('/rooms', getStudentRooms);
+router.get('/room-types', getStudentRoomTypes);
+router.get('/rooms/:id/occupants', getStudentRoomOccupants);
+router.get('/room-requests', getMyRoomRequests);
+router.post('/room-requests', requestRoomBooking);
+router.delete('/room-requests/:id', cancelRoomRequest);
+
 module.exports = router;

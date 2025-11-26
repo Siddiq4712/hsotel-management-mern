@@ -116,6 +116,14 @@ const RoomType = sequelize.define('RoomType', {
     type: DataTypes.INTEGER,
     allowNull: false
   },
+  hostel_id: {
+  type: DataTypes.INTEGER,
+  allowNull: false,
+  references: {
+    model: 'tbl_Hostel',
+    key: 'id'
+  }
+  },
   description: {
     type: DataTypes.TEXT,
     allowNull: true
@@ -130,6 +138,11 @@ const HostelRoom = sequelize.define('HostelRoom', {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true
+  },
+  layout_slot: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Grid slot (floorIdx-rowIdx-colIdx) used by layout builder'
   },
   hostel_id: {
     type: DataTypes.INTEGER,
@@ -2798,6 +2811,139 @@ const StudentFee = sequelize.define('StudentFee', {
   tableName: 'tbl_StudentFee',
   timestamps: true,
 });
+const HostelLayout = sequelize.define('HostelLayout', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tbl_Hostel',
+      key: 'id'
+    }
+  },
+
+  building_type: {
+    type: DataTypes.ENUM('single', 'l', 'u', 'square'),
+    allowNull: false
+  },
+
+  entrance_side: {
+    type: DataTypes.ENUM('t', 'b', 'l', 'r'),
+    allowNull: false
+  },
+
+  floors: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+
+  top_rooms: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+
+  bottom_rooms: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+
+  left_rooms: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+
+  right_rooms: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+
+  // REQUIRED for L-shaped
+  orientation: {
+    type: DataTypes.STRING,
+    allowNull: true      // "tl", "tr", "bl", "br"
+  },
+
+  // REQUIRED for U-shaped
+  open_side: {
+    type: DataTypes.STRING,
+    allowNull: true      // "t", "b", "l", "r"
+  }
+
+}, {
+  tableName: 'tbl_HostelLayout',
+  timestamps: true
+});
+const RoomRequest = sequelize.define(
+  "RoomRequest",
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    hostel_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: "tbl_Hostel",
+        key: "id",
+      },
+    },
+    student_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: "tbl_Users",
+        key: "id",
+      },
+    },
+    room_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: "tbl_HostelRoom",
+        key: "id",
+      },
+    },
+    status: {
+      type: DataTypes.ENUM("pending", "approved", "rejected", "cancelled"),
+      allowNull: false,
+      defaultValue: "pending",
+    },
+    requested_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
+    processed_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    approved_by: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: "tbl_Users",
+        key: "id",
+      },
+    },
+    remarks: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+  },
+  {
+    tableName: "tbl_RoomRequest",
+    timestamps: true,
+  }
+);
+
+
 
 // NEW Associations for Special Consumption
 SpecialConsumption.hasMany(SpecialConsumptionItem, { foreignKey: 'special_consumption_id', as: 'ItemsConsumed' });
@@ -2957,6 +3103,8 @@ Item.hasMany(DailyConsumption, {foreignKey: "item_id"});
 DailyConsumption.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 DailyConsumption.belongsTo(Item, { foreignKey: 'item_id' });
 DailyConsumption.belongsTo(User, { foreignKey: 'recorded_by', as: 'ConsumptionRecordedBy' });
+RoomType.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+Hostel.hasMany(RoomType, { foreignKey: 'hostel_id' });
 
 DailyConsumptionReturn.belongsTo(DailyConsumption, { foreignKey: "daily_consumption_id" });
 DailyConsumptionReturn.belongsTo(User, { foreignKey: "returned_by", as: "ConsumptionReturnedBy" });
@@ -3044,6 +3192,16 @@ StudentFee.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 User.hasMany(StudentFee, { foreignKey: 'student_id', as: 'StudentFees' });
 
 
+RoomRequest.belongsTo(User, { foreignKey: "student_id", as: "Student" });
+RoomRequest.belongsTo(User, { foreignKey: "approved_by", as: "ProcessedBy" });
+RoomRequest.belongsTo(HostelRoom, { foreignKey: "room_id", as: "Room" });
+RoomRequest.belongsTo(Hostel, { foreignKey: "hostel_id" });
+
+User.hasMany(RoomRequest, { foreignKey: "student_id", as: "RoomRequests" });
+HostelRoom.hasMany(RoomRequest, { foreignKey: "room_id", as: "RoomRequests" });
+Hostel.hasMany(RoomRequest, { foreignKey: "hostel_id", as: "RoomRequests" });
+
+
 module.exports = {
   sequelize,
   User,
@@ -3117,5 +3275,7 @@ module.exports = {
   SpecialConsumptionItem,
   StudentFee,
   CreditToken,
-  Concern
+  Concern,
+  HostelLayout,
+  RoomRequest
 };

@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const { 
   sequelize, User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,
-  Attendance, Leave, Complaint, Suspension, Holiday,Fee, MessBill
+  Attendance, Leave, Complaint, Suspension, Holiday,Fee, MessBill,Hostel,RoomRequest
   // Note: Models not used in this controller have been removed from this import for clarity
 } = require('../models');
 
@@ -288,6 +288,413 @@ const fetchAvailableRooms = async () => {
   } finally {
     setRoomsLoading(false);
   }
+};
+// In your backend routes file (e.g., routes/warden.js or app.js)
+
+// Warden Room Type Management - Scoped to warden's hostel
+const createRoomTypeWarden = async (req, res) => {
+  try {
+    const { name, capacity, description } = req.body;
+    const hostel_id = req.user.hostel_id;
+
+    if (!name || !capacity) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name and capacity are required'
+      });
+    }
+
+    // AUTO-RENAME IF DUPLICATE
+    let baseName = name.trim();
+    // let finalName = baseName;
+    let counter = 1;
+
+    const exists = await RoomType.findOne({ where: { name, hostel_id } });
+if (exists) {
+  return res.json({ success: true, data: exists });
+}
+const finalName = name;
+
+
+    // Create the room type with unique name
+    const roomType = await RoomType.create({
+      name: finalName,
+      capacity,
+      description,
+      hostel_id
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: roomType,
+      message: 'Room type created successfully'
+    });
+
+  } catch (error) {
+    console.error('Warden room type creation error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error: ' + error.message
+    });
+  }
+};
+const { HostelLayout } = require('../models');
+
+const getLayout = async (req, res) => {
+  try {
+    const layout = await HostelLayout.findOne({
+      where: { hostel_id: req.user.hostel_id }
+    });
+    res.json({ success: true, data: layout });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const saveLayout = async (req, res) => {
+  try {
+    const hostel_id = req.user.hostel_id;
+    const body = { ...req.body, hostel_id };
+
+    let row = await HostelLayout.findOne({ where: { hostel_id } });
+
+    if (row) {
+      await row.update(body);
+    } else {
+      row = await HostelLayout.create(body);
+    }
+
+    res.json({ success: true, data: row });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const getRoomTypesWarden = async (req, res) => {
+  try {
+    const hostel_id = req.user.hostel_id;
+    const { search } = req.query;
+
+    let whereClause = { hostel_id };
+
+    if (search) {
+      whereClause.name = { [Op.iLike]: `%${search}%` };
+    }
+
+    const roomTypes = await RoomType.findAll({
+      where: whereClause,
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({ success: true, data: roomTypes });
+  } catch (error) {
+    console.error('Warden room types fetch error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const updateRoomTypeWarden = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, capacity, description } = req.body;
+    const hostel_id = req.user.hostel_id;
+
+    const roomType = await RoomType.findOne({ where: { id, hostel_id } });
+    if (!roomType) {
+      return res.status(404).json({
+        success: false,
+        message: 'Room type not found'
+      });
+    }
+
+    await roomType.update({
+      name,
+      capacity,
+      description
+    });
+
+    res.json({
+      success: true,
+      data: roomType,
+      message: 'Room type updated successfully'
+    });
+  } catch (error) {
+    console.error('Warden room type update error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const deleteRoomTypeWarden = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hostel_id = req.user.hostel_id;
+
+    const roomType = await RoomType.findOne({ where: { id, hostel_id } });
+    if (!roomType) {
+      return res.status(404).json({
+        success: false,
+        message: 'Room type not found'
+      });
+    }
+
+    // Check if room type is being used by any rooms in this hostel
+    const roomsCount = await HostelRoom.count({
+  where: { room_type_id: id, hostel_id, is_active: true }
+});
+
+    if (roomsCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete room type. It is being used by existing rooms.'
+      });
+    }
+
+    try {
+      await roomType.destroy();
+    } catch (error) {
+      if (error.name === "SequelizeForeignKeyConstraintError") {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Cannot delete this room type because rooms still reference it. Remove or reassign those rooms first.",
+        });
+      }
+      throw error;
+    }
+    res.json({
+      success: true,
+      message: 'Room type deleted successfully'
+    });
+  } catch (error) {
+    console.error('Warden room type deletion error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// Warden Room Management - Scoped to hostel
+const createRoomWarden = async (req, res) => {
+  try {
+    const { room_type_id, room_number, floor, layout_slot, is_active } = req.body;
+    const hostel_id = req.user.hostel_id;
+
+    if (!room_type_id || !room_number) {
+      return res.status(400).json({
+        success: false,
+        message: 'Room type and room number are required'
+      });
+    }
+    if (layout_slot) {
+      const conflict = await HostelRoom.findOne({
+        where: { hostel_id, layout_slot }
+      });
+      if (conflict) {
+        return res.status(400).json({
+          success: false,
+          message: 'Another room already occupies this layout slot',
+        });
+      }
+    }
+
+    // Check if room number already exists in this hostel
+    const existingRoom = await HostelRoom.findOne({
+      where: { hostel_id, room_number }
+    });
+
+    if (existingRoom) {
+      return res.status(400).json({
+        success: false,
+        message: 'Room number already exists in this hostel'
+      });
+    }
+
+    // Verify room_type_id belongs to this hostel
+    const roomType = await RoomType.findOne({ where: { id: room_type_id, hostel_id } });
+    if (!roomType) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invalid room type for this hostel'
+      });
+    }
+
+    const room = await HostelRoom.create({
+      hostel_id,
+      room_type_id,
+      room_number,
+      floor,
+      layout_slot,
+      is_active: is_active ?? true,
+    });
+
+    const roomWithDetails = await HostelRoom.findByPk(room.id, {
+      include: [
+        { model: Hostel, attributes: ['id', 'name'] },
+        { model: RoomType, attributes: ['id', 'name', 'capacity'] }
+      ]
+    });
+
+    res.status(201).json({
+      success: true,
+      data: roomWithDetails,
+      message: 'Room created successfully'
+    });
+  } catch (error) {
+    console.error('Warden room creation error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const getRoomsWarden = async (req, res) => {
+  try {
+    const hostel_id = req.user.hostel_id;
+    const { room_type_id, search, is_occupied } = req.query;
+
+    let whereClause = { hostel_id };
+
+    if (room_type_id && room_type_id !== 'all') {
+      whereClause.room_type_id = room_type_id;
+    }
+
+    if (is_occupied !== undefined && is_occupied !== 'all') {
+      whereClause.is_occupied = is_occupied === 'true';
+    }
+
+    if (search) {
+      whereClause.room_number = { [Op.iLike]: `%${search}%` };
+    }
+
+    const rooms = await HostelRoom.findAll({
+      where: whereClause,
+      include: [
+        { model: Hostel, attributes: ['id', 'name'] },
+        { model: RoomType, attributes: ['id', 'name', 'capacity'] }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({ success: true, data: rooms });
+  } catch (error) {
+    console.error('Warden rooms fetch error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const updateRoomWarden = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { room_type_id, room_number, floor, layout_slot, is_active } = req.body;
+    const hostel_id = req.user.hostel_id;
+
+    const room = await HostelRoom.findOne({ where: { id, hostel_id } });
+
+if (!room) {
+  return res.status(404).json({
+    success: false,
+    message: 'Room not found'
+  });
+}
+
+// Reactivate if inactive (VERY IMPORTANT)
+if (!room.is_active) {
+  await room.update({ is_active: true });
+}
+
+
+    // Verify new room_type_id if provided
+    if (room_type_id) {
+      const roomType = await RoomType.findOne({ where: { id: room_type_id, hostel_id } });
+      if (!roomType) {
+        return res.status(404).json({
+          success: false,
+          message: 'Invalid room type for this hostel'
+        });
+      }
+    }
+
+    // Check room number uniqueness if changed
+    if (room_number && room_number !== room.room_number) {
+      const existingRoom = await HostelRoom.findOne({
+        where: { hostel_id, room_number }
+      });
+      if (existingRoom) {
+        return res.status(400).json({
+          success: false,
+          message: 'Room number already exists in this hostel'
+        });
+      }
+    }
+    if (layout_slot) {
+      const conflict = await HostelRoom.findOne({
+        where: {
+          hostel_id,
+          layout_slot,
+          id: { [Op.ne]: id },
+        },
+      });
+      if (conflict) {
+        return res.status(400).json({
+          success: false,
+          message: 'Another room already occupies this layout slot',
+        });
+      }
+    }
+
+    await room.update({
+      room_type_id,
+      room_number,
+      floor,
+      layout_slot,
+      is_active: is_active ?? room.is_active,
+    });
+
+    const updatedRoom = await HostelRoom.findByPk(id, {
+      include: [
+        { model: Hostel, attributes: ['id', 'name'] },
+        { model: RoomType, attributes: ['id', 'name', 'capacity'] }
+      ]
+    });
+
+    res.json({
+      success: true,
+      data: updatedRoom,
+      message: 'Room updated successfully'
+    });
+  } catch (error) {
+    console.error('Warden room update error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+const deleteRoomWarden = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hostel_id = req.user.hostel_id;
+
+    const room = await HostelRoom.findOne({ where: { id, hostel_id } });
+
+    if (!room) {
+      return res.status(404).json({
+        success: false,
+        message: 'Room not found'
+      });
+    }
+
+    if (room.is_occupied) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete occupied room'
+      });
+    }
+
+    await room.update({ is_active: false });
+
+    res.json({
+      success: true,
+      message: 'Room deactivated successfully'
+    });
+  } catch (error) {
+    console.error('Warden room deletion error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 };
 
 // DASHBOARD STATISTICS
@@ -1942,6 +2349,144 @@ const fetchDailyCosts = async (month, year) => {
     setCalculatingCosts(false);
   }
 };
+const getRoomRequestsWarden = async (req, res) => {
+  try {
+    const hostel_id = req.user.hostel_id;
+    const { status } = req.query;
+
+    const whereClause = { hostel_id };
+    if (status && status !== "all") whereClause.status = status;
+
+    const requests = await RoomRequest.findAll({
+      where: whereClause,
+      order: [
+        ["status", "ASC"],
+        ["requested_at", "DESC"],
+      ],
+      include: [
+        {
+          model: User,
+          as: "Student",
+          attributes: ["id", "username", "email", "roll_number", "profile_picture"],
+        },
+        {
+          model: HostelRoom,
+          as: "Room",
+          attributes: ["id", "room_number", "occupancy_count"],
+          include: [
+            {
+              model: RoomType,
+              attributes: ["name", "capacity"],
+            },
+          ],
+        },
+        {
+          model: User,
+          as: "ProcessedBy",
+          attributes: ["id", "username"],
+          required: false,
+        },
+      ],
+    });
+
+    res.json({ success: true, data: requests });
+  } catch (error) {
+    console.error("Room request fetch error:", error);
+    res.status(500).json({ success: false, message: "Server error: " + error.message });
+  }
+};
+
+const decideRoomRequest = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const hostel_id = req.user.hostel_id;
+    const { id } = req.params;
+    const { decision, remarks } = req.body;
+
+    if (!["approved", "rejected", "cancelled"].includes(decision)) {
+      throw new Error("Invalid decision. Use approved, rejected, or cancelled.");
+    }
+
+    const request = await RoomRequest.findOne({
+      where: { id, hostel_id },
+      lock: transaction.LOCK.UPDATE,
+      transaction,
+      include: [
+        {
+          model: HostelRoom,
+          as: "Room",
+          include: [{ model: RoomType, attributes: ["capacity"] }],
+        },
+      ],
+    });
+
+    if (!request) throw new Error("Request not found for this hostel.");
+    if (request.status !== "pending") throw new Error("Request has already been processed.");
+
+    if (decision === "approved") {
+      const { room_id, student_id } = request;
+      const room = request.Room;
+      if (!room) throw new Error("Room no longer exists.");
+
+      const capacity = room.RoomType?.capacity ?? 0;
+
+      const activeAllotments = await RoomAllotment.count({
+        where: { room_id, is_active: true },
+        transaction,
+      });
+
+      if (activeAllotments >= capacity) throw new Error("Cannot approve. Room is already full.");
+
+      const existingAllotment = await RoomAllotment.findOne({
+        where: { student_id, is_active: true },
+        transaction,
+      });
+      if (existingAllotment) throw new Error("Student already has an active allotment.");
+
+      await RoomAllotment.create(
+        {
+          student_id,
+          room_id,
+          allotment_date: new Date(),
+          is_active: true,
+        },
+        { transaction },
+      );
+
+      await HostelRoom.increment(
+        { occupancy_count: 1 },
+        { where: { id: room_id }, transaction },
+      );
+
+      await request.update(
+        {
+          status: "approved",
+          processed_at: new Date(),
+          approved_by: req.user.id,
+          remarks,
+        },
+        { transaction },
+      );
+    } else {
+      await request.update(
+        {
+          status: decision,
+          processed_at: new Date(),
+          approved_by: req.user.id,
+          remarks,
+        },
+        { transaction },
+      );
+    }
+
+    await transaction.commit();
+    res.json({ success: true, message: `Request ${decision}.`, data: request });
+  } catch (error) {
+    await transaction.rollback();
+    console.error("Room request decision error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
 
 
 module.exports = {
@@ -1988,5 +2533,21 @@ module.exports = {
   updateMessBillStatus,
 
   fetchDailyCosts,
-  getRoomOccupants
+  getRoomOccupants,
+
+createRoomTypeWarden,
+updateRoomTypeWarden,
+deleteRoomTypeWarden,
+getRoomTypesWarden,
+
+createRoomWarden,
+updateRoomWarden,
+deleteRoomWarden,
+getRoomsWarden,
+
+saveLayout,
+getLayout,
+
+getRoomRequestsWarden,
+decideRoomRequest
 };
