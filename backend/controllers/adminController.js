@@ -1,9 +1,9 @@
 const bcrypt = require('bcryptjs');
 const { Op, fn, col, literal } = require('sequelize'); // Import fn, col, literal
 const {
-  User, Hostel, RoomType, HostelRoom, Session,
+  User, Hostel, RoomType, HostelRoom, Session,sequelize,Attendance,
   HostelFacilityType, HostelFacility, HostelMaintenance,
-  IncomeType, ExpenseType, UOM, Supplier, PurchaseOrder, SupplierBill,
+  IncomeType, ExpenseType, UOM, Supplier, PurchaseOrder, SupplierBill,DayReductionRequest,
   // Corrected imports based on your index.js and individual model files
   Fee, // Changed from Fees to Fee
   AdditionalIncome,
@@ -11,7 +11,6 @@ const {
   OtherExpense // Changed from OtherExpenses to OtherExpense
 } = require('../models');
 const moment = require('moment'); // For date manipulation, ensure 'moment' is installed in backend
-
 // HOSTEL MANAGEMENT - Complete CRUD
 const createHostel = async (req, res) => {
   try {
@@ -1810,6 +1809,143 @@ const getAdminChartData = async (req, res) => {
   }
 };
 
+// --- NEW: Day Reduction Requests for Admin ---
+const getDayReductionRequestsForAdmin = async (req, res) => {
+  try {
+    const { status, hostel_id, student_id, from_date, to_date } = req.query;
+
+    let whereClause = {};
+
+    // Admins will primarily view requests pending their review, or those they've already processed
+    // It's good to also show 'approved_by_warden' and 'rejected_by_warden' for historical context
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    } else {
+      whereClause.status = { [Op.in]: ['pending_admin', 'approved_by_admin', 'rejected_by_admin', 'approved_by_warden', 'rejected_by_warden'] };
+    }
+
+    if (hostel_id) whereClause.hostel_id = hostel_id;
+    if (student_id) whereClause.student_id = student_id;
+    if (from_date && to_date) {
+      whereClause[Op.and] = [
+        { from_date: { [Op.lte]: to_date } },
+        { to_date: { [Op.gte]: from_date } }
+      ];
+    }
+
+    const requests = await DayReductionRequest.findAll({
+      where: whereClause,
+      include: [
+        { model: User, as: 'Student', attributes: ['id', 'username', 'email', 'roll_number'] },
+        { model: User, as: 'AdminProcessor', attributes: ['id', 'username'], required: false },
+        { model: User, as: 'WardenProcessor', attributes: ['id', 'username'], required: false }, // Keep for full history
+        { model: Hostel, as: 'Hostel', attributes: ['id', 'name'] }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({ success: true, data: requests });
+  } catch (error) {
+    console.error('Error fetching day reduction requests for admin:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const updateDayReductionRequestStatusByAdmin = async (req, res) => {
+  const transaction = await sequelize.transaction(); // Start a transaction for atomicity
+  try {
+    const { id } = req.params;
+    const { action, admin_remarks } = req.body; // 'approve' or 'reject'
+    const admin_id = req.user.id;
+
+    const request = await DayReductionRequest.findByPk(id, { transaction });
+
+    if (!request) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'Day reduction request not found.' });
+    }
+
+    // Ensure only 'pending_admin' requests can be processed by admin
+    if (request.status !== 'pending_admin') {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: `Request already processed or not in a state for admin review (current status: ${request.status}).` });
+    }
+
+    let newStatus;
+    if (action === 'approve') {
+      newStatus = 'approved_by_admin'; // Admin approves, and this is now the final status that triggers OD
+    } else if (action === 'reject') {
+      newStatus = 'rejected_by_admin'; // Admin rejects outright
+    } else {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Invalid action. Must be "approve" or "reject".' });
+    }
+
+    await request.update({
+      status: newStatus,
+      admin_id,
+      admin_remarks,
+      // No 'warden_id' or 'warden_remarks' here, as warden only views
+    }, { transaction });
+
+    // IMPORTANT: Mark attendance as 'OD' if approved by Admin
+    if (newStatus === 'approved_by_admin') {
+      const { student_id, from_date, to_date, hostel_id } = request;
+      const startDate = moment(from_date);
+      const endDate = moment(to_date);
+
+      let currentDate = moment(startDate);
+      while (currentDate.isSameOrBefore(endDate)) {
+        const dateString = currentDate.format('YYYY-MM-DD');
+
+        // Check for existing attendance record for the day
+        let existingAttendance = await Attendance.findOne({
+          where: {
+            student_id,
+            hostel_id,
+            date: dateString
+          },
+          transaction
+        });
+
+        if (existingAttendance) {
+          // Update existing record if its status is NOT 'P' (Present).
+          // 'OD' (On Duty) should override 'A' (Absent) or 'L' (Leave/unmarked).
+          // We generally don't override a confirmed 'P' with 'OD'.
+          if (existingAttendance.status !== 'P') {
+             await existingAttendance.update({
+              status: 'OD',
+              totalManDays: 1, // 'OD' counts as a man-day for mess calculation
+              remarks: existingAttendance.remarks ? `${existingAttendance.remarks}; Day reduction request approved by Admin (ID: ${id})` : `Day reduction request approved by Admin (ID: ${id})`,
+              marked_by: admin_id // Admin approved this change
+            }, { transaction });
+          }
+        } else {
+          // Create new attendance record if none exists for the day
+          await Attendance.create({
+            student_id,
+            hostel_id,
+            date: dateString,
+            status: 'OD',
+            totalManDays: 1, // 'OD' counts as a man-day for mess calculation
+            remarks: `Day reduction request approved by Admin (ID: ${id})`,
+            marked_by: admin_id
+          }, { transaction });
+        }
+        currentDate.add(1, 'day');
+      }
+    }
+
+    await transaction.commit(); // Commit all changes if successful
+    res.json({ success: true, data: request, message: `Day reduction request ${newStatus.replace('_', ' ')} successfully.` });
+
+  } catch (error) {
+    await transaction.rollback(); // Rollback all changes if any error occurs
+    console.error('Error updating day reduction request status by admin:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
 module.exports = {
   // Hostel Management
   createHostel,
@@ -1885,5 +2021,7 @@ module.exports = {
 
   // Dashboard
   getDashboardStats,
-  getAdminChartData // ADD THIS LINE
+  getAdminChartData, // ADD THIS LINE
+  getDayReductionRequestsForAdmin,       // <-- NEW EXPORT
+  updateDayReductionRequestStatusByAdmin,
 };

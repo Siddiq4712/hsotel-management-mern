@@ -2959,6 +2959,84 @@ const RestockPlan = sequelize.define('RestockPlan', {
   cleared_at: { type: DataTypes.DATE, allowNull: true }
 }, { tableName: 'tbl_RestockPlan', timestamps: true });
 
+// models/index.js (add this new model definition)
+
+// ... existing models ...
+
+const DayReductionRequest = sequelize.define('DayReductionRequest', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  student_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tbl_Users',
+      key: 'id'
+    }
+  },
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tbl_Hostel',
+      key: 'id'
+    }
+  },
+  from_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  },
+  to_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  },
+  reason: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  status: {
+    type: DataTypes.ENUM('pending_admin', 'approved_by_admin', 'rejected_by_admin', 'approved_by_warden', 'rejected_by_warden'),
+    defaultValue: 'pending_admin',
+    allowNull: false
+  },
+  admin_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'tbl_Users',
+      key: 'id'
+    }
+  },
+  admin_remarks: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  warden_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'tbl_Users',
+      key: 'id'
+    }
+  },
+  warden_remarks: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+}, {
+  tableName: 'tbl_DayReductionRequests',
+  timestamps: true
+});
+
+// Add associations for the new model
+DayReductionRequest.belongsTo(User, { foreignKey: 'student_id', as: 'Student' });
+DayReductionRequest.belongsTo(User, { foreignKey: 'admin_id', as: 'AdminProcessor' });
+DayReductionRequest.belongsTo(User, { foreignKey: 'warden_id', as: 'WardenProcessor' });
+DayReductionRequest.belongsTo(Hostel, { foreignKey: 'hostel_id', as: 'Hostel' }); // Added as 'Hostel' for easier include
+
 RestockPlan.belongsTo(Item, { foreignKey: 'item_id' });
 RestockPlan.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 Item.hasMany(RestockPlan, { foreignKey: 'item_id' });
@@ -3297,5 +3375,6 @@ module.exports = {
   Concern,
   HostelLayout,
   RoomRequest,
-  RestockPlan
+  RestockPlan,
+  DayReductionRequest // <-- NEW: Export the DayReductionRequest mode
 };

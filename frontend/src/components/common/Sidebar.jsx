@@ -8,6 +8,7 @@ import {
   Clipboard
 } from 'lucide-react';
 import { lastDayOfDecade } from 'date-fns';
+import { BilibiliOutlined } from '@ant-design/icons';
 
 const Sidebar = ({ currentView, setCurrentView }) => {
   const { user } = useAuth();
@@ -21,6 +22,7 @@ const Sidebar = ({ currentView, setCurrentView }) => {
           { id: 'create-hostel', label: 'Create Hostel', icon: Building },
           { id: 'room-types', label: 'Room Types', icon: Bed },
           { id: 'rooms', label: 'Manage Rooms', icon: Home },
+          { id: 'days-reduc', label: 'Day Reduction', icon: FileText},
           { id: 'create-user', label: 'Create User', icon: UserPlus },
           { id: 'sessions', label: 'Manage Sessions', icon: Calendar },
           { id: 'facility-types', label: 'Facility Types', icon: Wifi },
@@ -38,13 +40,14 @@ const Sidebar = ({ currentView, setCurrentView }) => {
           { id: 'enroll-student', label: 'Enroll Student', icon: UserPlus },
           { id: 'room-allotment', label: 'Room Allotment', icon: Bed },
           { id: 'create-room',label:'Create Room', icon: Bed},
+          { id: 'warden-day-red',label:'Day Reduction List',icon :FileText},
           { id: 'attendance', label: 'Attendance', icon: ClipboardCheck },
           { id: 'leave-requests', label: 'Leave Requests', icon: Calendar },
           { id: 'complaints', label: 'Complaints', icon: MessageCircle },
           { id: 'suspensions', label: 'Suspensions', icon: UserX },
           { id: 'view-layout', label: 'View Layout', icon: Building },
           { id: 'approve-room-requests', label: 'Room Requests', icon: Building },
-          // { id: 'holidays', label: 'Holidays', icon: CalendarDays },
+          { id: 'holidays', label: 'Holidays', icon: CalendarDays },
           // { id: 'mess-bills', label: 'Mess Bills', icon: Receipt },
         ];
       case 'student':
@@ -62,7 +65,8 @@ const Sidebar = ({ currentView, setCurrentView }) => {
           { id: 'mess-charges', label: 'Mess Charges', icon: DollarSign },
           { id: 'food-order', label: 'Order Special Food', icon: Coffee },
           { id: 'my-food-orders', label: 'My Food Orders', icon: ShoppingBag },
-          { id: 'view-rooms', label: 'View Room', icon: Building}
+          { id: 'view-rooms', label: 'View Room', icon: Building},
+          { id:'day-reduction', label: 'Apply Day reduction', icon: FileText},
         ];
         // case 'lapc':
         // return [

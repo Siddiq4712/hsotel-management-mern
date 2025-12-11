@@ -83,6 +83,9 @@ import DailyRateReport from './components/mess/DailyRateReport'; // Import the n
 // import bedFee from './components/mess/BedFeeManagement'; // Import Bed Fee component
 import BedFeeManagement from './components/mess/BedFeeManagement';
 import PurchaseOrder from './components/mess/PurchaseOrder';
+import ApplyDayReduction from './components/student/ApplyDayReduction';
+import DayReductionRequestsAdmin from './components/admin/DayReductionRequests';  
+import DayReductionRequestsWarden from './components/warden/DayReductionRequests';
 
 // Lazy load CreateRoom to avoid circular dependency issues
 const LazyCreateRoom = React.lazy(() => import('./components/warden/CreateRoom'));
@@ -135,6 +138,8 @@ const DashboardRouter = () => {
             return <ManageFacilityTypes />;
           case 'facilities':
             return <ManageFacilities />;
+          case 'days-reduc':
+            return <DayReductionRequestsAdmin/>;
           case 'maintenance':
             return <ManageMaintenance />;
           case 'income-types':
@@ -170,6 +175,8 @@ const DashboardRouter = () => {
             return <LeaveRequests />;
           case 'complaints':
             return <ComplaintManagement />;
+          case 'warden-day-red':
+            return < DayReductionRequestsWarden/>
           case 'suspensions':
             return <SuspensionManagement />;
           case 'holidays':
@@ -193,6 +200,8 @@ const DashboardRouter = () => {
             return <ViewRooms hostelId={user?.hostel_id} />;
           case 'apply-leave':
             return <ApplyLeave />;
+          case 'day-reduction':
+            return <ApplyDayReduction />;
           case 'my-leaves':
             return <MyLeaves />;
           case 'submit-complaint':
@@ -236,7 +245,7 @@ const DashboardRouter = () => {
           case 'consumption':
             return <RecordStudentSpecialMeal />;
           case 'daily-operations':
-            return <DailyOperations />;
+            return <DailyOperations />; 
           case 'consumption-report':
             return <ConsumptionReport />;
           case 'create-menu':

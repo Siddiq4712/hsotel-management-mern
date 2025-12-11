@@ -41,6 +41,8 @@ const {
   getMyRoomRequests,
   requestRoomBooking,
   cancelRoomRequest,
+  applyDayReduction,
+  getMyDayReductionRequests
 } = require('../controllers/studentController');
 const {
   createFoodOrder,
@@ -127,5 +129,6 @@ router.get('/rooms/:id/occupants', getStudentRoomOccupants);
 router.get('/room-requests', getMyRoomRequests);
 router.post('/room-requests', requestRoomBooking);
 router.delete('/room-requests/:id', cancelRoomRequest);
-
+router.post('/day-reduction-requests', applyDayReduction);
+router.get('/day-reduction-requests', getMyDayReductionRequests); // To allow students to view their own requests
 module.exports = router;

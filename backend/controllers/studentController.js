@@ -3,7 +3,8 @@ const {
   User, HostelRoom, RoomType, MessBill, MessCharge,DailyMessCharge,MenuSchedule,MessDailyExpense,ExpenseType,
   Leave, Complaint, Transaction, Attendance, Token,
   HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel,HostelLayout,RoomRequest,
-  SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, sequelize,DailyConsumption,IncomeType,AdditionalIncome,StudentFee, FeeType, 
+  SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, sequelize,DailyConsumption,IncomeType,AdditionalIncome,StudentFee,
+   FeeType,DayReductionRequest,
 } = require('../models');
 const { Op } = require('sequelize'); // <-- NEW LINE: Import 'sequelize' object
 const moment = require('moment'); 
@@ -1684,7 +1685,96 @@ const cancelRoomRequest = async (req, res) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+const applyDayReduction = async (req, res) => {
+  try {
+    const { from_date, to_date, reason } = req.body;
+    const student_id = req.user.id;
+    const hostel_id = req.user.hostel_id; // Assuming student's hostel_id is available in req.user
 
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Student is not assigned to a hostel.' });
+    }
+    if (!from_date || !to_date || !reason) {
+      return res.status(400).json({ success: false, message: 'From date, to date, and reason are required.' });
+    }
+
+    // Basic date validation
+    if (moment(from_date).isAfter(moment(to_date))) {
+      return res.status(400).json({ success: false, message: 'From date cannot be after to date.' });
+    }
+    // Cannot request reduction for past dates (can be adjusted based on policy)
+    if (moment(to_date).isBefore(moment(), 'day')) {
+      return res.status(400).json({ success: false, message: 'Cannot request day reduction for past dates.' });
+    }
+
+
+    // Check for existing pending or partially approved requests for the same student and overlapping dates
+    const existingRequest = await DayReductionRequest.findOne({
+      where: {
+        student_id,
+        // Requests that are still in review or awaiting warden's final decision
+        status: { [Op.in]: ['pending_admin', 'approved_by_admin'] },
+        [Op.or]: [
+          { from_date: { [Op.lte]: to_date }, to_date: { [Op.gte]: from_date } }
+        ]
+      }
+    });
+
+    if (existingRequest) {
+      return res.status(400).json({ success: false, message: 'You have a pending or partially approved day reduction request overlapping with these dates.' });
+    }
+
+    const newRequest = await DayReductionRequest.create({
+      student_id,
+      hostel_id,
+      from_date,
+      to_date,
+      reason,
+      status: 'pending_admin' // Initial status
+    });
+
+    res.status(201).json({ success: true, data: newRequest, message: 'Day reduction request submitted successfully for admin review.' });
+
+  } catch (error) {
+    console.error('Error applying for day reduction:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const getMyDayReductionRequests = async (req, res) => {
+  try {
+    const student_id = req.user.id;
+    const { status, from_date, to_date } = req.query;
+
+    let whereClause = { student_id };
+
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    }
+    if (from_date && to_date) {
+      // Filter requests that overlap with the given date range
+      whereClause[Op.and] = [
+        { from_date: { [Op.lte]: to_date } },
+        { to_date: { [Op.gte]: from_date } }
+      ];
+    }
+
+    const requests = await DayReductionRequest.findAll({
+      where: whereClause,
+      include: [
+        { model: User, as: 'AdminProcessor', attributes: ['id', 'username', 'email'], required: false },
+        { model: User, as: 'WardenProcessor', attributes: ['id', 'username', 'email'], required: false },
+        { model: Hostel, as: 'Hostel', attributes: ['id', 'name'], required: false }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({ success: true, data: requests });
+  } catch (error) {
+    console.error('Error fetching student day reduction requests:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
 
 module.exports = {
   // Profile Management
@@ -1745,4 +1835,6 @@ module.exports = {
   getMyRoomRequests,
   requestRoomBooking,
   cancelRoomRequest,
+  applyDayReduction,       // <-- NEW EXPORT
+  getMyDayReductionRequests, // <-- NEW EXPORT
 };
