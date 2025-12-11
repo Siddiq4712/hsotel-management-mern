@@ -20,7 +20,7 @@ const {
   // Room Type Management for Warden
   createRoomTypeWarden, updateRoomTypeWarden, deleteRoomTypeWarden, getRoomTypesWarden,
   // Room Management for Warden
-  createRoomWarden, updateRoomWarden, deleteRoomWarden, getRoomsWarden,getLayout, saveLayout,
+  createRoomWarden, updateRoomWarden, deleteRoomWarden, getRoomsWarden,getLayout, saveLayout,getDayReductionRequestsForWarden,updateDayReductionRequestStatusByWarden,
 
   getRoomRequestsWarden,decideRoomRequest
 } = require('../controllers/wardenController');
@@ -108,5 +108,6 @@ router.post('/layout', saveLayout);
 router.get('/room-requests', getRoomRequestsWarden);
 router.put('/room-requests/:id', decideRoomRequest);
 
-
+router.get('/day-reduction-requests', getDayReductionRequestsForWarden);
+router.put('/day-reduction-requests/:id/status', updateDayReductionRequestStatusByWarden); 
 module.exports = router;

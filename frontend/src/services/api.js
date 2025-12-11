@@ -123,6 +123,8 @@ export const adminAPI = {
   getUOMs: (params) => api.get('/admin/uoms', { params }),
   updateUOM: (id, data) => api.put(`/admin/uoms/${id}`, data),
   deleteUOM: (id) => api.delete(`/admin/uoms/${id}`),
+  getDayReductionRequests: (params) => api.get('/admin/day-reduction-requests', { params }), 
+  updateDayReductionRequestStatus: (id, data) => api.put(`/admin/day-reduction-requests/${id}/status`, data),
 };
 
 // Warden API - Updated with complete endpoints
@@ -203,6 +205,8 @@ saveLayout: (data) => api.post('/warden/layout', data),
 
  getRoomRequests: (params) => api.get('/warden/room-requests', { params }),
  updateRoomRequest: (id, data) => api.put(`/warden/room-requests/${id}`, data),
+  getDayReductionRequests: (params) => api.get('/warden/day-reduction-requests', { params }),
+  updateDayReductionRequestStatus: (id, data) => api.put(`/warden/day-reduction-requests/${id}/status`, data),
 };
 export const studentAPI = {
   // Profile
@@ -215,6 +219,8 @@ export const studentAPI = {
  getMyRoomRequests() {
    return this.getRoomRequests();
  },
+   applyDayReduction: (data) => api.post('/student/day-reduction-requests', data),
+  getMyDayReductionRequests: (params) => api.get('/student/day-reduction-requests', { params }),
   requestRoom: (data) => api.post('/student/room-requests', data),
   cancelRoomRequest: (id) => api.delete(`/student/room-requests/${id}`),
 

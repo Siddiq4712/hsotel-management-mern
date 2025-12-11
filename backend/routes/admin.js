@@ -33,7 +33,7 @@ const {
   createSupplier, getSuppliers, getSupplierById, updateSupplier, deleteSupplier,
 
   // UOM Management
-  createUOM, getUOMs, updateUOM, deleteUOM,
+  createUOM, getUOMs, updateUOM, deleteUOM,getDayReductionRequestsForAdmin,updateDayReductionRequestStatusByAdmin,
 
   // Dashboard
   getDashboardStats,
@@ -124,5 +124,8 @@ router.post('/uoms', createUOM);
 router.get('/uoms', getUOMs);
 router.put('/uoms/:id', updateUOM);
 router.delete('/uoms/:id', deleteUOM);
+
+router.get('/day-reduction-requests', getDayReductionRequestsForAdmin);
+router.put('/day-reduction-requests/:id/status', updateDayReductionRequestStatusByAdmin);
 
 module.exports = router;

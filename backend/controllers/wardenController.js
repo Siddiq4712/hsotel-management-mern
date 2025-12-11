@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const { 
   sequelize, User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,
-  Attendance, Leave, Complaint, Suspension, Holiday,Fee, MessBill,Hostel,RoomRequest
+  Attendance, Leave, Complaint, Suspension, Holiday,Fee, MessBill,Hostel,RoomRequest,DayReductionRequest
   // Note: Models not used in this controller have been removed from this import for clarity
 } = require('../models');
 
@@ -2487,7 +2487,152 @@ const decideRoomRequest = async (req, res) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
+const getDayReductionRequestsForWarden = async (req, res) => {
+  try {
+    const wardenHostelId = req.user.hostel_id;
+    if (!wardenHostelId) {
+      return res.status(403).json({ success: false, message: 'Warden is not assigned to a hostel.' });
+    }
 
+    const { status, student_id, from_date, to_date } = req.query;
+
+    let whereClause = {
+      hostel_id: wardenHostelId // Wardens only see requests for their hostel
+    };
+
+    // Wardens primarily see requests that have been approved by admin or previously processed by themselves
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    } else {
+      whereClause.status = { [Op.in]: ['approved_by_admin', 'approved_by_warden', 'rejected_by_warden'] };
+    }
+
+    if (student_id) whereClause.student_id = student_id;
+    if (from_date && to_date) {
+      whereClause[Op.and] = [
+        { from_date: { [Op.lte]: to_date } },
+        { to_date: { [Op.gte]: from_date } }
+      ];
+    }
+
+    const requests = await DayReductionRequest.findAll({
+      where: whereClause,
+      include: [
+        { model: User, as: 'Student', attributes: ['id', 'username', 'email', 'roll_number'] },
+        { model: User, as: 'AdminProcessor', attributes: ['id', 'username'], required: false },
+        { model: User, as: 'WardenProcessor', attributes: ['id', 'username'], required: false },
+        { model: Hostel, as: 'Hostel', attributes: ['id', 'name'] }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({ success: true, data: requests });
+  } catch (error) {
+    console.error('Error fetching day reduction requests for warden:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const updateDayReductionRequestStatusByWarden = async (req, res) => {
+  const transaction = await sequelize.transaction(); // Use a transaction for atomicity
+  try {
+    const { id } = req.params;
+    const { action, warden_remarks } = req.body; // 'approve' or 'reject'
+    const warden_id = req.user.id;
+    const wardenHostelId = req.user.hostel_id;
+
+    const request = await DayReductionRequest.findByPk(id, { transaction });
+
+    if (!request) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'Day reduction request not found.' });
+    }
+
+    // Ensure the warden is processing a request for their assigned hostel
+    if (request.hostel_id !== wardenHostelId) {
+        await transaction.rollback();
+        return res.status(403).json({ success: false, message: 'You are not authorized to process requests for this hostel.' });
+    }
+
+    // Ensure the request is in the correct state for warden review
+    if (request.status !== 'approved_by_admin') {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: `Request not in 'approved_by_admin' status. Current status: ${request.status}.` });
+    }
+
+    let newStatus;
+    if (action === 'approve') {
+      newStatus = 'approved_by_warden';
+    } else if (action === 'reject') {
+      newStatus = 'rejected_by_warden';
+    } else {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Invalid action. Must be "approve" or "reject".' });
+    }
+
+    await request.update({
+      status: newStatus,
+      warden_id,
+      warden_remarks,
+      // processed_at: new Date() // Add to model if tracking specific warden processing time
+    }, { transaction });
+
+    if (newStatus === 'approved_by_warden') {
+      // Mark attendance as 'OD' for the requested days
+      const { student_id, from_date, to_date, hostel_id } = request;
+      const startDate = moment(from_date);
+      const endDate = moment(to_date);
+
+      let currentDate = moment(startDate);
+      while (currentDate.isSameOrBefore(endDate)) {
+        const dateString = currentDate.format('YYYY-MM-DD');
+
+        // Check for existing attendance record for the day
+        let existingAttendance = await Attendance.findOne({
+          where: {
+            student_id,
+            hostel_id,
+            date: dateString
+          },
+          transaction
+        });
+
+        if (existingAttendance) {
+          // Update existing record if not already 'P' (present).
+          // 'OD' (On Duty) should override 'A' (Absent) or 'L' (Leave), but usually not 'P'.
+          if (existingAttendance.status !== 'P') { // Don't override 'P' if student was genuinely present
+             await existingAttendance.update({
+              status: 'OD',
+              totalManDays: 1, // 'OD' counts as a man-day for mess calculation
+              remarks: existingAttendance.remarks ? `${existingAttendance.remarks}; Day reduction request approved (ID: ${id})` : `Day reduction request approved (ID: ${id})`,
+              marked_by: warden_id // Warden approved this change
+            }, { transaction });
+          }
+        } else {
+          // Create new attendance record if none exists for the day
+          await Attendance.create({
+            student_id,
+            hostel_id,
+            date: dateString,
+            status: 'OD',
+            totalManDays: 1, // 'OD' counts as a man-day for mess calculation
+            remarks: `Day reduction request approved (ID: ${id})`,
+            marked_by: warden_id
+          }, { transaction });
+        }
+        currentDate.add(1, 'day');
+      }
+    }
+
+    await transaction.commit(); // Commit all changes if successful
+    res.json({ success: true, data: request, message: `Day reduction request ${newStatus.replace('_', ' ')} successfully.` });
+
+  } catch (error) {
+    await transaction.rollback(); // Rollback all changes if any error occurs
+    console.error('Error updating day reduction request status by warden:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
 
 module.exports = {
   // Student Enrollment
@@ -2549,5 +2694,8 @@ saveLayout,
 getLayout,
 
 getRoomRequestsWarden,
-decideRoomRequest
+decideRoomRequest,
+
+getDayReductionRequestsForWarden,       // <-- NEW EXPORT
+updateDayReductionRequestStatusByWarden, // <-- NEW EXPORT
 };
