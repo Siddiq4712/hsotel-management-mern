@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-// NOTE: wardenAPI import is kept for fetchStats, but we will not use its new monthly methods
 import { wardenAPI } from '../../services/api'; 
-import { Users, Bed, BedDouble, CheckCircle, TrendingUp, AlertTriangle, Calendar, BarChart3 } from 'lucide-react';
+import { 
+  Users, Bed, BedDouble, CheckCircle, TrendingUp, AlertTriangle, 
+  Calendar, BarChart3, ArrowUpRight, ArrowDownRight, Eye, FileText,
+  Clock, CheckSquare
+} from 'lucide-react';
 
 // CHART.JS IMPORTS
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
@@ -14,9 +17,9 @@ import {
   Title,
   Tooltip,
   Legend,
-  ArcElement, // For Doughnut/Pie charts
+  ArcElement,
   PointElement,
-  LineElement // For Line charts
+  LineElement
 } from 'chart.js';
 
 // Register Chart.js components
@@ -32,9 +35,7 @@ ChartJS.register(
   LineElement
 );
 
-// 💡 MODIFICATION 1: Accept setCurrentView as a prop
 const WardenDashboard = ({ setCurrentView }) => {
-  // 💡 NOTE: useNavigate is kept but handleQuickAction is changed
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalStudents: 0,
@@ -49,13 +50,11 @@ const WardenDashboard = ({ setCurrentView }) => {
     complaintStatus: { submitted: 0, in_progress: 0, resolved: 0, closed: 0 },
     recentLeaves: [],
     recentComplaints: [],
-    // --- Added for Attendance Chart ---
     attendanceStatus: { P: 0, A: 0, OD: 0 },
     totalTodayAttendance: 0
-    // --- End Added Block ---
   });
+  
   const [loading, setLoading] = useState(true);
-  // Initial state for monthlyData will be the mock data to prevent initial empty charts
   const [monthlyData, setMonthlyData] = useState({
     monthlyAttendance: [
       { month: 'Aug', present: 95, absent: 5 },
@@ -76,13 +75,10 @@ const WardenDashboard = ({ setCurrentView }) => {
 
   useEffect(() => {
     fetchStats();
-    // fetchMonthlyData is not called in useEffect anymore. 
-    // We rely on mock data in the initial state to avoid the API error.
   }, []);
 
   const fetchStats = async () => {
     try {
-      // This call should be safe if getDashboardStats exists
       const response = await wardenAPI.getDashboardStats();
       setStats(response.data.data);
     } catch (error) {
@@ -92,65 +88,58 @@ const WardenDashboard = ({ setCurrentView }) => {
     }
   };
 
-  // ❌ REMOVED: The fetchMonthlyData function is commented out/removed to fix the TypeError.
-  /*
-  const fetchMonthlyData = async () => {
-    try {
-      const [attendanceRes, complaintsRes, leavesRes] = await Promise.all([
-        wardenAPI.getMonthlyAttendance(),
-        wardenAPI.getMonthlyComplaints(),
-        wardenAPI.getMonthlyLeaves()
-      ]);
-      
-      setMonthlyData({
-        monthlyAttendance: attendanceRes.data.data || [],
-        monthlyComplaints: complaintsRes.data.data || [],
-        monthlyLeaves: leavesRes.data.data || []
-      });
-    } catch (error) {
-      console.error('Error fetching monthly data:', error);
-      // Fallback is no longer necessary here since it's in the initial state
+  const handleQuickAction = (viewName) => {
+    if (setCurrentView) {
+      setCurrentView(viewName);
+    } else {
+      console.warn('setCurrentView not available. Falling back to navigation.');
+      navigate('/warden/' + viewName);
     }
   };
-  */
 
+  // Enhanced stat cards with trend indicators
   const statCards = [
     {
       title: 'Total Students',
       value: stats.totalStudents,
       icon: Users,
-      color: 'bg-blue-500'
+      color: 'bg-blue-500',
+      bgLight: 'bg-blue-50',
+      textColor: 'text-blue-600',
+      trend: '+2.5%',
+      description: 'Active students'
     },
     {
-      title: 'Total Beds Capacity',
+      title: 'Total Capacity',
       value: stats.totalCapacity,
       icon: Bed,
-      color: 'bg-green-500'
+      color: 'bg-green-500',
+      bgLight: 'bg-green-50',
+      textColor: 'text-green-600',
+      trend: 'Beds available',
+      description: 'Room capacity'
     },
     {
       title: 'Occupied Beds',
       value: stats.occupiedBeds,
       icon: BedDouble,
-      color: 'bg-orange-500'
+      color: 'bg-orange-500',
+      bgLight: 'bg-orange-50',
+      textColor: 'text-orange-600',
+      trend: `${stats.totalCapacity > 0 ? Math.round((stats.occupiedBeds / stats.totalCapacity) * 100) : 0}%`,
+      description: 'Occupancy rate'
     },
     {
       title: 'Available Beds',
       value: stats.availableBeds,
       icon: CheckCircle,
-      color: 'bg-purple-500'
+      color: 'bg-purple-500',
+      bgLight: 'bg-purple-50',
+      textColor: 'text-purple-600',
+      trend: 'Ready to allot',
+      description: 'Vacant beds'
     }
   ];
-
-  // 💡 MODIFICATION 2: Use setCurrentView to change the view state in the parent
-  const handleQuickAction = (viewName) => {
-    if (setCurrentView) {
-        setCurrentView(viewName);
-    } else {
-        // Fallback or warning if setCurrentView is not passed
-        console.warn('setCurrentView not available. Falling back to navigation.');
-        navigate('/warden/' + viewName);
-    }
-  };
 
   if (loading) {
     return (
@@ -161,163 +150,225 @@ const WardenDashboard = ({ setCurrentView }) => {
   }
 
   return (
-    <div>
+    <div className="space-y-6">
+      {/* Header Section */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Warden Dashboard</h1>
-        <p className="text-gray-600 mt-2">Manage your hostel operations</p>
+        <h1 className="text-4xl font-bold text-gray-900">Welcome back, Warden</h1>
+        <p className="text-gray-500 mt-2">Here's what's happening in your hostel today</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Enhanced Stat Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((card, index) => {
           const Icon = card.icon;
           return (
-            <div key={index} className="bg-white rounded-lg shadow-md p-6">
-              <div className="flex items-center">
-                <div className={`${card.color} p-3 rounded-lg`}>
-                  <Icon className="text-white" size={24} />
+            <div 
+              key={index} 
+              className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 p-6 group"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className={`${card.bgLight} p-3 rounded-lg group-hover:scale-110 transition-transform`}>
+                  <Icon className={`${card.textColor}`} size={24} />
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">{card.title}</p>
-                  <p className="text-2xl font-bold text-gray-900">{card.value}</p>
+                <div className="flex items-center text-green-600 text-sm font-semibold">
+                  <ArrowUpRight size={16} className="mr-1" />
+                  {card.trend}
                 </div>
               </div>
+              <p className="text-sm text-gray-600 mb-1">{card.title}</p>
+              <p className="text-3xl font-bold text-gray-900">{card.value}</p>
+              <p className="text-xs text-gray-500 mt-2">{card.description}</p>
             </div>
           );
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Quick Actions - Enhanced */}
+        <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
+            <BarChart3 className="mr-2 text-blue-600" size={24} />
+            Quick Actions
+          </h2>
           <div className="space-y-3">
             <button 
-              // 💡 MODIFICATION 3: Change argument to 'enroll-student'
               onClick={() => handleQuickAction('enroll-student')} 
-              className="w-full text-left p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center"
+              className="w-full text-left p-4 bg-gradient-to-r from-blue-50 to-blue-100/50 hover:from-blue-100 hover:to-blue-100 rounded-lg transition-all duration-300 border border-blue-200 hover:border-blue-400 flex items-start group"
             >
-              <Calendar className="mr-3 h-5 w-5 text-blue-500" />
+              <div className="bg-blue-500 p-2 rounded-lg mr-3 group-hover:scale-110 transition-transform">
+                <Users className="text-white" size={18} />
+              </div>
               <div>
-                <div className="font-medium text-blue-900">Enroll New Student</div>
-                <div className="text-sm text-blue-700">Add a new student to the hostel</div>
+                <div className="font-semibold text-blue-900">Enroll New Student</div>
+                <div className="text-xs text-blue-700 mt-1">Add a new student</div>
               </div>
             </button>
+
             <button 
-              // 💡 MODIFICATION 4: Change argument to 'room-allotment'
               onClick={() => handleQuickAction('room-allotment')}
-              className="w-full text-left p-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors flex items-center"
+              className="w-full text-left p-4 bg-gradient-to-r from-green-50 to-green-100/50 hover:from-green-100 hover:to-green-100 rounded-lg transition-all duration-300 border border-green-200 hover:border-green-400 flex items-start group"
             >
-              <Bed className="mr-3 h-5 w-5 text-green-500" />
+              <div className="bg-green-500 p-2 rounded-lg mr-3 group-hover:scale-110 transition-transform">
+                <Bed className="text-white" size={18} />
+              </div>
               <div>
-                <div className="font-medium text-green-900">Room Allotment</div>
-                <div className="text-sm text-green-700">Assign rooms to students</div>
+                <div className="font-semibold text-green-900">Room Allotment</div>
+                <div className="text-xs text-green-700 mt-1">Assign rooms to students</div>
               </div>
             </button>
+
             <button 
-              // 💡 MODIFICATION 5: Change argument to 'attendance'
               onClick={() => handleQuickAction('attendance')}
-              className="w-full text-left p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors flex items-center"
+              className="w-full text-left p-4 bg-gradient-to-r from-purple-50 to-purple-100/50 hover:from-purple-100 hover:to-purple-100 rounded-lg transition-all duration-300 border border-purple-200 hover:border-purple-400 flex items-start group"
             >
-              <Users className="mr-3 h-5 w-5 text-purple-500" />
+              <div className="bg-purple-500 p-2 rounded-lg mr-3 group-hover:scale-110 transition-transform">
+                <CheckSquare className="text-white" size={18} />
+              </div>
               <div>
-                <div className="font-medium text-purple-900">Mark Attendance</div>
-                <div className="text-sm text-purple-700">Record daily attendance</div>
+                <div className="font-semibold text-purple-900">Mark Attendance</div>
+                <div className="text-xs text-purple-700 mt-1">Record daily attendance</div>
               </div>
             </button>
+
             <button 
-              // 💡 MODIFICATION 6: Change argument to 'leave-requests'
               onClick={() => handleQuickAction('leave-requests')}
-              className="w-full text-left p-3 bg-yellow-50 hover:bg-yellow-100 rounded-lg transition-colors flex items-center"
+              className="w-full text-left p-4 bg-gradient-to-r from-yellow-50 to-yellow-100/50 hover:from-yellow-100 hover:to-yellow-100 rounded-lg transition-all duration-300 border border-yellow-200 hover:border-yellow-400 flex items-start group"
             >
-              <TrendingUp className="mr-3 h-5 w-5 text-yellow-500" />
+              <div className="bg-yellow-500 p-2 rounded-lg mr-3 group-hover:scale-110 transition-transform">
+                <Calendar className="text-white" size={18} />
+              </div>
               <div>
-                <div className="font-medium text-yellow-900">Manage Leaves</div>
-                <div className="text-sm text-yellow-700">Review leave requests</div>
+                <div className="font-semibold text-yellow-900">Manage Leaves</div>
+                <div className="text-xs text-yellow-700 mt-1">Review leave requests</div>
               </div>
             </button>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Room Occupancy</h2>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <span className="text-gray-600">Occupancy Rate</span>
-              <span className="font-semibold">
+        {/* Room Occupancy & Overview - Enhanced */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Occupancy Progress */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Room Occupancy</h2>
+              <span className="text-2xl font-bold text-blue-600">
                 {stats.totalCapacity > 0 
                   ? Math.round((stats.occupiedBeds / stats.totalCapacity) * 100) 
                   : 0}%
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-pink-600 h-2 rounded-full" 
-                style={{ 
-                  width: stats.totalCapacity > 0 
-                    ? `${(stats.occupiedBeds / stats.totalCapacity) * 100}%` 
-                    : '0%' 
-                }}
-              ></div>
+            
+            <div className="space-y-4">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">
+                  <span className="font-semibold text-gray-900">{stats.occupiedBeds}</span> / {stats.totalCapacity} beds occupied
+                </span>
+              </div>
+              
+              <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500"
+                  style={{ 
+                    width: stats.totalCapacity > 0 
+                      ? `${(stats.occupiedBeds / stats.totalCapacity) * 100}%` 
+                      : '0%' 
+                  }}
+                ></div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-6">
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  <p className="text-xs text-blue-600 font-semibold uppercase">Occupied</p>
+                  <p className="text-2xl font-bold text-blue-900 mt-1">{stats.occupiedBeds}</p>
+                </div>
+                <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                  <p className="text-xs text-green-600 font-semibold uppercase">Available</p>
+                  <p className="text-2xl font-bold text-green-900 mt-1">{stats.availableBeds}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Key Metrics */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <p className="text-sm text-gray-600 mb-2">Pending Leaves</p>
+              <div className="flex items-end justify-between">
+                <p className="text-3xl font-bold text-yellow-600">{stats.pendingLeaves}</p>
+                <Clock className="text-yellow-500" size={20} />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <p className="text-sm text-gray-600 mb-2">Pending Complaints</p>
+              <div className="flex items-end justify-between">
+                <p className="text-3xl font-bold text-red-600">{stats.pendingComplaints}</p>
+                <AlertTriangle className="text-red-500" size={20} />
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Enhanced Charts Section */}
+      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {/* Room Occupancy Chart */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Room/Bed Occupancy Overview</h2>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-6">Bed Occupancy</h2>
           {stats.totalCapacity > 0 ? (
-            <div className="w-full max-w-sm mx-auto">
-              <Doughnut
-                data={{
-                  labels: ['Occupied Beds', 'Available Beds'],
-                  datasets: [
-                    {
-                      data: [stats.occupiedBeds, stats.availableBeds],
-                      backgroundColor: ['#f87171', '#34d399'],
-                      borderColor: ['#f87171', '#34d399'],
-                      borderWidth: 1,
-                    },
-                  ],
-                }}
-                options={{
-                  responsive: true,
-                  plugins: {
-                    legend: { position: 'bottom' },
-                    title: { display: true, text: `Total Capacity: ${stats.totalCapacity} Beds` },
-                    tooltip: {
-                      callbacks: {
-                        label: function(context) {
-                          let label = context.label || '';
-                          if (label) label += ': ';
-                          if (context.parsed !== null) {
-                            label += context.parsed + ' (' + (context.parsed / stats.totalCapacity * 100).toFixed(1) + '%)';
+            <div className="flex justify-center">
+              <div className="w-48 h-48">
+                <Doughnut
+                  data={{
+                    labels: ['Occupied', 'Available'],
+                    datasets: [
+                      {
+                        data: [stats.occupiedBeds, stats.availableBeds],
+                        backgroundColor: ['#3b82f6', '#e5e7eb'],
+                        borderColor: ['#1e40af', '#d1d5db'],
+                        borderWidth: 2,
+                      },
+                    ],
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                      legend: { position: 'bottom', labels: { padding: 20 } },
+                      tooltip: {
+                        callbacks: {
+                          label: function(context) {
+                            let label = context.label || '';
+                            if (label) label += ': ';
+                            if (context.parsed !== null) {
+                              label += context.parsed + ' (' + (context.parsed / stats.totalCapacity * 100).toFixed(1) + '%)';
+                            }
+                            return label;
                           }
-                          return label;
                         }
                       }
-                    }
-                  },
-                }}
-              />
+                    },
+                  }}
+                />
+              </div>
             </div>
           ) : (
-            <p className="text-gray-500 text-center">No room capacity data available.</p>
+            <p className="text-gray-500 text-center py-8">No data available</p>
           )}
         </div>
 
         {/* Complaint Status Chart */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Complaint Status Breakdown</h2>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-6">Complaint Status</h2>
           {stats.totalComplaints > 0 ? (
-            <div className="w-full max-w-md mx-auto">
+            <div className="h-80">
               <Bar
                 data={{
                   labels: ['Submitted', 'In Progress', 'Resolved', 'Closed'],
                   datasets: [
                     {
-                      label: 'Number of Complaints',
+                      label: 'Complaints',
                       data: [
                         stats.complaintStatus.submitted,
                         stats.complaintStatus.in_progress,
@@ -325,138 +376,123 @@ const WardenDashboard = ({ setCurrentView }) => {
                         stats.complaintStatus.closed,
                       ],
                       backgroundColor: ['#60a5fa', '#facc15', '#22c55e', '#6b7280'],
-                      borderColor: ['#3b82f6', '#eab308', '#16a34a', '#4b5563'],
-                      borderWidth: 1,
+                      borderRadius: 6,
+                      borderSkipped: false,
                     },
                   ],
                 }}
                 options={{
                   responsive: true,
+                  maintainAspectRatio: false,
                   plugins: {
-                    legend: { position: 'top' },
-                    title: { display: true, text: `Total Complaints: ${stats.totalComplaints}` },
+                    legend: { display: false },
                   },
                   scales: {
-                    y: {
-                      beginAtZero: true,
-                      ticks: {
-                        stepSize: 1,
-                        callback: function(value) { if (value % 1 === 0) return value; }
-                      }
-                    },
+                    y: { beginAtZero: true, border: { display: false } },
+                    x: { border: { display: false } }
                   },
                 }}
               />
             </div>
           ) : (
-            <p className="text-gray-500 text-center">No complaint data available.</p>
+            <p className="text-gray-500 text-center py-12">No data available</p>
           )}
         </div>
 
-        {/* Leave Request Status Chart */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Leave Request Status</h2>
+        {/* Leave Status Chart */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-6">Leave Requests</h2>
           {stats.totalLeaves > 0 ? (
-            <div className="w-full max-w-md mx-auto">
+            <div className="h-80">
               <Bar
                 data={{
                   labels: ['Pending', 'Approved', 'Rejected'],
                   datasets: [
                     {
-                      label: 'Number of Leaves',
+                      label: 'Leaves',
                       data: [
                         stats.leaveStatus.pending,
                         stats.leaveStatus.approved,
                         stats.leaveStatus.rejected,
                       ],
                       backgroundColor: ['#f97316', '#22c55e', '#ef4444'],
-                      borderColor: ['#ea580c', '#16a34a', '#dc2626'],
-                      borderWidth: 1,
+                      borderRadius: 6,
+                      borderSkipped: false,
                     },
                   ],
                 }}
                 options={{
                   responsive: true,
+                  maintainAspectRatio: false,
                   plugins: {
-                    legend: { position: 'top' },
-                    title: { display: true, text: `Total Leave Requests: ${stats.totalLeaves}` },
+                    legend: { display: false },
                   },
                   scales: {
-                    y: {
-                      beginAtZero: true,
-                      ticks: {
-                        stepSize: 1,
-                        callback: function(value) { if (value % 1 === 0) return value; }
-                      }
-                    },
+                    y: { beginAtZero: true, border: { display: false } },
+                    x: { border: { display: false } }
                   },
                 }}
               />
             </div>
           ) : (
-            <p className="text-gray-500 text-center">No leave request data available.</p>
+            <p className="text-gray-500 text-center py-12">No data available</p>
           )}
         </div>
 
-        {/* Today's Attendance Chart */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Today's Attendance Overview</h2>
+        {/* Attendance Overview */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-6">Today's Attendance</h2>
           {stats.totalTodayAttendance > 0 ? (
-            <div className="w-full max-w-sm mx-auto">
-              <Doughnut
-                data={{
-                  labels: ['Present', 'Absent', 'On Duty'],
-                  datasets: [
-                    {
-                      data: [
-                        stats.attendanceStatus.P,
-                        stats.attendanceStatus.A,
-                        stats.attendanceStatus.OD,
-                      ],
-                      backgroundColor: ['#22c55e', '#ef4444', '#facc15'], // Green, Red, Yellow
-                      borderColor: ['#16a34a', '#dc2626', '#eab308'],
-                      borderWidth: 1,
-                    },
-                  ],
-                }}
-                options={{
-                  responsive: true,
-                  plugins: {
-                    legend: {
-                      position: 'bottom',
-                    },
-                    title: {
-                      display: true,
-                      text: `Total Marked: ${stats.totalTodayAttendance} Students`,
-                    },
-                    tooltip: {
-                      callbacks: {
-                        label: function(context) {
-                          let label = context.label || '';
-                          if (label) {
-                              label += ': ';
-                          }
-                          if (context.parsed !== null) {
+            <div className="flex justify-center">
+              <div className="w-48 h-48">
+                <Doughnut
+                  data={{
+                    labels: ['Present', 'Absent', 'On Duty'],
+                    datasets: [
+                      {
+                        data: [
+                          stats.attendanceStatus.P,
+                          stats.attendanceStatus.A,
+                          stats.attendanceStatus.OD,
+                        ],
+                        backgroundColor: ['#22c55e', '#ef4444', '#facc15'],
+                        borderColor: ['#16a34a', '#dc2626', '#eab308'],
+                        borderWidth: 2,
+                      },
+                    ],
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                      legend: { position: 'bottom', labels: { padding: 20 } },
+                      tooltip: {
+                        callbacks: {
+                          label: function(context) {
+                            let label = context.label || '';
+                            if (label) label += ': ';
+                            if (context.parsed !== null) {
                               label += context.parsed + ' (' + (context.parsed / stats.totalTodayAttendance * 100).toFixed(1) + '%)';
+                            }
+                            return label;
                           }
-                          return label;
                         }
                       }
-                    }
-                  },
-                }}
-              />
+                    },
+                  }}
+                />
+              </div>
             </div>
           ) : (
-            <p className="text-gray-500 text-center">No attendance marked for today.</p>
+            <p className="text-gray-500 text-center py-12">No attendance marked</p>
           )}
         </div>
 
-        {/* New: Monthly Attendance Trend Chart (Now using mock data from state) */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Monthly Attendance Trend</h2>
+        {/* Monthly Attendance Trend */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-6">Attendance Trend</h2>
           {monthlyData.monthlyAttendance.length > 0 ? (
-            <div className="w-full max-w-md mx-auto">
+            <div className="h-80">
               <Line
                 data={{
                   labels: monthlyData.monthlyAttendance.map(item => item.month),
@@ -466,44 +502,52 @@ const WardenDashboard = ({ setCurrentView }) => {
                       data: monthlyData.monthlyAttendance.map(item => item.present),
                       borderColor: '#3b82f6',
                       backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                      borderWidth: 3,
                       tension: 0.4,
                       fill: true,
+                      pointBackgroundColor: '#3b82f6',
+                      pointBorderColor: '#fff',
+                      pointBorderWidth: 2,
+                      pointRadius: 5,
                     },
                     {
                       label: 'Absent %',
                       data: monthlyData.monthlyAttendance.map(item => item.absent),
                       borderColor: '#ef4444',
                       backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                      borderWidth: 3,
                       tension: 0.4,
                       fill: true,
+                      pointBackgroundColor: '#ef4444',
+                      pointBorderColor: '#fff',
+                      pointBorderWidth: 2,
+                      pointRadius: 5,
                     },
                   ],
                 }}
                 options={{
                   responsive: true,
+                  maintainAspectRatio: false,
                   plugins: {
-                    legend: { position: 'top' },
-                    title: { display: true, text: 'Attendance Over Last 3 Months' },
+                    legend: { position: 'top', labels: { padding: 20 } },
                   },
                   scales: {
-                    y: {
-                      beginAtZero: true,
-                      max: 100,
-                    },
+                    y: { beginAtZero: true, max: 100, border: { display: false } },
+                    x: { border: { display: false } }
                   },
                 }}
               />
             </div>
           ) : (
-            <p className="text-gray-500 text-center">No monthly attendance data available.</p>
+            <p className="text-gray-500 text-center py-12">No data available</p>
           )}
         </div>
 
-        {/* New: Monthly Complaints Trend Chart (Now using mock data from state) */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Monthly Complaints Trend</h2>
+        {/* Monthly Complaints Trend */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-6">Complaint Trends</h2>
           {monthlyData.monthlyComplaints.length > 0 ? (
-            <div className="w-full max-w-md mx-auto">
+            <div className="h-80">
               <Bar
                 data={{
                   labels: monthlyData.monthlyComplaints.map(item => item.month),
@@ -513,29 +557,26 @@ const WardenDashboard = ({ setCurrentView }) => {
                       data: monthlyData.monthlyComplaints.map(item => item.total),
                       backgroundColor: '#f59e0b',
                       borderColor: '#d97706',
-                      borderWidth: 1,
+                      borderRadius: 6,
+                      borderSkipped: false,
                     },
                   ],
                 }}
                 options={{
                   responsive: true,
+                  maintainAspectRatio: false,
                   plugins: {
-                    legend: { position: 'top' },
-                    title: { display: true, text: 'Complaints Over Last 3 Months' },
+                    legend: { display: false },
                   },
                   scales: {
-                    y: {
-                      beginAtZero: true,
-                      ticks: {
-                        stepSize: 1,
-                      }
-                    },
+                    y: { beginAtZero: true, border: { display: false } },
+                    x: { border: { display: false } }
                   },
                 }}
               />
             </div>
           ) : (
-            <p className="text-gray-500 text-center">No monthly complaints data available.</p>
+            <p className="text-gray-500 text-center py-12">No data available</p>
           )}
         </div>
       </div>

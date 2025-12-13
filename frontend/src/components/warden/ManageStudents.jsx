@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { wardenAPI } from '../../services/api';
-import { Users, User, Bed, AlertCircle, Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, X, Users as UsersIcon } from 'lucide-react';
+import { 
+  Users, User, Bed, AlertCircle, Search, ChevronUp, ChevronDown, 
+  ChevronLeft, ChevronRight, X, Mail, Phone, MapPin, Award,
+  Loader2
+} from 'lucide-react';
 
 const ManageStudents = ({ setCurrentView }) => {
   const navigate = useNavigate();
@@ -27,7 +31,6 @@ const ManageStudents = ({ setCurrentView }) => {
       setLoading(true);
       setError('');
       const response = await wardenAPI.getStudents();
-      console.log('Students data:', response.data.data); // Debug log
       setStudents(response.data.data);
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -71,9 +74,7 @@ const ManageStudents = ({ setCurrentView }) => {
     setSelectedStudent(student);
     setShowModal(true);
     
-    // Fetch roommates if room is assigned
     const roomInfo = getRoomInfo(student);
-    console.log('Room info for student', student.id, ':', roomInfo); // Debug log
     if (roomInfo) {
       await fetchRoommates(roomInfo.roomId, student.id);
     } else {
@@ -83,20 +84,13 @@ const ManageStudents = ({ setCurrentView }) => {
 
   const fetchRoommates = async (roomId, studentId) => {
     try {
-      console.log('Fetching roommates for roomId:', roomId, 'studentId:', studentId); // Debug log
       setRoommatesLoading(true);
       const response = await wardenAPI.getRoomOccupants(roomId);
-      console.log('Room occupants response:', response.data.data); // Debug log
       const allOccupants = response.data.data || [];
-      // Filter out the current student
       const mates = allOccupants.filter(occupant => occupant.id !== studentId);
-      console.log('Filtered roommates:', mates); // Debug log
       setRoommates(mates);
     } catch (error) {
       console.error('Error fetching roommates:', error);
-      if (error.response) {
-        console.error('Error response:', error.response.data);
-      }
       setRoommates([]);
     } finally {
       setRoommatesLoading(false);
@@ -122,97 +116,104 @@ const ManageStudents = ({ setCurrentView }) => {
     return pages;
   };
 
-  // Helper function to safely access room data
-const getRoomInfo = (student) => {
-  // Check for room allotments
-  if (!student.tbl_RoomAllotments || student.tbl_RoomAllotments.length === 0) {
-    return null;
-  }
-  
-  // Find the active room allotment
-  const activeAllotment = student.tbl_RoomAllotments.find(allotment => allotment.is_active);
-  if (!activeAllotment) return null;
-  
-  // Get room details (handle both possible property names)
-  const room = activeAllotment.HostelRoom || activeAllotment.tbl_HostelRoom;
-  if (!room) return null;
-  
-  // Get room type (handle nesting from Sequelize include)
-  const roomType = room.RoomType || room.tbl_RoomType || room.RoomType?.tbl_RoomType; // FIXED: Handle potential nesting
-  
-  return {
-    roomNumber: room.room_number,
-    roomTypeName: roomType?.name || 'Standard',
-    roomId: room.id // Now guaranteed to be available
+  const getRoomInfo = (student) => {
+    if (!student.tbl_RoomAllotments || student.tbl_RoomAllotments.length === 0) {
+      return null;
+    }
+    
+    const activeAllotment = student.tbl_RoomAllotments.find(allotment => allotment.is_active);
+    if (!activeAllotment) return null;
+    
+    const room = activeAllotment.HostelRoom || activeAllotment.tbl_HostelRoom;
+    if (!room) return null;
+    
+    const roomType = room.RoomType || room.tbl_RoomType;
+    
+    return {
+      roomNumber: room.room_number,
+      roomTypeName: roomType?.name || 'Standard',
+      roomId: room.id
+    };
   };
-};
 
-  // Helper to get session from enrollment
   const getSession = (student) => {
-    return student.session || 'N/A';  // FIXED: Use direct student.session instead of tbl_Enrollments[0].session
+    return student.session || 'N/A';
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 text-blue-600 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 font-medium">Loading students...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-        <div className="flex items-center">
-          <AlertCircle className="text-red-400 mr-2" size={20} />
-          <div>
-            <h3 className="text-sm font-medium text-red-800">Error loading students</h3>
-            <div className="text-sm text-red-700 mt-1">{error}</div>
+      <div className="p-6 bg-red-50 border border-red-200 rounded-xl">
+        <div className="flex items-start space-x-4">
+          <div className="bg-red-100 p-3 rounded-lg">
+            <AlertCircle className="text-red-600" size={24} />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-red-900">Error Loading Students</h3>
+            <p className="text-red-700 mt-1 text-sm">{error}</p>
+            <button 
+              onClick={fetchStudents}
+              className="mt-4 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              Try Again
+            </button>
           </div>
         </div>
-        <button 
-          onClick={fetchStudents}
-          className="mt-3 bg-red-100 text-red-800 px-3 py-1 rounded text-sm hover:bg-red-200"
-        >
-          Try Again
-        </button>
       </div>
     );
   }
 
   return (
-    <div>
+    <div className="space-y-6">
+      {/* Header Section */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Manage Students</h1>
-        <p className="text-gray-600 mt-2">View and manage enrolled students</p>
+        <h1 className="text-4xl font-bold text-gray-900">Manage Students</h1>
+        <p className="text-gray-600 mt-2">Monitor and manage all enrolled students in your hostel</p>
       </div>
 
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <div className="px-4 py-4 bg-gray-50 border-b border-gray-200">
+      {/* Main Table Card */}
+      <div className="bg-white shadow-sm rounded-xl border border-gray-100 overflow-hidden">
+        {/* Header Section */}
+        <div className="px-6 py-5 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200">
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center">
-              <Users className="text-gray-400 mr-2" size={20} />
-              <h2 className="text-lg font-medium text-gray-900">Student List</h2>
-              <span className="ml-2 text-sm text-gray-500">
-                ({filteredAndSortedStudents.length} students)
-              </span>
+            <div className="flex items-center space-x-3">
+              <div className="bg-blue-600 p-3 rounded-lg">
+                <Users className="text-white" size={24} />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Student Directory</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {filteredAndSortedStudents.length} total student{filteredAndSortedStudents.length !== 1 ? 's' : ''}
+                </p>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+
+            <div className="flex items-center space-x-3">
+              <div className="relative flex-1 min-w-xs">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="text"
                   placeholder="Search by name or roll number..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
+                  className="pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent w-80 transition-all"
                 />
               </div>
               <button
                 onClick={fetchStudents}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 flex items-center"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center space-x-2"
               >
-                Refresh
+                <span>Refresh</span>
               </button>
             </div>
           </div>
@@ -220,69 +221,89 @@ const getRoomInfo = (student) => {
 
         {students.length > 0 ? (
           <>
+            {/* Table */}
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-  <tr>
-    <th
-      className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hover:bg-gray-100"
-    >
-      Student
-    </th>
-    <th
-      className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
-      onClick={() => handleSort('roll_number')}
-    >
-      Roll Number
-      {sortBy === 'roll_number' && (
-        <span className="ml-1">
-          {sortOrder === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </span>
-      )}
-    </th>
-    <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Room
-    </th>
-  </tr>
-</thead>
-
-                <tbody className="bg-white divide-y divide-gray-200">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="px-6 py-4 text-left">
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Student</span>
+                    </th>
+                    <th 
+                      className="px-6 py-4 text-left cursor-pointer hover:bg-gray-100 transition-colors"
+                      onClick={() => handleSort('roll_number')}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Roll Number</span>
+                        {sortBy === 'roll_number' && (
+                          <span className="text-blue-600">
+                            {sortOrder === 'asc' ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-left">
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Room Assignment</span>
+                    </th>
+                    <th className="px-6 py-4 text-left">
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Session</span>
+                    </th>
+                    <th className="px-6 py-4 text-center">
+                      <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Action</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
                   {currentStudents.map((student) => {
                     const roomInfo = getRoomInfo(student);
                     
                     return (
                       <tr 
                         key={student.id} 
-                        className="hover:bg-gray-50 cursor-pointer transition-colors"
-                        onClick={() => handleRowClick(student)}
+                        className="hover:bg-blue-50 transition-colors group"
                       >
-                        <td className="px-2 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="bg-blue-100 p-1.5 rounded-full">
-                              <User className="text-blue-600" size={14} />
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center space-x-3">
+                            <div className="bg-blue-100 p-2 rounded-full group-hover:bg-blue-200 transition-colors">
+                              <User className="text-blue-600" size={18} />
                             </div>
-                            <div className="ml-2">
-                              <div className="text-xs font-medium text-gray-900">
-                                {student.username}
-                              </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{student.username}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">ID: {student.id}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {student.roll_number || 'N/A'}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm font-medium text-gray-900">{student.roll_number || '—'}</span>
                         </td>
-                        <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap">
                           {roomInfo ? (
-                            <div className="flex items-center">
-                              <Bed size={14} className="mr-1 text-gray-400" />
-                              Room {roomInfo.roomNumber}
-                              <span className="ml-1 text-xs text-gray-400">
-                                ({roomInfo.roomTypeName})
-                              </span>
+                            <div className="flex items-center space-x-2">
+                              <div className="bg-green-100 p-2 rounded-lg">
+                                <Bed size={16} className="text-green-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">Room {roomInfo.roomNumber}</p>
+                                <p className="text-xs text-gray-500">{roomInfo.roomTypeName}</p>
+                              </div>
                             </div>
                           ) : (
-                            <span className="text-orange-600">Not assigned</span>
+                            <div className="flex items-center space-x-2">
+                              <div className="w-2 h-2 rounded-full bg-amber-400"></div>
+                              <span className="text-sm text-amber-700 font-medium">Not Assigned</span>
+                            </div>
                           )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-gray-700 font-medium">{getSession(student)}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <button
+                            onClick={() => handleRowClick(student)}
+                            className="inline-flex items-center px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            View Details
+                          </button>
                         </td>
                       </tr>
                     );
@@ -293,93 +314,83 @@ const getRoomInfo = (student) => {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-                <div className="flex-1 flex justify-between sm:hidden">
-                  <button
-                    onClick={() => setCurrentPage(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </button>
-                </div>
-                <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm text-gray-700">
-                      Showing <span className="font-medium">{indexOfFirstStudent + 1}</span> to{' '}
-                      <span className="font-medium">{Math.min(indexOfLastStudent, filteredAndSortedStudents.length)}</span> of{' '}
-                      <span className="font-medium">{filteredAndSortedStudents.length}</span> results
-                    </p>
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Showing <span className="font-semibold">{indexOfFirstStudent + 1}</span> to{' '}
+                    <span className="font-semibold">{Math.min(indexOfLastStudent, filteredAndSortedStudents.length)}</span> of{' '}
+                    <span className="font-semibold">{filteredAndSortedStudents.length}</span>
                   </div>
-                  <div>
-                    <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                      <button
-                        onClick={() => setCurrentPage(currentPage - 1)}
-                        disabled={currentPage === 1}
-                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <span className="sr-only">Previous</span>
-                        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
-                      </button>
-                      {/* Page numbers with ellipsis */}
-                      {getPageNumbers().map((page, index) => (
+                  
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => setCurrentPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="p-2 hover:bg-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft size={18} className="text-gray-600" />
+                    </button>
+                    
+                    <div className="flex items-center space-x-1">
+                      {currentPage > 2 && (
+                        <>
+                          <button
+                            onClick={() => paginate(1)}
+                            className="px-3 py-1 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+                          >
+                            1
+                          </button>
+                          {currentPage > 3 && <span className="text-gray-400">...</span>}
+                        </>
+                      )}
+                      
+                      {getPageNumbers().map(page => (
                         <button
                           key={page}
                           onClick={() => paginate(page)}
-                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                          className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                             currentPage === page
-                              ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                              : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500'
-                          } ${index === 0 && currentPage > 3 ? 'rounded-none' : ''} ${index === getPageNumbers().length - 1 && currentPage < totalPages - 2 ? 'rounded-none' : ''}`}
+                              ? 'bg-blue-600 text-white'
+                              : 'text-gray-700 hover:bg-gray-200'
+                          }`}
                         >
                           {page}
                         </button>
                       ))}
-                      {currentPage < totalPages - 2 && (
-                        <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm text-gray-500">
-                          ...
-                        </span>
+                      
+                      {currentPage < totalPages - 1 && (
+                        <>
+                          {currentPage < totalPages - 2 && <span className="text-gray-400">...</span>}
+                          <button
+                            onClick={() => paginate(totalPages)}
+                            className="px-3 py-1 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+                          >
+                            {totalPages}
+                          </button>
+                        </>
                       )}
-                      <button
-                        onClick={() => setCurrentPage(totalPages)}
-                        disabled={currentPage === totalPages}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          currentPage === totalPages
-                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500'
-                        }`}
-                      >
-                        {totalPages}
-                      </button>
-                      <button
-                        onClick={() => setCurrentPage(currentPage + 1)}
-                        disabled={currentPage === totalPages}
-                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 focus:z-10 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <span className="sr-only">Next</span>
-                        <ChevronRight className="h-5 w-5" aria-hidden="true" />
-                      </button>
-                    </nav>
+                    </div>
+                    
+                    <button
+                      onClick={() => setCurrentPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="p-2 hover:bg-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronRight size={18} className="text-gray-600" />
+                    </button>
                   </div>
                 </div>
               </div>
             )}
           </>
         ) : (
-          <div className="text-center py-12">
-            <Users className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No students enrolled</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Students you enroll will appear here.
+          <div className="text-center py-16">
+            <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Users className="text-blue-600" size={32} />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mt-4">No Students Enrolled</h3>
+            <p className="text-gray-600 mt-2 max-w-sm mx-auto">
+              Start enrolling students to see them appear in your directory.
             </p>
           </div>
         )}
@@ -388,68 +399,131 @@ const getRoomInfo = (student) => {
       {/* Student Details Modal */}
       {showModal && selectedStudent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Student Details</h3>
-                <button
-                  onClick={() => {
-                    setShowModal(false);
-                    setSelectedStudent(null);
-                    setRoommates([]);
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X size={20} />
-                </button>
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
+            {/* Modal Header */}
+            <div className="sticky top-0 flex items-center justify-between p-6 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200">
+              <h3 className="text-xl font-bold text-gray-900">Student Details</h3>
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  setSelectedStudent(null);
+                  setRoommates([]);
+                }}
+                className="p-2 hover:bg-blue-200 rounded-lg transition-colors text-gray-600"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Student Info Card */}
+              <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
+                <div className="flex items-start space-x-4">
+                  <div className="bg-blue-600 p-4 rounded-lg">
+                    <User className="text-white" size={32} />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="text-2xl font-bold text-gray-900">{selectedStudent.username}</h4>
+                    <div className="mt-3 grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-gray-600 font-semibold uppercase">Roll Number</p>
+                        <p className="text-lg font-semibold text-gray-900 mt-1">
+                          {selectedStudent.roll_number || '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600 font-semibold uppercase">Student ID</p>
+                        <p className="text-lg font-semibold text-gray-900 mt-1">{selectedStudent.id}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              
-              <div className="space-y-4">
-                <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="bg-blue-100 p-2 rounded-full">
-                    <User className="text-blue-600" size={20} />
+
+              {/* Room Information */}
+              <div className="bg-white rounded-xl p-6 border border-gray-200">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="bg-green-100 p-2 rounded-lg">
+                    <Bed className="text-green-600" size={20} />
                   </div>
-                  <div>
-                    <p className="font-medium text-gray-900">{selectedStudent.username}</p>
-                    <p className="text-sm text-gray-500">Roll Number: {selectedStudent.roll_number || 'N/A'}</p>
-                  </div>
+                  <h4 className="font-bold text-gray-900">Room Assignment</h4>
                 </div>
-                
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-2">Room Information</h4>
-                  {getRoomInfo(selectedStudent) ? (
-                    <p className="text-sm text-gray-600">
-                      Room {getRoomInfo(selectedStudent).roomNumber} ({getRoomInfo(selectedStudent).roomTypeName})
+                {getRoomInfo(selectedStudent) ? (
+                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                    <p className="text-sm text-gray-600 mb-1">Room Number</p>
+                    <p className="text-2xl font-bold text-green-700">
+                      Room {getRoomInfo(selectedStudent).roomNumber}
                     </p>
-                  ) : (
-                    <p className="text-sm text-orange-600">No room assigned</p>
-                  )}
+                    <p className="text-sm text-gray-600 mt-3">Type</p>
+                    <p className="font-semibold text-gray-900">
+                      {getRoomInfo(selectedStudent).roomTypeName}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                    <p className="text-sm text-amber-800">
+                      <span className="font-semibold">⚠ No room assigned</span> - Please assign a room to this student.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Session Information */}
+              <div className="bg-white rounded-xl p-6 border border-gray-200">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="bg-purple-100 p-2 rounded-lg">
+                    <Award className="text-purple-600" size={20} />
+                  </div>
+                  <h4 className="font-bold text-gray-900">Academic Session</h4>
+                </div>
+                <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                  <p className="text-sm text-gray-600 mb-1">Current Session</p>
+                  <p className="text-lg font-semibold text-gray-900">{getSession(selectedStudent)}</p>
+                </div>
+              </div>
+
+              {/* Roommates Section */}
+              <div className="bg-white rounded-xl p-6 border border-gray-200">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="bg-indigo-100 p-2 rounded-lg">
+                    <Users className="text-indigo-600" size={20} />
+                  </div>
+                  <h4 className="font-bold text-gray-900">Roommates</h4>
                 </div>
                 
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-2">Session</h4>
-                  <p className="text-sm text-gray-600">{getSession(selectedStudent)}</p>
-                </div>
-                
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium text-gray-900 mb-2">Room Mates</h4>
-                  {roommatesLoading ? (
-                    <div className="flex items-center justify-center py-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                {roommatesLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="text-center">
+                      <Loader2 className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
+                      <p className="text-sm text-gray-600">Loading roommates...</p>
                     </div>
-                  ) : roommates.length > 0 ? (
-                    <div className="space-y-1 max-h-24 overflow-y-auto">
-                      {roommates.map(mate => (
-                        <div key={mate.id} className="text-sm text-gray-600 flex items-center">
-                          <User className="mr-2 h-3 w-3" />
-                          {mate.username} ({mate.roll_number || 'N/A'})
+                  </div>
+                ) : roommates.length > 0 ? (
+                  <div className="space-y-3">
+                    {roommates.map(mate => (
+                      <div key={mate.id} className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
+                        <div className="flex items-start space-x-3">
+                          <div className="bg-indigo-100 p-2 rounded-full mt-1">
+                            <User className="text-indigo-600" size={16} />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-900">{mate.username}</p>
+                            <p className="text-sm text-gray-600">Roll: {mate.roll_number || '—'}</p>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">No roommates or room not assigned</p>
-                  )}
-                </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <p className="text-sm text-gray-600">
+                      {getRoomInfo(selectedStudent) 
+                        ? 'No roommates assigned to this room'
+                        : 'No roommates - room not assigned'}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

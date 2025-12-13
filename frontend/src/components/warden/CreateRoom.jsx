@@ -1,12 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { DndProvider } from "react-dnd";
+import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
-import { useDrag, useDrop } from "react-dnd";
 import { wardenAPI } from "../../services/api";
 
+// Icons (Using inline spans for placeholders)
+const IconBuilding = () => <span className="mr-2 text-indigo-500">🏢</span>;
+const IconDoor = () => <span className="mr-2 text-indigo-500">🚪</span>;
+const IconFloor = () => <span className="mr-2 text-indigo-500">🪜</span>;
+const IconSave = () => <span className="mr-2 text-white">💾</span>;
+const IconLoad = () => <span className="mr-2 text-white">🔄</span>;
+const IconRoom = () => <span className="mr-2 text-indigo-500">🛌</span>;
+const IconMap = () => <span className="mr-2 text-indigo-600">🗺️</span>;
+
+/* ---------- helpers (UNCHANGED) ---------- */
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-/* ---------- helpers ---------- */
 const indexToLetters = (index) => {
   let n = index;
   let result = "";
@@ -127,7 +135,7 @@ const generateGridShape = ({
   return grid;
 };
 
-/* ---------- drag/drop ---------- */
+/* ---------- drag/drop (UPGRADED STYLES) ---------- */
 const DraggableRoomType = ({ typeName }) => {
   const [{ isDragging }, dragRef] = useDrag(() => ({
     type: "roomType",
@@ -135,13 +143,15 @@ const DraggableRoomType = ({ typeName }) => {
     collect: (monitor) => ({ isDragging: monitor.isDragging() }),
   }));
 
+  // Upgraded template styling to match theme
   return (
     <div
       ref={dragRef}
-      className={`p-2 border rounded mb-1 bg-white cursor-pointer shadow transition-opacity ${
-        isDragging ? "opacity-40" : ""
+      className={`p-3 border-2 border-dashed rounded-lg mb-2 bg-gray-50 text-gray-700 font-medium cursor-grab active:cursor-grabbing hover:bg-gray-100 transition-opacity transform hover:scale-[1.01] ${
+        isDragging ? "opacity-50 border-indigo-400" : "border-gray-300"
       }`}
     >
+      <IconRoom />
       {typeName}
     </div>
   );
@@ -175,52 +185,74 @@ const DropZone = ({ slotId, data, active, onDrop, onClickEdit }) => {
     [dropRef, dragRef, data],
   );
 
-  if (!active) return <div className="w-full h-full" />;
+  if (!active) return <div className="w-full h-full bg-gray-50/50" />; 
+
+  // Determine base styles for the room cell
+  let baseClasses = "border-2 rounded-lg flex flex-col items-center justify-center text-xs p-1 select-none transition-all duration-150 cursor-pointer";
+  let contentClasses = "flex flex-col items-center justify-center h-full";
+  
+  if (data) {
+    // Existing room styles (upgraded)
+    baseClasses += data.inactive
+      ? " bg-red-100 border-red-400 text-red-800 hover:bg-red-200"
+      : " bg-indigo-100 border-indigo-400 text-indigo-900 font-semibold hover:bg-indigo-200";
+    contentClasses += data.inactive ? " opacity-70" : "";
+  } else {
+    // Empty drop zone styles (upgraded)
+    baseClasses += " border-dashed border-gray-300 bg-white hover:bg-gray-100 text-gray-500 hover:border-indigo-400";
+  }
+
+  // Dragging/hover effects
+  baseClasses += isDragging ? " opacity-40 shadow-xl" : "";
+  baseClasses += isOver ? " ring-4 ring-offset-2 ring-green-500 shadow-lg" : "";
 
   return (
     <div
       ref={refCallback}
       onClick={() => data && onClickEdit(slotId, data)}
-      className={`border rounded flex flex-col items-center justify-center text-xs p-1 select-none 
-        ${data ? (data.inactive ? "bg-gray-200 border-gray-400 text-gray-600" : "bg-blue-100 border-blue-400 text-blue-900") : "border-dashed border-gray-300 bg-gray-50 text-gray-500"} 
-        ${isDragging ? "opacity-50" : ""} ${isOver ? "ring-2 ring-green-400" : ""}`}
+      className={baseClasses}
       style={{ width: "100%", height: "100%" }}
     >
-      {data ? (
-        <>
-          <strong className="text-xs text-center">{data.name}</strong>
-          <span className="text-[11px]">Room#: {data.room_number || "—"}</span>
-          <span className="text-[11px]">Cap: {data.capacity}</span>
-          {data.inactive && <span className="text-[11px] font-semibold text-red-600">(Inactive)</span>}
-        </>
-      ) : (
-        "Drop here"
-      )}
+      <div className={contentClasses}>
+        {data ? (
+          <>
+            <strong className="text-sm text-center truncate w-full px-1">{data.name}</strong>
+            <span className="text-xs font-mono mt-1"># {data.room_number || "—"}</span>
+            <span className="text-[10px] opacity-90">Capacity: {data.capacity}</span>
+            {data.inactive && <span className="text-[10px] font-bold text-red-600 animate-pulse mt-1">(INACTIVE)</span>}
+          </>
+        ) : (
+          <span className="text-sm font-medium">Drop Room Here</span>
+        )}
+      </div>
     </div>
   );
 };
 
 const EntranceLabel = ({ side }) => {
   if (!side) return null;
-  const label = <span className="font-bold text-xs text-red-600">ENTRANCE</span>;
-  if (side === "t") return <div className="text-center mb-1">{label}</div>;
-  if (side === "b") return <div className="text-center mt-1">{label}</div>;
+  // Used a deep amber/orange for the entrance to clearly contrast with the indigo/blue theme.
+  const label = <span className="font-bold text-sm text-amber-600 bg-amber-100 px-3 py-1 rounded-full shadow-md whitespace-nowrap">MAIN ENTRANCE</span>;
+  
+  // Upgraded entrance label positioning and styling
+  if (side === "t") return <div className="text-center mb-2 -mt-2">{label}</div>;
+  if (side === "b") return <div className="text-center mt-2 -mb-2">{label}</div>;
   if (side === "l")
     return (
-      <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full">
-        <div className="rotate-90">{label}</div>
+      <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-4">
+        <div className="rotate-90 origin-bottom-left transform -translate-x-full">{label}</div>
       </div>
     );
   if (side === "r")
     return (
-      <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full">
-        <div className="-rotate-90">{label}</div>
+      <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full pl-4">
+        <div className="-rotate-90 origin-bottom-right transform translate-x-full">{label}</div>
       </div>
     );
   return null;
 };
 
-/* ---------- main component ---------- */
+/* ---------- main component (UPGRADED STYLES) ---------- */
 const CreateRoom = ({ hostelId }) => {
   const [buildingType, setBuildingType] = useState("single");
   const [floors, setFloors] = useState(1);
@@ -250,6 +282,8 @@ const CreateRoom = ({ hostelId }) => {
   );
 
   const gridShape = useMemo(() => generateGridShape(settings), [settings]);
+
+  /* ---------- Handlers (UNCHANGED LOGIC) ---------- */
 
   const handleUpdateCell = useCallback(
     (slot, updater) => {
@@ -368,6 +402,7 @@ const CreateRoom = ({ hostelId }) => {
       });
 
       setCellData(mapping);
+      alert("Layout loaded successfully.");
     } catch (error) {
       console.error("Failed to load layout:", error);
       alert(error.message || "Failed to load layout");
@@ -497,19 +532,23 @@ const CreateRoom = ({ hostelId }) => {
 
   const renderedGrid = useMemo(
     () => (
-      <div className="relative">
+      // Upgraded grid container with subtle border/shadow
+      <div className="relative p-2 border-2 border-gray-200 rounded-xl shadow-inner bg-gray-50">
         <EntranceLabel side={entranceSide} />
         {Array.from({ length: floors }).map((_, floorIdx) => (
-          <div key={floorIdx} className="mb-8">
-            <h3 className="mb-2 text-base font-semibold">Floor {floors - floorIdx}</h3>
+          <div key={floorIdx} className="mb-6 first:mt-4">
+            <h3 className="mb-3 text-lg font-bold text-gray-800 border-b border-gray-200 pb-1">
+              <IconFloor />Floor {floors - floorIdx}
+            </h3>
             {gridShape.map((row, rowIdx) => (
-              <div key={`${floorIdx}-${rowIdx}`} className="flex">
+              <div key={`${floorIdx}-${rowIdx}`} className="flex justify-center">
                 {row.map((cell, colIdx) => {
                   const slotId = `${floorIdx}-${rowIdx}-${colIdx}`;
                   const active = cell !== "EMPTY";
                   const data = cellData[slotId];
                   return (
-                    <div key={slotId} style={{ width: 72, height: 72, margin: 3 }}>
+                    // Grid cell size and margin adjusted for a cleaner look
+                    <div key={slotId} style={{ width: 80, height: 80, margin: 4 }}>
                       <DropZone
                         slotId={slotId}
                         data={data}
@@ -531,17 +570,23 @@ const CreateRoom = ({ hostelId }) => {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="p-6 space-y-8">
-        <h1 className="text-2xl font-bold">Hostel Layout Creator</h1>
+      <div className="p-8 bg-gray-50 min-h-screen">
+        <h1 className="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-2">
+          {/* <IconMap /> */}
+          Hostel Layout Creator
+        </h1>
 
-        {/* configuration */}
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded border bg-white p-4 shadow-sm">
-            <label className="mb-1 block text-sm font-semibold">Building Type</label>
+        {/* configuration - use a card-like grid */}
+        <section className="grid grid-cols-1 gap-6 md:grid-cols-3 mb-8">
+          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-lg">
+            <label className="mb-2 block text-sm font-bold text-gray-700">
+              {/* <IconBuilding /> */}
+              Building Type
+            </label>
             <select
               value={buildingType}
               onChange={(event) => setBuildingType(event.target.value)}
-              className="h-10 w-full rounded border px-3"
+              className="h-11 w-full rounded-lg border-gray-300 border focus:border-indigo-500 focus:ring-indigo-500 px-4 transition duration-150"
             >
               <option value="single">Straight (Single Side)</option>
               <option value="l">L-Shaped</option>
@@ -550,12 +595,15 @@ const CreateRoom = ({ hostelId }) => {
             </select>
           </div>
 
-          <div className="rounded border bg-white p-4 shadow-sm">
-            <label className="mb-1 block text-sm font-semibold">Entrance Side</label>
+          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-lg">
+            <label className="mb-2 block text-sm font-bold text-gray-700">
+              {/* <IconDoor /> */}
+              Entrance Side
+            </label>
             <select
               value={entranceSide}
               onChange={(event) => setEntranceSide(event.target.value)}
-              className="h-10 w-full rounded border px-3"
+              className="h-11 w-full rounded-lg border-gray-300 border focus:border-indigo-500 focus:ring-indigo-500 px-4 transition duration-150"
             >
               <option value="t">Top</option>
               <option value="b">Bottom</option>
@@ -564,55 +612,60 @@ const CreateRoom = ({ hostelId }) => {
             </select>
           </div>
 
-          <div className="rounded border bg-white p-4 shadow-sm">
-            <label className="mb-1 block text-sm font-semibold">Floors</label>
+          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-lg">
+            <label className="mb-2 block text-sm font-bold text-gray-700">
+              {/* <IconFloor /> */}
+              Floors
+            </label>
             <input
               type="number"
               min={1}
               value={floors}
               onChange={(event) => setFloors(Math.max(1, parseInt(event.target.value, 10) || 1))}
-              className="h-10 w-full rounded border px-3"
+              className="h-11 w-full rounded-lg border-gray-300 border focus:border-indigo-500 focus:ring-indigo-500 px-4 transition duration-150"
             />
           </div>
         </section>
 
         {/* rooms per side / orientation */}
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="rounded border bg-white p-4 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-600">
+        <section className="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-8">
+          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-lg">
+            <h2 className="mb-4 text-base font-extrabold uppercase tracking-wider text-indigo-700">
               Rooms per side
             </h2>
-            {[
-              { label: "Top", setter: setTopRooms, value: topRooms },
-              { label: "Bottom", setter: setBottomRooms, value: bottomRooms },
-              { label: "Left", setter: setLeftRooms, value: leftRooms },
-              { label: "Right", setter: setRightRooms, value: rightRooms },
-            ].map(({ label, setter, value }) => (
-              <label key={label} className="mb-2 block text-sm">
-                {label}
-                <input
-                  type="number"
-                  min={0}
-                  value={value}
-                  onChange={(event) => setter(Math.max(0, parseInt(event.target.value, 10) || 0))}
-                  className="mt-1 h-9 w-full rounded border px-3 text-sm"
-                />
-              </label>
-            ))}
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { label: "Top", setter: setTopRooms, value: topRooms },
+                { label: "Bottom", setter: setBottomRooms, value: bottomRooms },
+                { label: "Left", setter: setLeftRooms, value: leftRooms },
+                { label: "Right", setter: setRightRooms, value: rightRooms },
+              ].map(({ label, setter, value }) => (
+                <label key={label} className="block text-sm font-medium text-gray-700">
+                  {label} Count
+                  <input
+                    type="number"
+                    min={0}
+                    value={value}
+                    onChange={(event) => setter(Math.max(0, parseInt(event.target.value, 10) || 0))}
+                    className="mt-1 h-10 w-full rounded-lg border-gray-300 border px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150"
+                  />
+                </label>
+              ))}
+            </div>
           </div>
 
-          <div className="rounded border bg-white p-4 shadow-sm">
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-600">
-              Orientation
+          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-lg">
+            <h2 className="mb-4 text-base font-extrabold uppercase tracking-wider text-indigo-700">
+              Building Orientation
             </h2>
 
             {buildingType === "l" && (
-              <label className="block text-sm">
-                L shape
+              <label className="block text-sm font-medium text-gray-700">
+                L shape Orientation
                 <select
                   value={lOrientation}
                   onChange={(event) => setLOrientation(event.target.value)}
-                  className="mt-1 h-9 w-full rounded border px-3 text-sm"
+                  className="mt-1 h-10 w-full rounded-lg border-gray-300 border px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150"
                 >
                   <option value="tl">Top-Left</option>
                   <option value="tr">Top-Right</option>
@@ -623,76 +676,90 @@ const CreateRoom = ({ hostelId }) => {
             )}
 
             {buildingType === "u" && (
-              <label className="block text-sm">
-                U opening
+              <label className="block text-sm font-medium text-gray-700">
+                U shape Opening Side
                 <select
                   value={uOpenSide}
                   onChange={(event) => setUOpenSide(event.target.value)}
-                  className="mt-1 h-9 w-full rounded border px-3 text-sm"
+                  className="mt-1 h-10 w-full rounded-lg border-gray-300 border px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150"
                 >
-                  <option value="t">Open top</option>
-                  <option value="b">Open bottom</option>
-                  <option value="l">Open left</option>
-                  <option value="r">Open right</option>
+                  <option value="t">Open Top</option>
+                  <option value="b">Open Bottom</option>
+                  <option value="l">Open Left</option>
+                  <option value="r">Open Right</option>
                 </select>
               </label>
             )}
+
+            {["single", "square"].includes(buildingType) && (
+                <p className="text-gray-500 text-sm mt-4">No specific orientation required for {buildingType} shape.</p>
+            )}
           </div>
         </section>
-
-        <div className="flex gap-3">
+        
+        {/* Actions */}
+        <div className="flex gap-4 mb-8">
           <button
             type="button"
             onClick={loadLayoutFromDB}
-            className="rounded bg-purple-600 px-4 py-2 text-white shadow-sm hover:bg-purple-700"
+            className="flex items-center rounded-lg bg-gray-700 px-6 py-3 text-white font-semibold shadow-md hover:bg-gray-800 transition duration-150 transform hover:scale-[1.01]"
           >
-            Edit existing layout
+            <IconLoad />
+            Load Existing Layout
           </button>
           <button
             type="button"
             onClick={saveLayoutToDB}
-            className="rounded bg-green-600 px-4 py-2 text-white shadow-sm hover:bg-green-700"
+            className="flex items-center rounded-lg bg-indigo-600 px-6 py-3 text-white font-semibold shadow-lg hover:bg-indigo-700 transition duration-150 transform hover:scale-[1.01]"
           >
-            Save layout
+            <IconSave />
+            Save Current Layout
           </button>
         </div>
 
-        <section className="flex gap-6">
-          <aside className="w-60 rounded border bg-white p-4 shadow-sm">
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-600">
-              Room templates
+        {/* Main Workspace */}
+        <section className="flex gap-6 lg:flex-row flex-col">
+          <aside className="lg:w-64 w-full rounded-xl border border-gray-200 bg-white p-5 shadow-lg lg:sticky lg:top-4 h-fit">
+            <h3 className="mb-4 text-base font-extrabold uppercase tracking-wider text-indigo-700 border-b pb-2">
+              <IconRoom />Room Templates
             </h3>
             {["Living Room", "Admin Room", "Miscellaneous Room"].map((name) => (
               <DraggableRoomType key={name} typeName={name} />
             ))}
+            <p className="text-xs text-gray-500 mt-4 p-2 bg-gray-50 rounded">
+                Drag a template onto an active slot in the grid to create a new room.
+            </p>
           </aside>
 
-          <main className="flex-1 overflow-auto rounded border bg-white p-4 shadow-sm">
+          <main className="flex-1 overflow-x-auto rounded-xl border border-gray-200 bg-white p-6 shadow-lg">
             {renderedGrid}
           </main>
         </section>
       </div>
 
+      {/* Edit Room Modal (Upgraded) */}
       {editSlot && editData && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur">
-          <div className="w-96 rounded bg-white p-5 shadow-lg">
-            <h3 className="mb-4 text-lg font-semibold">Edit room</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl transform transition-all duration-300 scale-100">
+            <h3 className="mb-5 text-xl font-bold text-gray-800 border-b pb-2">
+                Edit Room Details: <span className="text-indigo-600">{editData.room_number || "New Room"}</span>
+            </h3>
 
-            <label className="mb-3 block text-sm">
-              Name
+            <label className="mb-4 block text-sm font-medium text-gray-700">
+              Room Name
               <input
-                className="mt-1 h-9 w-full rounded border px-3 text-sm"
+                className="mt-1 h-10 w-full rounded-lg border-gray-300 border px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150"
                 value={editData.name}
                 onChange={(event) => setEditData((prev) => ({ ...prev, name: event.target.value }))}
               />
             </label>
 
-            <label className="mb-3 block text-sm">
+            <label className="mb-4 block text-sm font-medium text-gray-700">
               Capacity
               <input
                 type="number"
                 min={1}
-                className="mt-1 h-9 w-full rounded border px-3 text-sm"
+                className="mt-1 h-10 w-full rounded-lg border-gray-300 border px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150"
                 value={editData.capacity}
                 onChange={(event) =>
                   setEditData((prev) => ({
@@ -703,10 +770,11 @@ const CreateRoom = ({ hostelId }) => {
               />
             </label>
 
-            <label className="mb-4 block text-sm">
-              Room number
+            <label className="mb-5 block text-sm font-medium text-gray-700">
+              Room Number (Custom)
               <input
-                className="mt-1 h-9 w-full rounded border px-3 text-sm"
+                className="mt-1 h-10 w-full rounded-lg border-gray-300 border px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150 font-mono"
+                placeholder={makeRoomNumber(floors, editSlot)} // Show auto-numbered value as a hint
                 value={editData.room_number}
                 onChange={(event) =>
                   setEditData((prev) => ({
@@ -716,22 +784,38 @@ const CreateRoom = ({ hostelId }) => {
                   }))
                 }
               />
+              <p className="mt-1 text-xs text-gray-500">Leave blank to use the auto-generated room number.</p>
             </label>
+            
+            {/* Active/Inactive Toggle */}
+            <div className="flex items-center mb-5">
+                <input
+                    id="inactive-toggle"
+                    type="checkbox"
+                    checked={editData.inactive}
+                    onChange={(e) => setEditData((prev) => ({ ...prev, inactive: e.target.checked }))}
+                    className="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                />
+                <label htmlFor="inactive-toggle" className="ml-2 block text-sm font-medium text-gray-700">
+                    Mark as **Inactive** (Temporarily out of service)
+                </label>
+            </div>
 
-            <div className="flex justify-end gap-2">
+
+            <div className="flex justify-end gap-3 mt-6">
               <button
                 type="button"
-                className="rounded border border-gray-300 px-4 py-2 text-sm"
+                className="rounded-lg border border-gray-300 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition duration-150"
                 onClick={closeEditor}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="rounded bg-blue-600 px-4 py-2 text-sm text-white"
+                className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white shadow-md hover:bg-indigo-700 transition duration-150"
                 onClick={commitEditor}
               >
-                Save
+                Save Changes
               </button>
             </div>
           </div>

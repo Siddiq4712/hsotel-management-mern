@@ -23,25 +23,57 @@ const MessFeeManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   
-  const fetchReportData = async (date, college) => {
-    setLoading(true);
-    try {
-      const month = date.format('M');
-      const year = date.format('YYYY');
-      const response = await messAPI.generateMonthlyMessReport({ month, year, college });
-      const data = response.data.data || [];
-      setReportData(data);
-      setSummary(response.data.summary || {});
-      setBillsGenerated(false);
-      setCurrentPage(1);
-      setPageSize(10); 
-    } catch (error) {
-      console.error("Failed to fetch monthly report:", error);
-      message.error('Failed to fetch monthly report data.');
-    } finally {
-      setLoading(false);
-    }
-  };
+const fetchReportData = async (date, college) => {
+  setLoading(true);
+  try {
+    const month = date.format('M');
+    const year = date.format('YYYY');
+
+    // 🟢 1. Fetch Daily Rate Report
+    const dailyRateRes = await messAPI.generateDailyRateReport({ month, year });
+    const dailyRateData = dailyRateRes?.data?.data || {};
+    const dailyRateValue = dailyRateData.dailyRate || 0;
+    const totalExpensesValue = dailyRateData.totalExpenses || 0;
+
+    // 🟠 2. Fetch Monthly Mess Report
+    const reportRes = await messAPI.generateMonthlyMessReport({ month, year, college });
+    const data = reportRes?.data?.data || [];
+    const summaryData = reportRes?.data?.summary || {};
+
+    // 🔵 3. Override daily rate & grand total in summary
+    summaryData.dailyRate = parseFloat(dailyRateValue.toFixed(2));
+    summaryData.grandTotal = parseFloat(totalExpensesValue.toFixed(2));
+
+    // 🔵 4. Override all rows to use the new daily rate
+    const updatedReportData = data.map(row => {
+      const messDays = row.messDays || 0;
+      const messAmount = messDays * dailyRateValue;
+      const total = messAmount + row.additionalAmount + row.bedCharges + row.hinduIndianExpress;
+      const netAmount = total;
+      const finalAmount = Math.round(netAmount);
+      return {
+        ...row,
+        dailyRate: dailyRateValue,
+        messAmount: parseFloat(messAmount.toFixed(2)),
+        total: parseFloat(total.toFixed(2)),
+        netAmount: parseFloat(netAmount.toFixed(2)),
+        finalAmount,
+      };
+    });
+
+    setReportData(updatedReportData);
+    setSummary(summaryData);
+    setBillsGenerated(false);
+    setCurrentPage(1);
+    setPageSize(10);
+  } catch (error) {
+    console.error("Failed to fetch monthly report:", error);
+    message.error('Failed to fetch monthly report data.');
+  } finally {
+    setLoading(false);
+  }
+};
+
   
   const generateBills = async () => {
     setGeneratingBills(true);
@@ -228,11 +260,11 @@ const MessFeeManagement = () => {
 
         <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Man Days" value={summary.messDays || 0} /></Col>
         <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Daily Rate" value={summary.dailyRate || 0} prefix="₹" precision={2} /></Col>
-        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Rice & Grocery" value={summary.totalFoodIngredientCost || 0} prefix="₹" precision={2} /></Col>
+        {/* <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Rice & Grocery" value={summary.totalFoodIngredientCost || 0} prefix="₹" precision={2} /></Col> */}
         <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Mess Amount" value={summary.totalMessAmount || 0} prefix="₹" precision={2} /></Col>
         <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Additional" value={summary.totalAdditionalAmount || 0} prefix="₹" precision={2} /></Col>
-        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Bed Charges" value={summary.totalBedCharges || 0} prefix="₹" precision={2} /></Col>
-        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Newspaper" value={summary.totalHinduIndianExpress || 0} prefix="₹" precision={2} /></Col>
+        {/* <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Bed Charges" value={summary.totalBedCharges || 0} prefix="₹" precision={2} /></Col>
+        <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Total Newspaper" value={summary.totalHinduIndianExpress || 0} prefix="₹" precision={2} /></Col> */}
         <Col xs={24} sm={12} md={8} lg={5}><Statistic title="Grand Total (Final)" value={summary.grandTotal || 0} prefix="₹" precision={0} valueStyle={{ color: '#cf1322' }} /></Col>
       </Row>
 
