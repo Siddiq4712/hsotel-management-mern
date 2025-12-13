@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
+const { Op } = require('sequelize');
 
 const { User, Hostel } = require('../models');
 
@@ -8,9 +9,14 @@ const login = async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    // Find user - REMOVE is_active: true
+    // Find user by username OR roll_number
     const user = await User.findOne({
-      where: { username }, // ✅ Removed is_active: true
+      where: {
+        [Op.or]: [
+          { username: username },
+          { roll_number: username }
+        ]
+      },
       include: [{ model: Hostel, attributes: ['id', 'name'] }]
     });
 
@@ -21,8 +27,6 @@ const login = async (req, res) => {
     // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      console.log(password);
-      console.log(user.password);
       return res.status(400).json({ message: 'Invalid pass' });
     }
 
@@ -50,6 +54,8 @@ const login = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+// ... rest of your code
 
 const getProfile = async (req, res) => {
   try {
