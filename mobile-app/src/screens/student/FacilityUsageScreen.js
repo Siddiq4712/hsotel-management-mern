@@ -4,7 +4,7 @@ import { studentAPI } from '../../api/api';
 import { Wifi, Plus, Clock, DollarSign, CheckCircle, AlertCircle, TrendingUp, History } from 'lucide-react-native';
 import moment from 'moment';
 import Header from '../../components/common/Header';
-
+import { Picker } from '@react-native-picker/picker';
 const FacilityUsageScreen = () => {
   const [facilities, setFacilities] = useState([]);
   const [usageHistory, setUsageHistory] = useState([]);

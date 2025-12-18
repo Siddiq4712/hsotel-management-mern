@@ -5,7 +5,7 @@ import { MessageCircle, Calendar, CheckCircle, Clock, AlertCircle, XCircle, User
 import moment from 'moment';
 import Header from '../../components/common/Header';
 import StatusBadge from '../../components/common/StatusBadge'; // Reusing common badge component
-
+import { Picker } from '@react-native-picker/picker';
 const ComplaintManagementScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
     subject: '',

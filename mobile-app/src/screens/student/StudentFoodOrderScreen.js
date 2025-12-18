@@ -6,7 +6,7 @@ import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import moment from 'moment';
 import Header from '../../components/common/Header';
 import FoodItemCard from '../../components/student/FoodItemCard';
-
+import { Picker } from '@react-native-picker/picker';
 const StudentFoodOrderScreen = ({ navigation }) => {
   const [foodItems, setFoodItems] = useState([]);
   const [categories, setCategories] = useState([]);

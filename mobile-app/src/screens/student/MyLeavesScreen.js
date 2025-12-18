@@ -6,7 +6,7 @@ import moment from 'moment';
 import Header from '../../components/common/Header';
 import StatusBadge from '../../components/common/StatusBadge'; // Reusing common badge component
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
-
+import { Picker } from '@react-native-picker/picker';
 const LeaveDetailsModal = ({ leave, onClose }) => {
   if (!leave) return null;
 
