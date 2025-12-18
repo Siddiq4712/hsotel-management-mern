@@ -5,7 +5,7 @@ import { Calendar, FileText, CheckCircle, AlertCircle } from 'lucide-react-nativ
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import moment from 'moment';
 import Header from '../../components/common/Header';
-
+import { Picker } from '@react-native-picker/picker';
 const ApplyLeaveScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
     leave_type: '',

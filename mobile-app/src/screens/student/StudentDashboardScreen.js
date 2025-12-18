@@ -8,7 +8,7 @@ import { Dimensions } from 'react-native';
 import moment from 'moment';
 import RoommatesList from '../../components/student/RoommatesList';
 import Header from '../../components/common/Header';
-
+import { CheckCircle } from 'lucide-react-native';
 const screenWidth = Dimensions.get('window').width - 32; // Padding 16 on each side
 
 const StudentDashboardScreen = ({ navigation }) => {
