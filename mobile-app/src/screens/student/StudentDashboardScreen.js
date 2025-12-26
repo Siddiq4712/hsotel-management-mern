@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Image } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { useAuth } from '../../hooks/useAuth';
-import { User, Bed, Receipt, Calendar, Users, Home, CreditCard, FileText, Clock, Utensils } from 'lucide-react-native';
-import { BarChart } from 'react-native-chart-kit';
+import { User, Bed, Receipt, Calendar, Users, Home, CreditCard, FileText, Clock, Utensils, CheckCircle, XCircle, AlertCircle } from 'lucide-react-native';
+import { BarChart, LineChart } from 'react-native-chart-kit';
 import { Dimensions } from 'react-native';
 import moment from 'moment';
 import RoommatesList from '../../components/student/RoommatesList';
 import Header from '../../components/common/Header';
-import { CheckCircle } from 'lucide-react-native';
-const screenWidth = Dimensions.get('window').width - 32; // Padding 16 on each side
+
+const screenWidth = Dimensions.get('window').width - 32;
 
 const StudentDashboardScreen = ({ navigation }) => {
   const { user } = useAuth();
@@ -20,11 +20,6 @@ const StudentDashboardScreen = ({ navigation }) => {
   const [messExpenseChartData, setMessExpenseChartData] = useState(null);
   const [attendanceChartData, setAttendanceChartData] = useState(null);
   const [chartLoading, setChartLoading] = useState(true);
-
-  const getInitials = (name) => {
-    if (!name) return '?';
-    return name.charAt(0).toUpperCase();
-  };
 
   const processMessExpenseData = useCallback((data) => {
     const labels = [];
@@ -42,7 +37,7 @@ const StudentDashboardScreen = ({ navigation }) => {
       const monthData = data.find(
         (item) => item.year === m.year && item.month === m.month
       );
-      labels.push(moment().year(m.year).month(m.month - 1).format('MMM YY'));
+      labels.push(moment().year(m.year).month(m.month - 1).format('MMM'));
       expenses.push(monthData ? parseFloat(monthData.total_amount) : 0);
     });
 
@@ -71,11 +66,11 @@ const StudentDashboardScreen = ({ navigation }) => {
       const monthData = data.find(
         (item) => item.year === m.year && item.month === m.month
       );
-      labels.push(moment().year(m.year).month(m.month - 1).format('MMM YY'));
+      labels.push(moment().year(m.year).month(m.month - 1).format('MMM'));
       
       if (monthData) {
         const presentCount = parseInt(monthData.present_days || 0);
-        const totalManDays = parseInt(monthData.totalManDays || 0); // Assuming this comes from backend too now
+        const totalManDays = parseInt(monthData.totalManDays || 0);
         const maxAttendanceValue = Math.max(presentCount, totalManDays);
         
         attendanceDays.push(maxAttendanceValue);
@@ -91,11 +86,11 @@ const StudentDashboardScreen = ({ navigation }) => {
     setAttendanceChartData({
       labels: labels,
       datasets: [
-        { data: attendanceDays, color: (opacity = 1) => `rgba(54, 162, 235, ${opacity})`, legendLabel: 'Present' }, // Blue
-        { data: absentDays, color: (opacity = 1) => `rgba(255, 99, 132, ${opacity})`, legendLabel: 'Absent' }, // Red
-        { data: onDutyDays, color: (opacity = 1) => `rgba(255, 206, 86, ${opacity})`, legendLabel: 'On Duty' }, // Yellow
+        { data: attendanceDays, color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})` },
+        { data: absentDays, color: (opacity = 1) => `rgba(239, 68, 68, ${opacity})` },
+        { data: onDutyDays, color: (opacity = 1) => `rgba(59, 130, 246, ${opacity})` },
       ],
-      legend: ['Present', 'Absent', 'On Duty'] // Labels for the legend
+      legend: ['Present', 'Absent', 'On Duty']
     });
   }, []);
 
@@ -108,10 +103,8 @@ const StudentDashboardScreen = ({ navigation }) => {
       setProfile(profileData);
       
       if (profileData?.tbl_RoomAllotments?.[0]?.HostelRoom?.id) {
-        const roomId = profileData.tbl_RoomAllotments[0].HostelRoom.id;
-        const roommatesResponse = await studentAPI.getRoommates(); // Use the dedicated roommate API
+        const roommatesResponse = await studentAPI.getRoommates();
         if (roommatesResponse?.data?.data) {
-          // Filter out the current user from roommates list
           setRoommates(roommatesResponse.data.data.filter(mate => mate.id !== user.id));
         }
       }
@@ -145,13 +138,37 @@ const StudentDashboardScreen = ({ navigation }) => {
   const getStatusDisplay = (status) => {
     switch (status) {
       case 'P':
-        return { icon: <CheckCircle className="text-green-600" size={32} />, text: 'Present', color: 'bg-green-50 border-green-200 text-green-800' };
+        return { 
+          icon: <CheckCircle color="#10b981" size={24} />, 
+          text: 'Present', 
+          bgColor: '#f0fdf4',
+          borderColor: '#10b981',
+          textColor: '#065f46'
+        };
       case 'A':
-        return { icon: <XCircle className="text-red-600" size={32} />, text: 'Absent', color: 'bg-red-50 border-red-200 text-red-800' };
+        return { 
+          icon: <XCircle color="#ef4444" size={24} />, 
+          text: 'Absent', 
+          bgColor: '#fef2f2',
+          borderColor: '#ef4444',
+          textColor: '#991b1b'
+        };
       case 'OD':
-        return { icon: <Clock className="text-blue-600" size={32} />, text: 'On Duty', color: 'bg-blue-50 border-blue-200 text-blue-800' };
+        return { 
+          icon: <Clock color="#3b82f6" size={24} />, 
+          text: 'On Duty', 
+          bgColor: '#eff6ff',
+          borderColor: '#3b82f6',
+          textColor: '#1e40af'
+        };
       default:
-        return { icon: <Clock className="text-gray-400" size={32} />, text: 'Not Marked', color: 'bg-gray-50 border-gray-200 text-gray-500' };
+        return { 
+          icon: <AlertCircle color="#6b7280" size={24} />, 
+          text: 'Not Marked', 
+          bgColor: '#f9fafb',
+          borderColor: '#d1d5db',
+          textColor: '#4b5563'
+        };
     }
   };
 
@@ -161,32 +178,63 @@ const StudentDashboardScreen = ({ navigation }) => {
 
   if (loading) {
     return (
-      <View className="flex-1 justify-center items-center bg-gray-100">
-        <ActivityIndicator size="large" color="#4F46E5" />
-        <Text className="mt-4 text-lg text-gray-700">Loading dashboard...</Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#ffffff' }}>
+        <ActivityIndicator size="large" color="#2563eb" />
+        <Text style={{ marginTop: 16, fontSize: 16, color: '#6b7280' }}>Loading dashboard...</Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
       <Header />
-      <ScrollView className="p-4">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">Dashboard</Text>
-        <Text className="text-gray-600 mb-6">Welcome to your student dashboard</Text>
+      <ScrollView style={{ padding: 16 }}>
+        {/* Header Section */}
+        <View style={{ marginBottom: 24 }}>
+          <Text style={{ fontSize: 28, fontWeight: '700', color: '#0f172a', marginBottom: 4 }}>
+            Dashboard
+          </Text>
+          <Text style={{ fontSize: 14, color: '#64748b' }}>
+            {moment().format('dddd, MMMM D, YYYY')}
+          </Text>
+        </View>
 
         {/* Today's Attendance Status */}
-        <View className="bg-white rounded-lg shadow-md p-4 mb-4">
-          <Text className="text-xl font-semibold text-gray-900 mb-3 flex-row items-center">
-            <Calendar className="mr-2 text-blue-600" size={20} /> Today's Attendance
-          </Text>
-          <View className={`rounded-lg border p-4 flex-row items-center ${statusInfo.color}`}>
-            <View className="mr-4">
+        <View style={{ 
+          backgroundColor: '#ffffff', 
+          borderRadius: 12, 
+          padding: 20,
+          marginBottom: 16,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 3,
+          elevation: 2,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <Calendar color="#2563eb" size={20} />
+            <Text style={{ fontSize: 16, fontWeight: '600', color: '#0f172a', marginLeft: 8 }}>
+              Today's Attendance
+            </Text>
+          </View>
+          <View style={{ 
+            borderRadius: 8, 
+            borderWidth: 1,
+            borderLeftWidth: 4,
+            padding: 16, 
+            flexDirection: 'row', 
+            alignItems: 'center',
+            backgroundColor: statusInfo.bgColor,
+            borderColor: statusInfo.borderColor,
+          }}>
+            <View style={{ marginRight: 16 }}>
               {statusInfo.icon}
             </View>
-            <View>
-              <Text className="font-medium text-lg">{statusInfo.text}</Text>
-              <Text className="text-sm">
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontWeight: '600', fontSize: 16, color: statusInfo.textColor }}>
+                {statusInfo.text}
+              </Text>
+              <Text style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
                 {todayAttendance ? 
                   `Marked on ${moment(todayAttendance.date).format('MMM DD, YYYY')}` : 
                   'Attendance has not been marked yet'
@@ -196,122 +244,234 @@ const StudentDashboardScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* Hostel Info */}
-        <View className="bg-white rounded-lg shadow-md p-4 mb-4">
-          <Text className="text-xl font-semibold text-gray-900 mb-3 flex-row items-center">
-            <Home className="mr-2 text-blue-600" size={20} /> Hostel Info
-          </Text>
-          {profile?.Hostel ? (
-            <View className="p-4 bg-blue-50 rounded-lg">
-              <Text className="font-medium text-gray-900 text-lg">
-                {profile.Hostel.name}
-              </Text>
-              {profile.Hostel.address && (
-                <Text className="text-sm text-gray-600 mt-1">
-                  {profile.Hostel.address}
-                </Text>
-              )}
-              {profile.Hostel.contact_number && (
-                <Text className="text-sm text-gray-600 mt-2 font-medium">
-                  Contact: {profile.Hostel.contact_number}
-                </Text>
-              )}
+        {/* Stats Grid */}
+        <View style={{ flexDirection: 'row', marginBottom: 16, gap: 12 }}>
+          {/* Hostel Info */}
+          <View style={{ 
+            flex: 1,
+            backgroundColor: '#ffffff', 
+            borderRadius: 12, 
+            padding: 16,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 3,
+            elevation: 2,
+          }}>
+            <View style={{ 
+              width: 40, 
+              height: 40, 
+              borderRadius: 8, 
+              backgroundColor: '#eff6ff', 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              marginBottom: 12
+            }}>
+              <Home color="#2563eb" size={20} />
             </View>
-          ) : (
-            <Text className="text-gray-500 p-3 bg-gray-50 rounded-lg">
-              No hostel information available.
+            <Text style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>
+              Hostel
             </Text>
-          )}
+            <Text style={{ fontSize: 16, fontWeight: '600', color: '#0f172a' }}>
+              {profile?.Hostel?.name || 'N/A'}
+            </Text>
+          </View>
+
+          {/* Room Info */}
+          <View style={{ 
+            flex: 1,
+            backgroundColor: '#ffffff', 
+            borderRadius: 12, 
+            padding: 16,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 3,
+            elevation: 2,
+          }}>
+            <View style={{ 
+              width: 40, 
+              height: 40, 
+              borderRadius: 8, 
+              backgroundColor: '#f0fdf4', 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              marginBottom: 12
+            }}>
+              <Bed color="#10b981" size={20} />
+            </View>
+            <Text style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>
+              Room
+            </Text>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: '#0f172a' }}>
+              {roomInfo?.room_number || 'N/A'}
+            </Text>
+          </View>
         </View>
 
-        {/* Room Information with Roommates */}
+        {/* Room Details & Roommates */}
         {roomInfo && (
-          <View className="bg-white rounded-lg shadow-md p-4 mb-4">
-            <Text className="text-xl font-semibold text-gray-900 mb-3 flex-row items-center">
-              <Home className="mr-2 text-green-600" size={20} /> Room Information
-            </Text>
-            
-            <View className="flex-row items-center p-4 bg-gray-50 rounded-lg mb-4">
-              <Bed className="text-green-600 mr-3" size={20} />
-              <View>
-                <Text className="font-medium text-gray-900">Room {roomInfo.room_number}</Text>
-                <Text className="text-gray-600">
-                  {roomType?.name || 'Standard Room'} 
-                  {roomType?.capacity ? ` (${roomType.capacity} capacity)` : ''}
-                </Text>
-                {profile?.tbl_RoomAllotments?.[0]?.allotment_date && (
-                  <Text className="text-sm text-gray-500">
-                    Allotted on: {moment(profile.tbl_RoomAllotments[0].allotment_date).format('MMM DD, YYYY')}
-                  </Text>
-                )}
-              </View>
-            </View>
-            
-            {/* Roommates Section */}
-            <View className="mt-4">
-              <Text className="font-medium text-gray-900 mb-3 flex-row items-center">
-                <Users className="mr-2 text-blue-600" size={16} /> Roommates
+          <View style={{ 
+            backgroundColor: '#ffffff', 
+            borderRadius: 12, 
+            padding: 20,
+            marginBottom: 16,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 3,
+            elevation: 2,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+              <Users color="#2563eb" size={20} />
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#0f172a', marginLeft: 8 }}>
+                Room Details
               </Text>
-              <RoommatesList roommates={roommates} currentUserId={user.id} />
             </View>
+            
+            <View style={{ 
+              padding: 12, 
+              backgroundColor: '#f8fafc', 
+              borderRadius: 8,
+              marginBottom: 16
+            }}>
+              <Text style={{ fontSize: 14, color: '#64748b', marginBottom: 4 }}>
+                {roomType?.name || 'Standard Room'}
+                {roomType?.capacity ? ` • ${roomType.capacity} capacity` : ''}
+              </Text>
+              {profile?.tbl_RoomAllotments?.[0]?.allotment_date && (
+                <Text style={{ fontSize: 13, color: '#94a3b8' }}>
+                  Allotted: {moment(profile.tbl_RoomAllotments[0].allotment_date).format('MMM DD, YYYY')}
+                </Text>
+              )}
+            </View>
+            
+            <RoommatesList roommates={roommates} currentUserId={user.id} />
           </View>
         )}
 
         {/* Quick Actions */}
-        <View className="bg-white rounded-lg shadow-md p-4 mb-4">
-          <Text className="text-xl font-semibold text-gray-900 mb-3 flex-row items-center">
-            <Clock className="mr-2 text-indigo-600" size={20} /> Quick Actions
+        <View style={{ 
+          backgroundColor: '#ffffff', 
+          borderRadius: 12, 
+          padding: 20,
+          marginBottom: 16,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 3,
+          elevation: 2,
+        }}>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: '#0f172a', marginBottom: 16 }}>
+            Quick Actions
           </Text>
-          <View className="flex-row flex-wrap justify-between gap-2">
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
             <TouchableOpacity 
               onPress={() => navigation.navigate('MessCharges')} 
-              className="w-[48%] p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex flex-col items-center justify-center min-h-[100px]"
+              style={{ 
+                width: '48%',
+                padding: 16, 
+                backgroundColor: '#f8fafc',
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: '#e2e8f0'
+              }}
             >
-              <Receipt className="text-blue-600 mb-2" size={24} />
-              <Text className="font-medium text-blue-900 text-center">Mess Bills</Text>
-              <Text className="text-xs text-blue-700 text-center mt-1">Check your mess expenses</Text>
+              <Receipt color="#2563eb" size={24} style={{ marginBottom: 8 }} />
+              <Text style={{ fontWeight: '600', fontSize: 14, color: '#0f172a' }}>
+                Mess Bills
+              </Text>
+              <Text style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                View expenses
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
               onPress={() => navigation.navigate('FoodOrder')} 
-              className="w-[48%] p-3 bg-orange-50 hover:bg-orange-100 rounded-lg transition-colors flex flex-col items-center justify-center min-h-[100px]"
+              style={{ 
+                width: '48%',
+                padding: 16, 
+                backgroundColor: '#f8fafc',
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: '#e2e8f0'
+              }}
             >
-              <Utensils className="text-orange-600 mb-2" size={24} />
-              <Text className="font-medium text-orange-900 text-center">Order Special Food</Text>
-              <Text className="text-xs text-orange-700 text-center mt-1">Request special meal options</Text>
+              <Utensils color="#f97316" size={24} style={{ marginBottom: 8 }} />
+              <Text style={{ fontWeight: '600', fontSize: 14, color: '#0f172a' }}>
+                Order Food
+              </Text>
+              <Text style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                Special meals
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
               onPress={() => navigation.navigate('Leaves')} 
-              className="w-[48%] p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors flex flex-col items-center justify-center min-h-[100px] mt-2"
+              style={{ 
+                width: '48%',
+                padding: 16, 
+                backgroundColor: '#f8fafc',
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: '#e2e8f0'
+              }}
             >
-              <FileText className="text-purple-600 mb-2" size={24} />
-              <Text className="font-medium text-purple-900 text-center">My Leaves</Text>
-              <Text className="text-xs text-purple-700 text-center mt-1">View your leave history</Text>
+              <FileText color="#8b5cf6" size={24} style={{ marginBottom: 8 }} />
+              <Text style={{ fontWeight: '600', fontSize: 14, color: '#0f172a' }}>
+                My Leaves
+              </Text>
+              <Text style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                Leave history
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
               onPress={() => navigation.navigate('Complaints')} 
-              className="w-[48%] p-3 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors flex flex-col items-center justify-center min-h-[100px] mt-2"
+              style={{ 
+                width: '48%',
+                padding: 16, 
+                backgroundColor: '#f8fafc',
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: '#e2e8f0'
+              }}
             >
-              <FileText className="text-amber-600 mb-2" size={24} />
-              <Text className="font-medium text-amber-900 text-center">Complaints</Text>
-              <Text className="text-xs text-amber-700 text-center mt-1">Manage your complaints</Text>
+              <AlertCircle color="#f59e0b" size={24} style={{ marginBottom: 8 }} />
+              <Text style={{ fontWeight: '600', fontSize: 14, color: '#0f172a' }}>
+                Complaints
+              </Text>
+              <Text style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                Track issues
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Mess Expense Chart */}
-        <View className="bg-white rounded-lg shadow-md p-4 mb-4">
-          <Text className="text-xl font-semibold text-gray-900 mb-3 flex-row items-center">
-            <CreditCard className="mr-2 text-red-600" size={20} /> Mess Expenses Trend
-          </Text>
+        <View style={{ 
+          backgroundColor: '#ffffff', 
+          borderRadius: 12, 
+          padding: 20,
+          marginBottom: 16,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 3,
+          elevation: 2,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <CreditCard color="#2563eb" size={20} />
+            <Text style={{ fontSize: 16, fontWeight: '600', color: '#0f172a', marginLeft: 8 }}>
+              Mess Expenses
+            </Text>
+          </View>
           {chartLoading ? (
-            <View className="flex items-center justify-center h-48">
-              <ActivityIndicator size="small" color="#4F46E5" />
+            <View style={{ height: 200, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#2563eb" />
             </View>
           ) : messExpenseChartData ? (
-            <BarChart
+            <LineChart
               data={messExpenseChartData}
               width={screenWidth}
               height={220}
@@ -320,115 +480,167 @@ const StudentDashboardScreen = ({ navigation }) => {
                 backgroundColor: '#ffffff',
                 backgroundGradientFrom: '#ffffff',
                 backgroundGradientTo: '#ffffff',
-                decimalPlaces: 0, // Show whole numbers
-                color: (opacity = 1) => `rgba(75, 192, 192, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`, // Gray-500
-                style: {
-                  borderRadius: 16,
-                },
+                decimalPlaces: 0,
+                color: (opacity = 1) => `rgba(37, 99, 235, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(100, 116, 139, ${opacity})`,
+                style: { borderRadius: 16 },
                 propsForDots: {
-                  r: '6',
+                  r: '4',
                   strokeWidth: '2',
-                  stroke: '#ffa726',
+                  stroke: '#2563eb',
+                },
+                propsForBackgroundLines: {
+                  strokeDasharray: '',
+                  stroke: '#e2e8f0',
+                  strokeWidth: 1,
                 },
               }}
-              style={{
-                marginVertical: 8,
-                borderRadius: 16,
-              }}
+              bezier
+              style={{ marginVertical: 8, borderRadius: 16 }}
               fromZero
             />
           ) : (
-            <Text className="text-gray-600 p-4 bg-gray-50 rounded-lg">
-              No mess expense data available yet.
+            <Text style={{ color: '#64748b', padding: 16, textAlign: 'center' }}>
+              No expense data available
             </Text>
           )}
         </View>
 
         {/* Attendance Chart */}
-        <View className="bg-white rounded-lg shadow-md p-4 mb-4">
-          <Text className="text-xl font-semibold text-gray-900 mb-3 flex-row items-center">
-            <Calendar className="mr-2 text-green-600" size={20} /> Attendance Overview
-          </Text>
+        <View style={{ 
+          backgroundColor: '#ffffff', 
+          borderRadius: 12, 
+          padding: 20,
+          marginBottom: 16,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 3,
+          elevation: 2,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <Calendar color="#10b981" size={20} />
+            <Text style={{ fontSize: 16, fontWeight: '600', color: '#0f172a', marginLeft: 8 }}>
+              Attendance Overview
+            </Text>
+          </View>
           {chartLoading ? (
-            <View className="flex items-center justify-center h-48">
-              <ActivityIndicator size="small" color="#4F46E5" />
+            <View style={{ height: 200, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#10b981" />
             </View>
           ) : attendanceChartData ? (
-             <BarChart
+            <>
+              <BarChart
                 data={attendanceChartData}
                 width={screenWidth}
                 height={220}
-                yAxisLabel="" // No currency symbol for days
                 chartConfig={{
                   backgroundColor: '#ffffff',
                   backgroundGradientFrom: '#ffffff',
                   backgroundGradientTo: '#ffffff',
                   decimalPlaces: 0,
-                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`, // Default color, overridden by dataset
-                  labelColor: (opacity = 1) => `rgba(107, 114, 128, ${opacity})`, // Gray-500
-                  style: {
-                    borderRadius: 16,
-                  },
-                  propsForDots: {
-                    r: '6',
-                    strokeWidth: '2',
-                    stroke: '#ffa726',
+                  color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(100, 116, 139, ${opacity})`,
+                  style: { borderRadius: 16 },
+                  propsForBackgroundLines: {
+                    strokeDasharray: '',
+                    stroke: '#e2e8f0',
+                    strokeWidth: 1,
                   },
                 }}
-                bezier // Optional: makes lines curved
-                style={{
-                  marginVertical: 8,
-                  borderRadius: 16,
-                }}
+                style={{ marginVertical: 8, borderRadius: 16 }}
                 fromZero
-                // This is a workaround for multi-dataset bar charts in react-native-chart-kit.
-                // It treats each dataset as a separate bar for each label.
-                // A better approach for stacked/grouped bars might require a different library.
-                hidePoints
               />
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 12, gap: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: '#10b981', marginRight: 6 }} />
+                  <Text style={{ fontSize: 12, color: '#64748b' }}>Present</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: '#ef4444', marginRight: 6 }} />
+                  <Text style={{ fontSize: 12, color: '#64748b' }}>Absent</Text>
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: '#3b82f6', marginRight: 6 }} />
+                  <Text style={{ fontSize: 12, color: '#64748b' }}>On Duty</Text>
+                </View>
+              </View>
+            </>
           ) : (
-            <Text className="text-gray-600 p-4 bg-gray-50 rounded-lg">
-              No attendance data available yet.
+            <Text style={{ color: '#64748b', padding: 16, textAlign: 'center' }}>
+              No attendance data available
             </Text>
           )}
-           <Text className="text-xs text-gray-500 mt-2 text-center">
-              *Attendance days shows the maximum of total man-days and present days
-            </Text>
         </View>
 
         {/* Important Notices */}
-        <View className="bg-white rounded-lg shadow-md p-4 mb-4">
-          <Text className="text-xl font-semibold text-gray-900 mb-3 flex-row items-center">
-            <FileText className="mr-2 text-yellow-600" size={20} /> Important Notices
-          </Text>
-          <View className="space-y-3">
-            <View className="p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded">
-              <Text className="text-sm font-medium text-yellow-800">
-                Mess Bill Due
-              </Text>
-              <Text className="text-sm text-yellow-700">
-                Your monthly mess bill is due on 10th of this month.
-              </Text>
-            </View>
-            
-            <View className="p-3 bg-blue-50 border-l-4 border-blue-400 rounded">
-              <Text className="text-sm font-medium text-blue-800">
-                Upcoming Event
-              </Text>
-              <Text className="text-sm text-blue-700">
-                Hostel cultural event on {moment().add(2, 'weeks').format('MMMM Do')}.
-              </Text>
-            </View>
-            
-            <View className="p-3 bg-orange-50 border-l-4 border-orange-400 rounded">
-              <Text className="text-sm font-medium text-orange-800">
-                Special Menu
-              </Text>
-              <Text className="text-sm text-orange-700">
-                Special food menu available this weekend. Check mess for details.
-              </Text>
-            </View>
+        <View style={{ 
+          backgroundColor: '#ffffff', 
+          borderRadius: 12, 
+          padding: 20,
+          marginBottom: 24,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 3,
+          elevation: 2,
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+            <FileText color="#f59e0b" size={20} />
+            <Text style={{ fontSize: 16, fontWeight: '600', color: '#0f172a', marginLeft: 8 }}>
+              Notices
+            </Text>
+          </View>
+          
+          <View style={{ 
+            padding: 14, 
+            backgroundColor: '#fffbeb', 
+            borderLeftWidth: 3, 
+            borderLeftColor: '#f59e0b',
+            borderRadius: 8,
+            marginBottom: 12
+          }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#78350f', marginBottom: 4 }}>
+              Mess Bill Due
+            </Text>
+            <Text style={{ fontSize: 13, color: '#92400e' }}>
+              Monthly mess bill is due on 10th of this month
+            </Text>
+          </View>
+          
+          <View style={{ 
+            padding: 14, 
+            backgroundColor: '#eff6ff', 
+            borderLeftWidth: 3, 
+            borderLeftColor: '#3b82f6',
+            borderRadius: 8,
+            marginBottom: 12
+          }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#1e3a8a', marginBottom: 4 }}>
+              Upcoming Event
+            </Text>
+            <Text style={{ fontSize: 13, color: '#1e40af' }}>
+              Hostel cultural event on {moment().add(2, 'weeks').format('MMMM Do')}
+            </Text>
+          </View>
+          
+          <View style={{ 
+            padding: 14, 
+            backgroundColor: '#f0fdf4', 
+            borderLeftWidth: 3, 
+            borderLeftColor: '#10b981',
+            borderRadius: 8
+          }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: '#065f46', marginBottom: 4 }}>
+              Special Menu
+            </Text>
+            <Text style={{ fontSize: 13, color: '#047857' }}>
+
+
+
+              
+              Special food menu available this weekend
+            </Text>
           </View>
         </View>
       </ScrollView>
