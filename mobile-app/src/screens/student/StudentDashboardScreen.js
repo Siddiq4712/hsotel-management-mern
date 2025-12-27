@@ -432,6 +432,7 @@ const StudentDashboardScreen = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
+      
     </View>
   );
 };
