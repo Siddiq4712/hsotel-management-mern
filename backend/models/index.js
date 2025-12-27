@@ -3030,7 +3030,69 @@ const DayReductionRequest = sequelize.define('DayReductionRequest', {
   tableName: 'tbl_DayReductionRequests',
   timestamps: true
 });
+// models/index.js
 
+const Recipe = sequelize.define('Recipe', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Hostel', key: 'id' }
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    comment: 'Name of the dish (e.g., Sambar, Dosa)'
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  }
+}, {
+  tableName: 'tbl_Recipe',
+  timestamps: true
+});
+
+const RecipeItem = sequelize.define('RecipeItem', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  recipe_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Recipe', key: 'id' }
+  },
+  item_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Item', key: 'id' }
+  },
+  quantity_per_serving: {
+    type: DataTypes.DECIMAL(10, 4),
+    allowNull: false,
+    comment: 'Quantity required for ONE person'
+  },
+  unit_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_UOM', key: 'id' }
+  }
+}, {
+  tableName: 'tbl_RecipeItem',
+  timestamps: false
+});
+
+// Associations
+Recipe.hasMany(RecipeItem, { foreignKey: 'recipe_id', as: 'Ingredients' });
+RecipeItem.belongsTo(Recipe, { foreignKey: 'recipe_id' });
+RecipeItem.belongsTo(Item, { foreignKey: 'item_id', as: 'ItemDetail' });
+RecipeItem.belongsTo(UOM, { foreignKey: 'unit_id', as: 'UOMDetail' });
 // Add associations for the new model
 DayReductionRequest.belongsTo(User, { foreignKey: 'student_id', as: 'Student' });
 DayReductionRequest.belongsTo(User, { foreignKey: 'admin_id', as: 'AdminProcessor' });
@@ -3376,5 +3438,7 @@ module.exports = {
   HostelLayout,
   RoomRequest,
   RestockPlan,
-  DayReductionRequest // <-- NEW: Export the DayReductionRequest mode
+  DayReductionRequest,
+  Recipe,
+  RecipeItem
 };

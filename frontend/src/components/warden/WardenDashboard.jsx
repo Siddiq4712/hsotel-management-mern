@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { wardenAPI } from '../../services/api'; 
 import { 
   Users, Bed, BedDouble, CheckCircle, TrendingUp, AlertTriangle, 
@@ -37,6 +38,7 @@ ChartJS.register(
 
 const WardenDashboard = ({ setCurrentView }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalCapacity: 0,
@@ -153,7 +155,7 @@ const WardenDashboard = ({ setCurrentView }) => {
     <div className="space-y-6">
       {/* Header Section */}
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900">Welcome back, Warden</h1>
+        <h1 className="text-4xl font-bold text-gray-900">Welcome back, {user?.username} 👋</h1>
         <p className="text-gray-500 mt-2">Here's what's happening in your hostel today</p>
       </div>
 

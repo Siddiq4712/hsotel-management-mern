@@ -3,7 +3,8 @@ const {
   Menu, Item, ItemCategory, User, MenuItem, Hostel, Attendance, Enrollment, DailyMessCharge,
   MenuSchedule, UOM, ItemStock, DailyConsumption, MessBill,Session, CreditToken,Concern,Holiday,
   Store, ItemStore, InventoryTransaction, ConsumptionLog, IncomeType, AdditionalIncome, StudentFee,RestockPlan,
-  InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem, MessDailyExpense, ExpenseType, SpecialConsumption, SpecialConsumptionItem,Newspaper
+  InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem, MessDailyExpense, ExpenseType, SpecialConsumption, SpecialConsumptionItem,Newspaper,
+  Recipe,RecipeItem
 } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
@@ -6726,7 +6727,134 @@ const clearPurchaseOrders = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+// messController.js
 
+const createRecipe = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { name, description, items } = req.body;
+    const hostel_id = req.user.hostel_id;
+
+    const recipe = await Recipe.create({
+      hostel_id,
+      name,
+      description
+    }, { transaction });
+
+    if (items && items.length > 0) {
+      const recipeItems = items.map(item => ({
+        recipe_id: recipe.id,
+        item_id: item.item_id,
+        quantity_per_serving: item.quantity_per_serving,
+        unit_id: item.unit_id
+      }));
+      await RecipeItem.bulkCreate(recipeItems, { transaction });
+    }
+
+    await transaction.commit();
+    res.status(201).json({ success: true, message: 'Recipe created successfully' });
+  } catch (error) {
+    await transaction.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+const getRecipes = async (req, res) => {
+  try {
+    const hostel_id = req.user.hostel_id;
+
+    const recipes = await Recipe.findAll({
+      where: { hostel_id },
+      include: [{
+        model: RecipeItem,
+        as: 'Ingredients',
+        include: [
+          { 
+            model: Item, 
+            as: 'ItemDetail', 
+            attributes: ['id', 'name'],
+            include: [{
+              model: ItemStock,
+              // We only want the stock for the user's specific hostel
+              where: { hostel_id }, 
+              required: false, // required: false prevents excluding items that have 0 stock records
+              attributes: ['current_stock']
+            }]
+          },
+          { 
+            model: UOM, 
+            as: 'UOMDetail', 
+            attributes: ['abbreviation'] 
+          }
+        ]
+      }]
+    });
+
+    res.json({ success: true, data: recipes });
+  } catch (error) {
+    console.error('Fetch recipes error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+const updateRecipe = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const { name, description, items } = req.body;
+    const hostel_id = req.user.hostel_id;
+
+    const recipe = await Recipe.findOne({ where: { id, hostel_id } });
+    if (!recipe) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'Recipe not found' });
+    }
+
+    // Update main recipe details
+    await recipe.update({ name, description }, { transaction });
+
+    // Handle ingredients: Delete existing and recreate (simplest way to sync)
+    if (items && Array.isArray(items)) {
+      await RecipeItem.destroy({ where: { recipe_id: id }, transaction });
+      
+      const recipeItems = items.map(item => ({
+        recipe_id: id,
+        item_id: item.item_id,
+        quantity_per_serving: item.quantity_per_serving,
+        unit_id: item.unit_id
+      }));
+      await RecipeItem.bulkCreate(recipeItems, { transaction });
+    }
+
+    await transaction.commit();
+    res.json({ success: true, message: 'Recipe updated successfully' });
+  } catch (error) {
+    await transaction.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const deleteRecipe = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const hostel_id = req.user.hostel_id;
+
+    const recipe = await Recipe.findOne({ where: { id, hostel_id } });
+    if (!recipe) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'Recipe not found' });
+    }
+
+    // Delete associated ingredients first
+    await RecipeItem.destroy({ where: { recipe_id: id }, transaction });
+    await recipe.destroy({ transaction });
+
+    await transaction.commit();
+    res.json({ success: true, message: 'Recipe deleted successfully' });
+  } catch (error) {
+    await transaction.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 module.exports = {
   createBedFee,
   getStudentBedFees,
@@ -6841,5 +6969,9 @@ module.exports = {
   generateDailyRateReport,
   generateMessBills,
   getPurchaseOrders,
-  clearPurchaseOrders
+  clearPurchaseOrders,
+  createRecipe,
+  getRecipes,
+  updateRecipe,
+  deleteRecipe
 };

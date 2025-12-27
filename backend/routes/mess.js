@@ -145,7 +145,12 @@ const {
   deleteBedFee,
 
   getPurchaseOrders,
-  clearPurchaseOrders
+  clearPurchaseOrders,
+
+  createRecipe,
+  getRecipes,
+  updateRecipe,
+  deleteRecipe
 } = require('../controllers/messController');
 const { auth, authorize } = require('../middleware/auth');
 
@@ -369,4 +374,10 @@ router.post('/bed-fees/bulk', authorize(['mess', 'warden', 'admin']), createBulk
 router.get('/purchase-orders', authorize(['mess', 'admin']), getPurchaseOrders);
 router.put('/purchase-orders/clear', authorize(['mess', 'admin']), clearPurchaseOrders);
 
+
+// messRoutes.js
+router.post('/recipes', authorize(['mess', 'admin']), createRecipe);
+router.get('/recipes', authorize(['mess', 'warden', 'admin']), getRecipes);
+router.put('/recipes/:id', authorize(['mess', 'admin']), updateRecipe);
+router.delete('/recipes/:id', authorize(['admin', 'mess']), deleteRecipe);
 module.exports = router;
