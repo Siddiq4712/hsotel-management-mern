@@ -86,7 +86,7 @@ import PurchaseOrder from './components/mess/PurchaseOrder';
 import ApplyDayReduction from './components/student/ApplyDayReduction';
 import DayReductionRequestsAdmin from './components/admin/DayReductionRequests';  
 import DayReductionRequestsWarden from './components/warden/DayReductionRequests';
-
+import RecipeManagement from './components/mess/RecipeManagement';
 // Lazy load CreateRoom to avoid circular dependency issues
 const LazyCreateRoom = React.lazy(() => import('./components/warden/CreateRoom'));
 
@@ -232,6 +232,8 @@ const DashboardRouter = () => {
             return <MessDashboard setCurrentView={setCurrentView} />; // FIXED: Pass setCurrentView prop
           case 'menus':
             return <EnhancedMenuManagement />;
+          case 'recipe':
+            return <RecipeManagement/>;
           case 'items':
             return <ItemManagement />;
           case 'menu-schedule':

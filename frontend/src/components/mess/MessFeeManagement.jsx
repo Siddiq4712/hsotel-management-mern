@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, message, DatePicker, Button, Space, Typography, Row, Col, Statistic, Modal, Form, Select, InputNumber, Input } from 'antd';
+import { Card, Table, message, Button, Space, Typography, Row, Col, Statistic, Modal, Form, Select, InputNumber, Input, DatePicker } from 'antd';
 import { SyncOutlined, PlusOutlined, UserOutlined, DownloadOutlined, CheckCircleOutlined, CalendarOutlined } from '@ant-design/icons';
+import ReactDatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
 import * as XLSX from 'xlsx';
@@ -23,56 +25,56 @@ const MessFeeManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   
-const fetchReportData = async (date, college) => {
-  setLoading(true);
-  try {
-    const month = date.format('M');
-    const year = date.format('YYYY');
+  const fetchReportData = async (date, college) => {
+    setLoading(true);
+    try {
+      const month = date.format('M');
+      const year = date.format('YYYY');
 
-    // 🟢 1. Fetch Daily Rate Report
-    const dailyRateRes = await messAPI.generateDailyRateReport({ month, year });
-    const dailyRateData = dailyRateRes?.data?.data || {};
-    const dailyRateValue = dailyRateData.dailyRate || 0;
-    const totalExpensesValue = dailyRateData.totalExpenses || 0;
+      // 🟢 1. Fetch Daily Rate Report
+      const dailyRateRes = await messAPI.generateDailyRateReport({ month, year });
+      const dailyRateData = dailyRateRes?.data?.data || {};
+      const dailyRateValue = dailyRateData.dailyRate || 0;
+      const totalExpensesValue = dailyRateData.totalExpenses || 0;
 
-    // 🟠 2. Fetch Monthly Mess Report
-    const reportRes = await messAPI.generateMonthlyMessReport({ month, year, college });
-    const data = reportRes?.data?.data || [];
-    const summaryData = reportRes?.data?.summary || {};
+      // 🟠 2. Fetch Monthly Mess Report
+      const reportRes = await messAPI.generateMonthlyMessReport({ month, year, college });
+      const data = reportRes?.data?.data || [];
+      const summaryData = reportRes?.data?.summary || {};
 
-    // 🔵 3. Override daily rate & grand total in summary
-    summaryData.dailyRate = parseFloat(dailyRateValue.toFixed(2));
-    summaryData.grandTotal = parseFloat(totalExpensesValue.toFixed(2));
+      // 🔵 3. Override daily rate & grand total in summary
+      summaryData.dailyRate = parseFloat(dailyRateValue.toFixed(2));
+      summaryData.grandTotal = parseFloat(totalExpensesValue.toFixed(2));
 
-    // 🔵 4. Override all rows to use the new daily rate
-    const updatedReportData = data.map(row => {
-      const messDays = row.messDays || 0;
-      const messAmount = messDays * dailyRateValue;
-      const total = messAmount + row.additionalAmount + row.bedCharges + row.hinduIndianExpress;
-      const netAmount = total;
-      const finalAmount = Math.round(netAmount);
-      return {
-        ...row,
-        dailyRate: dailyRateValue,
-        messAmount: parseFloat(messAmount.toFixed(2)),
-        total: parseFloat(total.toFixed(2)),
-        netAmount: parseFloat(netAmount.toFixed(2)),
-        finalAmount,
-      };
-    });
+      // 🔵 4. Override all rows to use the new daily rate
+      const updatedReportData = data.map(row => {
+        const messDays = row.messDays || 0;
+        const messAmount = messDays * dailyRateValue;
+        const total = messAmount + row.additionalAmount + row.bedCharges + row.hinduIndianExpress;
+        const netAmount = total;
+        const finalAmount = Math.round(netAmount);
+        return {
+          ...row,
+          dailyRate: dailyRateValue,
+          messAmount: parseFloat(messAmount.toFixed(2)),
+          total: parseFloat(total.toFixed(2)),
+          netAmount: parseFloat(netAmount.toFixed(2)),
+          finalAmount,
+        };
+      });
 
-    setReportData(updatedReportData);
-    setSummary(summaryData);
-    setBillsGenerated(false);
-    setCurrentPage(1);
-    setPageSize(10);
-  } catch (error) {
-    console.error("Failed to fetch monthly report:", error);
-    message.error('Failed to fetch monthly report data.');
-  } finally {
-    setLoading(false);
-  }
-};
+      setReportData(updatedReportData);
+      setSummary(summaryData);
+      setBillsGenerated(false);
+      setCurrentPage(1);
+      setPageSize(10);
+    } catch (error) {
+      console.error("Failed to fetch monthly report:", error);
+      message.error('Failed to fetch monthly report data.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   
   const generateBills = async () => {
@@ -224,7 +226,14 @@ const fetchReportData = async (date, college) => {
           <Option value="nec">NEC</Option>
           <Option value="lapc">LAPC</Option>
         </Select>
-        <DatePicker picker="month" value={selectedDate} onChange={setSelectedDate} allowClear={false} />
+        <ReactDatePicker
+          selected={selectedDate.toDate()}
+          onChange={(date) => setSelectedDate(moment(date))}
+          showMonthYearPicker
+          dateFormat="MMMM yyyy"
+          inline={false}
+          style={{ width: 200 }}
+        />
         <Button type="primary" icon={<SyncOutlined />} onClick={handleFilter} loading={loading}>Load Data</Button>
         <Button 
           type="primary" 

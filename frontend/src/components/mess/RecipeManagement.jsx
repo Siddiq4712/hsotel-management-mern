@@ -24,13 +24,13 @@ const RecipeManagement = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [recipeRes, itemStockRes, uomRes] = await Promise.all([
+      const [recipeRes, itemRes, uomRes] = await Promise.all([
         messAPI.getRecipes(),
-        messAPI.getItemStock({ low_stock: false }),
+        messAPI.getItems(),
         messAPI.getUOMs()
       ]);
       setRecipes(recipeRes.data.data);
-      setItems(itemStockRes.data.data || []);
+      setItems(itemRes.data.data);
       setUoms(uomRes.data.data);
     } catch (error) {
       message.error("Failed to load data");
@@ -156,8 +156,8 @@ const RecipeManagement = () => {
                     <Form.Item {...restField} name={[name, 'item_id']} rules={[{ required: true }]}>
                       <Select placeholder="Select Item" style={{ width: 220 }} showSearch optionFilterProp="children">
                         {items.map(i => (
-                            <Select.Option key={i.Item.id} value={i.Item.id}>
-                                {i.Item.name} ({i.current_stock} {i.Item?.UOM?.abbreviation})
+                            <Select.Option key={i.id} value={i.id}>
+                                {i.name} ({i.stock_quantity} {i.UOM?.abbreviation})
                             </Select.Option>
                         ))}
                       </Select>

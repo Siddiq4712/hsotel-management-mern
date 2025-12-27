@@ -435,6 +435,10 @@ export const messAPI = {
  getPurchaseOrders: (params) => api.get('/mess/purchase-orders', { params }),
  clearPurchaseOrders: (ids) => api.put('/mess/purchase-orders/clear', { ids }),
 
+  getRecipes: () => api.get('/mess/recipes'),
+  createRecipe: (data) => api.post('/mess/recipes', data),
+  updateRecipe: (id, data) => api.put(`/mess/recipes/${id}`, data),
+  deleteRecipe: (id) => api.delete(`/mess/recipes/${id}`),
 };
 
 export default api;

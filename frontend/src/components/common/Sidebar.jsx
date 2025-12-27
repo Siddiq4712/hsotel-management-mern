@@ -5,7 +5,8 @@ import {
   ChefHat, Receipt, Wifi, Wrench, DollarSign, CreditCard, Truck,
   ClipboardCheck, MessageCircle, AlertCircle, UserX, CalendarDays,
   Package, Database, Coffee, ShoppingBag, List, BarChart2,
-  Clipboard, Menu, X
+  Clipboard, Menu, X, ChevronLeft,
+  Cake
 } from 'lucide-react';
 
 const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen }) => {
@@ -103,6 +104,7 @@ const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen }) => {
           { id: 'section-menu', label: 'Menu Management', type: 'section' },
           { id: 'menus', label: 'Manage Menus', icon: ChefHat },
           { id: 'create-menu', label: 'Create Menu', icon: ChefHat },
+          { id: 'recipe', label: 'Create Recipe', icon: Cake},
           { id: 'menu-planner', label: 'Menu Planner', icon: Calendar },
           { id: 'menu-schedule', label: 'Menu Schedule', icon: ClipboardCheck },
 
@@ -153,7 +155,7 @@ const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen }) => {
       {/* Overlay for mobile */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden backdrop-blur-sm"
           onClick={() => setIsOpen(false)}
         />
       )}
@@ -162,15 +164,17 @@ const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen }) => {
       <div
         className={`fixed top-16 left-0 h-[calc(100vh-64px)] w-64 bg-gray-800 text-white transform transition-transform duration-300 ease-in-out z-40 flex flex-col ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        }`}
+        } lg:shadow-none shadow-xl`}
       >
         {/* Mobile Close Button */}
-        <div className="lg:hidden flex justify-end p-4 border-b border-gray-700">
+        <div className="lg:hidden flex justify-between items-center p-4 border-b border-gray-700">
+          <h3 className="text-white font-medium">Menu</h3>
           <button
             onClick={() => setIsOpen(false)}
-            className="text-white hover:bg-gray-700 p-2 rounded-lg transition-colors"
+            className="text-white hover:bg-gray-700 p-2 rounded-lg transition-colors flex items-center space-x-1"
           >
-            <X size={24} />
+            <ChevronLeft size={18} />
+            <span className="text-sm">Close</span>
           </button>
         </div>
 
@@ -204,6 +208,11 @@ const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen }) => {
             );
           })}
         </nav>
+
+        {/* Mobile app version/footer info */}
+        <div className="lg:hidden px-4 py-2 text-xs text-gray-500 border-t border-gray-700">
+          App v1.0.0
+        </div>
       </div>
     </>
   );
