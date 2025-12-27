@@ -12,10 +12,10 @@ const LoadingOverlay = ({
 
   return (
     <Modal
-      transparent={true}
+      transparent
       animationType="fade"
       visible={visible}
-      onRequestClose={() => {}} // Disable closing with back button
+      statusBarTranslucent
     >
       <View className="flex-1 justify-center items-center bg-black/50">
         <View
