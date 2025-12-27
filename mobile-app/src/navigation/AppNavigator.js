@@ -2,8 +2,9 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import AuthNavigator from '../auth/AuthNavigator';
 import StudentTabNavigator from './StudentTabNavigator';
+import WardenTabNavigator from './WardenTabNavigator';
 import { useAuth } from '../hooks/useAuth';
-import { Text, View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Text } from 'react-native';
 
 const AppNavigator = () => {
   const { user, loading } = useAuth();
@@ -17,18 +18,19 @@ const AppNavigator = () => {
     );
   }
 
-  // TODO: Implement other role navigators (Warden, Mess, Admin)
-  if (user && user.role === 'student') {
-    return (
-      <NavigationContainer>
-        <StudentTabNavigator />
-      </NavigationContainer>
-    );
-  }
-  // This will handle the case where user is null or role is not 'student' (for now)
   return (
     <NavigationContainer>
-      <AuthNavigator />
+      {user ? (
+        user.role === 'student' ? (
+          <StudentTabNavigator />
+        ) : user.role === 'warden' ? (
+          <WardenTabNavigator />
+        ) : (
+          <AuthNavigator />
+        )
+      ) : (
+        <AuthNavigator />
+      )}
     </NavigationContainer>
   );
 };
