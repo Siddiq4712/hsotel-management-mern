@@ -35,6 +35,8 @@ const {
   // UOM Management
   createUOM, getUOMs, updateUOM, deleteUOM,getDayReductionRequestsForAdmin,updateDayReductionRequestStatusByAdmin,
 
+  updateHostelFeeSettings,
+
   // Dashboard
   getDashboardStats,
   getAdminChartData // ADD THIS LINE
@@ -127,5 +129,7 @@ router.delete('/uoms/:id', deleteUOM);
 
 router.get('/day-reduction-requests', getDayReductionRequestsForAdmin);
 router.put('/day-reduction-requests/:id/status', updateDayReductionRequestStatusByAdmin);
+
+router.put('/hostels/:id/fee-settings', updateHostelFeeSettings);
 
 module.exports = router;

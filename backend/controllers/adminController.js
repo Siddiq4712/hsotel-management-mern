@@ -1945,7 +1945,21 @@ const updateDayReductionRequestStatusByAdmin = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+const updateHostelFeeSettings = async (req, res) => {
+  try {
+    const { id } = req.params; // hostel_id
+    const { annual_fee_amount, show_fee_reminder } = req.body;
 
+    const hostel = await Hostel.findByPk(id);
+    if (!hostel) return res.status(404).json({ success: false, message: 'Hostel not found' });
+
+    await hostel.update({ annual_fee_amount, show_fee_reminder });
+
+    res.json({ success: true, message: 'Fee settings updated successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 module.exports = {
   // Hostel Management
   createHostel,
@@ -2024,4 +2038,6 @@ module.exports = {
   getAdminChartData, // ADD THIS LINE
   getDayReductionRequestsForAdmin,       // <-- NEW EXPORT
   updateDayReductionRequestStatusByAdmin,
+
+  updateHostelFeeSettings
 };

@@ -125,6 +125,8 @@ export const adminAPI = {
   deleteUOM: (id) => api.delete(`/admin/uoms/${id}`),
   getDayReductionRequests: (params) => api.get('/admin/day-reduction-requests', { params }), 
   updateDayReductionRequestStatus: (id, data) => api.put(`/admin/day-reduction-requests/${id}/status`, data),
+
+  updateHostelFeeSettings: (id, data) => api.put(`/admin/hostels/${id}/fee-settings`, data),
 };
 
 // Warden API - Updated with complete endpoints
