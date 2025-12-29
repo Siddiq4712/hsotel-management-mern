@@ -96,6 +96,14 @@ const Hostel = sequelize.define('Hostel', {
   is_active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
+  },
+  annual_fee_amount: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0.00
+  },
+  show_fee_reminder: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   tableName: 'tbl_Hostel',

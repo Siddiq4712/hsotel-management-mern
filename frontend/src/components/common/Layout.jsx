@@ -1,43 +1,35 @@
 import React, { useState } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';
-import { Menu } from 'lucide-react';
 
 const Layout = ({ children, currentView, setCurrentView }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header on top of everything */}
-      <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      <Header onMenuClick={() => {
+        setSidebarOpen(!sidebarOpen);
+        setIsCollapsed(false); // When clicking header menu, open it fully
+      }} />
 
-      <div className="flex">
-        {/* Sidebar with toggle */}
+      <div className="flex flex-1">
         <Sidebar
           currentView={currentView}
           setCurrentView={setCurrentView}
           isOpen={sidebarOpen}
           setIsOpen={setSidebarOpen}
+          isCollapsed={isCollapsed}
+          setIsCollapsed={setIsCollapsed}
         />
 
-        {/* Toggle button for sidebar - visible on smaller screens */}
-        <button 
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="fixed bottom-6 right-6 lg:hidden z-50 bg-blue-600 text-white p-4 rounded-full shadow-lg hover:bg-blue-700 transition-colors"
-          aria-label="Toggle Menu"
-        >
-          <Menu size={24} />
-        </button>
-
-        {/* Main content with padding - note the added blur effect when sidebar is open */}
         <main 
-          className={`flex-1 p-6 lg:ml-64 pt-16 transition-all duration-300 ${
-            sidebarOpen ? 'lg:ml-64 filter blur-sm lg:blur-none' : ''
-          }`}
+          className={`flex-1 transition-all duration-300 pt-16 min-h-screen
+            ${isCollapsed ? 'lg:ml-20' : 'lg:ml-72'} 
+            ${sidebarOpen ? 'max-lg:blur-sm max-lg:pointer-events-none' : ''}
+          `}
         >
-          <div 
-            className={`transition-opacity duration-300 ${sidebarOpen ? 'lg:opacity-100 opacity-30' : 'opacity-100'}`}
-          >
+          <div className="p-4 lg:p-8 max-w-[1600px] mx-auto">
             {children}
           </div>
         </main>

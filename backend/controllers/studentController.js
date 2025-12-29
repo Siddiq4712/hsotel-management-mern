@@ -24,6 +24,8 @@ function customRounding(amount) {
 }
 
 // PROFILE MANAGEMENT
+// controllers/studentController.js
+
 const getProfile = async (req, res) => {
   try {
     const student = await User.findByPk(req.user.id, {
@@ -48,7 +50,8 @@ const getProfile = async (req, res) => {
         {
           model: Hostel,
           as: 'Hostel',
-          attributes: ['id', 'name', 'address', 'contact_number']
+          // ADD 'annual_fee_amount' and 'show_fee_reminder' here:
+          attributes: ['id', 'name', 'address', 'contact_number', 'annual_fee_amount', 'show_fee_reminder']
         }
       ]
     });
@@ -56,7 +59,7 @@ const getProfile = async (req, res) => {
     res.json({ success: true, data: student });
   } catch (error) {
     console.error('Profile fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message }); // Add error.message for better debugging
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 // Updated getRoommates function in controllers/studentController.js

@@ -1,827 +1,391 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
+import { 
+  Bed, ShieldCheck, ShowerHead, Zap, Users, 
+  Save, RefreshCw, Home, Layers, Trash2, 
+  Waves, DoorOpen, Eraser, Coffee, ShoppingCart, 
+  Utensils, Footprints, Square, X, Laptop
+} from "lucide-react";
 import { wardenAPI } from "../../services/api";
 
-// Icons (Using inline spans for placeholders)
-const IconBuilding = () => <span className="mr-2 text-indigo-500">🏢</span>;
-const IconDoor = () => <span className="mr-2 text-indigo-500">🚪</span>;
-const IconFloor = () => <span className="mr-2 text-indigo-500">🪜</span>;
-const IconSave = () => <span className="mr-2 text-white">💾</span>;
-const IconLoad = () => <span className="mr-2 text-white">🔄</span>;
-const IconRoom = () => <span className="mr-2 text-indigo-500">🛌</span>;
-const IconMap = () => <span className="mr-2 text-indigo-600">🗺️</span>;
+/* ---------- ARCHITECTURAL CONSTANTS ---------- */
 
-/* ---------- helpers (UNCHANGED) ---------- */
-const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-const indexToLetters = (index) => {
-  let n = index;
-  let result = "";
-  while (n >= 0) {
-    result = String.fromCharCode((n % 26) + 65) + result;
-    n = Math.floor(n / 26) - 1;
-  }
-  return result;
+const ROOM_TYPES = {
+  STUDENT: { key: "STUDENT", name: "Student Room", color: "bg-white border-slate-900 text-slate-800", icon: Bed, defaultCapacity: 2 },
+  WARDEN: { key: "WARDEN", name: "Warden Office", color: "bg-indigo-50 border-indigo-600 text-indigo-900", icon: ShieldCheck, defaultCapacity: 1 },
+  WASHROOM: { key: "WASHROOM", name: "Washroom", color: "bg-sky-50 border-sky-500 text-sky-900", icon: ShowerHead, defaultCapacity: 3 },
+  RESTROOM: { key: "RESTROOM", name: "Common Toilets", color: "bg-blue-50 border-blue-600 text-blue-900", icon: Footprints, defaultCapacity: 4 },
+  IRON_ROOM: { key: "IRON_ROOM", name: "Ironing Room", color: "bg-slate-100 border-slate-500 text-slate-700", icon: Waves, defaultCapacity: 2 },
+  CONTROL_ROOM: { key: "CONTROL_ROOM", name: "Power Supply", color: "bg-amber-50 border-amber-600 text-amber-900", icon: Zap, defaultCapacity: 1 },
+  FACULTY_ROOM: { key: "FACULTY_ROOM", name: "Faculty (Ensuite)", color: "bg-white border-slate-900 text-slate-800", icon: Laptop, defaultCapacity: 1 },
 };
 
-const lettersToIndex = (value) =>
-  value
-    .toUpperCase()
-    .split("")
-    .reduce((acc, char) => acc * 26 + (char.charCodeAt(0) - 64), 0) - 1;
+/* ---------- DYNAMIC ARCHITECTURAL GRID GENERATOR ---------- */
 
-const parseCellId = (cellId) => {
-  const [floorIdx, rowIdx, colIdx] = cellId.split("-").map((n) => parseInt(n, 10));
-  return { floorIdx, rowIdx, colIdx };
-};
+const generateArchitecturalGrid = ({ buildingType, topCount, bottomCount, leftCount, rightCount }) => {
+  // Determine grid dimensions based on the counts + buffer for corners and verandas
+  const width = Math.max(topCount, bottomCount) + 2; 
+  const height = Math.max(leftCount, rightCount) + 2;
+  
+  const grid = Array(height).fill(0).map(() => Array(width).fill("EMPTY"));
 
-const makeRoomNumber = (floors, cellId, colPad = 2) => {
-  const { floorIdx, rowIdx, colIdx } = parseCellId(cellId);
-  const floorNumber = floors - floorIdx;
-  const rowLabel = indexToLetters(rowIdx);
-  const columnLabel = String(colIdx + 1).padStart(colPad, "0");
-  return `${floorNumber}-${rowLabel}${columnLabel}`;
-};
+  // Helper to safely place types
+  const setType = (r, c, type) => { if (grid[r] && grid[r][c] !== undefined) grid[r][c] = type; };
 
-const deriveSlotFromRoomNumber = (roomNumber, floors) => {
-  if (!roomNumber || !roomNumber.includes("-")) return null;
+  // 1. Mark Corners as Voids (Structural Pillars)
+  setType(0, 0, "VOID"); 
+  setType(0, width - 1, "VOID");
+  setType(height - 1, 0, "VOID");
+  setType(height - 1, width - 1, "VOID");
 
-  const [floorPart, gridPart] = roomNumber.split("-");
-  const floorNumber = parseInt(floorPart, 10);
-  if (Number.isNaN(floorNumber)) return null;
-
-  const rowLetters = gridPart.match(/^[A-Z]+/i)?.[0];
-  const colPart = gridPart.slice(rowLetters ? rowLetters.length : 0);
-  const colNumber = parseInt(colPart, 10);
-
-  if (!rowLetters || Number.isNaN(colNumber)) return null;
-
-  const floorIdx = floors - floorNumber;
-  const rowIdx = lettersToIndex(rowLetters);
-  const colIdx = colNumber - 1;
-
-  if ([floorIdx, rowIdx, colIdx].some((n) => n < 0)) return null;
-
-  return `${floorIdx}-${rowIdx}-${colIdx}`;
-};
-
-const defaultRoomData = (slot, floors, baseName) => ({
-  layout_slot: slot,
-  autoNumbered: true,
-  room_id: null,
-  type_id: null,
-  name: baseName,
-  category: baseName,
-  capacity: 1,
-  inactive: false,
-  room_number: makeRoomNumber(floors, slot),
-});
-
-const generateGridShape = ({
-  buildingType,
-  topRooms,
-  bottomRooms,
-  leftRooms,
-  rightRooms,
-  uOpenSide,
-  lOrientation,
-}) => {
-  const maxWidth = Math.max(1, topRooms, bottomRooms, leftRooms, rightRooms);
-
-  const sections = { top: false, bottom: false, left: false, right: false };
-
-  if (buildingType === "single") sections.top = true;
-  if (buildingType === "square") sections.top = sections.bottom = sections.left = sections.right = true;
-
-  if (buildingType === "l") {
-    if (lOrientation === "tl") sections.top = sections.left = true;
-    if (lOrientation === "tr") sections.top = sections.right = true;
-    if (lOrientation === "bl") sections.bottom = sections.left = true;
-    if (lOrientation === "br") sections.bottom = sections.right = true;
+  // 2. Map TOP Side
+  if (buildingType !== "linear" || topCount > 0) {
+    for (let i = 1; i < width - 1; i++) {
+        if (i <= topCount) {
+            setType(0, i, "ROOM");
+            setType(1, i, "VERANDA");
+        }
+    }
   }
 
-  if (buildingType === "u") {
-    sections.top = sections.bottom = sections.left = sections.right = true;
-    if (uOpenSide === "t") sections.top = false;
-    if (uOpenSide === "b") sections.bottom = false;
-    if (uOpenSide === "l") sections.left = false;
-    if (uOpenSide === "r") sections.right = false;
+  // 3. Map BOTTOM Side
+  if (buildingType === "square" || buildingType === "u" || bottomCount > 0) {
+    for (let i = 1; i < width - 1; i++) {
+        if (i <= bottomCount) {
+            setType(height - 1, i, "ROOM");
+            setType(height - 2, i, "VERANDA");
+        }
+    }
   }
 
-  const grid = [];
-
-  if (sections.top) {
-    grid.push(Array.from({ length: maxWidth }, (_, idx) => (idx < topRooms ? "TOP" : "EMPTY")));
+  // 4. Map LEFT Side
+  if (buildingType !== "linear" || leftCount > 0) {
+    for (let j = 1; j < height - 1; j++) {
+        if (j <= leftCount) {
+            setType(j, 0, "ROOM");
+            setType(j, 1, "VERANDA");
+        }
+    }
   }
 
-  const middleHeight = Math.max(leftRooms, rightRooms, 1);
-  for (let row = 0; row < middleHeight; row += 1) {
-    grid.push(
-      Array.from({ length: maxWidth }, (_, col) => {
-        if (col === 0 && sections.left && row < leftRooms) return "LEFT";
-        if (col === maxWidth - 1 && sections.right && row < rightRooms) return "RIGHT";
-        return "EMPTY";
-      }),
-    );
-  }
-
-  if (sections.bottom) {
-    grid.push(
-      Array.from({ length: maxWidth }, (_, idx) => (idx < bottomRooms ? "BOTTOM" : "EMPTY")),
-    );
+  // 5. Map RIGHT Side
+  if (buildingType === "square" || buildingType === "u" || rightCount > 0) {
+    for (let j = 1; j < height - 1; j++) {
+        if (j <= rightCount) {
+            setType(j, width - 1, "ROOM");
+            setType(j, width - 2, "VERANDA");
+        }
+    }
   }
 
   return grid;
 };
 
-/* ---------- drag/drop (UPGRADED STYLES) ---------- */
-const DraggableRoomType = ({ typeName }) => {
-  const [{ isDragging }, dragRef] = useDrag(() => ({
-    type: "roomType",
-    item: { kind: "template", typeName },
-    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-  }));
+/* ---------- TECHNICAL FURNITURE SYMBOLS ---------- */
 
-  // Upgraded template styling to match theme
-  return (
-    <div
-      ref={dragRef}
-      className={`p-3 border-2 border-dashed rounded-lg mb-2 bg-gray-50 text-gray-700 font-medium cursor-grab active:cursor-grabbing hover:bg-gray-100 transition-opacity transform hover:scale-[1.01] ${
-        isDragging ? "opacity-50 border-indigo-400" : "border-gray-300"
-      }`}
-    >
-      <IconRoom />
-      {typeName}
+const FurnitureOverlay = ({ roomName, capacity, occupancy }) => {
+  const WC = () => (
+    <div className="flex flex-col items-center scale-[0.6]">
+      <div className="w-3 h-1.5 bg-slate-500 rounded-t-sm" />
+      <div className="w-3.5 h-4 border-2 border-slate-600 rounded-b-full bg-white shadow-sm" />
     </div>
   );
-};
 
-const DropZone = ({ slotId, data, active, onDrop, onClickEdit }) => {
-  const [{ isOver }, dropRef] = useDrop(
-    () => ({
-      accept: ["roomType", "existingRoom"],
-      drop: (item) => onDrop(slotId, item),
-      collect: (monitor) => ({ isOver: monitor.isOver() }),
-    }),
-    [slotId, data, onDrop],
-  );
-
-  const [{ isDragging }, dragRef] = useDrag(
-    () => ({
-      type: "existingRoom",
-      item: data ? { kind: "existing", from: slotId, data } : {},
-      canDrag: () => Boolean(data),
-      collect: (monitor) => ({ isDragging: monitor.isDragging() }),
-    }),
-    [slotId, data],
-  );
-
-  const refCallback = useCallback(
-    (node) => {
-      dropRef(node);
-      if (data && node) dragRef(node);
-    },
-    [dropRef, dragRef, data],
-  );
-
-  if (!active) return <div className="w-full h-full bg-gray-50/50" />; 
-
-  // Determine base styles for the room cell
-  let baseClasses = "border-2 rounded-lg flex flex-col items-center justify-center text-xs p-1 select-none transition-all duration-150 cursor-pointer";
-  let contentClasses = "flex flex-col items-center justify-center h-full";
-  
-  if (data) {
-    // Existing room styles (upgraded)
-    baseClasses += data.inactive
-      ? " bg-red-100 border-red-400 text-red-800 hover:bg-red-200"
-      : " bg-indigo-100 border-indigo-400 text-indigo-900 font-semibold hover:bg-indigo-200";
-    contentClasses += data.inactive ? " opacity-70" : "";
-  } else {
-    // Empty drop zone styles (upgraded)
-    baseClasses += " border-dashed border-gray-300 bg-white hover:bg-gray-100 text-gray-500 hover:border-indigo-400";
+  switch (roomName) {
+    case "Faculty (Ensuite)":
+      return (
+        <div className="relative w-full h-full p-0.5">
+          <div className="flex justify-between items-start">
+             <div className="w-7 h-4 border border-slate-400 bg-slate-100 mt-1 shadow-xs" title="Desk" />
+             <div className="w-9 h-11 border-l-2 border-b-2 border-slate-400 bg-white/80 flex flex-col items-center justify-center p-0.5" title="Ensuite">
+                <div className="w-2 h-2 rounded-full border border-sky-400 mb-1" title="Sink" />
+                <WC />
+             </div>
+          </div>
+        </div>
+      );
+    case "Common Toilets":
+      return (
+        <div className="flex gap-1 justify-center items-center h-full opacity-60">
+          {Array.from({ length: 2 }).map((_, i) => <WC key={i} />)}
+        </div>
+      );
+    case "Student Room":
+      return (
+        <div className="flex flex-wrap gap-1 justify-center p-1 mt-1">
+          {Array.from({ length: capacity }).map((_, i) => (
+            <div key={i} className={`w-3 h-5 border border-slate-500 rounded-sm relative ${i < occupancy ? "bg-indigo-600" : "bg-white"}`}>
+              <div className="absolute top-0 inset-x-0 h-1 bg-black/10" />
+            </div>
+          ))}
+          <div className="w-7 h-2 bg-slate-200 border border-slate-400 mt-auto" />
+        </div>
+      );
+    case "Power Supply":
+      return (
+        <div className="flex flex-col items-center justify-center h-full opacity-90">
+          <div className="w-10 h-8 border-2 border-slate-900 bg-slate-800 grid grid-rows-3 gap-0.5 p-0.5 shadow-md">
+            <div className="bg-amber-400 h-full w-full" />
+            <div className="bg-amber-500 h-full w-full" />
+            <div className="bg-amber-400 h-full w-full" />
+          </div>
+          <Zap size={10} className="text-amber-600 mt-1" />
+        </div>
+      );
+    default:
+      return <div className="flex items-center justify-center opacity-10 h-full"><Square size={20} /></div>;
   }
+};
 
-  // Dragging/hover effects
-  baseClasses += isDragging ? " opacity-40 shadow-xl" : "";
-  baseClasses += isOver ? " ring-4 ring-offset-2 ring-green-500 shadow-lg" : "";
+/* ---------- BLUEPRINT COMPONENTS ---------- */
+
+const RoomBlueprint = ({ data, isDragging }) => {
+  if (!data) return (
+    <div className="w-full h-full border-2 border-dashed border-slate-200 bg-white/40 flex flex-col items-center justify-center text-slate-300">
+      <Eraser size={14} className="opacity-20" />
+      <span className="text-[7px] font-black uppercase mt-1">Slot</span>
+    </div>
+  );
 
   return (
-    <div
-      ref={refCallback}
-      onClick={() => data && onClickEdit(slotId, data)}
-      className={baseClasses}
-      style={{ width: "100%", height: "100%" }}
-    >
-      <div className={contentClasses}>
-        {data ? (
-          <>
-            <strong className="text-sm text-center truncate w-full px-1">{data.name}</strong>
-            <span className="text-xs font-mono mt-1"># {data.room_number || "—"}</span>
-            <span className="text-[10px] opacity-90">Capacity: {data.capacity}</span>
-            {data.inactive && <span className="text-[10px] font-bold text-red-600 animate-pulse mt-1">(INACTIVE)</span>}
-          </>
-        ) : (
-          <span className="text-sm font-medium">Drop Room Here</span>
-        )}
+    <div className={`relative w-full h-full border-2 rounded-sm flex flex-col transition-all bg-white shadow-sm border-slate-900 ${isDragging ? "opacity-20 scale-95" : "opacity-100"}`}>
+      <div className="absolute top-0 left-1/4 right-1/4 h-[3.5px] bg-sky-100 border-x border-b border-slate-500" />
+      <div className="absolute bottom-0 left-2 w-5 h-[3.5px] bg-orange-600 border-x border-t border-slate-800" />
+      <div className="px-1 py-0.5 border-b border-slate-200 bg-slate-50 flex justify-between items-center h-4">
+        <span className="text-[8px] font-black tracking-tighter truncate">{data.room_number}</span>
+      </div>
+      <div className="flex-1 overflow-hidden">
+        <FurnitureOverlay roomName={data.name} capacity={data.capacity} occupancy={data.occupancy_count} />
+      </div>
+      <div className="text-[6px] font-black uppercase text-center bg-slate-900 text-white leading-none py-0.5 tracking-tighter truncate">
+        {data.name}
       </div>
     </div>
   );
 };
 
-const EntranceLabel = ({ side }) => {
-  if (!side) return null;
-  // Used a deep amber/orange for the entrance to clearly contrast with the indigo/blue theme.
-  const label = <span className="font-bold text-sm text-amber-600 bg-amber-100 px-3 py-1 rounded-full shadow-md whitespace-nowrap">MAIN ENTRANCE</span>;
-  
-  // Upgraded entrance label positioning and styling
-  if (side === "t") return <div className="text-center mb-2 -mt-2">{label}</div>;
-  if (side === "b") return <div className="text-center mt-2 -mb-2">{label}</div>;
-  if (side === "l")
-    return (
-      <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-4">
-        <div className="rotate-90 origin-bottom-left transform -translate-x-full">{label}</div>
-      </div>
-    );
-  if (side === "r")
-    return (
-      <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full pl-4">
-        <div className="-rotate-90 origin-bottom-right transform translate-x-full">{label}</div>
-      </div>
-    );
-  return null;
+const CorridorCell = () => (
+  <div className="w-full h-full bg-slate-100/60 border-x border-slate-200 flex flex-col items-center justify-center relative overflow-hidden group">
+    <div className="absolute inset-0 opacity-10 group-hover:opacity-20 transition-opacity" style={{ backgroundImage: 'repeating-linear-gradient(45deg, #000 0, #000 1px, transparent 0, transparent 50%)', backgroundSize: '8px 8px' }} />
+    <Footprints size={12} className="text-slate-400 z-10" />
+    <span className="text-[5px] font-black text-slate-500 uppercase tracking-widest mt-1 z-10">Walkway</span>
+  </div>
+);
+
+const VoidCell = () => (
+  <div className="w-full h-full bg-slate-200 flex items-center justify-center border-2 border-slate-300">
+    <X size={16} className="text-slate-400 opacity-40" />
+  </div>
+);
+
+const DropZone = ({ slotId, data, type, onDrop, onClickEdit }) => {
+  const [{ isOver }, dropRef] = useDrop(() => ({
+    accept: ["roomTemplate", "existingRoom"],
+    drop: (item) => onDrop(slotId, item),
+    collect: (monitor) => ({ isOver: monitor.isOver() }),
+  }), [slotId, onDrop]);
+
+  const [{ isDragging }, dragRef] = useDrag(() => ({
+    type: "existingRoom",
+    item: data ? { kind: "existing", from: slotId, data } : {},
+    canDrag: () => !!data,
+    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
+  }), [slotId, data]);
+
+  if (type === "EMPTY") return <div className="w-full h-full bg-transparent" />;
+  if (type === "VOID") return <VoidCell />;
+  if (type === "VERANDA") return <CorridorCell />;
+
+  return (
+    <div ref={(n) => { dropRef(n); if (data) dragRef(n); }} onClick={() => data && onClickEdit(slotId, data)} className="w-full h-full cursor-pointer relative">
+      <RoomBlueprint data={data} isDragging={isDragging} />
+      {isOver && <div className="absolute inset-0 bg-indigo-500/20 border-2 border-indigo-600 animate-pulse z-20" />}
+    </div>
+  );
 };
 
-/* ---------- main component (UPGRADED STYLES) ---------- */
-const CreateRoom = ({ hostelId }) => {
-  const [buildingType, setBuildingType] = useState("single");
-  const [floors, setFloors] = useState(1);
-  const [topRooms, setTopRooms] = useState(0);
-  const [bottomRooms, setBottomRooms] = useState(0);
-  const [leftRooms, setLeftRooms] = useState(0);
-  const [rightRooms, setRightRooms] = useState(0);
-  const [entranceSide, setEntranceSide] = useState("b");
-  const [uOpenSide, setUOpenSide] = useState("b");
-  const [lOrientation, setLOrientation] = useState("tl");
+/* ---------- MAIN INTERFACE ---------- */
 
+const CreateRoom = () => {
+  const [buildingType, setBuildingType] = useState("u");
+  const [topRooms, setTopRooms] = useState(6);
+  const [bottomRooms, setBottomRooms] = useState(0);
+  const [leftRooms, setLeftRooms] = useState(4);
+  const [rightRooms, setRightRooms] = useState(4);
   const [cellData, setCellData] = useState({});
   const [editSlot, setEditSlot] = useState(null);
   const [editData, setEditData] = useState(null);
 
-  const settings = useMemo(
-    () => ({
-      buildingType,
-      topRooms,
-      bottomRooms,
-      leftRooms,
-      rightRooms,
-      uOpenSide,
-      lOrientation,
-    }),
-    [buildingType, topRooms, bottomRooms, leftRooms, rightRooms, uOpenSide, lOrientation],
-  );
+  const grid = useMemo(() => generateArchitecturalGrid({ 
+    buildingType, 
+    topCount: topRooms, 
+    bottomCount: bottomRooms, 
+    leftCount: leftRooms, 
+    rightCount: rightRooms 
+  }), [buildingType, topRooms, bottomRooms, leftRooms, rightRooms]);
 
-  const gridShape = useMemo(() => generateGridShape(settings), [settings]);
-
-  /* ---------- Handlers (UNCHANGED LOGIC) ---------- */
-
-  const handleUpdateCell = useCallback(
-    (slot, updater) => {
-      setCellData((prev) => {
-        const existing = prev[slot];
-        const nextValue = typeof updater === "function" ? updater(existing) : updater;
-
-        if (!nextValue) {
-          if (!existing) return prev;
-          const { [slot]: _, ...rest } = prev;
-          return rest;
-        }
-
-        const autoNumbered =
-          nextValue.autoNumbered ??
-          (existing ? existing.autoNumbered : !nextValue.room_number || nextValue.room_number === makeRoomNumber(floors, slot));
-
-        const roomNumber =
-          nextValue.room_number && !autoNumbered ? nextValue.room_number : makeRoomNumber(floors, slot);
-
-        return {
-          ...prev,
-          [slot]: {
-            ...nextValue,
-            layout_slot: slot,
-            autoNumbered,
-            room_number: roomNumber,
-          },
-        };
-      });
-    },
-    [floors],
-  );
-
-  const handleDrop = useCallback(
-    (slot, payload) => {
-      if (payload.kind === "template") {
-        handleUpdateCell(slot, defaultRoomData(slot, floors, payload.typeName));
-        return;
+  const handleUpdateCell = useCallback((slot, updater) => {
+    setCellData((prev) => {
+      const existing = prev[slot];
+      const next = typeof updater === "function" ? updater(existing) : updater;
+      if (!next) {
+        const { [slot]: _, ...rest } = prev;
+        return rest;
       }
-
-      if (payload.kind === "existing") {
-        const { from, data } = payload;
-        if (from !== slot) handleUpdateCell(from, null);
-        handleUpdateCell(slot, {
-          ...data,
-          layout_slot: slot,
-          room_number: data.autoNumbered ? makeRoomNumber(floors, slot) : data.room_number,
-        });
-      }
-    },
-    [floors, handleUpdateCell],
-  );
-
-  const openEditor = useCallback((slot, data) => {
-    setEditSlot(slot);
-    setEditData({ ...data });
+      return { ...prev, [slot]: { ...next, layout_slot: slot } };
+    });
   }, []);
 
-  const closeEditor = useCallback(() => {
-    setEditSlot(null);
-    setEditData(null);
-  }, []);
-
-  const commitEditor = useCallback(() => {
-    if (!editSlot || !editData) return;
-    handleUpdateCell(editSlot, editData);
-    closeEditor();
-  }, [editSlot, editData, handleUpdateCell, closeEditor]);
-
-  const loadLayoutFromDB = useCallback(async () => {
-    try {
-      const [layoutRes, typesRes, roomsRes] = await Promise.all([
-        wardenAPI.getLayout(),
-        wardenAPI.getRoomTypes(),
-        wardenAPI.getRooms(),
-      ]);
-
-      const layout = layoutRes.data.data;
-      if (!layout) {
-        alert("No layout saved for this hostel yet.");
-        return;
-      }
-
-      setBuildingType(layout.building_type);
-      setFloors(layout.floors);
-      setEntranceSide(layout.entrance_side);
-      setTopRooms(layout.top_rooms ?? 0);
-      setBottomRooms(layout.bottom_rooms ?? 0);
-      setLeftRooms(layout.left_rooms ?? 0);
-      setRightRooms(layout.right_rooms ?? 0);
-      if (layout.building_type === "u" && layout.open_side) setUOpenSide(layout.open_side);
-      if (layout.building_type === "l" && layout.orientation) setLOrientation(layout.orientation);
-
-      const types = typesRes.data.data || [];
-      const rooms = roomsRes.data.data || [];
-
-      const mapping = {};
-      rooms.forEach((room) => {
-        if (!room.is_active) return;
-        const slot = room.layout_slot || deriveSlotFromRoomNumber(room.room_number, layout.floors);
-        if (!slot) return;
-
-        const type = types.find((t) => t.id === room.room_type_id);
-        mapping[slot] = {
-          layout_slot: slot,
-          room_id: room.id,
-          type_id: room.room_type_id,
-          name: type?.name || room.room_number || "Unnamed room",
-          category: type?.description || "",
-          capacity: type?.capacity || room.capacity || 1,
-          room_number: room.room_number,
-          inactive: !room.is_active,
-          autoNumbered: room.room_number === makeRoomNumber(layout.floors, slot),
-        };
+  const handleDrop = (slot, item) => {
+    if (item.kind === "template") {
+      const config = ROOM_TYPES[item.typeKey];
+      handleUpdateCell(slot, {
+        typeKey: item.typeKey,
+        name: config.name,
+        capacity: config.defaultCapacity,
+        occupancy_count: 0,
+        room_number: `R-${Math.floor(Math.random()*900)+100}`,
+        inactive: false
       });
-
-      setCellData(mapping);
-      alert("Layout loaded successfully.");
-    } catch (error) {
-      console.error("Failed to load layout:", error);
-      alert(error.message || "Failed to load layout");
+    } else {
+      if (item.from !== slot) handleUpdateCell(item.from, null);
+      handleUpdateCell(slot, item.data);
     }
-  }, []);
-
-  useEffect(() => {
-    loadLayoutFromDB();
-  }, [loadLayoutFromDB]);
-
-  const saveLayoutToDB = useCallback(async () => {
-    try {
-      const activeCells = Object.entries(cellData);
-      for (const [, data] of activeCells) {
-        if (!data) continue;
-        if (!data.room_number || data.room_number.trim() === "") {
-          throw new Error(`Room number is required for ${data.name}.`);
-        }
-      }
-
-      await wardenAPI.saveLayout({
-        building_type: buildingType,
-        entrance_side: entranceSide,
-        floors,
-        top_rooms: topRooms,
-        bottom_rooms: bottomRooms,
-        left_rooms: leftRooms,
-        right_rooms: rightRooms,
-        orientation: lOrientation,
-        open_side: uOpenSide,
-      });
-
-      const [typesRes, roomsRes] = await Promise.all([wardenAPI.getRoomTypes(), wardenAPI.getRooms()]);
-      const existingTypes = typesRes.data.data || [];
-      const existingRooms = roomsRes.data.data || [];
-
-      const usedTypes = new Map();
-      const usedRooms = new Map();
-      const updatedCells = { ...cellData };
-
-      for (const [slot, data] of activeCells) {
-        if (!data) continue;
-
-        const slotMeta = parseCellId(slot);
-        const floorNumber = floors - slotMeta.floorIdx;
-
-        let typeId = data.type_id;
-        if (!typeId) {
-          const createRes = await wardenAPI.createRoomType({
-            name: data.name,
-            capacity: data.capacity,
-            description: data.category,
-          });
-          typeId = createRes.data.data.id;
-        } else {
-          await wardenAPI.updateRoomType(typeId, {
-            name: data.name,
-            capacity: data.capacity,
-            description: data.category,
-          });
-        }
-        usedTypes.set(typeId, true);
-
-        const payload = {
-          room_type_id: typeId,
-          room_number: data.room_number,
-          floor: floorNumber,
-          layout_slot: slot,
-          is_active: !data.inactive,
-        };
-
-        if (data.room_id) {
-          await wardenAPI.updateRoom(data.room_id, payload);
-          usedRooms.set(data.room_id, true);
-        } else {
-          const createRoomRes = await wardenAPI.createRoom({ ...payload, hostel_id: hostelId });
-          const newRoomId = createRoomRes.data.data.id;
-          usedRooms.set(newRoomId, true);
-          updatedCells[slot] = { ...data, room_id: newRoomId, type_id: typeId };
-        }
-      }
-
-      for (const room of existingRooms) {
-        if (!room.is_active) continue;
-        if (!usedRooms.has(room.id)) {
-          await wardenAPI.updateRoom(room.id, { is_active: false });
-        }
-      }
-
-      const refreshedRooms = (await wardenAPI.getRooms()).data.data ?? [];
-
-      for (const type of existingTypes) {
-        const stillReferenced = refreshedRooms.some(
-          (room) => room.room_type_id === type.id
-        );
-
-        if (!stillReferenced && !usedTypes.has(type.id)) {
-          try {
-            await wardenAPI.deleteRoomType(type.id);
-          } catch (err) {
-            console.warn(
-              `Room type ${type.id} could not be deleted:`,
-              err?.response?.data?.message || err.message
-            );
-          }
-        }
-      }
-      setCellData(updatedCells);
-      alert("Layout saved successfully.");
-    } catch (error) {
-      console.error("Failed to save layout:", error);
-      alert(error.message || "Layout save failed");
-    }
-  }, [
-    cellData,
-    buildingType,
-    entranceSide,
-    floors,
-    topRooms,
-    bottomRooms,
-    leftRooms,
-    rightRooms,
-    lOrientation,
-    uOpenSide,
-    hostelId,
-  ]);
-
-  const renderedGrid = useMemo(
-    () => (
-      // Upgraded grid container with subtle border/shadow
-      <div className="relative p-2 border-2 border-gray-200 rounded-xl shadow-inner bg-gray-50">
-        <EntranceLabel side={entranceSide} />
-        {Array.from({ length: floors }).map((_, floorIdx) => (
-          <div key={floorIdx} className="mb-6 first:mt-4">
-            <h3 className="mb-3 text-lg font-bold text-gray-800 border-b border-gray-200 pb-1">
-              <IconFloor />Floor {floors - floorIdx}
-            </h3>
-            {gridShape.map((row, rowIdx) => (
-              <div key={`${floorIdx}-${rowIdx}`} className="flex justify-center">
-                {row.map((cell, colIdx) => {
-                  const slotId = `${floorIdx}-${rowIdx}-${colIdx}`;
-                  const active = cell !== "EMPTY";
-                  const data = cellData[slotId];
-                  return (
-                    // Grid cell size and margin adjusted for a cleaner look
-                    <div key={slotId} style={{ width: 80, height: 80, margin: 4 }}>
-                      <DropZone
-                        slotId={slotId}
-                        data={data}
-                        active={active}
-                        onDrop={handleDrop}
-                        onClickEdit={openEditor}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    ),
-    [cellData, entranceSide, floors, gridShape, handleDrop, openEditor],
-  );
+  };
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="p-8 bg-gray-50 min-h-screen">
-        <h1 className="text-3xl font-extrabold text-gray-900 mb-6 border-b pb-2">
-          {/* <IconMap /> */}
-          Hostel Layout Creator
-        </h1>
-
-        {/* configuration - use a card-like grid */}
-        <section className="grid grid-cols-1 gap-6 md:grid-cols-3 mb-8">
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-lg">
-            <label className="mb-2 block text-sm font-bold text-gray-700">
-              {/* <IconBuilding /> */}
-              Building Type
-            </label>
-            <select
-              value={buildingType}
-              onChange={(event) => setBuildingType(event.target.value)}
-              className="h-11 w-full rounded-lg border-gray-300 border focus:border-indigo-500 focus:ring-indigo-500 px-4 transition duration-150"
-            >
-              <option value="single">Straight (Single Side)</option>
-              <option value="l">L-Shaped</option>
-              <option value="u">U-Shaped</option>
-              <option value="square">Square (4-sided)</option>
-            </select>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-lg">
-            <label className="mb-2 block text-sm font-bold text-gray-700">
-              {/* <IconDoor /> */}
-              Entrance Side
-            </label>
-            <select
-              value={entranceSide}
-              onChange={(event) => setEntranceSide(event.target.value)}
-              className="h-11 w-full rounded-lg border-gray-300 border focus:border-indigo-500 focus:ring-indigo-500 px-4 transition duration-150"
-            >
-              <option value="t">Top</option>
-              <option value="b">Bottom</option>
-              <option value="l">Left</option>
-              <option value="r">Right</option>
-            </select>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-lg">
-            <label className="mb-2 block text-sm font-bold text-gray-700">
-              {/* <IconFloor /> */}
-              Floors
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={floors}
-              onChange={(event) => setFloors(Math.max(1, parseInt(event.target.value, 10) || 1))}
-              className="h-11 w-full rounded-lg border-gray-300 border focus:border-indigo-500 focus:ring-indigo-500 px-4 transition duration-150"
-            />
-          </div>
-        </section>
-
-        {/* rooms per side / orientation */}
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-8">
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-lg">
-            <h2 className="mb-4 text-base font-extrabold uppercase tracking-wider text-indigo-700">
-              Rooms per side
-            </h2>
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { label: "Top", setter: setTopRooms, value: topRooms },
-                { label: "Bottom", setter: setBottomRooms, value: bottomRooms },
-                { label: "Left", setter: setLeftRooms, value: leftRooms },
-                { label: "Right", setter: setRightRooms, value: rightRooms },
-              ].map(({ label, setter, value }) => (
-                <label key={label} className="block text-sm font-medium text-gray-700">
-                  {label} Count
-                  <input
-                    type="number"
-                    min={0}
-                    value={value}
-                    onChange={(event) => setter(Math.max(0, parseInt(event.target.value, 10) || 0))}
-                    className="mt-1 h-10 w-full rounded-lg border-gray-300 border px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150"
-                  />
-                </label>
-              ))}
+      <div className="min-h-screen bg-slate-50 p-8 font-sans text-slate-900 select-none">
+        
+        <header className="max-w-[1500px] mx-auto flex justify-between items-center border-b-2 border-slate-200 pb-6 mb-8">
+          <div className="flex items-center gap-4">
+            <Layers size={36} className="text-slate-900" />
+            <div>
+              <h1 className="text-3xl font-black uppercase italic tracking-tighter">Blueprint Studio Pro</h1>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Ground Floor Plan | Junction-Void Logic</p>
             </div>
           </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-lg">
-            <h2 className="mb-4 text-base font-extrabold uppercase tracking-wider text-indigo-700">
-              Building Orientation
-            </h2>
-
-            {buildingType === "l" && (
-              <label className="block text-sm font-medium text-gray-700">
-                L shape Orientation
-                <select
-                  value={lOrientation}
-                  onChange={(event) => setLOrientation(event.target.value)}
-                  className="mt-1 h-10 w-full rounded-lg border-gray-300 border px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150"
-                >
-                  <option value="tl">Top-Left</option>
-                  <option value="tr">Top-Right</option>
-                  <option value="bl">Bottom-Left</option>
-                  <option value="br">Bottom-Right</option>
-                </select>
-              </label>
-            )}
-
-            {buildingType === "u" && (
-              <label className="block text-sm font-medium text-gray-700">
-                U shape Opening Side
-                <select
-                  value={uOpenSide}
-                  onChange={(event) => setUOpenSide(event.target.value)}
-                  className="mt-1 h-10 w-full rounded-lg border-gray-300 border px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150"
-                >
-                  <option value="t">Open Top</option>
-                  <option value="b">Open Bottom</option>
-                  <option value="l">Open Left</option>
-                  <option value="r">Open Right</option>
-                </select>
-              </label>
-            )}
-
-            {["single", "square"].includes(buildingType) && (
-                <p className="text-gray-500 text-sm mt-4">No specific orientation required for {buildingType} shape.</p>
-            )}
-          </div>
-        </section>
-        
-        {/* Actions */}
-        <div className="flex gap-4 mb-8">
-          <button
-            type="button"
-            onClick={loadLayoutFromDB}
-            className="flex items-center rounded-lg bg-gray-700 px-6 py-3 text-white font-semibold shadow-md hover:bg-gray-800 transition duration-150 transform hover:scale-[1.01]"
-          >
-            <IconLoad />
-            Load Existing Layout
+          <button className="bg-slate-900 text-white px-8 py-3 rounded-sm font-black text-[10px] uppercase shadow-2xl flex items-center gap-2 hover:bg-black transition-all">
+            <Save size={14} /> Commit Changes
           </button>
-          <button
-            type="button"
-            onClick={saveLayoutToDB}
-            className="flex items-center rounded-lg bg-indigo-600 px-6 py-3 text-white font-semibold shadow-lg hover:bg-indigo-700 transition duration-150 transform hover:scale-[1.01]"
-          >
-            <IconSave />
-            Save Current Layout
-          </button>
-        </div>
+        </header>
 
-        {/* Main Workspace */}
-        <section className="flex gap-6 lg:flex-row flex-col">
-          <aside className="lg:w-64 w-full rounded-xl border border-gray-200 bg-white p-5 shadow-lg lg:sticky lg:top-4 h-fit">
-            <h3 className="mb-4 text-base font-extrabold uppercase tracking-wider text-indigo-700 border-b pb-2">
-              <IconRoom />Room Templates
-            </h3>
-            {["Living Room", "Admin Room", "Miscellaneous Room"].map((name) => (
-              <DraggableRoomType key={name} typeName={name} />
-            ))}
-            <p className="text-xs text-gray-500 mt-4 p-2 bg-gray-50 rounded">
-                Drag a template onto an active slot in the grid to create a new room.
-            </p>
+        <div className="max-w-[1500px] mx-auto grid grid-cols-12 gap-10">
+          
+          <aside className="col-span-3 space-y-6">
+            <section className="bg-slate-900 p-6 rounded-sm shadow-2xl">
+              <h3 className="text-[11px] font-black uppercase tracking-widest text-indigo-400 mb-5 flex items-center gap-2">
+                <Square size={14} /> Room Modules
+              </h3>
+              <div className="space-y-2.5">
+                {Object.entries(ROOM_TYPES).map(([key, config]) => (
+                  <DraggableItem key={key} typeKey={key} config={config} />
+                ))}
+              </div>
+            </section>
+
+            <section className="bg-white p-6 border-2 border-slate-200 shadow-sm space-y-5">
+              <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2">
+                <Home size={14} /> Wing Parameters
+              </h3>
+              <div className="space-y-4">
+                {[['Top', topRooms, setTopRooms], ['Bottom', bottomRooms, setBottomRooms], ['Left', leftRooms, setLeftRooms], ['Right', rightRooms, setRightRooms]].map(([label, val, setter]) => (
+                  <div key={label}>
+                    <label className="text-[9px] font-black uppercase text-slate-500">{label} Wing Units</label>
+                    <input type="number" value={val} onChange={e => setter(Number(e.target.value))} className="w-full border-2 p-2 text-xs font-black mt-1 outline-none focus:border-slate-900" />
+                  </div>
+                ))}
+              </div>
+            </section>
           </aside>
 
-          <main className="flex-1 overflow-x-auto rounded-xl border border-gray-200 bg-white p-6 shadow-lg">
-            {renderedGrid}
+          <main className="col-span-9 bg-white p-12 border-2 shadow-2xl overflow-auto min-h-[700px] relative">
+            <div className="absolute inset-0 opacity-[0.05] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+            
+            <div className="relative z-10 flex flex-col items-center">
+              <div className="mb-10 bg-slate-800 text-white px-8 py-3 rounded-sm font-black text-[11px] uppercase border-l-4 border-orange-500 shadow-xl flex items-center gap-3">
+                <DoorOpen size={18} /> Building Entrance (Level 0)
+              </div>
+
+              <div className="inline-block bg-white p-10 border-[4px] border-slate-900 shadow-2xl mx-auto min-w-full">
+                {grid.map((row, rIdx) => (
+                  <div key={rIdx} className="flex">
+                    {row.map((type, cIdx) => (
+                      <div key={`${rIdx}-${cIdx}`} className="w-[110px] h-[130px] border-[0.5px] border-slate-100">
+                        <DropZone 
+                          slotId={`${rIdx}-${cIdx}`} 
+                          data={cellData[`${rIdx}-${cIdx}`]} 
+                          type={type} 
+                          onDrop={handleDrop} 
+                          onClickEdit={(s, d) => { setEditSlot(s); setEditData(d); }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
           </main>
-        </section>
+        </div>
       </div>
 
-      {/* Edit Room Modal (Upgraded) */}
+      {/* Edit Modal */}
       {editSlot && editData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl transform transition-all duration-300 scale-100">
-            <h3 className="mb-5 text-xl font-bold text-gray-800 border-b pb-2">
-                Edit Room Details: <span className="text-indigo-600">{editData.room_number || "New Room"}</span>
-            </h3>
-
-            <label className="mb-4 block text-sm font-medium text-gray-700">
-              Room Name
-              <input
-                className="mt-1 h-10 w-full rounded-lg border-gray-300 border px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150"
-                value={editData.name}
-                onChange={(event) => setEditData((prev) => ({ ...prev, name: event.target.value }))}
-              />
-            </label>
-
-            <label className="mb-4 block text-sm font-medium text-gray-700">
-              Capacity
-              <input
-                type="number"
-                min={1}
-                className="mt-1 h-10 w-full rounded-lg border-gray-300 border px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150"
-                value={editData.capacity}
-                onChange={(event) =>
-                  setEditData((prev) => ({
-                    ...prev,
-                    capacity: Math.max(1, parseInt(event.target.value, 10) || 1),
-                  }))
-                }
-              />
-            </label>
-
-            <label className="mb-5 block text-sm font-medium text-gray-700">
-              Room Number (Custom)
-              <input
-                className="mt-1 h-10 w-full rounded-lg border-gray-300 border px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150 font-mono"
-                placeholder={makeRoomNumber(floors, editSlot)} // Show auto-numbered value as a hint
-                value={editData.room_number}
-                onChange={(event) =>
-                  setEditData((prev) => ({
-                    ...prev,
-                    room_number: event.target.value,
-                    autoNumbered: false,
-                  }))
-                }
-              />
-              <p className="mt-1 text-xs text-gray-500">Leave blank to use the auto-generated room number.</p>
-            </label>
-            
-            {/* Active/Inactive Toggle */}
-            <div className="flex items-center mb-5">
-                <input
-                    id="inactive-toggle"
-                    type="checkbox"
-                    checked={editData.inactive}
-                    onChange={(e) => setEditData((prev) => ({ ...prev, inactive: e.target.checked }))}
-                    className="h-4 w-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
-                />
-                <label htmlFor="inactive-toggle" className="ml-2 block text-sm font-medium text-gray-700">
-                    Mark as **Inactive** (Temporarily out of service)
-                </label>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-md border-[3px] border-slate-900 shadow-2xl">
+            <div className="bg-slate-900 px-6 py-4 flex justify-between items-center text-white font-black uppercase italic tracking-tighter">
+              Spec Modification <div className="bg-white text-slate-900 px-3 py-1 text-[10px] tracking-widest">{editData.room_number}</div>
             </div>
-
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                type="button"
-                className="rounded-lg border border-gray-300 px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition duration-150"
-                onClick={closeEditor}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="rounded-lg bg-indigo-600 px-5 py-2 text-sm font-medium text-white shadow-md hover:bg-indigo-700 transition duration-150"
-                onClick={commitEditor}
-              >
-                Save Changes
-              </button>
+            <div className="p-8 space-y-6">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500">Infrastructure Module</label>
+                <select className="w-full border-2 border-slate-300 p-2 text-xs font-black uppercase outline-none focus:border-slate-900" value={editData.name} onChange={e => {
+                  const newName = e.target.value;
+                  const newKey = Object.keys(ROOM_TYPES).find(k => ROOM_TYPES[k].name === newName);
+                  setEditData({...editData, name: newName, typeKey: newKey});
+                }}>
+                  {Object.values(ROOM_TYPES).map(t => <option key={t.name}>{t.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-slate-500">Module ID</label>
+                    <input className="w-full border-2 border-slate-300 p-2 text-xs font-black outline-none uppercase" value={editData.room_number} onChange={e => setEditData({...editData, room_number: e.target.value})} />
+                </div>
+                <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-slate-500">Max Capacity</label>
+                    <input type="number" className="w-full border-2 border-slate-300 p-2 text-xs font-black outline-none" value={editData.capacity} onChange={e => setEditData({...editData, capacity: Number(e.target.value)})} />
+                </div>
+              </div>
+            </div>
+            <div className="bg-slate-50 px-8 py-6 border-t flex justify-between items-center">
+               <button onClick={() => { handleUpdateCell(editSlot, null); setEditSlot(null); }} className="text-red-600 text-[10px] font-black uppercase flex items-center gap-1.5 hover:underline transition-colors"><Trash2 size={14}/> Scrap Module</button>
+               <div className="flex gap-4">
+                 <button onClick={() => setEditSlot(null)} className="text-[10px] font-black uppercase text-slate-400">Cancel</button>
+                 <button onClick={() => { handleUpdateCell(editSlot, editData); setEditSlot(null); }} className="bg-slate-900 text-white px-10 py-2.5 text-[10px] font-black uppercase shadow-lg hover:bg-black">Confirm</button>
+               </div>
             </div>
           </div>
         </div>
       )}
     </DndProvider>
+  );
+};
+
+const DraggableItem = ({ typeKey, config }) => {
+  const Icon = config.icon;
+  const [{ isDragging }, dragRef] = useDrag(() => ({
+    type: "roomTemplate",
+    item: { kind: "template", typeKey },
+    collect: (monitor) => ({ isDragging: monitor.isDragging() }),
+  }));
+
+  return (
+    <div ref={dragRef} className={`p-4 border-2 rounded-sm flex items-center gap-4 cursor-grab transition-all ${config.color} ${isDragging ? "opacity-30 scale-95" : "hover:shadow-xl shadow-md border-slate-300"}`}>
+      <div className="bg-white/60 p-1.5 rounded-sm shadow-inner"><Icon size={16} /></div>
+      <span className="text-[10px] font-black uppercase tracking-widest">{config.name}</span>
+    </div>
   );
 };
 
