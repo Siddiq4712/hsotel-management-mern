@@ -1,592 +1,318 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Card, Table, Button, Modal, Form, Input, Select,
-  message, Popconfirm, Space, Typography, Tabs, Checkbox, Row, Col
+  Card, Table, Button, Modal, Form, Input, Select, message, Popconfirm, 
+  Space, Typography, Tabs, Checkbox, Row, Col, ConfigProvider, 
+  theme, Skeleton, Divider, Tag, Tooltip, InputNumber
 } from 'antd';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { 
+  Bed, Plus, Trash2, ChevronLeft, ChevronRight, LayoutGrid, 
+  Users, RefreshCw, FilePlus, ClipboardCheck, Info, Search 
+} from 'lucide-react';
 import moment from 'moment';
-import { messAPI } from '../../services/api'; // Import existing API methods
+import { messAPI } from '../../services/api';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
+// --- Specialized Skeleton for Bed Fee Management ---
+const BedFeeSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <Skeleton.Input active style={{ width: 250 }} />
+        <div className="flex gap-2">
+          <Skeleton.Button active />
+          <Skeleton.Button active />
+        </div>
+      </div>
+      <div className="flex gap-4 border-b border-slate-100 pb-4">
+        {[...Array(3)].map((_, i) => <Skeleton.Input key={i} active style={{ width: 150 }} />)}
+      </div>
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="flex gap-4 items-center border-b border-slate-50 pb-6">
+          <Skeleton.Avatar active shape="square" size="large" />
+          <div className="flex-1"><Skeleton active paragraph={{ rows: 1 }} /></div>
+          <Skeleton.Button active style={{ width: 80 }} />
+        </div>
+      ))}
+    </div>
+  </Card>
+);
+
 const BedFeeManagement = () => {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [bedFees, setBedFees] = useState([]);
   const [sessions, setSessions] = useState([]);
-  const [studentsForSelection, setStudentsForSelection] = useState([]); // Students for modal checkboxes
-  const [isGenerateFeeModalVisible, setIsGenerateFeeModalVisible] = useState(false); // Modal for generating fees for selected students
-  const [isBulkModalVisible, setIsBulkModalVisible] = useState(false); // Modal for session-wide bulk creation
+  const [studentsForSelection, setStudentsForSelection] = useState([]);
+  const [isGenerateFeeModalVisible, setIsGenerateFeeModalVisible] = useState(false);
+  const [isBulkModalVisible, setIsBulkModalVisible] = useState(false);
   const [generateFeeForm] = Form.useForm();
   const [bulkForm] = Form.useForm();
-  const [filter, setFilter] = useState({ // Filters for the main table
-    month: moment().month() + 1,
-    year: moment().year(),
-    session_id: undefined,
-  });
-  const [selectedStudentIds, setSelectedStudentIds] = useState([]); // Stores student IDs selected in the generate fee modal
-  const [sessionForModalFilter, setSessionForModalFilter] = useState(undefined); // Session filter within the generate fee modal
+  const [selectedDate, setSelectedDate] = useState(moment());
+  const [selectedSessionId, setSelectedSessionId] = useState(undefined);
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+  const [sessionForModalFilter, setSessionForModalFilter] = useState(undefined);
 
-  // --- Main data fetching for the table ---
-  useEffect(() => {
-    fetchBedFees();
-    fetchSessions();
-  }, [filter.month, filter.year, filter.session_id]);
+  // --- NAVIGATION CONTROLS ---
+  const changeMonth = (offset) => setSelectedDate(prev => prev.clone().add(offset, 'month'));
+  const changeYear = (offset) => setSelectedDate(prev => prev.clone().add(offset, 'year'));
+  const handleToday = () => setSelectedDate(moment());
 
-  // --- Fetching students for the "Generate Bed Fees" modal's checkbox list ---
+  const fetchInitialData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [feesRes, sessionsRes] = await Promise.all([
+        messAPI.getStudentFees({
+          month: selectedDate.month() + 1,
+          year: selectedDate.year(),
+          session_id: selectedSessionId,
+          fee_type: 'bed_charge'
+        }),
+        messAPI.getSessions()
+      ]);
+      setBedFees(feesRes.data.data || []);
+      setSessions(sessionsRes.data.data || []);
+    } catch (error) {
+      message.error('Failed to sync bed fee records');
+    } finally {
+      setTimeout(() => setLoading(false), 800);
+    }
+  }, [selectedDate, selectedSessionId]);
+
+  useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
+
   useEffect(() => {
     if (isGenerateFeeModalVisible && sessionForModalFilter) {
       fetchStudentsForModalSelection(sessionForModalFilter);
-    } else if (isGenerateFeeModalVisible && !sessionForModalFilter) {
-      // Clear students when modal is open but no session selected for filtering
-      setStudentsForSelection([]);
     }
-  }, [isGenerateFeeModalVisible, sessionForModalFilter]); // Re-fetch when modal opens or session filter changes
+  }, [isGenerateFeeModalVisible, sessionForModalFilter]);
 
-  const fetchBedFees = async () => {
-    try {
-      setLoading(true);
-      const response = await messAPI.getStudentFees({
-        ...filter,
-        fee_type: 'bed_charge',
-      });
-
-      if (response.data && response.data.data) {
-        setBedFees(response.data.data);
-      } else {
-        setBedFees([]);
-      }
-    } catch (error) {
-      console.error('Failed to fetch bed fees:', error);
-      message.error('Failed to fetch bed fees');
-      setBedFees([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchSessions = async () => {
-    try {
-      const response = await messAPI.getSessions();
-      if (response.data && response.data.data) {
-        setSessions(response.data.data);
-      } else {
-        setSessions([]);
-      }
-    } catch (error) {
-      console.error('Failed to fetch sessions:', error);
-      message.error('Failed to fetch sessions');
-      setSessions([]);
-    }
-  };
-
-  // Function to fetch students specifically for the checkbox selection in the modal
   const fetchStudentsForModalSelection = async (sessionId) => {
-    if (!sessionId) {
-      setStudentsForSelection([]);
-      return;
-    }
     try {
-      setLoading(true);
-      // Pass requires_bed: true AND the selected session_id
       const response = await messAPI.getStudents({ requires_bed: true, session_id: sessionId });
-
-      if (response.data && response.data.data) {
-        // The backend should now return only students who requires_bed in the specified session
-        setStudentsForSelection(response.data.data);
-      } else {
-        setStudentsForSelection([]);
-      }
+      setStudentsForSelection(response.data.data || []);
     } catch (error) {
-      console.error('Failed to fetch students for modal selection:', error);
-      message.error('Failed to fetch students for modal selection: ' + (error.message || 'Unknown error'));
-      setStudentsForSelection([]);
-    } finally {
-      setLoading(false);
+      message.error('Failed to load eligible students');
     }
   };
 
-  // --- Handlers for modals ---
   const handleGenerateBedFees = async (values) => {
-    if (selectedStudentIds.length === 0) {
-      message.error('Please select at least one student.');
-      return;
-    }
+    if (selectedStudentIds.length === 0) return message.warning('Select at least one student');
     try {
       setLoading(true);
-      const payload = {
+      await messAPI.createBulkStudentFee({
         ...values,
         fee_type: 'bed_charge',
-        description: values.description || `Bed fee for ${values.month}/${values.year}`,
-        student_ids: selectedStudentIds, // Pass the selected student IDs explicitly
-        // No need to send requires_bed or session_id here, as specific_student_ids take precedence in backend
-      };
-
-      const response = await messAPI.createBulkStudentFee(payload);
-
-      message.success(`Generated ${response.data?.data?.fees_created || 0} bed fees successfully`);
-      setIsGenerateFeeModalVisible(false);
-      generateFeeForm.resetFields();
-      setSelectedStudentIds([]); // Clear selection after successful generation
-      setSessionForModalFilter(undefined); // Clear modal's session filter
-      fetchBedFees(); // Refresh main table
-    } catch (error) {
-      console.error('Failed to generate bed fees:', error);
-      message.error('Failed to generate bed fees: ' + (error.message || 'Unknown error'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateBulkBedFees = async (values) => {
-    try {
-      setLoading(true);
-      const response = await messAPI.createBulkStudentFee({
-        ...values,
-        fee_type: 'bed_charge',
-        description: values.description || `Bed fee for ${values.month}/${values.year}`,
-        requires_bed: true // This flag tells the backend to only target students requiring beds within the session
+        student_ids: selectedStudentIds,
+        description: values.description || `Bed fee for ${selectedDate.format('MMMM YYYY')}`
       });
-
-      message.success(`Created ${response.data?.data?.fees_created || 0} bed fees successfully across the session`);
-      setIsBulkModalVisible(false);
-      bulkForm.resetFields();
-      fetchBedFees();
-    } catch (error) {
-      console.error('Failed to create bulk bed fees:', error);
-      message.error('Failed to create bulk bed fees: ' + (error.message || 'Unknown error'));
-    } finally {
-      setLoading(false);
-    }
+      message.success('Fees generated successfully');
+      setIsGenerateFeeModalVisible(false);
+      fetchInitialData();
+    } finally { setLoading(false); }
   };
-
-  const handleDeleteBedFee = async (id) => {
-    try {
-      setLoading(true);
-      await messAPI.deleteStudentFee(id); // Use the correct API method
-      message.success('Bed fee deleted successfully');
-      fetchBedFees();
-    } catch (error) {
-      console.error('Failed to delete bed fee:', error);
-      message.error('Failed to delete bed fee: ' + (error.message || 'Unknown error'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFilterChange = (newFilter) => {
-    setFilter({ ...filter, ...newFilter });
-  };
-
-  // Handlers for student selection in the "Generate Bed Fees" modal
-  const onStudentSelectionChange = (checkedValues) => {
-    setSelectedStudentIds(checkedValues);
-  };
-
-  const onSelectAllChange = (e) => {
-    if (e.target.checked) {
-      setSelectedStudentIds(studentsForSelection.map(student => student.id));
-    } else {
-      setSelectedStudentIds([]);
-    }
-  };
-
-  const isAllSelected = studentsForSelection.length > 0 && selectedStudentIds.length === studentsForSelection.length;
-  const isIndeterminate = selectedStudentIds.length > 0 && selectedStudentIds.length < studentsForSelection.length;
 
   const columns = [
     {
-      title: 'Student',
-      key: 'student_name',
-      render: (_, record) => (
-        <span>
-          {record.Student?.username || 'Unknown'}
-          {record.Student?.roll_number ? ` (${record.Student.roll_number})` : ''}
-        </span>
+      title: 'Student Details',
+      key: 'student',
+      render: (_, r) => (
+        <Space direction="vertical" size={0}>
+          <Text strong className="text-slate-700">{r.Student?.username}</Text>
+          <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{r.Student?.roll_number}</Text>
+        </Space>
       )
     },
     {
       title: 'Amount',
       dataIndex: 'amount',
-      key: 'amount',
-      render: (amount) => `₹${parseFloat(amount).toFixed(2)}`
+      align: 'right',
+      render: (val) => <Text className="text-blue-600 font-bold">₹{parseFloat(val).toFixed(2)}</Text>
     },
     {
-      title: 'Month/Year',
+      title: 'Period',
       key: 'period',
-      render: (_, record) => `${record.month}/${record.year}`
+      render: (_, r) => <Tag bordered={false} className="rounded-full px-3 bg-slate-100 font-medium">{moment().month(r.month - 1).format('MMM')} {r.year}</Tag>
     },
     {
-      title: 'Description',
-      dataIndex: 'description',
-      key: 'description',
-      ellipsis: true
-    },
-    {
-      title: 'Created By',
-      key: 'issued_by',
-      render: (_, record) => record.IssuedBy?.username || 'System'
-    },
-    {
-      title: 'Created At',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date) => moment(date).format('DD-MM-YYYY HH:mm')
-    },
-    {
-      title: 'Action',
-      key: 'action',
-      render: (_, record) => (
-        <Popconfirm
-          title="Are you sure you want to delete this bed fee?"
-          onConfirm={() => handleDeleteBedFee(record.id)}
-          okText="Yes"
-          cancelText="No"
-        >
-          <Button type="link" danger icon={<DeleteOutlined />}>
-            Delete
-          </Button>
+      title: 'Actions',
+      align: 'right',
+      render: (_, r) => (
+        <Popconfirm title="Delete this fee record?" onConfirm={() => messAPI.deleteStudentFee(r.id).then(fetchInitialData)}>
+          <Button type="text" danger icon={<Trash2 size={16} />} className="flex items-center justify-center hover:bg-rose-50 rounded-lg" />
         </Popconfirm>
       )
     }
   ];
 
-  const tabItems = [
-    {
-      key: '1',
-      label: 'View Bed Fees',
-      children: (
-        <>
-          <div style={{ marginBottom: 16 }}>
-            <Space>
-              <Select
-                placeholder="Select Month"
-                style={{ width: 120 }}
-                value={filter.month}
-                onChange={(value) => handleFilterChange({ month: value })}
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
-                  <Option key={month} value={month}>
-                    {moment().month(month - 1).format('MMMM')}
-                  </Option>
-                ))}
-              </Select>
-              <Select
-                placeholder="Select Year"
-                style={{ width: 100 }}
-                value={filter.year}
-                onChange={(value) => handleFilterChange({ year: value })}
-              >
-                {Array.from({ length: 5 }, (_, i) => moment().year() - 2 + i).map(year => (
-                  <Option key={year} value={year}>{year}</Option>
-                ))}
-              </Select>
-              <Select
-                placeholder="Filter by Session"
-                style={{ width: 200 }}
-                allowClear
-                value={filter.session_id}
-                onChange={(value) => handleFilterChange({ session_id: value })}
-              >
-                {sessions.map(session => (
-                  <Option key={session.id} value={session.id}>
-                    {session.name}
-                  </Option>
-                ))}
-              </Select>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setIsGenerateFeeModalVisible(true);
-                  setSelectedStudentIds([]); // Clear any previous selection
-                  generateFeeForm.resetFields();
-                  // Set default values for modal form
-                  const defaultMonth = moment().month() + 1;
-                  const defaultYear = moment().year();
-                  const defaultSession = sessions.length > 0 ? sessions[0].id : undefined;
-
-                  generateFeeForm.setFieldsValue({
-                    month: defaultMonth,
-                    year: defaultYear,
-                    session_id_for_modal: defaultSession
-                  });
-                  setSessionForModalFilter(defaultSession); // Also set the internal state for student list
-                }}
-              >
-                Generate Bed Fee (Multi-Select)
-              </Button>
-              <Button
-                type="primary"
-                onClick={() => {
-                  setIsBulkModalVisible(true);
-                  bulkForm.resetFields();
-                  // Set default values for bulk form
-                  bulkForm.setFieldsValue({
-                    month: moment().month() + 1,
-                    year: moment().year(),
-                    session_id: sessions.length > 0 ? sessions[0].id : undefined
-                  });
-                }}
-              >
-                Bulk Create (Session-wide)
-              </Button>
-            </Space>
-          </div>
-
-          <Table
-            columns={columns}
-            dataSource={bedFees}
-            rowKey="id"
-            loading={loading}
-            pagination={{
-              defaultPageSize: 10,
-              showSizeChanger: true,
-              pageSizeOptions: ['10', '20', '50', '100']
-            }}
-            summary={(pageData) => {
-              const totalAmount = pageData.reduce(
-                (total, item) => total + parseFloat(item.amount || 0),
-                0
-              );
-              return (
-                <Table.Summary.Row>
-                  <Table.Summary.Cell index={0} colSpan={2}>
-                    <strong>Total</strong>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={2}>
-                    <Text type="danger">₹{totalAmount.toFixed(2)}</Text>
-                  </Table.Summary.Cell>
-                  <Table.Summary.Cell index={3} colSpan={4}></Table.Summary.Cell>
-                </Table.Summary.Row>
-              );
-            }}
-          />
-        </>
-      )
-    },
-    {
-      key: '2',
-      label: 'Statistics',
-      children: (
-        <Card>
-          <div style={{ marginBottom: 16 }}>
-            <Title level={5}>Bed Fee Summary</Title>
-            {/* Note: This statistics count is based on students loaded for modal selection, 
-                which is session-specific. You might want a separate API for overall stats. */}
-            <Text>Students with bed requirement in selected modal session: {studentsForSelection.length}</Text>
-            <br />
-            <Text>Total bed fees collected this month: ₹{
-              bedFees
-                .filter(fee => fee.month === filter.month && fee.year === filter.year)
-                .reduce((sum, fee) => sum + parseFloat(fee.amount), 0)
-                .toFixed(2)
-            }</Text>
-          </div>
-        </Card>
-      )
-    }
-  ];
-
   return (
-    <div className="bed-fee-management">
-      <Card title={<Title level={4}>Bed Fee Management</Title>}>
-        <Tabs items={tabItems} defaultActiveKey="1" />
-      </Card>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
+        
+        {/* Header Section */}
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <Bed className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Bed Fee Management</Title>
+              <Text type="secondary">Manage housing charges and bulk fee processing</Text>
+            </div>
+          </div>
 
-      {/* Modal for generating bed fees for selected students */}
-      <Modal
-        title="Generate Bed Fees for Selected Students"
-        open={isGenerateFeeModalVisible}
-        onCancel={() => {
-          setIsGenerateFeeModalVisible(false);
-          generateFeeForm.resetFields();
-          setSelectedStudentIds([]); // Clear selection on cancel
-          setSessionForModalFilter(undefined); // Clear session filter for modal
-        }}
-        width={800}
-        footer={null}
-      >
-        <Form
-          form={generateFeeForm}
-          layout="vertical"
-          onFinish={handleGenerateBedFees}
-          initialValues={{
-            month: moment().month() + 1,
-            year: moment().year(),
-            session_id_for_modal: sessionForModalFilter,
-          }}
-        >
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="session_id_for_modal"
-                label="Filter Students by Session"
-                rules={[{ required: true, message: 'Please select a session' }]}
-              >
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Year Navigator */}
+            <div className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200 flex items-center">
+              <Button type="text" icon={<ChevronLeft size={16} />} onClick={() => changeYear(-1)} />
+              <div className="px-4 text-center min-w-[70px]"><Text strong className="text-slate-700">{selectedDate.format('YYYY')}</Text></div>
+              <Button type="text" icon={<ChevronRight size={16} />} onClick={() => changeYear(1)} />
+            </div>
+
+            {/* Month Navigator */}
+            <div className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200 flex items-center">
+              <Button type="text" icon={<ChevronLeft size={16} />} onClick={() => changeMonth(-1)} />
+              <div className="px-6 text-center min-w-[120px]"><Text strong className="text-blue-600 uppercase tracking-wide">{selectedDate.format('MMMM')}</Text></div>
+              <Button type="text" icon={<ChevronRight size={16} />} onClick={() => changeMonth(1)} />
+            </div>
+
+            <Button onClick={handleToday} className="rounded-2xl h-11 border-slate-200 text-slate-500 font-medium hover:text-blue-600">Today</Button>
+          </div>
+
+          <Space>
+            <Button icon={<LayoutGrid size={18}/>} onClick={() => setIsBulkModalVisible(true)} className="rounded-xl h-12">Session Bulk</Button>
+            <Button type="primary" icon={<FilePlus size={18}/>} onClick={() => setIsGenerateFeeModalVisible(true)} className="rounded-xl h-12 shadow-lg shadow-blue-100 font-semibold px-6">Generate New Fees</Button>
+          </Space>
+        </div>
+
+        {/* Filters & Content */}
+        <div className="space-y-6">
+          <Card className="border-none shadow-sm rounded-2xl">
+            <div className="flex items-center gap-4">
+              <div className="bg-slate-50 p-2 rounded-xl flex items-center gap-3 border border-slate-100 flex-1 max-w-md">
+                <Search size={18} className="text-slate-400" />
                 <Select
-                  placeholder="Select session to view students"
-                  onChange={(value) => {
-                      setSessionForModalFilter(value); // Update state to trigger re-fetch of students
-                      setSelectedStudentIds([]); // Clear selection when session changes
-                  }}
-                  value={sessionForModalFilter} // Control the value of this select
+                  placeholder="Filter by Session"
+                  className="w-full"
+                  bordered={false}
+                  allowClear
+                  value={selectedSessionId}
+                  onChange={setSelectedSessionId}
                 >
-                  {sessions.map(session => (
-                    <Option key={session.id} value={session.id}>
-                      {session.name}
-                    </Option>
-                  ))}
+                  {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
                 </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="amount"
-                label="Amount (₹)"
-                rules={[{ required: true, message: 'Please enter amount' }]}
-              >
-                <Input type="number" min={0} step={0.01} prefix="₹" placeholder="Amount" />
-              </Form.Item>
-            </Col>
-          </Row>
+              </div>
+              <Button icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''} />} onClick={fetchInitialData} className="rounded-xl h-10">Sync</Button>
+            </div>
+          </Card>
 
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name="month" label="Month" rules={[{ required: true }]}>
-                <Select placeholder="Select month">
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
-                    <Option key={month} value={month}>
-                      {moment().month(month - 1).format('MMMM')}
-                    </Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="year" label="Year" rules={[{ required: true }]}>
-                <Select placeholder="Select year">
-                  {Array.from({ length: 5 }, (_, i) => moment().year() - 2 + i).map(year => (
-                    <Option key={year} value={year}>{year}</Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
+          {loading ? <BedFeeSkeleton /> : (
+            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+              <Table 
+                columns={columns} 
+                dataSource={bedFees} 
+                rowKey="id" 
+                pagination={{ pageSize: 10 }}
+                summary={(pageData) => {
+                  const total = pageData.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0);
+                  return (
+                    <Table.Summary.Row className="bg-slate-50 font-bold">
+                      <Table.Summary.Cell index={0} align="right">Total Bed Charges</Table.Summary.Cell>
+                      <Table.Summary.Cell index={1} align="right">
+                        <Text className="text-blue-600">₹{total.toFixed(2)}</Text>
+                      </Table.Summary.Cell>
+                      <Table.Summary.Cell index={2} colSpan={2} />
+                    </Table.Summary.Row>
+                  );
+                }}
+              />
+            </Card>
+          )}
+        </div>
 
-          <Form.Item name="description" label="Description">
-            <Input.TextArea rows={2} placeholder="Description (Optional)" />
-          </Form.Item>
+        {/* Modal: Generate Fees (Multi-Select) */}
+        <Modal
+          title={<div className="flex items-center gap-2 text-blue-600"><ClipboardCheck size={18}/> Selective Fee Generation</div>}
+          open={isGenerateFeeModalVisible}
+          onCancel={() => setIsGenerateFeeModalVisible(false)}
+          onOk={() => generateFeeForm.submit()}
+          width={700}
+          className="rounded-2xl"
+          okText="Generate Fees"
+        >
+          <Form form={generateFeeForm} layout="vertical" onFinish={handleGenerateBedFees} className="mt-4">
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="session_id_for_modal" label="Source Session" rules={[{ required: true }]}>
+                  <Select placeholder="Filter Students" onChange={setSessionForModalFilter}>
+                    {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="amount" label="Fee Amount (₹)" rules={[{ required: true }]}>
+                  <InputNumber className="w-full h-10 rounded-xl flex items-center" prefix="₹" precision={2} />
+                </Form.Item>
+              </Col>
+            </Row>
 
-          <Title level={5} style={{ marginTop: 20 }}>Select Students</Title>
-          {sessionForModalFilter ? ( // Only show student list if a session is selected
-            studentsForSelection.length > 0 ? (
-              <>
-                <Checkbox
-                  indeterminate={isIndeterminate}
-                  onChange={onSelectAllChange}
-                  checked={isAllSelected}
+            <Divider orientation="left" className="m-0 mb-4"><Text className="text-[10px] font-bold uppercase text-slate-400">Target Beneficiaries</Text></Divider>
+            
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+               <Checkbox
+                  indeterminate={selectedStudentIds.length > 0 && selectedStudentIds.length < studentsForSelection.length}
+                  onChange={(e) => setSelectedStudentIds(e.target.checked ? studentsForSelection.map(s => s.id) : [])}
+                  checked={selectedStudentIds.length === studentsForSelection.length && studentsForSelection.length > 0}
                 >
-                  Select All ({studentsForSelection.length})
+                  Select All Students ({studentsForSelection.length})
                 </Checkbox>
-                <div style={{ maxHeight: 300, overflowY: 'auto', border: '1px solid #d9d9d9', borderRadius: 4, padding: 8, marginTop: 8 }}>
-                  <Checkbox.Group value={selectedStudentIds} onChange={onStudentSelectionChange}>
-                    <Row>
-                      {studentsForSelection.map(student => (
-                        <Col span={12} key={student.id} style={{ marginBottom: 8 }}>
-                          <Checkbox value={student.id}>
-                            {student.username} {student.roll_number ? `(${student.roll_number})` : ''}
-                          </Checkbox>
-                        </Col>
+                <div className="max-h-48 overflow-y-auto mt-4 pr-2 custom-scrollbar">
+                  <Checkbox.Group 
+                    className="w-full" 
+                    value={selectedStudentIds} 
+                    onChange={setSelectedStudentIds}
+                  >
+                    <Row gutter={[0, 8]}>
+                      {studentsForSelection.map(s => (
+                        <Col span={12} key={s.id}><Checkbox value={s.id}>{s.username}</Checkbox></Col>
                       ))}
                     </Row>
                   </Checkbox.Group>
                 </div>
-              </>
-            ) : (
-              <Text type="secondary">No students found requiring a bed in the selected session.</Text>
-            )
-          ) : (
-            <Text type="secondary">Please select a session to view students.</Text>
-          )}
+            </div>
+            
+            <Form.Item name="description" label="Remarks" className="mt-6">
+              <Input.TextArea placeholder="e.g., Standard monthly housing fee" className="rounded-xl" />
+            </Form.Item>
+          </Form>
+        </Modal>
 
-          <Form.Item style={{ marginTop: 20 }}>
-            <Button type="primary" htmlType="submit" loading={loading} block disabled={selectedStudentIds.length === 0}>
-              Generate Bed Fees for {selectedStudentIds.length} Selected Student(s)
-            </Button>
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Modal for session-wide bulk creation of bed fees */}
-      <Modal
-        title="Bulk Create Bed Fees (Session-wide)"
-        open={isBulkModalVisible}
-        onCancel={() => {
-          setIsBulkModalVisible(false);
-          bulkForm.resetFields();
-        }}
-        footer={null}
-      >
-        <Form
-          form={bulkForm}
-          layout="vertical"
-          onFinish={handleCreateBulkBedFees}
-          initialValues={{
-            month: moment().month() + 1,
-            year: moment().year(),
-            session_id: sessions.length > 0 ? sessions[0].id : undefined,
-          }}
+        {/* Modal: Bulk Session Create */}
+        <Modal
+          title={<div className="flex items-center gap-2 text-blue-600"><LayoutGrid size={18}/> Session Bulk Creation</div>}
+          open={isBulkModalVisible}
+          onCancel={() => setIsBulkModalVisible(false)}
+          onOk={() => bulkForm.submit()}
+          className="rounded-2xl"
         >
-          <Form.Item
-            name="session_id"
-            label="Session"
-            rules={[{ required: true, message: 'Please select a session' }]}
-          >
-            <Select
-              placeholder="Select session"
-            >
-              {sessions.map(session => (
-                <Option key={session.id} value={session.id}>
-                  {session.name}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item
-            name="amount"
-            label="Amount (₹)"
-            rules={[{ required: true, message: 'Please enter amount' }]}
-          >
-            <Input type="number" min={0} step={0.01} prefix="₹" placeholder="Amount" />
-          </Form.Item>
-          <Form.Item name="month" label="Month" rules={[{ required: true }]}>
-            <Select placeholder="Select month">
-              {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
-                <Option key={month} value={month}>
-                  {moment().month(month - 1).format('MMMM')}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item name="year" label="Year" rules={[{ required: true }]}>
-            <Select placeholder="Select year">
-              {Array.from({ length: 5 }, (_, i) => moment().year() - 2 + i).map(year => (
-                <Option key={year} value={year}>{year}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item name="description" label="Description">
-            <Input.TextArea rows={2} placeholder="Description (Optional)" />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading} block>
-              Create Bed Fees for All Eligible Students in Session
-            </Button>
-          </Form.Item>
-        </Form>
-      </Modal>
-    </div>
+           <Form form={bulkForm} layout="vertical" onFinish={(v) => messAPI.createBulkStudentFee({...v, fee_type: 'bed_charge', requires_bed: true}).then(() => { fetchInitialData(); setIsBulkModalVisible(false); })}>
+              <Form.Item name="session_id" label="Target Session" rules={[{ required: true }]}>
+                <Select placeholder="Select Session">
+                  {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
+                </Select>
+              </Form.Item>
+              <Form.Item name="amount" label="Amount for All Students (₹)" rules={[{ required: true }]}>
+                <InputNumber className="w-full h-10 rounded-xl flex items-center" prefix="₹" />
+              </Form.Item>
+              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex gap-3">
+                  <Info size={18} className="text-blue-500 shrink-0" />
+                  <Text className="text-[11px] text-blue-700">This will generate bed fees for <b>every student</b> in the selected session who is marked as requiring a bed.</Text>
+              </div>
+           </Form>
+        </Modal>
+
+      </div>
+    </ConfigProvider>
   );
 };
 

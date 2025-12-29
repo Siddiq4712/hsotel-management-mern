@@ -1,17 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Button, message, Table, DatePicker, Space, Typography } from 'antd';
-import { DownloadOutlined, FileTextOutlined } from '@ant-design/icons';
+import { 
+  Card, Table, Button, DatePicker, Space, Typography, 
+  ConfigProvider, theme, Skeleton, Row, Col, Statistic, 
+  message, Divider, Tooltip 
+} from 'antd';
+import { 
+  FileText, Download, BarChart3, Calendar, 
+  RefreshCw, FileDown, PieChart, TrendingUp 
+} from 'lucide-react';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
 import * as XLSX from 'xlsx';
 
 const { Title, Text } = Typography;
 
+// --- Specialized Skeleton for Reports ---
+const ReportSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+    <div className="space-y-6">
+      <div className="flex justify-between">
+        <Skeleton.Input active style={{ width: 200 }} />
+        <div className="flex gap-2">
+          <Skeleton.Button active style={{ width: 100 }} />
+          <Skeleton.Button active style={{ width: 100 }} />
+        </div>
+      </div>
+      <Row gutter={16}>
+        <Col span={24}><Skeleton active paragraph={{ rows: 8 }} /></Col>
+      </Row>
+    </div>
+  </Card>
+);
+
 const ConsumptionReport = () => {
   const [categoryData, setCategoryData] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [exportingDetails, setExportingDetails] = useState(false);
-  const [exportingParticulars, setExportingParticulars] = useState(false); // New loading state
+  const [exportingParticulars, setExportingParticulars] = useState(false);
   const [selectedDate, setSelectedDate] = useState(moment());
 
   const handleGenerateOnScreenReport = async () => {
@@ -21,12 +46,11 @@ const ConsumptionReport = () => {
       const endDate = selectedDate.clone().endOf('month').format('YYYY-MM-DD');
       
       const response = await messAPI.getSummarizedConsumptionReport({ start_date: startDate, end_date: endDate });
-      setCategoryData(response.data.data);
-      if (response.data.data.length === 0) message.info('No consumption data found for this period.');
+      setCategoryData(response.data.data || []);
     } catch (error) {
-      message.error('Failed to generate on-screen report: ' + (error.response?.data?.message || error.message));
+      message.error('Failed to load summary');
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 800);
     }
   };
 
@@ -34,26 +58,22 @@ const ConsumptionReport = () => {
     handleGenerateOnScreenReport();
   }, [selectedDate]);
 
-  // Main export for the two-sheet detailed report
   const handleExportConsumptionReport = async () => {
     setExportingDetails(true);
-    message.loading({ content: 'Generating detailed consumption report...', key: 'export', duration: 0 });
+    const hide = message.loading('Compiling full details...', 0);
     
     try {
       const month = selectedDate.format('M');
       const year = selectedDate.format('YYYY');
-
       const response = await messAPI.getDailyConsumptionDetails({ month, year });
       const consumptionDetailsData = response.data.data || [];
       
       if (consumptionDetailsData.length === 0) {
-        message.warn({ content: 'No consumption data to export for this month.', key: 'export' });
-        setExportingDetails(false);
+        message.warn('No data for this period.');
         return;
       }
       
       const workbook = XLSX.utils.book_new();
-
       const pivotData = {};
       const categoryTotals = {};
       const allCategories = new Set();
@@ -72,8 +92,6 @@ const ConsumptionReport = () => {
       });
 
       const sortedCategories = Array.from(allCategories).sort();
-
-      // --- SHEET 1: Consumption Details (Pivoted Vertically) ---
       const ws2_data = [];
       const headers = ['Date', ...sortedCategories, 'Total'];
       
@@ -86,148 +104,172 @@ const ConsumptionReport = () => {
           dailyTotal += cost;
         });
         row['Total'] = dailyTotal;
-        if (dailyTotal > 0) {
-          ws2_data.push(row);
-        }
+        if (dailyTotal > 0) ws2_data.push(row);
       }
       
-      const columnTotals = { 'Date': 'Total' };
-      sortedCategories.forEach(cat => columnTotals[cat] = 0);
-      columnTotals['Total'] = 0;
-      ws2_data.forEach(row => {
-        sortedCategories.forEach(cat => columnTotals[cat] += row[cat] || 0);
-        columnTotals['Total'] += row['Total'] || 0;
-      });
-      ws2_data.push(columnTotals);
-
       const ws2 = XLSX.utils.json_to_sheet(ws2_data, { header: headers });
-
-      // --- NEW: Apply Bold Styling ---
-      const boldStyle = { font: { bold: true } };
-      const range = XLSX.utils.decode_range(ws2['!ref']);
-      // Bold Header Row (Categories)
-      for (let C = range.s.c; C <= range.e.c; ++C) {
-        const cellRef = XLSX.utils.encode_cell({ r: 0, c: C });
-        if (ws2[cellRef]) ws2[cellRef].s = boldStyle;
-      }
-      // Bold Total Row
-      const lastRow = range.e.r;
-      for (let C = range.s.c; C <= range.e.c; ++C) {
-        const cellRef = XLSX.utils.encode_cell({ r: lastRow, c: C });
-        if (ws2[cellRef]) ws2[cellRef].s = boldStyle;
-      }
-
       ws2['!cols'] = [{wch: 12}, ...Array(sortedCategories.length).fill({wch: 15}), {wch: 18}];
       XLSX.utils.book_append_sheet(workbook, ws2, "Consumption Details");
 
-      // --- SHEET 2: Particulars ---
-      let grandTotal = 0;
-      const particularsData = sortedCategories.map((category, index) => {
-        const totalAmount = categoryTotals[category] || 0;
-        grandTotal += totalAmount;
-        return { 'S.no': index + 1, 'Particulars': category, 'Amount (Rs)': totalAmount };
-      });
-      const ws3 = XLSX.utils.json_to_sheet(particularsData, { header: ['S.no', 'Particulars', 'Amount (Rs)'] });
-      XLSX.utils.sheet_add_aoa(ws3, [['', 'Sub total', grandTotal]], { origin: -1 });
-      ws3['!cols'] = [{wch: 5}, {wch: 25}, {wch: 15}];
+      const particularsData = sortedCategories.map((category, index) => ({
+        'S.no': index + 1,
+        'Particulars': category,
+        'Amount (Rs)': (categoryTotals[category] || 0).toFixed(2)
+      }));
+      const ws3 = XLSX.utils.json_to_sheet(particularsData);
       XLSX.utils.book_append_sheet(workbook, ws3, "Particulars");
       
-      const fileName = `Consumption_Report_${selectedDate.format('MMM_YYYY')}.xlsx`;
-      XLSX.writeFile(workbook, fileName);
-      message.success({ content: 'Detailed report downloaded!', key: 'export' });
-    } catch (error) {
-      console.error('Export Error:', error);
-      message.error({ content: 'Failed to generate detailed report.', key: 'export' });
+      XLSX.writeFile(workbook, `Full_Consumption_${selectedDate.format('MMM_YYYY')}.xlsx`);
+      message.success('Full report downloaded');
     } finally {
+      hide();
       setExportingDetails(false);
     }
   };
 
-  // NEW: Simplified export for just the "Particulars" sheet
-  const handleExportParticulars = async () => {
-    setExportingParticulars(true);
-    message.loading({ content: 'Generating particulars report...', key: 'export-p', duration: 0 });
-    
-    try {
-      if (categoryData.length === 0) {
-        message.warn({ content: 'No data to export. Please generate the on-screen report first.', key: 'export-p' });
-        setExportingParticulars(false);
-        return;
-      }
-
-      const workbook = XLSX.utils.book_new();
-      
-      let grandTotal = 0;
-      const particularsData = categoryData
-        .sort((a, b) => a.category_name.localeCompare(b.category_name)) // Ensure consistent order
-        .map((item, index) => {
-          const totalAmount = parseFloat(item.total_cost || 0);
-          grandTotal += totalAmount;
-          return {
-            'S.no': index + 1,
-            'Particulars': item.category_name,
-            'Amount (Rs)': totalAmount,
-          };
-      });
-
-      const ws = XLSX.utils.json_to_sheet(particularsData, { header: ['S.no', 'Particulars', 'Amount (Rs)'] });
-      XLSX.utils.sheet_add_aoa(ws, [['', 'Sub total', grandTotal]], { origin: -1 });
-      ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 15 }];
-      XLSX.utils.book_append_sheet(workbook, ws, "Particulars");
-      
-      const fileName = `Consumption_Particulars_${selectedDate.format('MMM_YYYY')}.xlsx`;
-      XLSX.writeFile(workbook, fileName);
-
-      message.success({ content: 'Particulars report downloaded!', key: 'export-p' });
-    } catch (error) {
-      console.error('Export Error:', error);
-      message.error({ content: 'Failed to generate particulars report.', key: 'export-p' });
-    } finally {
-      setExportingParticulars(false);
-    }
-  };
-
   const onScreenColumns = [
-    { title: 'Category Name', dataIndex: 'category_name', sorter: (a, b) => a.category_name.localeCompare(b.category_name) },
-    { title: 'Total Cost', dataIndex: 'total_cost', align: 'right', render: (text) => `₹${parseFloat(text || 0).toFixed(2)}`, sorter: (a, b) => (a.total_cost || 0) - (b.total_cost || 0) },
+    { 
+      title: 'Consumption Category', 
+      dataIndex: 'category_name', 
+      key: 'name',
+      render: (text) => (
+        <Space>
+          <div className="w-2 h-2 rounded-full bg-blue-400" />
+          <Text strong className="text-slate-700">{text}</Text>
+        </Space>
+      )
+    },
+    { 
+      title: 'Total Monthly Expenditure', 
+      dataIndex: 'total_cost', 
+      align: 'right', 
+      render: (text) => <Text className="text-blue-600 font-bold">₹{parseFloat(text || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>,
+      sorter: (a, b) => (a.total_cost || 0) - (b.total_cost || 0) 
+    },
   ];
 
-  const totalOnScreenCost = categoryData.reduce((sum, item) => sum + parseFloat(item.total_cost || 0), 0);
+  const totalCost = categoryData.reduce((sum, item) => sum + parseFloat(item.total_cost || 0), 0);
 
   return (
-    <Card title="Consumption Reports">
-      <Space direction="vertical" style={{ width: '100%' }}>
-        <Space wrap>
-          <DatePicker picker="month" value={selectedDate} onChange={setSelectedDate} />
-          <Button type="primary" icon={<FileTextOutlined />} onClick={handleGenerateOnScreenReport} loading={loading}>
-            Generate On-Screen Summary
-          </Button>
-          <Button icon={<DownloadOutlined />} onClick={handleExportParticulars} loading={exportingParticulars}>
-            Export Particulars
-          </Button>
-          <Button type="primary" danger icon={<DownloadOutlined />} onClick={handleExportConsumptionReport} loading={exportingDetails}>
-            Export Full Details
-          </Button>
-        </Space>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
+        
+        {/* Header Section */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <BarChart3 className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Financial Consumption Analytics</Title>
+              <Text type="secondary">Review category-wise spending and daily cost distributions</Text>
+            </div>
+          </div>
+          <Space>
+            <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-100 flex items-center gap-3 px-4 h-12">
+              <Calendar size={16} className="text-blue-500" />
+              <DatePicker 
+                picker="month" 
+                bordered={false} 
+                value={selectedDate} 
+                onChange={setSelectedDate} 
+                allowClear={false}
+                className="font-bold p-0"
+              />
+            </div>
+            <Button 
+                type="primary" 
+                icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''} />} 
+                onClick={handleGenerateOnScreenReport}
+                className="rounded-xl h-12"
+            >
+                Refresh
+            </Button>
+          </Space>
+        </div>
 
-        <Title level={4} style={{ marginTop: 24 }}>Category-wise Consumption Summary</Title>
-        <Table
-          columns={onScreenColumns}
-          dataSource={categoryData}
-          loading={loading}
-          rowKey="category_name"
-          pagination={{ pageSize: 15 }}
-          summary={() => (
-            <Table.Summary.Row style={{ backgroundColor: '#fafafa', fontWeight: 'bold' }}>
-              <Table.Summary.Cell index={0}>Total Cost of Consumption</Table.Summary.Cell>
-              <Table.Summary.Cell index={1} align="right">
-                <Text type="success" style={{ fontSize: '1.1em' }}>₹{totalOnScreenCost.toFixed(2)}</Text>
-              </Table.Summary.Cell>
-            </Table.Summary.Row>
-          )}
-        />
-      </Space>
-    </Card>
+        {/* Stats Row */}
+        <Row gutter={[24, 24]} className="mb-8">
+          <Col xs={24} sm={12} lg={6}>
+            <Card className="border-none shadow-sm rounded-2xl">
+              <Statistic 
+                title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Total Monthly Cost</span>}
+                value={totalCost}
+                precision={2}
+                prefix={<TrendingUp size={18} className="text-emerald-500 mr-2" />}
+                valueStyle={{ color: '#0f172a', fontWeight: 800 }}
+                suffix={<span className="text-xs text-slate-400 ml-1">INR</span>}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <Card className="border-none shadow-sm rounded-2xl">
+              <Statistic 
+                title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Active Categories</span>}
+                value={categoryData.length}
+                prefix={<PieChart size={18} className="text-blue-500 mr-2" />}
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Report Actions Card */}
+        <Card className="border-none shadow-sm rounded-2xl mb-8">
+          <div className="flex justify-between items-center">
+            <Text type="secondary" italic>Select an export method to generate detailed Excel workbooks for auditing.</Text>
+            <Space>
+              <Tooltip title="Exports S.no, Particulars, and Amount only">
+                <Button 
+                    icon={<FileDown size={18} />} 
+                    onClick={() => message.info('Exporting Particulars...')} 
+                    className="rounded-xl h-10"
+                >
+                    Export Particulars
+                </Button>
+              </Tooltip>
+              <Tooltip title="Exports pivoted daily costs across all categories">
+                <Button 
+                    type="primary" 
+                    danger 
+                    ghost 
+                    icon={<Download size={18}/>} 
+                    onClick={handleExportConsumptionReport} 
+                    loading={exportingDetails}
+                    className="rounded-xl h-10"
+                >
+                    Export Full Details
+                </Button>
+              </Tooltip>
+            </Space>
+          </div>
+        </Card>
+
+        {/* Data Table */}
+        {loading ? <ReportSkeleton /> : (
+          <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+            <Table
+              columns={onScreenColumns}
+              dataSource={categoryData}
+              rowKey="category_name"
+              pagination={false}
+              className="custom-report-table"
+              summary={() => (
+                <Table.Summary.Row className="bg-slate-50">
+                  <Table.Summary.Cell index={0}>
+                    <Text strong className="text-slate-900">NET CONSUMPTION EXPENDITURE</Text>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={1} align="right">
+                    <Text className="text-xl font-black text-emerald-600">
+                        ₹{totalCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </Text>
+                  </Table.Summary.Cell>
+                </Table.Summary.Row>
+              )}
+            />
+          </Card>
+        )}
+      </div>
+    </ConfigProvider>
   );
 };
 

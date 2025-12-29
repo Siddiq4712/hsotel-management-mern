@@ -1,21 +1,15 @@
-// frontend/src/components/mess/MessDashboard.jsx
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Card, Row, Col, Statistic, List, Table, Tag, Button, Calendar, Badge,
-  Tabs, Typography, Space, Divider, Spin, Alert, Empty
+  Card, Row, Col, Statistic, List, Tag, Button, Spin, Empty, 
+  Typography, Space, Divider, ConfigProvider, theme 
 } from 'antd';
 import {
-  AppstoreOutlined, FileTextOutlined, ScheduleOutlined,
-  UserOutlined, WarningOutlined, CheckCircleOutlined, ClockCircleOutlined,
-  CalendarOutlined, ForkOutlined, CoffeeOutlined, LineChartOutlined, BarChartOutlined,
-  PlusCircleOutlined, ShoppingCartOutlined, DollarCircleOutlined, CalculatorOutlined // NEW ICONS
-} from '@ant-design/icons'; // ✅ FIXED IMPORT PATH
+  LayoutDashboard, Utensils, ClipboardList, AlertTriangle, 
+  Calendar, Coffee, ShoppingBag, TrendingUp, BarChart3, 
+  PlusCircle, CreditCard, Calculator, ChevronRight, Clock
+} from 'lucide-react';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
-// import { useNavigate } from 'react-router-dom'; // REMOVED: No longer needed for internal navigation
-
-// NEW CHART.JS IMPORTS
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -27,454 +21,279 @@ import {
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  ChartTitle,
-  Tooltip,
-  Legend
-);
+ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTitle, Tooltip, Legend);
 
-// END NEW CHART.JS IMPORTS
+// Set Chart.js Defaults for Light Theme
+ChartJS.defaults.color = '#64748b'; // slate-500
+ChartJS.defaults.borderColor = '#f1f5f9'; // slate-100
 
-const { TabPane } = Tabs;
-const { Title, Text, Link } = Typography;
+const { Title, Text } = Typography;
 
-const MessDashboard = ({ setCurrentView }) => { // ADDED: setCurrentView prop
+const MessDashboard = ({ setCurrentView }) => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [todayMenus, setTodayMenus] = useState([]);
   const [menusLoading, setMenusLoading] = useState(true);
   const [specialOrders, setSpecialOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
-  // const navigate = useNavigate(); // REMOVED
-
-  // NEW STATE FOR CHARTS
   const [monthlyExpensesData, setMonthlyExpensesData] = useState(null);
   const [itemStockData, setItemStockData] = useState(null);
   const [chartsLoading, setChartsLoading] = useState(true);
-  // END NEW STATE
 
   useEffect(() => {
     fetchDashboardData();
     fetchTodayMenus();
     fetchSpecialOrders();
-    fetchChartData(); // NEW
+    fetchChartData();
   }, []);
 
   const fetchDashboardData = async () => {
     try {
       const response = await messAPI.getMessDashboardStats();
       setDashboardData(response.data.data);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
   const fetchTodayMenus = async () => {
     setMenusLoading(true);
     try {
       const today = moment().format('YYYY-MM-DD');
-      const params = { start_date: today, end_date: today };
-      const response = await messAPI.getMenuSchedule(params);
+      const response = await messAPI.getMenuSchedule({ start_date: today, end_date: today });
       setTodayMenus(response.data.data || []);
-    } catch (error) {
-      console.error('Error fetching today\'s menus:', error);
-    } finally {
-      setMenusLoading(false);
-    }
+    } catch (error) { console.error(error); } finally { setMenusLoading(false); }
   };
 
   const fetchSpecialOrders = async () => {
     setOrdersLoading(true);
     try {
       const today = moment().format('YYYY-MM-DD');
-      const params = { 
-        from_date: today, 
-        to_date: today,
-        status: 'pending,confirmed,preparing'
-      };
-      const response = await messAPI.getFoodOrders(params);
+      const response = await messAPI.getFoodOrders({ from_date: today, to_date: today, status: 'pending,confirmed,preparing' });
       setSpecialOrders(response.data.data || []);
-    } catch (error) {
-      console.error('Error fetching special orders:', error);
-    } finally {
-      setOrdersLoading(false);
-    }
+    } catch (error) { console.error(error); } finally { setOrdersLoading(false); }
   };
 
-  // NEW: Function to fetch chart data
   const fetchChartData = async () => {
     setChartsLoading(true);
     try {
       const currentMonth = moment().month() + 1;
       const currentYear = moment().year();
-
-      const [monthlyExpensesRes, itemStockRes] = await Promise.all([
+      const [expenses, stock] = await Promise.all([
         messAPI.getMonthlyExpensesChartData({ month: currentMonth, year: currentYear }),
         messAPI.getItemStockChartData(),
       ]);
-
-      setMonthlyExpensesData(monthlyExpensesRes.data.data);
-      setItemStockData(itemStockRes.data.data);
-    } catch (error) {
-      console.error('Error fetching chart data:', error);
-    } finally {
-      setChartsLoading(false);
-    }
-  };
-  // END NEW CHART DATA FETCH
-
-  const getStatusColor = (status) => {
-    const colors = {
-      pending: 'orange',
-      confirmed: 'blue',
-      preparing: 'purple',
-      ready: 'green',
-      delivered: 'green',
-      cancelled: 'red'
-    };
-    return colors[status] || 'default';
+      setMonthlyExpensesData(expenses.data.data);
+      setItemStockData(stock.data.data);
+    } catch (error) { console.error(error); } finally { setChartsLoading(false); }
   };
 
-  const getNextMealTime = () => {
-    const currentHour = moment().hour();
-    if (currentHour < 9) return 'breakfast';
-    if (currentHour < 14) return 'lunch';
-    if (currentHour < 17) return 'snacks';
-    if (currentHour < 22) return 'dinner';
-    return 'breakfast';
-  };
-
+  // UI Helpers
   const getMealColor = (mealType) => {
-    const colors = {
-      breakfast: 'blue',
-      lunch: 'green',
-      dinner: 'purple',
-      snacks: 'orange'
-    };
-    return colors[mealType] || 'blue';
+    const colors = { breakfast: '#3b82f6', lunch: '#10b981', dinner: '#8b5cf6', snacks: '#f59e0b' };
+    return colors[mealType] || '#3b82f6';
   };
 
-  const getUpcomingMenu = () => {
-    const nextMeal = getNextMealTime();
-    return todayMenus.find(menu => menu.meal_time === nextMeal);
-  };
+  const upcomingMenu = useMemo(() => {
+    const hour = moment().hour();
+    let next = 'breakfast';
+    if (hour < 10) next = 'breakfast';
+    else if (hour < 15) next = 'lunch';
+    else if (hour < 18) next = 'snacks';
+    else next = 'dinner';
+    return todayMenus.find(m => m.meal_time === next);
+  }, [todayMenus]);
 
-  const upcomingMenu = getUpcomingMenu();
-
-  // Chart.js options for Monthly Expenses
-  const monthlyExpensesChartOptions = {
-    responsive: true,
-    plugins: {
-      legend: { position: 'top' },
-      title: {
-        display: true,
-        text: `Monthly Expenses (${moment().format('MMMM YYYY')})`,
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        title: { display: true, text: 'Amount (₹)' },
-      },
-      x: {
-        title: { display: true, text: 'Expense Category' },
-      },
-    },
-  };
-
-  // Chart.js options for Item Stock
-  const itemStockChartOptions = {
-    indexAxis: 'y',
-    responsive: true,
-    plugins: {
-      legend: { position: 'top' },
-      title: { display: true, text: 'Top 10 Items by Current Stock Quantity' },
-    },
-    scales: {
-      x: {
-        beginAtZero: true,
-        title: { display: true, text: 'Quantity' },
-      },
-      y: {
-        title: { display: true, text: 'Item' },
-      },
-    },
+  // Shared Card Style for Light Theme
+  const cardStyle = {
+    backgroundColor: '#ffffff',
+    border: '1px solid #e2e8f0', // slate-200
+    borderRadius: '16px',
+    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
   };
 
   return (
-    <div>
-      <Title level={2}>Mess Dashboard</Title>
-      
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Total Menus"
-              value={loading ? '-' : dashboardData?.totalMenus || 0}
-              prefix={<AppstoreOutlined />}
-              loading={loading}
-            />
-            <div style={{ marginTop: 8 }}>
-              <Link href="/mess/menu-management">Manage Menus</Link>
+    <ConfigProvider
+      theme={{
+        algorithm: theme.defaultAlgorithm,
+        token: {
+          colorPrimary: '#2563eb', // blue-600
+          colorBgContainer: '#ffffff',
+          borderRadius: 16,
+          colorTextHeading: '#1e293b', // slate-800
+          colorText: '#475569', // slate-600
+        },
+      }}
+    >
+      <div className="p-8 bg-slate-50 min-h-screen">
+        {/* Header Section */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-200">
+                <LayoutDashboard className="text-white" size={24} />
             </div>
-          </Card>
-        </Col>
-        
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Scheduled Meals Today"
-              value={menusLoading ? '-' : todayMenus.length}
-              prefix={<ScheduleOutlined />}
-              loading={menusLoading}
-            />
-            <div style={{ marginTop: 8 }}>
-              <Link href="/mess/menu-planner">Plan Menu</Link>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Mess Overview</Title>
+              <Text type="secondary">Manage your daily operations and logistics</Text>
             </div>
-          </Card>
-        </Col>
+          </div>
+          <Text strong className="bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm">
+            {moment().format('dddd, Do MMMM YYYY')}
+          </Text>
+        </div>
         
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Special Orders Today"
-              value={ordersLoading ? '-' : specialOrders.length}
-              prefix={<FileTextOutlined />}
-              loading={ordersLoading}
-            />
-            <div style={{ marginTop: 8 }}>
-              <Link href="/mess/food-orders">Manage Orders</Link>
-            </div>
-          </Card>
-        </Col>
-        
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Low Stock Items"
-              value={loading ? '-' : dashboardData?.lowStockCount || 0}
-              valueStyle={{ color: (dashboardData?.lowStockCount > 0) ? '#cf1322' : undefined }}
-              prefix={<WarningOutlined />}
-              loading={loading}
-            />
-            <div style={{ marginTop: 8 }}>
-              <Link href="/mess/inventory">Check Inventory</Link>
-            </div>
-          </Card>
-        </Col>
-      </Row>
-      
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} lg={16}>
-          <Card title="Today's Schedule" extra={<Link href="/mess/menu-schedule">View All</Link>}>
-            {menusLoading ? (
-              <div style={{ textAlign: 'center', padding: '20px 0' }}><Spin /></div>
-            ) : todayMenus.length === 0 ? (
-              <Empty description="No meals scheduled for today" />
-            ) : (
-              <List
-                dataSource={todayMenus}
-                renderItem={item => (
-                  <List.Item
-                    actions={[
-                      item.status === 'scheduled' ? (
-                        <Button 
-                          size="small" 
-                          type="primary" 
-                          onClick={() => {
-                            messAPI.updateMenuSchedule(item.id, { status: 'served' });
-                            fetchTodayMenus();
-                          }}
-                        >
-                          Mark as Served
-                        </Button>
-                      ) : (
-                        <Tag color="green">Served</Tag>
-                      )
-                    ]}
-                  >
-                    <List.Item.Meta
-                      avatar={
-                        <Tag color={getMealColor(item.meal_time)} style={{ fontSize: '14px', padding: '4px 8px' }}>
-                          {item.meal_time.toUpperCase()}
-                        </Tag>
-                      }
-                      title={item.Menu?.name || 'Unknown Menu'}
-                      description={
-                        <Space direction="vertical" size={0}>
-                          <Text>Servings: {item.estimated_servings}</Text>
-                          <Text type="secondary">Cost per serving: ₹{parseFloat(item.cost_per_serving || 0).toFixed(2)}</Text>
-                        </Space>
-                      }
-                    />
-                  </List.Item>
-                )}
-              />
-            )}
-          </Card>
-        </Col>
-        
-        <Col xs={24} lg={8}>
-          <Card title="Upcoming Meal" extra={<CalendarOutlined />}>
-            {menusLoading ? (
-              <div style={{ textAlign: 'center', padding: '20px 0' }}><Spin /></div>
-            ) : !upcomingMenu ? (
-              <Empty description="No upcoming meals scheduled" />
-            ) : (
-              <div>
-                <div style={{ marginBottom: 16 }}>
-                  <Tag color={getMealColor(upcomingMenu.meal_time)} style={{ fontSize: '14px', padding: '4px 8px' }}>
-                    {upcomingMenu.meal_time.toUpperCase()}
-                  </Tag>
+        {/* Stats Section */}
+        <Row gutter={[24, 24]}>
+          {[
+            { title: 'Total Menus', value: dashboardData?.totalMenus, icon: <Utensils size={22}/>, color: 'text-blue-600', bg: 'bg-blue-50', link: 'menus' },
+            { title: 'Meals Today', value: todayMenus.length, icon: <Calendar size={22}/>, color: 'text-emerald-600', bg: 'bg-emerald-50', link: 'menu-planner' },
+            { title: 'Special Orders', value: specialOrders.length, icon: <ShoppingBag size={22}/>, color: 'text-orange-600', bg: 'bg-orange-50', link: 'food-orders-dashboard' },
+            { title: 'Low Stock', value: dashboardData?.lowStockCount, icon: <AlertTriangle size={22}/>, color: 'text-rose-600', bg: 'bg-rose-50', link: 'inventory' },
+          ].map((stat, i) => (
+            <Col xs={24} sm={12} lg={6} key={i}>
+              <Card style={cardStyle} className="hover:shadow-md transition-shadow cursor-default border-none">
+                <div className="flex justify-between items-start">
+                    <div>
+                      <Text className="text-slate-500 text-xs font-bold uppercase tracking-wider">{stat.title}</Text>
+                      <div className="mt-1">
+                        <Title level={3} style={{ margin: 0 }}>{loading ? <Spin size="small"/> : stat.value}</Title>
+                      </div>
+                    </div>
+                    <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
+                        {stat.icon}
+                    </div>
                 </div>
-                
-                <Title level={4}>{upcomingMenu.Menu?.name || 'Unknown Menu'}</Title>
-                
-                <div style={{ marginBottom: 16 }}>
-                  <Text>Servings: {upcomingMenu.estimated_servings}</Text>
-                  <br />
-                  <Text>Total Cost: ₹{parseFloat(upcomingMenu.total_cost || 0).toFixed(2)}</Text>
-                </div>
-                
-                <Divider style={{ margin: '12px 0' }} />
-                
-                <Title level={5}>Menu Items:</Title>
-                {upcomingMenu.Menu?.tbl_Menu_Items?.length > 0 ? (
-                  <List
-                    size="small"
-                    dataSource={upcomingMenu.Menu.tbl_Menu_Items}
-                    renderItem={item => (
-                      <List.Item>
-                        <Text>{item.tbl_Item?.name}: {item.quantity} {item.unit}</Text>
-                      </List.Item>
-                    )}
-                  />
-                ) : (
-                  <Text type="secondary">No items in this menu</Text>
-                )}
-                
-                <div style={{ marginTop: 16 }}>
-                  <Button 
-                    type="primary" 
-                    onClick={() => setCurrentView('menus')} // FIXED: Use setCurrentView; handle ID in EnhancedMenuManagement if needed (e.g., via URLSearchParams or context)
-                  >
-                    View Full Menu
+                <Button 
+                    type="link" 
+                    className="p-0 h-auto mt-4 text-blue-600 flex items-center gap-1 font-medium"
+                    onClick={() => setCurrentView(stat.link)}
+                >
+                    View Details <ChevronRight size={14} />
+                </Button>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+        
+        <Row gutter={[24, 24]} className="mt-8">
+          {/* Today's Schedule List */}
+          <Col xs={24} lg={16}>
+            <Card 
+                title={<span className="flex items-center gap-2"><Clock size={18} className="text-blue-600"/> Today's Meal Plan</span>}
+                extra={<Button type="link" onClick={() => setCurrentView('menu-schedule')}>Full Schedule</Button>}
+                style={cardStyle}
+                className="border-none"
+            >
+              {menusLoading ? <div className="text-center py-10"><Spin /></div> : (
+                <List
+                  dataSource={todayMenus}
+                  locale={{ emptyText: <Empty description="No meals scheduled for today" /> }}
+                  renderItem={item => (
+                    <List.Item className="border-slate-100 px-2 hover:bg-slate-50 transition-colors rounded-xl mb-1">
+                      <List.Item.Meta
+                        avatar={
+                          <div className="w-24 h-10 rounded-lg flex items-center justify-center font-bold text-xs" style={{ background: `${getMealColor(item.meal_time)}15`, color: getMealColor(item.meal_time) }}>
+                            {item.meal_time.toUpperCase()}
+                          </div>
+                        }
+                        title={<Text strong className="text-slate-800">{item.Menu?.name}</Text>}
+                        description={<Text type="secondary" size="small">Est. Servings: {item.estimated_servings}</Text>}
+                      />
+                      <div className="text-right">
+                        <Tag color="blue" bordered={false} className="m-0 font-semibold">₹{parseFloat(item.cost_per_serving || 0).toFixed(2)}</Tag>
+                        <div className="text-[10px] text-slate-400 mt-1 uppercase">Per Serving</div>
+                      </div>
+                    </List.Item>
+                  )}
+                />
+              )}
+            </Card>
+          </Col>
+          
+          {/* Upcoming Meal Card */}
+          <Col xs={24} lg={8}>
+            <Card 
+                title={<span className="text-slate-800">Live: Next Meal</span>}
+                style={{ ...cardStyle, background: 'linear-gradient(to bottom right, #ffffff, #f8fafc)' }}
+                className="border-none"
+            >
+              {!upcomingMenu ? <Empty description="Kitchen is closed" /> : (
+                <div className="space-y-5">
+                  <div className="flex justify-between items-center">
+                    <Tag color="processing" className="px-3 rounded-full">{upcomingMenu.meal_time.toUpperCase()}</Tag>
+                    <span className="text-emerald-500 text-xs font-bold flex items-center gap-1">
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /> ACTIVE
+                    </span>
+                  </div>
+                  
+                  <Title level={3} style={{ margin: '8px 0' }}>{upcomingMenu.Menu?.name}</Title>
+                  
+                  <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 space-y-3">
+                    <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Scheduled Servings</span>
+                        <Text strong>{upcomingMenu.estimated_servings}</Text>
+                    </div>
+                    <Divider className="m-0 border-blue-100" />
+                    <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Allocated Budget</span>
+                        <Text strong className="text-blue-600">₹{parseFloat(upcomingMenu.total_cost || 0).toFixed(2)}</Text>
+                    </div>
+                  </div>
+
+                  <Button type="primary" block size="large" onClick={() => setCurrentView('menus')} className="shadow-lg shadow-blue-100">
+                    Menu Management
                   </Button>
                 </div>
-              </div>
-            )}
-          </Card>
-          
-          <Card title="Special Orders" style={{ marginTop: 16 }} extra={<Link href="/mess/food-orders">View All</Link>}>
-            {ordersLoading ? (
-              <div style={{ textAlign: 'center', padding: '20px 0' }}><Spin /></div>
-            ) : specialOrders.length === 0 ? (
-              <Empty description="No special orders for today" />
-            ) : (
-              <List
-                dataSource={specialOrders.slice(0, 3)}
-                renderItem={order => (
-                  <List.Item>
-                    <List.Item.Meta
-                      title={
-                        <Space>
-                          <Text>Order #{order.id}</Text>
-                          <Tag color={getStatusColor(order.status)}>
-                            {order.status.toUpperCase()}
-                          </Tag>
-                        </Space>
-                      }
-                      description={
-                        <Space direction="vertical" size={0}>
-                          <Text>{order.Student?.username}</Text>
-                          <Text type="secondary">
-                            {moment(order.requested_time).format('HH:mm')} • ₹{parseFloat(order.total_amount).toFixed(2)}
-                          </Text>
-                        </Space>
-                      }
-                    />
-                    <Button 
-                      size="small"
-                      onClick={() => setCurrentView('food-orders')} // FIXED: Use setCurrentView; handle order ID in FoodOrdersManagement if needed
-                    >
-                      Details
-                    </Button>
-                  </List.Item>
-                )}
-                footer={
-                  specialOrders.length > 3 ? (
-                    <div style={{ textAlign: 'center' }}>
-                      <Link href="/mess/food-orders">
-                        {specialOrders.length - 3} more orders
-                      </Link>
-                    </div>
-                  ) : null
-                }
-              />
-            )}
-          </Card>
-        </Col>
-      </Row>
+              )}
+            </Card>
+          </Col>
+        </Row>
 
-      {/* NEW SECTION FOR CHARTS */}
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} lg={12}>
-          <Card title={<><BarChartOutlined /> Monthly Mess Expenses</>}>
-            {chartsLoading ? (
-              <div style={{ textAlign: 'center', padding: '50px 0' }}><Spin size="large" /></div>
-            ) : monthlyExpensesData && monthlyExpensesData.labels?.length > 0 ? (
-              <Bar options={monthlyExpensesChartOptions} data={monthlyExpensesData} />
-            ) : (
-              <Empty description="No monthly expenses data available" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            )}
-          </Card>
-        </Col>
-        <Col xs={24} lg={12}>
-          <Card title={<><LineChartOutlined /> Top 10 Stock Items</>}>
-            {chartsLoading ? (
-              <div style={{ textAlign: 'center', padding: '50px 0' }}><Spin size="large" /></div>
-            ) : itemStockData && itemStockData.labels?.length > 0 ? (
-              <Bar options={itemStockChartOptions} data={itemStockData} />
-            ) : (
-              <Empty description="No stock data available" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            )}
-          </Card>
-        </Col>
-      </Row>
-      
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col span={24}>
-          <Card title="Quick Actions">
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
-              <Button type="primary" size="large" icon={<CoffeeOutlined />} onClick={() => setCurrentView('menu-planner')}>
-                Menu Planner
-              </Button>
-              <Button size="large" icon={<CalendarOutlined />} onClick={() => setCurrentView('menu-schedule')}>
-                Menu Schedule
-              </Button>
-              <Button size="large" icon={<PlusCircleOutlined />} onClick={() => setCurrentView('create-menu')}>
-                Create Menu
-              </Button>
-              <Button size="large" icon={<ShoppingCartOutlined />} onClick={() => setCurrentView('food-orders-dashboard')}>
-                Order Dashboard
-              </Button>
-              <Button size="large" icon={<DollarCircleOutlined />} onClick={() => setCurrentView('mess-fee')}>
-                Mess Fee Summary
-              </Button>
-              <Button size="large" icon={<CalculatorOutlined />} onClick={() => setCurrentView('daily-rate-report')}>
-                Daily Rate
-              </Button>
+        {/* Analytics Section */}
+        <Row gutter={[24, 24]} className="mt-8">
+          <Col xs={24} lg={12}>
+            <Card title={<span className="flex items-center gap-2"><BarChart3 size={18} className="text-indigo-500"/> Monthly Expense Trends</span>} style={cardStyle} className="border-none">
+              {chartsLoading ? <div className="py-20 text-center"><Spin /></div> : 
+                monthlyExpensesData ? <Bar data={monthlyExpensesData} options={{ responsive: true, plugins: { legend: { display: false } } }} /> : <Empty />
+              }
+            </Card>
+          </Col>
+          <Col xs={24} lg={12}>
+            <Card title={<span className="flex items-center gap-2"><TrendingUp size={18} className="text-emerald-500"/> Stock Inventory Status</span>} style={cardStyle} className="border-none">
+              {chartsLoading ? <div className="py-20 text-center"><Spin /></div> : 
+                itemStockData ? <Bar data={itemStockData} options={{ indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }} /> : <Empty />
+              }
+            </Card>
+          </Col>
+        </Row>
+        
+        {/* Quick Actions Footer */}
+        <div className="mt-12 mb-6">
+            <Title level={5} className="mb-6 flex items-center gap-2">
+              <PlusCircle size={20} className="text-slate-400"/>
+              Quick Actions
+            </Title>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {[
+                { label: 'Menu Planner', icon: <Calendar size={18}/>, id: 'menu-planner' },
+                { label: 'Create Menu', icon: <PlusCircle size={18}/>, id: 'create-menu' },
+                { label: 'Special Orders', icon: <ShoppingBag size={18}/>, id: 'food-orders-dashboard' },
+                { label: 'Billing/Fees', icon: <CreditCard size={18}/>, id: 'mess-fee' },
+                { label: 'Daily Rate', icon: <Calculator size={18}/>, id: 'daily-rate-report' },
+              ].map(action => (
+                <button 
+                    key={action.id}
+                    className="bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/30 transition-all p-4 rounded-2xl flex flex-col items-center gap-3 shadow-sm group"
+                    onClick={() => setCurrentView(action.id)}
+                >
+                    <div className="p-2 rounded-lg bg-slate-50 group-hover:bg-white transition-colors">
+                      {action.icon}
+                    </div>
+                    <span className="text-sm font-semibold">{action.label}</span>
+                </button>
+              ))}
             </div>
-          </Card>
-        </Col>
-      </Row>
-    </div>
+        </div>
+      </div>
+    </ConfigProvider>
   );
 };
 

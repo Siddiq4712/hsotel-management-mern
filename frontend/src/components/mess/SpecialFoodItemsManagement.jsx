@@ -1,42 +1,53 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card, Table, Button, Space, Tag, Image, message, Modal, Form,
-  Input, InputNumber, Select, Upload, Typography, Popconfirm, Switch
+  Input, InputNumber, Select, Upload, Typography, Popconfirm, Switch,
+  ConfigProvider, theme, Skeleton, Divider, Tooltip,Row,Col
 } from 'antd';
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
-  UploadOutlined, EyeOutlined, FilterOutlined
-} from '@ant-design/icons';
+  Plus, Search, Edit3, Trash2, Camera, Clock, 
+  UtensilsCrossed, Filter, LayoutGrid, CheckCircle2, XCircle
+} from 'lucide-react';
 import { messAPI } from '../../services/api';
 
 const { Option } = Select;
 const { TextArea } = Input;
 const { Title, Text } = Typography;
 
+// --- Specialized Skeleton for Food Items ---
+const FoodItemSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+    <div className="space-y-6">
+      <div className="flex justify-between">
+        <Skeleton.Input active style={{ width: 300 }} />
+        <Skeleton.Button active style={{ width: 120 }} />
+      </div>
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="flex gap-4 items-center border-b border-slate-50 pb-6">
+          <Skeleton.Avatar active shape="square" size={60} />
+          <div className="flex-1">
+            <Skeleton active title={{ width: '40%' }} paragraph={{ rows: 1, width: '20%' }} />
+          </div>
+          <Skeleton.Button active style={{ width: 100 }} />
+        </div>
+      ))}
+    </div>
+  </Card>
+);
+
 const SpecialFoodItemsManagement = () => {
   const [foodItems, setFoodItems] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [form] = Form.useForm();
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
-  const [previewVisible, setPreviewVisible] = useState(false);
-  const [previewImage, setPreviewImage] = useState('');
   const [searchText, setSearchText] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showUnavailable, setShowUnavailable] = useState(false);
 
-  // Define categories
-  const categories = [
-    'Snacks',
-    'Beverages',
-    'Desserts',
-    'Main Course',
-    'Breakfast',
-    'Sides',
-    'Other'
-  ];
+  const categories = ['Snacks', 'Beverages', 'Desserts', 'Main Course', 'Breakfast', 'Sides', 'Other'];
 
   useEffect(() => {
     fetchFoodItems();
@@ -45,28 +56,28 @@ const SpecialFoodItemsManagement = () => {
   const fetchFoodItems = async () => {
     setLoading(true);
     try {
-      const params = {};
-      
-      if (selectedCategory !== 'all') {
-        params.category = selectedCategory;
-      }
-      
-      if (!showUnavailable) {
-        params.is_available = true;
-      }
-      
-      if (searchText) {
-        params.search = searchText;
-      }
-      
+      const params = {
+        ...(selectedCategory !== 'all' && { category: selectedCategory }),
+        ...(!showUnavailable && { is_available: true }),
+        ...(searchText && { search: searchText })
+      };
       const response = await messAPI.getSpecialFoodItems(params);
       setFoodItems(response.data.data || []);
     } catch (error) {
       message.error('Failed to fetch food items');
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 800);
     }
   };
+
+  // --- Live Search Memoization ---
+  const filteredData = useMemo(() => {
+    if (!searchText) return foodItems;
+    return foodItems.filter(item => 
+      item.name.toLowerCase().includes(searchText.toLowerCase()) ||
+      item.category.toLowerCase().includes(searchText.toLowerCase())
+    );
+  }, [foodItems, searchText]);
 
   const handleCreate = () => {
     setEditingItem(null);
@@ -78,26 +89,8 @@ const SpecialFoodItemsManagement = () => {
   const handleEdit = (item) => {
     setEditingItem(item);
     setImageUrl(item.image_url || '');
-    form.setFieldsValue({
-      name: item.name,
-      category: item.category,
-      price: item.price,
-      description: item.description,
-      preparation_time_minutes: item.preparation_time_minutes,
-      is_available: item.is_available,
-      image_url: item.image_url,
-    });
+    form.setFieldsValue(item);
     setModalVisible(true);
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await messAPI.deleteSpecialFoodItem(id);
-      message.success('Food item deleted successfully');
-      fetchFoodItems();
-    } catch (error) {
-      message.error('Failed to delete food item: ' + (error.response?.data?.message || error.message));
-    }
   };
 
   const handleSubmit = async (values) => {
@@ -105,331 +98,255 @@ const SpecialFoodItemsManagement = () => {
     try {
       if (editingItem) {
         await messAPI.updateSpecialFoodItem(editingItem.id, values);
-        message.success('Food item updated successfully');
+        message.success('Food item updated');
       } else {
         await messAPI.createSpecialFoodItem(values);
-        message.success('Food item created successfully');
+        message.success('Food item created');
       }
       setModalVisible(false);
       fetchFoodItems();
     } catch (error) {
-      message.error('Failed to save food item: ' + (error.response?.data?.message || error.message));
+      message.error('Action failed');
     } finally {
       setConfirmLoading(false);
     }
   };
 
-  const handleBeforeUpload = (file) => {
-    const isJpgOrPng = file.type === 'image/jpeg' || file.type === 'image/png';
-    if (!isJpgOrPng) {
-      message.error('You can only upload JPG/PNG files!');
-    }
-    const isLt2M = file.size / 1024 / 1024 < 2;
-    if (!isLt2M) {
-      message.error('Image must be smaller than 2MB!');
-    }
-    return isJpgOrPng && isLt2M;
-  };
-
-  const handleImageChange = (info) => {
-    if (info.file.status === 'uploading') {
-      return;
-    }
-    if (info.file.status === 'done') {
-      // Get the URL from the response if you're actually uploading
-      // For now, we'll use a mock URL
-      const mockUrl = URL.createObjectURL(info.file.originFileObj);
-      setImageUrl(mockUrl);
-      form.setFieldsValue({ image_url: mockUrl });
-    }
-  };
-
-  const handlePreview = (url) => {
-    setPreviewImage(url);
-    setPreviewVisible(true);
-  };
-
-  const handleSearch = () => {
-    fetchFoodItems();
-  };
-
   const columns = [
     {
-      title: 'Image',
+      title: 'Item Preview',
       dataIndex: 'image_url',
       key: 'image',
+      width: 100,
       render: (url) => (
-        url ? (
-          <Image 
-            src={url} 
-            alt="Food" 
-            width={50} 
-            height={50} 
-            style={{ objectFit: 'cover', cursor: 'pointer' }}
-            onClick={() => handlePreview(url)}
-            fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3PTWBSGcbGzM6GCKqlIBRV0dHRJFarQ0eUT8LH4BnRU0NHR0UEFVdIlFRV7TzRksomPY8uykTk/zewQfKw/9znv4yvJynLv4uLiV2dBoDiBf4qP3/ARuCRABEFAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghggQAQZQKAnYEaQBAQaASKIAQJEkAEEegJmBElAoBEgghgg0Aj8i0JO4OzsrPv69Wv+hi2qPHr0qNvf39+iI97soRIh4f3z58/u7du3SXX7Xt7Z2enevHmzfQe+oSN2apSAPj09TSrb+XKI/f379+08+A0cNRE2ANkupk+ACNPvkSPcAAEibACyXUyfABGm3yNHuAECRNgAZLuYPgEirKlHu7u7XdyytGwHAd8jjNyng4OD7vnz51dbPT8/7z58+NB9+/bt6jU/TI+AGWHEnrx48eJ/EsSmHzx40L18+fLyzxF3ZVMjEyDCiEDjMYZZS5wiPXnyZFbJaxMhQIQRGzHvWR7XCyOCXsOmiDAi1HmPMMQjDpbpEiDCiL358eNHurW/5SnWdIBbXiDCiA38/Pnzrce2YyZ4//59F3ePLNMl4PbpiL2J0L979+7yDtHDhw8vtzzvdGnEXdvUigSIsCLAWavHp/+qM0BcXMd/q25n1vF57TYBp0a3mUzilePj4+7k5KSLb6gt6ydAhPUzXnoPR0dHl79WGTNCfBnn1uvSCJdegQhLI1vvCk+fPu2ePXt2tZOYEV6/fn31dz+shwAR1sP1cqvLntbEN9MxA9xcYjsxS1jWR4AIa2Ibzx0tc44fYX/16lV6NDFLXH+YL32jwiACRBiEbf5KcXoTIsQSpzXx4N28Ja4BQoK7rgXiydbHjx/P25TaQAJEGAguWy0+2Q8PD6/Ki4R8EVl+bzBOnZY95fq9rj9zAkTI2SxdidBHqG9+skdw43borCXO/ZcJdraPWdv22uIEiLA4q7nvvCug8WTqzQveOH26fodo7g6uFe/a17W3+nFBAkRYENRdb1vkkz1CH9cPsVy/jrhr27PqMYvENYNlHAIesRiBYwRy0V+8iXP8+/fvX11Mr7L7ECueb/r48eMqm7FuI2BGWDEG8cm+7G3NEOfmdcTQw4h9/55lhm7DekRYKQPZF2ArbXTAyu4kDYB2YxUzwg0gi/41ztHnfQG26HbGel/crVrm7tNY+/1btkOEAZ2M05r4FB7r9GbAIdxaZYrHdOsgJ/wCEQY0J74TmOKnbxxT9n3FgGGWWsVdowHtjt9Nnvf7yQM2aZU/TIAIAxrw6dOnAWtZZcoEnBpNuTuObWMEiLAx1HY0ZQJEmHJ3HNvGCBBhY6jtaMoEiJB0Z29vL6ls58vxPcO8/zfrdo5qvKO+d3Fx8Wu8zf1dW4p/cPzLly/dtv9Ts/EbcvGAHhHyfBIhZ6NSiIBTo0LNNtScABFyNiqFCBChULMNNSdAhJyNSiECRCjUbEPNCRAhZ6NSiAARCjXbUHMCRMjZqBQiQIRCzTbUnAARcjYqhQgQoVCzDTUnQIScjUohAkQo1GxDzQkQIWejUogAEQo121BzAkTI2agUIkCEQs021JwAEXI2KoUIEKFQsw01J0CEnI1KIQJEKNRsQ80JECFno1KIABEKNdtQcwJEyNmoFCJAhELNNtScABFyNiqFCBChULMNNSdAhJyNSiECRCjUbEPNCRAhZ6NSiAARCjXbUHMCRMjZqBQiQIRCzTbUnAARcjYqhQgQoVCzDTUnQIScjUohAkQo1GxDzQkQIWejUogAEQo121BzAkTI2agUIkCEQs021JwAEXI2KoUIEKFQsw01J0CEnI1KIQJEKNRsQ80JECFno1KIABEKNdtQcwJEyNmoFCJAhELNNtScABFyNiqFCBChULMNNSdAhJyNSiECRCjUbEPNCRAhZ6NSiAARCjXbUHMCRMjZqBQiQIRCzTbUnAARcjYqhQgQoVCzDTUnQIScjUohAkQo1GxDzQkQIWejUogAEQo121BzAkTI2agUIkCEQs021JwAEXI2KoUIEKFQsw01J0CEnI1KIQJEKNRsQ80JECFno1KIABEKNdtQcwJEyNmoFCJAhELNNtScABFyNiqFCBChULMNNSdAhJyNSiEC/wGgKKC4YMA4TAAAAABJRU5ErkJggg=="
-          />
-        ) : (
-          <Text type="secondary">No image</Text>
-        )
+        <div className="relative group overflow-hidden rounded-2xl w-14 h-14 bg-slate-100 border border-slate-200">
+           {url ? (
+             <Image 
+                src={url} 
+                className="object-cover w-full h-full transition-transform group-hover:scale-110" 
+                preview={{ mask: <div className="text-[10px]">Preview</div> }}
+             />
+           ) : (
+             <div className="flex items-center justify-center h-full text-slate-300">
+               <Camera size={20} />
+             </div>
+           )}
+        </div>
       ),
     },
     {
-      title: 'Name',
-      dataIndex: 'name',
-      key: 'name',
-      sorter: (a, b) => a.name.localeCompare(b.name),
+      title: 'Food Info',
+      key: 'info',
+      render: (_, r) => (
+        <Space direction="vertical" size={0}>
+          <Text strong className="text-slate-700 text-base">{r.name}</Text>
+          <div className="flex items-center gap-2">
+            <Tag color="blue" className="m-0 text-[10px] uppercase font-bold border-none rounded-full px-2">{r.category}</Tag>
+            {r.preparation_time_minutes && (
+              <span className="text-slate-400 text-[11px] flex items-center gap-1">
+                <Clock size={12} /> {r.preparation_time_minutes}m
+              </span>
+            )}
+          </div>
+        </Space>
+      )
     },
     {
-      title: 'Category',
-      dataIndex: 'category',
-      key: 'category',
-      filters: categories.map(category => ({ text: category, value: category })),
-      onFilter: (value, record) => record.category === value,
-    },
-    {
-      title: 'Price',
+      title: 'Pricing',
       dataIndex: 'price',
-      key: 'price',
-      render: price => `₹${parseFloat(price).toFixed(2)}`,
+      align: 'right',
+      render: (p) => <Text className="text-blue-600 font-bold text-base">₹{parseFloat(p).toFixed(2)}</Text>,
       sorter: (a, b) => a.price - b.price,
     },
     {
-      title: 'Prep Time',
-      dataIndex: 'preparation_time_minutes',
-      key: 'prep_time',
-      render: time => time ? `${time} mins` : 'N/A',
-      sorter: (a, b) => (a.preparation_time_minutes || 0) - (b.preparation_time_minutes || 0),
-    },
-    {
-      title: 'Status',
+      title: 'Availability',
       dataIndex: 'is_available',
-      key: 'status',
-      render: isAvailable => (
-        isAvailable ? 
-          <Tag color="green">Available</Tag> : 
-          <Tag color="red">Unavailable</Tag>
-      ),
-      filters: [
-        { text: 'Available', value: true },
-        { text: 'Unavailable', value: false }
-      ],
-      onFilter: (value, record) => record.is_available === value,
+      align: 'center',
+      render: (active) => (
+        <Tag 
+          icon={active ? <CheckCircle2 size={12} className="mr-1" /> : <XCircle size={12} className="mr-1" />}
+          color={active ? 'success' : 'error'}
+          className="rounded-full border-none px-3 font-bold text-[10px] uppercase"
+        >
+          {active ? 'Ready' : 'Off-menu'}
+        </Tag>
+      )
     },
     {
       title: 'Actions',
-      key: 'actions',
+      align: 'right',
       render: (_, record) => (
         <Space>
-          <Button
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-            size="small"
-          />
-          <Popconfirm
-            title="Are you sure you want to delete this item?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Yes"
-            cancelText="No"
-          >
-            <Button
-              icon={<DeleteOutlined />}
-              danger
-              size="small"
-            />
+          <Tooltip title="Edit Item">
+            <Button className="rounded-lg" icon={<Edit3 size={14}/>} onClick={() => handleEdit(record)} />
+          </Tooltip>
+          <Popconfirm title="Delete item?" onConfirm={() => messAPI.deleteSpecialFoodItem(record.id).then(fetchFoodItems)}>
+            <Button className="rounded-lg" icon={<Trash2 size={14}/>} danger />
           </Popconfirm>
         </Space>
-      ),
-    },
+      )
+    }
   ];
 
   return (
-    <Card 
-      title="Special Food Items Management"
-      extra={
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-          Add Food Item
-        </Button>
-      }
-    >
-      <Space style={{ marginBottom: 16 }}>
-        <Select
-          placeholder="Filter by category"
-          style={{ width: 200 }}
-          value={selectedCategory}
-          onChange={(value) => {
-            setSelectedCategory(value);
-            setTimeout(handleSearch, 0);
-          }}
-        >
-          <Option value="all">All Categories</Option>
-          {categories.map(category => (
-            <Option key={category} value={category}>{category}</Option>
-          ))}
-        </Select>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
         
-        <Input
-          placeholder="Search items"
-          allowClear
-          value={searchText}
-          onChange={e => setSearchText(e.target.value)}
-          onPressEnter={handleSearch}
-          style={{ width: 200 }}
-          prefix={<SearchOutlined />}
-        />
-        
-        <Button type="default" icon={<SearchOutlined />} onClick={handleSearch}>
-          Search
-        </Button>
-        
-        <Switch 
-          checked={showUnavailable}
-          onChange={(checked) => {
-            setShowUnavailable(checked);
-            setTimeout(handleSearch, 0);
-          }}
-          checkedChildren="Show All"
-          unCheckedChildren="Available Only"
-        />
-      </Space>
-
-      <Table
-        columns={columns}
-        dataSource={foodItems}
-        rowKey="id"
-        loading={loading}
-      />
-
-      <Modal
-        title={editingItem ? 'Edit Food Item' : 'Add Food Item'}
-        visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        footer={null}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-          initialValues={{ is_available: true }}
-        >
-          <Form.Item
-            name="name"
-            label="Item Name"
-            rules={[{ required: true, message: 'Please enter item name' }]}
+        {/* Header Section */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <UtensilsCrossed className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Special Menu Hub</Title>
+              <Text type="secondary">Manage exclusive food items and premium delicacies</Text>
+            </div>
+          </div>
+          <Button 
+            type="primary" 
+            icon={<Plus size={18}/>} 
+            onClick={handleCreate}
+            className="rounded-xl h-12 shadow-lg shadow-blue-100 font-semibold"
           >
-            <Input placeholder="Enter food item name" />
-          </Form.Item>
+            Add New Item
+          </Button>
+        </div>
 
-          <Form.Item
-            name="category"
-            label="Category"
-            rules={[{ required: true, message: 'Please select a category' }]}
-          >
-            <Select placeholder="Select category">
-              {categories.map(category => (
-                <Option key={category} value={category}>{category}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            name="price"
-            label="Price (₹)"
-            rules={[{ required: true, message: 'Please enter price' }]}
-          >
-            <InputNumber
-              min={0}
-              step={0.01}
-              precision={2}
-              style={{ width: '100%' }}
-              placeholder="Enter price"
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="description"
-            label="Description"
-          >
-            <TextArea rows={4} placeholder="Enter item description (optional)" />
-          </Form.Item>
-
-          <Form.Item
-            name="preparation_time_minutes"
-            label="Preparation Time (minutes)"
-          >
-            <InputNumber
-              min={1}
-              style={{ width: '100%' }}
-              placeholder="Enter preparation time in minutes"
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="image_url"
-            label="Image URL"
-          >
-            <Input placeholder="Enter image URL (optional)" />
-          </Form.Item>
-
-          <Form.Item
-            name="upload"
-            label="Upload Image"
-            extra="Supports JPG, PNG (max: 2MB)"
-          >
-            <Upload
-              name="image"
-              listType="picture-card"
-              showUploadList={false}
-              beforeUpload={handleBeforeUpload}
-              onChange={handleImageChange}
-              customRequest={({ onSuccess }) => setTimeout(() => onSuccess("ok"), 0)}
+        {/* Toolbar Card */}
+        <Card className="border-none shadow-sm rounded-2xl mb-6">
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 max-w-md focus-within:border-blue-300 transition-all">
+              <Search size={18} className="text-slate-300" />
+              <Input 
+                placeholder="Search by name or category..." 
+                bordered={false} 
+                value={searchText} 
+                onChange={e => setSearchText(e.target.value)}
+              />
+            </div>
+            
+            <Select
+              className="w-48 h-11"
+              value={selectedCategory}
+              onChange={(val) => { setSelectedCategory(val); setTimeout(fetchFoodItems, 0); }}
+              suffixIcon={<Filter size={14} />}
             >
-              {imageUrl ? (
-                <img 
-                  src={imageUrl} 
-                  alt="Food" 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                />
-              ) : (
-                <div>
-                  <UploadOutlined />
-                  <div style={{ marginTop: 8 }}>Upload</div>
-                </div>
-              )}
-            </Upload>
-          </Form.Item>
+              <Option value="all">All Categories</Option>
+              {categories.map(c => <Option key={c} value={c}>{c}</Option>)}
+            </Select>
 
-          <Form.Item
-            name="is_available"
-            label="Available"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
+            <div className="flex items-center gap-3 bg-slate-100 p-2 px-4 rounded-xl border border-slate-200">
+                <Text className="text-slate-500 text-xs font-bold uppercase">Show All</Text>
+                <Switch size="small" checked={showUnavailable} onChange={(checked) => { setShowUnavailable(checked); setTimeout(fetchFoodItems, 0); }} />
+            </div>
+          </div>
+        </Card>
 
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={confirmLoading}>
-                {editingItem ? 'Update' : 'Create'}
+        {loading ? <FoodItemSkeleton /> : (
+          <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+            <Table dataSource={filteredData} columns={columns} pagination={{ pageSize: 8 }} rowKey="id" />
+          </Card>
+        )}
+
+        {/* Create/Edit Modal */}
+        <Modal
+          title={
+            <div className="flex items-center gap-2 text-blue-600">
+              {editingItem ? <Edit3 size={18}/> : <Plus size={18}/>}
+              {editingItem ? 'Refine Dish Details' : 'Register New Delicacy'}
+            </div>
+          }
+          open={modalVisible}
+          onCancel={() => setModalVisible(false)}
+          footer={null}
+          className="rounded-2xl"
+        >
+          <Form form={form} layout="vertical" onFinish={handleSubmit} className="mt-4" initialValues={{ is_available: true }}>
+            <div className="flex justify-center mb-6">
+               <Upload
+                  listType="picture-card"
+                  showUploadList={false}
+                  className="food-uploader"
+                  beforeUpload={(file) => {
+                    const isLt2M = file.size / 1024 / 1024 < 2;
+                    if (!isLt2M) message.error('Image must be < 2MB');
+                    return isLt2M;
+                  }}
+                  customRequest={({ onSuccess }) => setTimeout(() => onSuccess("ok"), 0)}
+                  onChange={(info) => {
+                    if (info.file.status === 'done') {
+                      const url = URL.createObjectURL(info.file.originFileObj);
+                      setImageUrl(url);
+                      form.setFieldsValue({ image_url: url });
+                    }
+                  }}
+                >
+                  {imageUrl ? (
+                    <img src={imageUrl} alt="food" className="w-full h-full object-cover rounded-xl" />
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <Camera size={24} className="text-slate-300 mb-2" />
+                      <div className="text-[10px] uppercase font-bold text-slate-400">Add Photo</div>
+                    </div>
+                  )}
+                </Upload>
+            </div>
+
+            <Row gutter={16}>
+              <Col span={14}>
+                <Form.Item name="name" label="Dish Name" rules={[{ required: true }]}>
+                  <Input placeholder="e.g. Masala Dosa" className="h-11 rounded-xl" />
+                </Form.Item>
+              </Col>
+              <Col span={10}>
+                <Form.Item name="category" label="Category" rules={[{ required: true }]}>
+                  <Select placeholder="Select" className="h-11">
+                    {categories.map(c => <Option key={c} value={c}>{c}</Option>)}
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="price" label="Price (₹)" rules={[{ required: true }]}>
+                  <InputNumber className="w-full h-11 flex items-center rounded-xl" precision={2} prefix="₹" />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="preparation_time_minutes" label="Prep Time (Mins)">
+                  <InputNumber className="w-full h-11 flex items-center rounded-xl" prefix={<Clock size={14}/>} />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item name="description" label="Item Description">
+              <TextArea rows={3} placeholder="Ingredients, spice level, or special notes..." className="rounded-xl" />
+            </Form.Item>
+
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-6 flex justify-between items-center">
+              <div>
+                <Text strong className="block text-slate-700">Available to Order</Text>
+                <Text className="text-[11px] text-slate-500 text-xs">Toggle to hide/show from digital menus</Text>
+              </div>
+              <Form.Item name="is_available" valuePropName="checked" noStyle>
+                <Switch />
+              </Form.Item>
+            </div>
+
+            <Divider />
+
+            <div className="flex justify-end gap-3">
+              <Button onClick={() => setModalVisible(false)} className="rounded-xl h-11 px-6">Cancel</Button>
+              <Button type="primary" htmlType="submit" loading={confirmLoading} className="rounded-xl h-11 px-8 font-bold">
+                {editingItem ? 'Update Dish' : 'Publish Dish'}
               </Button>
-              <Button onClick={() => setModalVisible(false)}>
-                Cancel
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Image Preview Modal */}
-      <Modal
-        visible={previewVisible}
-        title="Image Preview"
-        footer={null}
-        onCancel={() => setPreviewVisible(false)}
-      >
-        <img alt="Food Item" style={{ width: '100%' }} src={previewImage} />
-      </Modal>
-    </Card>
+            </div>
+          </Form>
+        </Modal>
+      </div>
+    </ConfigProvider>
   );
 };
 
