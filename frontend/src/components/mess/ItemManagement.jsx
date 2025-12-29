@@ -1,778 +1,329 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card, Table, Button, Space, Popconfirm, Tag, message, Modal, Form,
-  Input, Select, InputNumber, Typography, Tooltip, Row, Col, Tabs
+  Input, Select, InputNumber, Typography, Tooltip, Row, Col, 
+  ConfigProvider, theme, Skeleton, Divider
 } from 'antd';
+// Lucide icons for consistency
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
-  InfoCircleOutlined, FilterOutlined, TagsOutlined, CheckCircleOutlined
-} from '@ant-design/icons';
+  Package, Tags, Plus, Search, Edit2, Trash2, 
+  Database, Boxes, Info, CheckCircle2, X, RefreshCw, Layers
+} from 'lucide-react';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
 
 const { Option } = Select;
 const { Title, Text } = Typography;
-const { TabPane } = Tabs;
+
+// --- 1. Meaningful Empty State Component ---
+const EmptyState = ({ icon: Icon, title, subtitle, actionText, onAction }) => (
+  <div className="flex flex-col items-center justify-center p-16 text-center bg-white rounded-[32px] border-2 border-dashed border-slate-100 my-4 animate-in fade-in zoom-in duration-500">
+    <div className="p-6 bg-slate-50 rounded-full mb-6">
+      <Icon size={48} className="text-slate-300" strokeWidth={1.5} />
+    </div>
+    <Title level={4} className="text-slate-800 mb-2">{title}</Title>
+    <Text className="text-slate-500 block mb-8 max-w-xs mx-auto">{subtitle}</Text>
+    {onAction && (
+      <Button 
+        type="primary" 
+        size="large" 
+        onClick={onAction} 
+        className="flex items-center gap-2 rounded-xl h-12 px-8 shadow-lg shadow-blue-100 font-semibold"
+      >
+        <Plus size={18} /> {actionText}
+      </Button>
+    )}
+  </div>
+);
+
+// --- 2. Meaningful Table Skeleton ---
+const InventorySkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+    <div className="space-y-4">
+      {/* Header Skeleton */}
+      <div className="flex justify-between mb-8">
+        <Skeleton.Input active style={{ width: 200 }} />
+        <Skeleton.Button active style={{ width: 100 }} />
+      </div>
+      {/* Row Skeletons */}
+      {[...Array(6)].map((_, i) => (
+        <div key={i} className="flex gap-4 items-center border-b border-slate-50 pb-4">
+          <Skeleton.Avatar active shape="square" size="large" />
+          <Skeleton active title={false} paragraph={{ rows: 1, width: '100%' }} />
+          <Skeleton.Button active size="small" style={{ width: 80 }} />
+          <Skeleton.Button active size="small" style={{ width: 60 }} />
+        </div>
+      ))}
+    </div>
+  </Card>
+);
 
 const ItemManagement = () => {
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [uoms, setUOMs] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('items'); // 'items' or 'categories'
+  
   const [modalVisible, setModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [form] = Form.useForm();
-  const [confirmLoading, setConfirmLoading] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [searchText, setSearchText] = useState('');
-  
-  // States for category management
-  const [activeTab, setActiveTab] = useState('items');
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
+  
+  const [form] = Form.useForm();
   const [categoryForm] = Form.useForm();
-  const [categoryLoading, setCategoryLoading] = useState(false);
-  const [categorySearchText, setCategorySearchText] = useState('');
-
-  // Pagination and sorting states for items
-  const [itemPagination, setItemPagination] = useState({
-    current: 1,
-    pageSize: 10,
-    total: 0,
-  });
-  const [itemSort, setItemSort] = useState({ field: null, order: null });
-
-  // Pagination and sorting states for categories
-  const [categoryPagination, setCategoryPagination] = useState({
-    current: 1,
-    pageSize: 10,
-    total: 0,
-  });
-  const [categorySort, setCategorySort] = useState({ field: null, order: null });
-
-  // Debounce hook for search
-  const debounce = (func, delay) => {
-    let timeoutId;
-    return (...args) => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => func(...args), delay);
-    };
-  };
+  const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
-    if (activeTab === 'items') {
-      fetchItems({ resetPage: true });
-    } else {
-      fetchCategories({ resetPage: true });
-    }
-    fetchUOMs();
-  }, [activeTab]);
+    fetchData();
+  }, []);
 
-  // Debounced fetch for items
-  const debouncedFetchItems = useCallback(
-    debounce((resetPage = false) => {
-      fetchItems({ resetPage });
-    }, 500),
-    [selectedCategory, searchText, itemSort]
-  );
-
-  // Debounced fetch for categories
-  const debouncedFetchCategories = useCallback(
-    debounce((resetPage = false) => {
-      fetchCategories({ resetPage });
-    }, 500),
-    [categorySearchText, categorySort]
-  );
-
-  useEffect(() => {
-    debouncedFetchItems(true);
-  }, [selectedCategory, searchText, itemSort, debouncedFetchItems]);
-
-  useEffect(() => {
-    debouncedFetchCategories(true);
-  }, [categorySearchText, categorySort, debouncedFetchCategories]);
-
-  const fetchItems = async ({ resetPage = false } = {}) => {
-    if (resetPage) {
-      setItemPagination(prev => ({ ...prev, current: 1 }));
-    }
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const params = {
-        page: itemPagination.current,
-        limit: itemPagination.pageSize,
-      };
-      if (selectedCategory !== 'all') params.category_id = selectedCategory;
-      if (searchText) params.search = searchText;
-      if (itemSort.field) {
-        params.sort_by = itemSort.field;
-        params.sort_order = itemSort.order; // 'asc' or 'desc'
-      }
-      
-      const response = await messAPI.getItems(params);
-      setItems(response.data.data || []);
-      setItemPagination(prev => ({
-        ...prev,
-        total: response.data.total || 0,
-        current: response.data.current_page || prev.current,
-      }));
-      console.log("[ItemManagement] Items fetched:", response.data.data?.length || 0);
+      const [iRes, cRes, uRes] = await Promise.all([
+        messAPI.getItems(),
+        messAPI.getItemCategories(),
+        messAPI.getUOMs()
+      ]);
+      setItems(iRes.data.data || []);
+      setCategories(cRes.data.data || []);
+      setUOMs(uRes.data.data || []);
     } catch (error) {
-      message.error('Failed to fetch items');
-      console.error("[ItemManagement] Error fetching items:", error);
+      message.error('Inventory fetch failed');
     } finally {
-      setLoading(false);
+      // Artificial delay for smooth loader effect
+      setTimeout(() => setLoading(false), 1200);
     }
   };
 
-  const fetchCategories = async ({ resetPage = false } = {}) => {
-    if (resetPage) {
-      setCategoryPagination(prev => ({ ...prev, current: 1 }));
-    }
-    setCategoryLoading(true);
-    try {
-      const params = {
-        page: categoryPagination.current,
-        limit: categoryPagination.pageSize,
-      };
-      if (categorySearchText) params.search = categorySearchText;
-      if (categorySort.field) {
-        params.sort_by = categorySort.field;
-        params.sort_order = categorySort.order;
-      }
-      
-      const response = await messAPI.getItemCategories(params);
-      setCategories(response.data.data || []);
-      setCategoryPagination(prev => ({
-        ...prev,
-        total: response.data.total || 0,
-        current: response.data.current_page || prev.current,
-      }));
-    } catch (error) {
-      message.error('Failed to fetch categories');
-      console.error("[ItemManagement] Error fetching categories:", error);
-    } finally {
-      setCategoryLoading(false);
-    }
-  };
-
-  const fetchUOMs = async () => {
-    try {
-      const response = await messAPI.getUOMs();
-      setUOMs(response.data.data || []);
-    } catch (error) {
-      message.error('Failed to fetch UOMs');
-    }
-  };
-
-  // Handle pagination change for items
-  const handleItemPaginationChange = (page, pageSize) => {
-    setItemPagination({ ...itemPagination, current: page, pageSize });
-  };
-
-  // Handle sorting change for items
-  const handleItemSortChange = (pagination, filters, sorter) => {
-    setItemSort({
-      field: sorter.field || null,
-      order: sorter.order === 'ascend' ? 'asc' : sorter.order === 'descend' ? 'desc' : null,
-    });
-  };
-
-  // Handle pagination change for categories
-  const handleCategoryPaginationChange = (page, pageSize) => {
-    setCategoryPagination({ ...categoryPagination, current: page, pageSize });
-  };
-
-  // Handle sorting change for categories
-  const handleCategorySortChange = (pagination, filters, sorter) => {
-    setCategorySort({
-      field: sorter.field || null,
-      order: sorter.order === 'ascend' ? 'asc' : sorter.order === 'descend' ? 'desc' : null,
-    });
-  };
-
-  const handleCreate = () => {
-    setEditingItem(null);
-    form.resetFields();
-    setModalVisible(true);
-  };
-
-  const handleEdit = (item) => {
-    setEditingItem(item);
-    form.setFieldsValue({
-      name: item.name,
-      category_id: item.category_id,
-      unit_id: item.unit_id,
-      unit_price: item.unit_price,
-      description: item.description,
-    });
-    setModalVisible(true);
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await messAPI.deleteItem(id);
-      message.success('Item deleted successfully');
-      fetchItems({ resetPage: false }); // Keep current page
-    } catch (error) {
-      message.error('Failed to delete item: ' + (error.response?.data?.message || error.message));
-    }
-  };
-
-  const handleSubmit = async (values) => {
-    setConfirmLoading(true);
+  const handleSaveItem = async (values) => {
     try {
       if (editingItem) {
         await messAPI.updateItem(editingItem.id, values);
-        message.success('Item updated successfully');
+        message.success('Item updated');
       } else {
         await messAPI.createItem(values);
-        message.success('Item created successfully');
+        message.success('New item added to inventory');
       }
       setModalVisible(false);
-      fetchItems({ resetPage: true }); // Reset to page 1 after create/update
-    } catch (error) {
-      message.error('Failed to save item: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setConfirmLoading(false);
-    }
+      fetchData();
+    } catch (e) { message.error("Save failed"); }
   };
 
-  // Function to verify inventory consistency
-  const verifyInventory = async () => {
+  const showBatches = async (itemId) => {
     try {
-      setLoading(true);
-      const response = await messAPI.verifyInventory();
-      message.success(response.data.message);
-      
-      // Refresh the items list
-      fetchItems({ resetPage: false });
-    } catch (error) {
-      message.error('Failed to verify inventory: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setLoading(false);
-    }
-  };
+      const res = await messAPI.getItemBatches(itemId);
+      const batches = (res.data.data || []).sort((a,b) => new Date(a.purchase_date) - new Date(b.purchase_date));
+      const nextIndex = batches.findIndex(b => b.status === 'active' && b.quantity_remaining > 0);
 
-  // Function to display batch details in a modal
-  const showItemBatches = async (itemId) => {
-    try {
-      setLoading(true);
-      const response = await messAPI.getItemBatches(itemId);
-      const batches = response.data.data || [];
-      
-      // Sort batches by purchase date (oldest first)
-      const sortedBatches = [...batches].sort((a, b) => 
-        new Date(a.purchase_date) - new Date(b.purchase_date)
-      );
-      
-      // Add a visual indicator for the FIFO batch (the first active one)
-      const activeIndex = sortedBatches.findIndex(b => b.status === 'active' && b.quantity_remaining > 0);
-      
-      // Show modal with batch details
       Modal.info({
-        title: 'Inventory Batches (FIFO Order)',
-        width: 800,
+        title: <div className="flex items-center gap-2"><Layers size={18} className="text-blue-600"/> FIFO Batch Flow</div>,
+        width: 700,
+        className: 'rounded-2xl',
         content: (
-          <div>
-            <p>Showing all batches for this item, oldest first. The first active batch with remaining quantity will be consumed first (FIFO).</p>
-            <Table 
-              dataSource={sortedBatches}
-              rowKey="id"
-              columns={[
-                {
-                  title: 'Batch ID',
-                  dataIndex: 'id',
-                  width: 80,
-                },
-                {
-                  title: 'FIFO Status',
-                  key: 'fifo_status',
-                  width: 120,
-                  render: (_, record, index) => 
-                    index === activeIndex && record.status === 'active' && record.quantity_remaining > 0 ? 
-                    <Tag color="green">NEXT TO USE</Tag> : null
-                },
-                {
-                  title: 'Purchase Date',
-                  dataIndex: 'purchase_date',
-                  render: date => date ? moment(date).format('YYYY-MM-DD') : 'Unknown',
-                  sorter: (a, b) => new Date(a.purchase_date) - new Date(b.purchase_date)
-                },
-                {
-                  title: 'Unit Price',
-                  dataIndex: 'unit_price',
-                  render: price => `₹${parseFloat(price).toFixed(2)}`
-                },
-                {
-                  title: 'Original Qty',
-                  dataIndex: 'quantity_purchased',
-                },
-                {
-                  title: 'Remaining Qty',
-                  dataIndex: 'quantity_remaining',
-                  render: (qty, record) => 
-                    <Text type={qty > 0 ? 'success' : 'danger'}>{qty}</Text>
-                },
-                {
-                  title: 'Status',
-                  dataIndex: 'status',
-                  render: status => (
-                    <Tag color={status === 'active' ? 'green' : 'red'}>
-                      {status.toUpperCase()}
-                    </Tag>
-                  )
-                }
-              ]}
-              pagination={false}
-              size="small"
-            />
-          </div>
+          <Table 
+            className="mt-4"
+            dataSource={batches}
+            pagination={false}
+            size="small"
+            columns={[
+              { title: 'Purchase Date', dataIndex: 'purchase_date', render: d => moment(d).format('DD MMM YY') },
+              { title: 'Rem. Stock', render: (_, r) => <Text strong>{parseFloat(r.quantity_remaining).toFixed(2)}</Text> },
+              { title: 'Status', render: (_, r, idx) => (
+                <Space>
+                  <Tag color={r.status === 'active' ? 'processing' : 'default'}>{r.status.toUpperCase()}</Tag>
+                  {idx === nextIndex && <Tag color="blue" className="animate-pulse">NEXT FOR FIFO</Tag>}
+                </Space>
+              )}
+            ]}
+          />
         )
       });
-    } catch (error) {
-      message.error('Failed to fetch batch details');
-      console.error('[ItemManagement] Error fetching batches:', error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { message.error("Error loading batches"); }
   };
 
-  // Category Management Functions
-  const handleCreateCategory = () => {
-    setEditingCategory(null);
-    categoryForm.resetFields();
-    setCategoryModalVisible(true);
-  };
-
-  const handleEditCategory = (category) => {
-    setEditingCategory(category);
-    categoryForm.setFieldsValue({
-      name: category.name,
-      description: category.description
-    });
-    setCategoryModalVisible(true);
-  };
-
-  const handleDeleteCategory = async (id) => {
-    try {
-      await messAPI.deleteItemCategory(id);
-      message.success('Category deleted successfully');
-      fetchCategories({ resetPage: false });
-    } catch (error) {
-      if (error.response?.status === 400) {
-        message.error('Cannot delete category that is being used by items');
-      } else {
-        message.error('Failed to delete category: ' + (error.response?.data?.message || error.message));
+  const itemColumns = [
+    { 
+      title: 'Item Name', 
+      dataIndex: 'name', 
+      render: (t) => <Text strong className="text-slate-700">{t}</Text> 
+    },
+    { 
+      title: 'Category', 
+      dataIndex: ['tbl_ItemCategory', 'name'], 
+      render: t => <Tag bordered={false} className="bg-blue-50 text-blue-600 font-medium px-3 rounded-md">{t || 'General'}</Tag> 
+    },
+    { 
+      title: 'Stock Level', 
+      key: 'stock', 
+      render: (_, r) => {
+        const qty = parseFloat(r.stock_quantity || 0);
+        const low = qty < 10;
+        return (
+          <Space direction="vertical" size={0}>
+            <Text strong className={low ? 'text-rose-500' : 'text-emerald-600'}>{qty.toFixed(2)}</Text>
+            <Text className="text-[10px] text-slate-400 uppercase font-bold">{r.UOM?.abbreviation}</Text>
+          </Space>
+        );
       }
-    }
-  };
-
-  const handleCategorySubmit = async (values) => {
-    setCategoryLoading(true);
-    try {
-      if (editingCategory) {
-        await messAPI.updateItemCategory(editingCategory.id, values);
-        message.success('Category updated successfully');
-      } else {
-        await messAPI.createItemCategory(values);
-        message.success('Category created successfully');
-      }
-      setCategoryModalVisible(false);
-      fetchCategories({ resetPage: true });
-    } catch (error) {
-      message.error('Failed to save category: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setCategoryLoading(false);
-    }
-  };
-
-  const columns = [
-    {
-      title: 'Name',
-      dataIndex: 'name',
-      key: 'name',
-      sorter: true, // Enables sorting
     },
-    {
-      title: 'Category',
-      dataIndex: ['tbl_ItemCategory', 'name'],
-      key: 'category',
-      render: text => text || 'N/A',
-      filters: categories.map(cat => ({ text: cat.name, value: cat.id })),
-      onFilter: (value, record) => record.category_id === value,
-    },
-    {
-      title: 'Unit',
-      dataIndex: ['UOM', 'abbreviation'],
-      key: 'unit',
-      render: text => text || 'N/A',
-    },
-    {
-      title: 'Unit Price (₹)',
-      dataIndex: 'unit_price',
-      key: 'unit_price',
-      render: price => parseFloat(price || 0).toFixed(2),
-      sorter: true,
-    },
-    {
-      title: 'Current Stock',
-      key: 'stock',
-      render: (_, record) => {
-        const stockQuantity = record.stock_quantity || 0;
-        return <Tag color={stockQuantity > 0 ? 'green' : 'red'}>{stockQuantity}</Tag>;
-      },
-    },
-    // Add this new column for batch viewing
-    {
-      title: 'Batches',
-      key: 'batches',
-      render: (_, record) => (
-        <Button 
-          size="small" 
-          onClick={() => showItemBatches(record.id)}
-          icon={<InfoCircleOutlined />}
-        >
-          View
-        </Button>
-      ),
+    { 
+      title: 'Unit Price', 
+      dataIndex: 'unit_price', 
+      render: p => <Text className="text-slate-600">₹{parseFloat(p || 0).toFixed(2)}</Text> 
     },
     {
       title: 'Actions',
-      key: 'actions',
+      align: 'right',
       render: (_, record) => (
         <Space>
-          <Button
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-            size="small"
-          />
-          <Popconfirm
-            title="Are you sure you want to delete this item?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Yes"
-            cancelText="No"
-          >
-            <Button
-              icon={<DeleteOutlined />}
-              danger
-              size="small"
-            />
+          {/* <Tooltip title="Inventory Batches"><Button icon={<Layers size={14} />} onClick={() => showBatches(record.id)} /></Tooltip> */}
+          <Button icon={<Edit2 size={14} />} onClick={() => { setEditingItem(record); form.setFieldsValue(record); setModalVisible(true); }} />
+          <Popconfirm title="Delete item?" onConfirm={() => messAPI.deleteItem(record.id).then(fetchData)}>
+            <Button danger icon={<Trash2 size={14} />} ghost />
           </Popconfirm>
         </Space>
       ),
     },
   ];
-  
-  // Category Table Columns
+
   const categoryColumns = [
+    { title: 'Category Name', dataIndex: 'name', render: t => <Text strong>{t}</Text> },
+    { title: 'Description', dataIndex: 'description', render: d => <Text type="secondary">{d || '-'}</Text> },
     {
-      title: 'Name',
-      dataIndex: 'name',
-      key: 'name',
-      sorter: true,
-    },
-    {
-      title: 'Description',
-      dataIndex: 'description',
-      key: 'description',
-      ellipsis: true,
-      render: text => text || '-',
-    },
-    {
-      title: 'Items Count',
-      key: 'itemsCount',
-      render: (_, record) => {
-        // Count items for this category
-        const count = items.filter(item => item.category_id === record.id).length;
-        return <Tag color={count > 0 ? 'green' : 'gray'}>{count}</Tag>;
-      }
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_, record) => (
-        <Space>
-          <Button
-            icon={<EditOutlined />}
-            onClick={() => handleEditCategory(record)}
-            size="small"
-          />
-          <Popconfirm
-            title="Are you sure you want to delete this category?"
-            description="This will permanently delete the category."
-            onConfirm={() => handleDeleteCategory(record.id)}
-            okText="Yes"
-            cancelText="No"
-          >
-            <Button
-              icon={<DeleteOutlined />}
-              danger
-              size="small"
-              disabled={items.some(item => item.category_id === record.id)}
-            />
-          </Popconfirm>
-        </Space>
-      ),
-    },
+        title: 'Actions',
+        align: 'right',
+        render: (_, record) => (
+          <Space>
+            <Button icon={<Edit2 size={14} />} onClick={() => { setEditingCategory(record); categoryForm.setFieldsValue(record); setCategoryModalVisible(true); }} />
+            <Popconfirm title="Delete category?" onConfirm={() => messAPI.deleteItemCategory(record.id).then(fetchData)}>
+              <Button danger icon={<Trash2 size={14} />} ghost />
+            </Popconfirm>
+          </Space>
+        ),
+      },
   ];
 
   return (
-    <Card
-      title={
-        <Space>
-          <span>Item Management</span>
-        </Space>
-      }
-      extra={
-        <Space>
-          {activeTab === 'items' && (
-            <>
-              {/* <Button 
-                onClick={verifyInventory} 
-                icon={<CheckCircleOutlined />}
-                type="default"
-              >
-                Verify Inventory
-              </Button> */}
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-                Add Item
-              </Button>
-            </>
-          )}
-          {activeTab === 'categories' && (
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateCategory}>
-              Add Category
-            </Button>
-          )}
-        </Space>
-      }
-    >
-      <Tabs 
-        activeKey={activeTab}
-        onChange={setActiveTab}
-        type="card"
-      >
-        <TabPane tab={<span><InfoCircleOutlined /> Items</span>} key="items">
-          <Space style={{ marginBottom: 16 }}>
-            <Select
-              placeholder="Filter by category"
-              style={{ width: 200 }}
-              value={selectedCategory}
-              onChange={setSelectedCategory}
-              showSearch
-              optionFilterProp="children"
-            >
-              <Option value="all">All Categories</Option>
-              {categories.map(category => (
-                <Option key={category.id} value={category.id}>{category.name}</Option>
-              ))}
-            </Select>
-            
-            <Input
-              placeholder="Search items..."
-              allowClear
-              value={searchText}
-              onChange={e => setSearchText(e.target.value)}
-              style={{ width: 200 }}
-              prefix={<SearchOutlined />}
-            />
-          </Space>
-
-          <Table
-            columns={columns}
-            dataSource={items}
-            rowKey="id"
-            loading={loading}
-            pagination={{
-              ...itemPagination,
-              showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
-              onChange: handleItemPaginationChange,
-              onShowSizeChange: handleItemPaginationChange,
-            }}
-            onChange={handleItemSortChange}
-            scroll={{ x: 800 }} // Horizontal scroll for wide tables
-          />
-        </TabPane>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
         
-        <TabPane 
-          tab={<span><TagsOutlined /> Categories</span>}
-          key="categories"
-        >
-          <Space style={{ marginBottom: 16 }}>
-            <Input
-              placeholder="Search categories..."
-              allowClear
-              value={categorySearchText}
-              onChange={e => setCategorySearchText(e.target.value)}
-              style={{ width: 200 }}
-              prefix={<SearchOutlined />}
-            />
+        {/* Header Section */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <Database className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Inventory Master</Title>
+              <Text type="secondary">Real-time stock tracking and raw material control</Text>
+            </div>
+          </div>
+          <Space>
+            <Button icon={<RefreshCw size={16}/>} onClick={fetchData} className="rounded-xl h-12 flex items-center gap-2">Sync Stock</Button>
+            <Button 
+                type="primary" 
+                size="large" 
+                icon={<Plus size={18}/>} 
+                onClick={() => activeTab === 'items' ? (() => { setEditingItem(null); form.resetFields(); setModalVisible(true); })() : (() => { setEditingCategory(null); categoryForm.resetFields(); setCategoryModalVisible(true); })()}
+                className="flex items-center gap-2 shadow-lg shadow-blue-100 h-12 px-6"
+            >
+                {activeTab === 'items' ? 'Add Raw Material' : 'Create Category'}
+            </Button>
           </Space>
-          
-          <Table
-            columns={categoryColumns}
-            dataSource={categories}
-            rowKey="id"
-            loading={categoryLoading}
-            pagination={{
-              ...categoryPagination,
-              showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} categories`,
-              onChange: handleCategoryPaginationChange,
-              onShowSizeChange: handleCategoryPaginationChange,
-            }}
-            onChange={handleCategorySortChange}
-            scroll={{ x: 600 }}
+        </div>
+
+        {/* Custom Pill Switcher */}
+        <div className="mb-8 bg-white p-1.5 rounded-2xl shadow-sm border border-slate-100 inline-flex">
+          <button 
+            onClick={() => setActiveTab('items')}
+            className={`px-8 py-2.5 rounded-xl flex items-center gap-2 font-bold text-sm transition-all ${activeTab === 'items' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <Package size={16} /> Items Master
+          </button>
+          <button 
+            onClick={() => setActiveTab('categories')}
+            className={`px-8 py-2.5 rounded-xl flex items-center gap-2 font-bold text-sm transition-all ${activeTab === 'categories' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            <Tags size={16} /> Item Categories
+          </button>
+        </div>
+
+        {/* Content Logic */}
+        {loading ? (
+          <InventorySkeleton />
+        ) : (activeTab === 'items' ? items : categories).length === 0 ? (
+          <EmptyState 
+            icon={activeTab === 'items' ? Boxes : Tags}
+            title={activeTab === 'items' ? "Empty Inventory" : "No Categories Set"}
+            subtitle={activeTab === 'items' ? "You haven't added any raw materials yet. Start by defining items to build your recipes." : "Categories help organize your store. Add your first category to get started."}
+            actionText={activeTab === 'items' ? "Define First Item" : "Create Category"}
+            onAction={activeTab === 'items' ? () => { setEditingItem(null); form.resetFields(); setModalVisible(true); } : () => { setEditingCategory(null); categoryForm.resetFields(); setCategoryModalVisible(true); }}
           />
-        </TabPane>
-      </Tabs>
-
-      {/* Item Modal */}
-      <Modal
-        title={editingItem ? 'Edit Item' : 'Add Item'}
-        open={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        footer={null}
-        confirmLoading={confirmLoading}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-        >
-          <Form.Item
-            name="name"
-            label="Item Name"
-            rules={[{ required: true, message: 'Please enter item name' }]}
-          >
-            <Input placeholder="Enter item name" />
-          </Form.Item>
-
-          <Form.Item label="Category" required>
-  <Space.Compact style={{ width: '100%' }}>
-    {/* Inner Form.Item connects the Select to the form state */}
-    <Form.Item
-      name="category_id"
-      noStyle
-      rules={[{ required: true, message: 'Please select a category' }]}
-    >
-      <Select placeholder="Select category">
-        {categories.map(category => (
-          <Option key={category.id} value={category.id}>{category.name}</Option>
-        ))}
-      </Select>
-    </Form.Item>
-    
-    {/* The button remains outside the controlling Form.Item */}
-    <Button 
-      type="default" 
-      icon={<PlusOutlined />} 
-      onClick={(e) => {
-        e.stopPropagation();
-        handleCreateCategory();
-      }}
-    />
-  </Space.Compact>
-</Form.Item>
-
-
-          <Form.Item
-            name="unit_id"
-            label="Unit of Measurement"
-            rules={[{ required: true, message: 'Please select a unit' }]}
-          >
-            <Select placeholder="Select unit">
-              {uoms.map(uom => (
-                <Option key={uom.id} value={uom.id}>
-                  {uom.name} ({uom.abbreviation})
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            name="unit_price"
-            label="Unit Price (₹)"
-            rules={[{ required: true, message: 'Please enter unit price' }]}
-          >
-            <InputNumber
-              min={0}
-              step={0.01}
-              precision={2}
-              style={{ width: '100%' }}
-              placeholder="Enter unit price"
+        ) : (
+          <Card className="border-none shadow-sm rounded-[32px] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700" bodyStyle={{ padding: 0 }}>
+             {/* Toolbar inside card */}
+            <div className="p-6 border-b border-slate-50 flex items-center gap-4">
+                <Search size={18} className="text-slate-300" />
+                <Input 
+                    placeholder="Search by name..." 
+                    bordered={false} 
+                    className="max-w-md bg-slate-50/50 rounded-lg"
+                    onChange={e => setSearchText(e.target.value)}
+                />
+            </div>
+            <Table
+              columns={activeTab === 'items' ? itemColumns : categoryColumns}
+              dataSource={activeTab === 'items' 
+                ? items.filter(i => i.name.toLowerCase().includes(searchText.toLowerCase())) 
+                : categories.filter(c => c.name.toLowerCase().includes(searchText.toLowerCase()))}
+              rowKey="id"
+              pagination={{ pageSize: 10 }}
+              className="custom-table"
             />
-          </Form.Item>
-          <Form.Item
-            label="Maximum Quantity"
-            name="maximum_quantity"
-            rules={[{ type: 'number', min: 0, message: 'Enter a non-negative number' }]}
-          >
-            <InputNumber style={{ width: '100%' }} placeholder="e.g. 500" />
-          </Form.Item>
+          </Card>
+        )}
 
-
-          <Form.Item
-            name="description"
-            label="Description"
-          >
-            <Input.TextArea rows={4} placeholder="Enter item description (optional)" />
-          </Form.Item>
-
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={confirmLoading}>
-                {editingItem ? 'Update' : 'Create'}
-              </Button>
-              <Button onClick={() => setModalVisible(false)}>Cancel</Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Category Modal */}
-      <Modal
-        title={editingCategory ? 'Edit Category' : 'Add Category'}
-        open={categoryModalVisible}
-        onCancel={() => setCategoryModalVisible(false)}
-        footer={null}
-        confirmLoading={categoryLoading}
-      >
-        <Form
-          form={categoryForm}
-          layout="vertical"
-          onFinish={handleCategorySubmit}
+        {/* Item Modal */}
+        <Modal
+          title={<div className="flex items-center gap-2"><Plus size={18} className="text-blue-600"/> {editingItem ? 'Update Stock Item' : 'Add New Item'}</div>}
+          open={modalVisible}
+          onCancel={() => setModalVisible(false)}
+          onOk={() => form.submit()}
+          width={500}
+          className="rounded-2xl"
         >
-          <Form.Item
-            name="name"
-            label="Category Name"
-            rules={[{ required: true, message: 'Please enter category name' }]}
-          >
-            <Input placeholder="Enter category name" />
-          </Form.Item>
+          <Form form={form} layout="vertical" onFinish={handleSaveItem} className="mt-4">
+            <Form.Item name="name" label="Item Name" rules={[{ required: true }]}><Input placeholder="e.g., Basmati Rice" /></Form.Item>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="category_id" label="Category" rules={[{ required: true }]}><Select options={categories.map(c => ({label: c.name, value: c.id}))} /></Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="unit_id" label="Base Unit" rules={[{ required: true }]}><Select options={uoms.map(u => ({label: `${u.name} (${u.abbreviation})`, value: u.id}))} /></Form.Item>
+              </Col>
+            </Row>
+            <Form.Item name="unit_price" label="Purchase Price (₹)" rules={[{ required: true }]}><InputNumber className="w-full" precision={2} step={0.01} /></Form.Item>
+            <Form.Item name="description" label="Storage Notes"><Input.TextArea rows={3} /></Form.Item>
+          </Form>
+        </Modal>
 
-          <Form.Item
-            name="description"
-            label="Description"
-          >
-            <Input.TextArea rows={3} placeholder="Enter category description (optional)" />
-          </Form.Item>
+        {/* Category Modal */}
+        <Modal title="Manage Category" open={categoryModalVisible} onCancel={() => setCategoryModalVisible(false)} onOk={() => categoryForm.submit()}>
+          <Form form={categoryForm} layout="vertical" onFinish={(v) => messAPI.createItemCategory(v).then(fetchData).then(() => setCategoryModalVisible(false))}>
+            <Form.Item name="name" label="Category Name" rules={[{required: true}]}><Input /></Form.Item>
+            <Form.Item name="description" label="Description"><Input.TextArea /></Form.Item>
+          </Form>
+        </Modal>
 
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={categoryLoading}>
-                {editingCategory ? 'Update' : 'Create'}
-              </Button>
-              <Button onClick={() => setCategoryModalVisible(false)}>Cancel</Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
-    </Card>
+      </div>
+      <style>{`
+        .custom-table .ant-table-thead > tr > th { background: transparent !important; border-bottom: 2px solid #f1f5f9 !important; padding: 16px 24px; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; }
+        .custom-table .ant-table-tbody > tr > td { padding: 16px 24px; border-bottom: 1px solid #f8fafc !important; }
+        .custom-table .ant-table-tbody > tr:hover > td { background: #f8fafc !important; }
+      `}</style>
+    </ConfigProvider>
   );
 };
 

@@ -1,4 +1,5 @@
 // components/mess/DailyConsumptionReport.jsx
+
 import React, { useState, useEffect } from 'react';
 import { messAPI } from '../../services/api';
 import { Calendar, ChefHat, Download, Plus, Utensils } from 'lucide-react';

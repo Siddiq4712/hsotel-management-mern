@@ -1,509 +1,276 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card, Table, Button, Space, Select, InputNumber, message, Modal,
-  Form, Switch, Popconfirm, Tag, Tabs, Typography, Input, Row, Col
+  Form, Switch, Popconfirm, Tag, Tabs, Typography, Input, Row, Col,
+  ConfigProvider, theme, Skeleton, Divider, Tooltip
 } from 'antd';
 import {
-  PlusOutlined, DownloadOutlined, DeleteOutlined, SearchOutlined
-} from '@ant-design/icons';
+  Plus, FileSpreadsheet, Trash2, Search, Link, Store, 
+  Package, LayoutGrid, CheckCircle2, Info, ChevronRight, X, Filter
+} from 'lucide-react';
 import { messAPI } from '../../services/api';
 import * as XLSX from 'xlsx';
 
 const { Option } = Select;
-const { TabPane } = Tabs;
-const { Text } = Typography;
+const { Text, Title } = Typography;
+
+// --- Skeleton for Loading State ---
+const MappingSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+    <div className="space-y-6">
+      <div className="flex gap-4">
+        <Skeleton.Input active style={{ width: '100%' }} />
+      </div>
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="flex gap-4 items-center border-b border-slate-50 pb-6">
+          <Skeleton.Avatar active shape="circle" size="large" />
+          <div className="flex-1"><Skeleton active paragraph={{ rows: 1 }} /></div>
+          <Skeleton.Button active style={{ width: 80 }} />
+        </div>
+      ))}
+    </div>
+  </Card>
+);
 
 const ItemStoreMapping = () => {
   const [items, setItems] = useState([]);
   const [stores, setStores] = useState([]);
   const [itemStores, setItemStores] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState(''); // Live Search State
   const [modalVisible, setModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [confirmLoading, setConfirmLoading] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [selectedStore, setSelectedStore] = useState(null);
   const [activeTab, setActiveTab] = useState('1');
 
   useEffect(() => {
-    fetchItems();
-    fetchStores();
-    fetchItemStores();
+    fetchInitialData();
   }, []);
 
-  const fetchItems = async () => {
-    try {
-      const response = await messAPI.getItems();
-      setItems(response.data.data || []);
-    } catch (error) {
-      message.error('Failed to fetch items');
-    }
-  };
-
-  const fetchStores = async () => {
-    try {
-      const response = await messAPI.getStores();
-      setStores(response.data.data || []);
-    } catch (error) {
-      message.error('Failed to fetch stores');
-    }
-  };
-
-  const fetchItemStores = async () => {
+  const fetchInitialData = async () => {
     setLoading(true);
     try {
-      let params = {};
-      if (selectedItem) params.item_id = selectedItem;
-      if (selectedStore) params.store_id = selectedStore;
-      
-      const response = await messAPI.getItemStores(params);
-      setItemStores(response.data.data || []);
-    } catch (error) {
-      message.error('Failed to fetch item-store mappings');
+      const [itms, strs, maps] = await Promise.all([
+        messAPI.getItems(),
+        messAPI.getStores(),
+        messAPI.getItemStores()
+      ]);
+      setItems(itms.data.data || []);
+      setStores(strs.data.data || []);
+      setItemStores(maps.data.data || []);
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 800);
     }
   };
 
-  const fetchItemsByStore = async (storeId) => {
-    if (!storeId) return;
-    setLoading(true);
-    try {
-      const response = await messAPI.getItemsByStoreId(storeId);
-      message.info(`Fetched ${response.data.data?.length || 0} items from store`);
-    } catch (error) {
-      message.error('Failed to fetch items by store');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // --- LIVE SEARCH LOGIC ---
+  // Filters the data directly on the page as you type
+  const filteredMappings = useMemo(() => {
+    if (!searchText) return itemStores;
+    const lowerSearch = searchText.toLowerCase();
+    return itemStores.filter(m => 
+      (m.Item?.name || '').toLowerCase().includes(lowerSearch) ||
+      (m.Store?.name || '').toLowerCase().includes(lowerSearch) ||
+      (m.Item?.tbl_ItemCategory?.name || '').toLowerCase().includes(lowerSearch)
+    );
+  }, [itemStores, searchText]);
 
-  const fetchStoresByItem = async (itemId) => {
-    if (!itemId) return;
-    setLoading(true);
-    try {
-      const response = await messAPI.getStoresByItemId(itemId);
-      message.info(`Fetched ${response.data.data?.length || 0} stores for item`);
-    } catch (error) {
-      message.error('Failed to fetch stores by item');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreate = () => {
-    form.resetFields();
-    setModalVisible(true);
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await messAPI.removeItemStoreMapping(id);
-      message.success('Mapping removed successfully');
-      fetchItemStores();
-    } catch (error) {
-      message.error('Failed to remove mapping');
-    }
+  const handleExportExcel = () => {
+    if (filteredMappings.length === 0) return message.warning('No data to export.');
+    const exportData = filteredMappings.map(mapping => ({
+      'Item Name': mapping.Item?.name || 'N/A',
+      'Store Name': mapping.Store?.name || 'N/A',
+      'Unit Price': parseFloat(mapping.price || 0).toFixed(2),
+      'Preferred': mapping.is_preferred ? 'Yes' : 'No',
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Mappings');
+    XLSX.writeFile(workbook, `Filtered_Mappings_${new Date().toLocaleDateString()}.xlsx`);
   };
 
   const handleSubmit = async (values) => {
     setConfirmLoading(true);
     try {
-      const store_id = values.store_id;
-      const mappings = values.items || [];
-      for (const mapping of mappings) {
+      const { store_id, items: mappingItems } = values;
+      for (const item of mappingItems) {
         await messAPI.mapItemToStore({
-          item_id: mapping.item_id,
+          item_id: item.item_id,
           store_id,
-          price: mapping.price,
-          is_preferred: mapping.is_preferred || false,
+          price: item.price,
+          is_preferred: item.is_preferred || false,
         });
       }
-      message.success(`${mappings.length} items mapped to store successfully`);
+      message.success('Mappings updated successfully');
       setModalVisible(false);
-      fetchItemStores();
-    } catch (error) {
-      message.error('Failed to create mappings');
+      fetchInitialData();
     } finally {
       setConfirmLoading(false);
     }
   };
 
-  const handleFilterChange = () => {
-    fetchItemStores();
-  };
-
-  const handleTabChange = (key) => {
-    setActiveTab(key);
-  };
-
-  // --- NEW: handleExportExcel function ---
-  const handleExportExcel = () => {
-    if (itemStores.length === 0) {
-      message.warning('No data to export.');
-      return;
-    }
-
-    // Map the itemStores data to the desired Excel structure
-    const exportData = itemStores.map(mapping => ({
-      'Item Name': mapping.Item?.name || 'N/A',
-      'Common Store Name': mapping.Store?.name || 'N/A',
-      // Qty and Overall Cost are not available in the ItemStore mapping data
-      // They would typically come from a purchase/inventory transaction record.
-      'Qty': '', 
-      'Unit Price': parseFloat(mapping.price || 0).toFixed(2),
-      'Overall Cost': '', 
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'ItemStoreMappings');
-    XLSX.writeFile(workbook, 'ItemStoreMappings.xlsx');
-    message.success('Data exported to Excel successfully!');
-  };
-
   const columns = [
     {
-      title: 'Item',
-      dataIndex: ['Item', 'name'],
+      title: 'Item Details',
       key: 'item',
-      render: (text) => text || 'N/A',
-      sorter: (a, b) => (a.Item?.name || '').localeCompare(b.Item?.name || ''),
+      render: (_, r) => (
+        <Space direction="vertical" size={0}>
+          <Text strong className="text-slate-700">{r.Item?.name}</Text>
+          <Text className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">{r.Item?.tbl_ItemCategory?.name}</Text>
+        </Space>
+      )
     },
     {
-      title: 'Category',
-      dataIndex: ['Item', 'tbl_ItemCategory', 'name'],
-      key: 'category',
-      render: (text) => text || 'N/A',
-    },
-    {
-      title: 'Store',
-      dataIndex: ['Store', 'name'],
+      title: 'Linked Store',
       key: 'store',
-      render: (text) => text || 'N/A',
-      sorter: (a, b) => (a.Store?.name || '').localeCompare(b.Store?.name || ''),
-    },
-    {
-      title: 'Price',
-      dataIndex: 'price',
-      key: 'price',
-      render: (price) => (price ? `₹${parseFloat(price).toFixed(2)}` : 'N/A'),
-      sorter: (a, b) => (a.price || 0) - (b.price || 0),
-    },
-    {
-      title: 'Preferred',
-      dataIndex: 'is_preferred',
-      key: 'preferred',
-      render: (isPreferred) => (
-        isPreferred ? <Tag color="green">Preferred</Tag> : 'No'
-      ),
-      filters: [
-        { text: 'Preferred', value: true },
-        { text: 'Not Preferred', value: false }
-      ],
-      onFilter: (value, record) => record.is_preferred === value,
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_, record) => (
-        <Popconfirm
-          title="Are you sure you want to remove this mapping?"
-          onConfirm={() => handleDelete(record.id)}
-          okText="Yes"
-          cancelText="No"
-        >
-          <Button 
-            icon={<DeleteOutlined />} 
-            danger 
-            size="small"
-          />
-        </Popconfirm>
-      ),
-    },
-  ];
-
-  const storeColumns = [
-    {
-      title: 'Store Name',
-      dataIndex: 'name',
-      key: 'name',
-    },
-    {
-      title: 'Address',
-      dataIndex: 'address',
-      key: 'address',
-      render: (text) => text || 'N/A',
-    },
-    {
-      title: 'Contact',
-      dataIndex: 'contact_number',
-      key: 'contact',
-      render: (text) => text || 'N/A',
-    },
-    {
-      title: 'Status',
-      dataIndex: 'is_active',
-      key: 'status',
-      render: (active) => (
-        active ? 
-          <Tag color="green">Active</Tag> : 
-          <Tag color="red">Inactive</Tag>
-      ),
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_, record) => (
-        <Button 
-          icon={<SearchOutlined />} 
-          onClick={() => fetchItemsByStore(record.id)}
-          size="small"
-        >
-          View Items
-        </Button>
-      ),
-    },
-  ];
-
-  const itemColumns = [
-    {
-      title: 'Item Name',
-      dataIndex: 'name',
-      key: 'name',
-    },
-    {
-      title: 'Category',
-      dataIndex: ['tbl_ItemCategory', 'name'],
-      key: 'category',
-      render: (text) => text || 'N/A',
-    },
-    {
-      title: 'Unit',
-      dataIndex: ['UOM', 'abbreviation'],
-      key: 'unit',
-      render: (text) => text || 'N/A',
+      render: (_, r) => (
+        <div className="flex items-center gap-2">
+          <Store size={14} className="text-blue-500" />
+          <Text className="text-sm font-medium text-slate-600">{r.Store?.name}</Text>
+        </div>
+      )
     },
     {
       title: 'Unit Price',
-      dataIndex: 'unit_price',
-      key: 'price',
-      render: (price) => `₹${parseFloat(price || 0).toFixed(2)}`,
+      dataIndex: 'price',
+      align: 'right',
+      render: (p) => <Text className="text-blue-600 font-bold">₹{parseFloat(p || 0).toFixed(2)}</Text>
+    },
+    {
+      title: 'Priority',
+      dataIndex: 'is_preferred',
+      align: 'center',
+      render: (fav) => fav ? <Tag color="success" className="rounded-full border-none px-3 font-bold text-[10px] uppercase">Preferred</Tag> : <Text type="secondary">—</Text>
     },
     {
       title: 'Actions',
-      key: 'actions',
+      align: 'right',
       render: (_, record) => (
-        <Button 
-          icon={<SearchOutlined />} 
-          onClick={() => fetchStoresByItem(record.id)}
-          size="small"
-        >
-          View Stores
-        </Button>
-      ),
-    },
+        <Popconfirm title="Remove mapping?" onConfirm={() => messAPI.removeItemStoreMapping(record.id).then(fetchInitialData)}>
+          <Button type="text" danger icon={<Trash2 size={16} />} className="flex items-center justify-center hover:bg-rose-50 rounded-lg" />
+        </Popconfirm>
+      )
+    }
   ];
 
   return (
-    <Card title="Item-Store Mapping">
-      <Tabs activeKey={activeTab} onChange={handleTabChange}>
-        <TabPane tab="Mappings" key="1">
-          <Space style={{ marginBottom: 16 }}>
-            <Select
-              placeholder="Filter by item"
-              style={{ width: 200 }}
-              allowClear
-              onChange={(value) => {
-                setSelectedItem(value);
-                setTimeout(handleFilterChange, 0);
-              }}
-              showSearch
-              optionFilterProp="children"
-            >
-              {items.map(item => (
-                <Option key={item.id} value={item.id}>{item.name}</Option>
-              ))}
-            </Select>
-
-            <Select
-              placeholder="Filter by store"
-              style={{ width: 200 }}
-              allowClear
-              onChange={(value) => {
-                setSelectedStore(value);
-                setTimeout(handleFilterChange, 0);
-              }}
-            >
-              {stores.map(store => (
-                <Option key={store.id} value={store.id}>{store.name}</Option>
-              ))}
-            </Select>
-
-            <Button 
-              type="primary" 
-              icon={<PlusOutlined />} 
-              onClick={handleCreate}
-            >
-              Add Mapping
-            </Button>
-            
-            {/* --- NEW: Export to Excel Button --- */}
-            <Button 
-              type="default" // Using 'default' type for a secondary action
-              icon={<DownloadOutlined />} 
-              onClick={handleExportExcel}
-              style={{ marginLeft: 8 }} // Add some spacing
-            >
-              Export to Excel
-            </Button>
-            {/* --- END NEW --- */}
-
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
+        
+        {/* Header Section */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <Link className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Mapping Hub</Title>
+              <Text type="secondary">Manage supplier relationships and item pricing</Text>
+            </div>
+          </div>
+          <Space>
+            <Button icon={<FileSpreadsheet size={18}/>} onClick={handleExportExcel} className="rounded-xl h-12">Export Results</Button>
+            <Button type="primary" icon={<Plus size={18}/>} onClick={() => setModalVisible(true)} className="rounded-xl h-12 shadow-lg shadow-blue-100 font-semibold">Add New Mapping</Button>
           </Space>
+        </div>
 
-          <Table
-            columns={columns}
-            dataSource={itemStores}
-            rowKey="id"
-            loading={loading}
-          />
-        </TabPane>
+        {/* --- LIVE SEARCH BAR --- */}
+        <Card className="border-none shadow-sm rounded-2xl mb-6">
+            <div className="flex items-center gap-3 bg-slate-50 p-3 px-5 rounded-2xl border border-slate-100 w-full transition-all focus-within:border-blue-300 focus-within:bg-white focus-within:shadow-md">
+                <Search size={20} className="text-slate-400" />
+                <Input 
+                    placeholder="Quick search by item name, store name, or category..." 
+                    bordered={false} 
+                    className="text-base"
+                    value={searchText}
+                    onChange={e => setSearchText(e.target.value)}
+                    allowClear
+                />
+                <Divider type="vertical" className="h-6 bg-slate-200" />
+                <div className="flex items-center gap-2 text-slate-400 px-2">
+                    <Filter size={16} />
+                    <Text className="text-xs font-bold uppercase tracking-tighter">Live Results</Text>
+                </div>
+            </div>
+        </Card>
 
-        <TabPane tab="Stores" key="2">
-          <Table
-            columns={storeColumns}
-            dataSource={stores}
-            rowKey="id"
-          />
-        </TabPane>
+        {loading ? <MappingSkeleton /> : (
+            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+                <Table 
+                    dataSource={filteredMappings} 
+                    columns={columns} 
+                    pagination={{ pageSize: 10, showTotal: (total) => `Showing ${total} mappings` }} 
+                    rowKey="id" 
+                />
+            </Card>
+        )}
 
-        <TabPane tab="Items" key="3">
-          <Table
-            columns={itemColumns}
-            dataSource={items}
-            rowKey="id"
-          />
-        </TabPane>
-      </Tabs>
-
-      <Modal
-        title="Map Multiple Items to Store"
-        visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        footer={null}
-        width={1000}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-          initialValues={{ store_id: undefined, items: [{}] }} // Start with one empty item row
+        {/* --- Bulk Mapping Modal --- */}
+        <Modal
+          title={<div className="flex items-center gap-2 text-blue-600"><Plus size={18}/> Bulk Link Items</div>}
+          open={modalVisible}
+          onCancel={() => setModalVisible(false)}
+          footer={null}
+          width={900}
+          className="rounded-2xl"
         >
-          {/* Store Selection - Single at the top */}
-          <Form.Item
-            name="store_id"
-            label="Select Store"
-            rules={[{ required: true, message: 'Please select a store' }]}
-          >
-            <Select
-              placeholder="Choose a store to map items to"
-              showSearch
-              optionFilterProp="children"
-              style={{ width: '100%' }}
-            >
-              {stores.map(store => (
-                <Option key={store.id} value={store.id}>{store.name}</Option>
-              ))}
-            </Select>
-          </Form.Item>
+          <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ items: [{}] }}>
+            <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 mb-6">
+              <Form.Item name="store_id" label={<Text strong>Target Store</Text>} rules={[{ required: true }]}>
+                <Select placeholder="Select the store to map items to..." className="h-11">
+                  {stores.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
+                </Select>
+              </Form.Item>
+            </div>
 
-          <Text type="secondary" style={{ marginBottom: 16 }}>
-            Select the store above, then add items below. All selected items will be mapped to this store.
-          </Text>
-          
-          {/* Items Form.List */}
-          <Form.List name="items">
-            {(fields, { add, remove }) => (
-              <>
-                {fields.map(({ key, name, ...restField }, index) => (
-                  <Card key={key} style={{ marginBottom: 16 }} size="small">
-                    <Row gutter={16} align="middle">
-                      <Col span={8}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'item_id']}
-                          label="Item"
-                          rules={[{ required: true, message: 'Please select an item' }]}
-                        >
-                          <Select
-                            placeholder="Select item"
-                            showSearch
-                            optionFilterProp="children"
-                          >
-                            {items.map(item => (
-                              <Option key={item.id} value={item.id}>{item.name}</Option>
-                            ))}
-                          </Select>
-                        </Form.Item>
-                      </Col>
-                      <Col span={5}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'price']}
-                          label="Price (₹)"
-                          rules={[{ required: true, message: 'Please enter price' }]}
-                        >
-                          <InputNumber
-                            min={0}
-                            step={0.01}
-                            precision={2}
-                            style={{ width: '100%' }}
-                          />
-                        </Form.Item>
-                      </Col>
-                      <Col span={4}>
-                        <Form.Item
-                          {...restField}
-                          name={[name, 'is_preferred']}
-                          label="Preferred"
-                          valuePropName="checked"
-                        >
-                          <Switch />
-                        </Form.Item>
-                      </Col>
-                      <Col span={7} style={{ display: 'flex', alignItems: 'center' }}>
-                        <Text type="secondary">This item will be mapped to the selected store above.</Text>
-                      </Col>
-                      <Col span={0} style={{ textAlign: 'right' }}>
-                        <Popconfirm title="Remove this item row?" onConfirm={() => remove(name)}>
-                          <DeleteOutlined style={{ color: 'red', fontSize: 16, cursor: 'pointer' }} />
-                        </Popconfirm>
-                      </Col>
-                    </Row>
-                  </Card>
-                ))}
-                <Form.Item>
-                  <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
-                    Add Another Item
+            <Form.List name="items">
+              {(fields, { add, remove }) => (
+                <>
+                  <div className="max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                    {fields.map(({ key, name, ...restField }) => (
+                      <div key={key} className="bg-white p-5 rounded-2xl border border-slate-100 mb-4 shadow-sm relative group hover:border-blue-200 transition-all">
+                        <Row gutter={16} align="middle">
+                          <Col span={10}>
+                            <Form.Item {...restField} name={[name, 'item_id']} label="Item" rules={[{ required: true }]}>
+                              <Select placeholder="Select item..." showSearch optionFilterProp="children">
+                                {items.map(i => <Option key={i.id} value={i.id}>{i.name}</Option>)}
+                              </Select>
+                            </Form.Item>
+                          </Col>
+                          <Col span={8}>
+                            <Form.Item {...restField} name={[name, 'price']} label="Contract Price (₹)" rules={[{ required: true }]}>
+                              <InputNumber className="w-full" precision={2} placeholder="0.00" prefix="₹" />
+                            </Form.Item>
+                          </Col>
+                          <Col span={4}>
+                            <Form.Item {...restField} name={[name, 'is_preferred']} label="Preferred" valuePropName="checked">
+                              <Switch size="small" />
+                            </Form.Item>
+                          </Col>
+                          <Col span={2}>
+                            <Button type="text" danger icon={<X size={18} />} onClick={() => remove(name)} className="mt-6 flex items-center justify-center hover:bg-rose-50 rounded-lg" />
+                          </Col>
+                        </Row>
+                      </div>
+                    ))}
+                  </div>
+                  <Button type="dashed" onClick={() => add()} block icon={<Plus size={16}/>} className="h-12 rounded-xl mb-4 border-slate-300 text-slate-500 hover:text-blue-600 hover:border-blue-600">
+                    Add Another Item Row
                   </Button>
-                </Form.Item>
-              </>
-            )}
-          </Form.List>
+                </>
+              )}
+            </Form.List>
 
-          <Row justify="end" style={{ marginTop: 16 }}>
-            <Space>
-              <Button onClick={() => setModalVisible(false)}>
-                Cancel
+            <div className="flex justify-end gap-3 mt-8 border-t pt-6">
+              <Button onClick={() => setModalVisible(false)} className="rounded-xl h-11 px-6">Cancel</Button>
+              <Button type="primary" htmlType="submit" loading={confirmLoading} className="rounded-xl h-11 px-8 font-bold">
+                Save All Mappings
               </Button>
-              <Button type="primary" htmlType="submit" loading={confirmLoading}>
-                Save All Mappings to Store
-              </Button>
-            </Space>
-          </Row>
-        </Form>
-      </Modal>
-    </Card>
+            </div>
+          </Form>
+        </Modal>
+      </div>
+    </ConfigProvider>
   );
 };
 
