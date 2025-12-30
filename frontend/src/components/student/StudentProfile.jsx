@@ -1,536 +1,238 @@
-import React, { useState, useEffect } from 'react';
-import { User, Home, Mail, Lock, Eye, EyeOff, Key, Users, Edit3, Save, X, AlertCircle, CheckCircle, UserIcon, Bed } from 'lucide-react';
-import axios from 'axios';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Card, Typography, Row, Col, Button, Space, Divider,message,Modal, Badge,
+  Input, Form, Tag, Skeleton, ConfigProvider, theme, Tooltip 
+} from 'antd';
+import { 
+  User, Mail, Lock, Eye, EyeOff, Key, Users, Home,Info,XCircle,
+  ShieldCheck, ArrowRight, ShieldAlert, CheckCircle2, 
+  UserCircle, Bed, MapPin, Hash, Phone 
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { studentAPI, authAPI } from '../../services/api';
+
+const { Title, Text } = Typography;
+
+// --- 1. High-Fidelity Skeleton for Profile ---
+const ProfileSkeleton = () => (
+  <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
+    <div className="flex gap-6 items-center">
+      <Skeleton.Avatar active size={100} shape="circle" />
+      <div className="flex-1">
+        <Skeleton active title={{ width: 200 }} paragraph={{ rows: 2 }} />
+      </div>
+    </div>
+    <Row gutter={24}>
+      <Col span={12}><Skeleton.Button active block style={{ height: 200, borderRadius: 32 }} /></Col>
+      <Col span={12}><Skeleton.Button active block style={{ height: 200, borderRadius: 32 }} /></Col>
+    </Row>
+  </div>
+);
 
 const StudentProfile = () => {
   const [profile, setProfile] = useState(null);
   const [roomMates, setRoomMates] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [changePasswordVisible, setChangePasswordVisible] = useState(false);
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmNewPassword: '',
-  });
-  const [showPassword, setShowPassword] = useState({
-    current: false,
-    new: false,
-    confirm: false,
-  });
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordSuccess, setPasswordSuccess] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [imageErrors, setImageErrors] = useState({});
-  
-  // Token from localStorage
-  const token = localStorage.getItem('token');
-  // Try to get user data from localStorage that might have image info
-  const localUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordForm] = Form.useForm();
+  const [submittingPassword, setSubmittingPassword] = useState(false);
 
-  useEffect(() => {
-    fetchProfile();
+  const fetchProfileData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await studentAPI.getProfile();
+      const profileData = response.data.data;
+      setProfile(profileData);
+
+      if (profileData?.tbl_RoomAllotments?.length > 0) {
+        const mateRes = await studentAPI.getRoommates();
+        setRoomMates(mateRes.data.data || []);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setTimeout(() => setLoading(false), 800);
+    }
   }, []);
 
-  const fetchProfile = async () => {
+  useEffect(() => { fetchProfileData(); }, [fetchProfileData]);
+
+  const onPasswordFinish = async (values) => {
+    setSubmittingPassword(true);
     try {
-      setLoading(true);
-      const response = await studentAPI.getProfile();
-      
-      // If we have a profile image in localStorage but not in the API response,
-      // merge them to ensure we have the most complete profile data
-      const profileData = response.data.data;
-      
-      console.log("API Profile Response:", profileData); // Debug log to see what's coming from the API
-      
-      if (!profileData.profile_picture && localUser.profile_picture) {
-        profileData.profile_picture = localUser.profile_picture;
-      }
-      
-      setProfile(profileData);
-      
-      // Fetch roommates if room is allotted
-      if (profileData?.tbl_RoomAllotments?.length > 0 && profileData.tbl_RoomAllotments[0]?.HostelRoom?.id) {
-        fetchRoomMates();
-      } else {
-        setRoomMates([]);
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      setError('Failed to fetch profile. Please try again.');
-      setLoading(false);
-    }
-  };
-
-  const fetchRoomMates = async () => {
-    try {
-      const response = await studentAPI.getRoommates();
-      setRoomMates(response.data.data || []);
-    } catch (error) {
-      console.error('Error fetching room mates:', error);
-      setRoomMates([]);
-      // Optionally show a non-critical error
-      // setError('Failed to fetch roommates. Please refresh the page.');
-    }
-  };
-
-  const handlePasswordInputChange = (e) => {
-    const { name, value } = e.target;
-    setPasswordData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    setPasswordError('');
-  };
-
-  const togglePasswordVisibility = (field) => {
-    setShowPassword(prev => ({
-      ...prev,
-      [field]: !prev[field]
-    }));
-  };
-
-  const handleChangePassword = async (e) => {
-    e.preventDefault();
-    setPasswordError('');
-    setPasswordSuccess('');
-
-    if (passwordData.newPassword !== passwordData.confirmNewPassword) {
-      setPasswordError('New passwords do not match');
-      return;
-    }
-
-    if (passwordData.newPassword.length < 8) {
-      setPasswordError('New password must be at least 8 characters long');
-      return;
-    }
-
-    try {
-      // Use authAPI for password changes
       await authAPI.changePassword({
-        oldPassword: passwordData.currentPassword,
-        newPassword: passwordData.newPassword
+        oldPassword: values.currentPassword,
+        newPassword: values.newPassword
       });
-      
-      setPasswordData({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
-      setPasswordSuccess('Password changed successfully!');
-      setTimeout(() => setChangePasswordVisible(false), 3000);
+      message.success('Security credentials updated successfully');
+      setIsChangingPassword(false);
+      passwordForm.resetFields();
     } catch (error) {
-      console.error('Error changing password:', error);
-      
-      // Provide helpful error messages
-      let errorMessage;
-      if (error.response?.status === 404) {
-        errorMessage = 'Password change feature is currently unavailable. Please contact support.';
-      } else if (error.response?.status === 401 || error.response?.status === 403) {
-        errorMessage = 'Current password is incorrect.';
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else {
-        errorMessage = 'Failed to change password. Please try again later.';
-      }
-      
-      setPasswordError(errorMessage);
+      message.error(error.response?.data?.message || 'Password update failed');
+    } finally {
+      setSubmittingPassword(false);
     }
   };
 
-  // Handle image loading errors
-  const handleImageError = (id) => {
-    setImageErrors(prev => ({
-      ...prev,
-      [id]: true
-    }));
-  };
+  if (loading) return <ProfileSkeleton />;
 
-  // Alternative implementation: Skip form submission and show admin contact info
-  const handlePasswordChangeRequest = () => {
-    setPasswordSuccess('');
-    setPasswordError('');
-    setPasswordSuccess('To change your password, please contact the hostel administrator.');
-  };
-
-  const handleForgotPassword = () => {
-    window.location.href = '/forgot-password';
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-gray-500">Profile not found.</p>
-      </div>
-    );
-  }
-
-  // Get room info safely with proper fallbacks
-  const roomAllotment = profile.tbl_RoomAllotments && profile.tbl_RoomAllotments.length > 0 
-    ? profile.tbl_RoomAllotments[0] 
-    : null;
-    
-  const roomInfo = roomAllotment?.HostelRoom || null;
-  
-  // Handle both potential field names for RoomType (RoomType or tbl_RoomType)
-  const roomType = roomInfo?.RoomType || roomInfo?.tbl_RoomType;
-  
-  // Get hostel info
-  const hostel = profile.Hostel;
-
-  console.log("Room Info:", roomInfo);  // Debug log
-  console.log("Room Type:", roomType);  // Debug log
-
-  // Function to render avatar that falls back to initials
-  const renderAvatar = (user, size = "w-24 h-24") => {
-    if (user.profile_picture && !imageErrors[user.id]) {
-      return (
-        <img
-          src={user.profile_picture}
-          alt={user.username || "User"}
-          className={`${size} rounded-full object-cover border-2 border-gray-200`}
-          onError={() => handleImageError(user.id)}
-        />
-      );
-    } else {
-      // If no image or image error, show initials in an avatar
-      const initials = user.username ? user.username.charAt(0).toUpperCase() : "?";
-      return (
-        <div className={`${size} rounded-full flex items-center justify-center bg-blue-500 text-white font-bold text-xl`}>
-          {initials}
-        </div>
-      );
-    }
-  };
+  const roomInfo = profile?.tbl_RoomAllotments?.[0]?.HostelRoom;
+  const hostel = profile?.Hostel;
 
   return (
-    <div className="max-w-4xl mx-auto py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">My Profile</h1>
-        <p className="text-gray-600">Manage your personal information and hostel details.</p>
-      </div>
-
-      {/* Error and Success Messages */}
-      {error && (
-        <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-md flex items-center">
-          <AlertCircle className="mr-2" size={20} />
-          {error}
-        </div>
-      )}
-
-      {success && (
-        <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-md flex items-center">
-          <CheckCircle className="mr-2" size={20} />
-          {success}
-        </div>
-      )}
-
-      {/* Profile Header with Icon */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden mb-8">
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-            <User className="mr-2" size={24} />
-            Profile Overview
-          </h2>
-        </div>
-        <div className="p-6">
-          <div className="flex items-center space-x-6">
-            <div className="flex-shrink-0">
-              {renderAvatar(profile)}
-            </div>
-            <div className="flex-1">
-              <h3 className="text-2xl font-bold text-gray-900">{profile.username}</h3>
-              <p className="text-gray-600">{profile.email}</p>
-              <p className="text-sm text-gray-500 mt-1">Role: Student | Hostel: {hostel?.name || 'N/A'}</p>
-              {profile.roll_number && (
-                <p className="text-sm text-gray-500">Roll Number: {profile.roll_number}</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Personal Information - Read Only */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden mb-8">
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-            <User className="mr-2" size={24} />
-            Personal Information
-          </h2>
-        </div>
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                <UserIcon className="mr-2" size={16} />
-                Username
-              </label>
-              <p className="text-lg text-gray-900 bg-gray-50 p-3 rounded-md">{profile.username}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                <Mail className="mr-2" size={16} />
-                Email
-              </label>
-              <p className="text-lg text-gray-900 bg-gray-50 p-3 rounded-md">{profile.email}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Change Password Section */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden mb-8">
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-            <Lock className="mr-2" size={24} />
-            Password Management
-          </h2>
-        </div>
-        <div className="p-6">
-          {!changePasswordVisible ? (
-            <button
-              onClick={() => setChangePasswordVisible(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center"
-            >
-              <Key className="mr-2" size={16} />
-              Manage Password
-            </button>
-          ) : (
-            <div className="space-y-4">
-              {/* Option A: Regular password change form */}
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword.current ? 'text' : 'password'}
-                      name="currentPassword"
-                      value={passwordData.currentPassword}
-                      onChange={handlePasswordInputChange}
-                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility('current')}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    >
-                      {showPassword.current ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword.new ? 'text' : 'password'}
-                      name="newPassword"
-                      value={passwordData.newPassword}
-                      onChange={handlePasswordInputChange}
-                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                      minLength={8}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility('new')}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    >
-                      {showPassword.new ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">Password must be at least 8 characters long.</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
-                  <div className="relative">
-                    <input
-                      type={showPassword.confirm ? 'text' : 'password'}
-                      name="confirmNewPassword"
-                      value={passwordData.confirmNewPassword}
-                      onChange={handlePasswordInputChange}
-                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => togglePasswordVisibility('confirm')}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    >
-                      {showPassword.confirm ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Option B: Alternative approach (contact admin) */}
-                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
-                  <p className="text-sm text-blue-700">
-                    <strong>Note:</strong> If you're having trouble changing your password through this form, 
-                    please contact your hostel administrator for assistance.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handlePasswordChangeRequest}
-                    className="mt-2 text-blue-600 underline text-sm"
-                  >
-                    Request password change assistance
-                  </button>
-                </div>
-                
-                {passwordError && (
-                  <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-md flex items-center">
-                    <AlertCircle className="mr-2" size={16} />
-                    {passwordError}
-                  </div>
-                )}
-                {passwordSuccess && (
-                  <div className="p-3 bg-green-100 border border-green-400 text-green-700 rounded-md flex items-center">
-                    <CheckCircle className="mr-2" size={16} />
-                    {passwordSuccess}
-                  </div>
-                )}
-                <div className="flex space-x-3">
-                  <button
-                    type="submit"
-                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center"
-                  >
-                    <Save className="mr-2" size={16} />
-                    Change Password
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setChangePasswordVisible(false);
-                      setPasswordData({ currentPassword: '', newPassword: '', confirmNewPassword: '' });
-                      setPasswordError('');
-                      setPasswordSuccess('');
-                    }}
-                    className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors flex items-center"
-                  >
-                    <X className="mr-2" size={16} />
-                    Cancel
-                  </button>
-                </div>
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={handleForgotPassword}
-                    className="text-blue-600 hover:text-blue-800 text-sm underline flex items-center"
-                  >
-                    <Key className="mr-1" size={14} />
-                    Forgot Password?
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Hostel & Room Details */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden mb-8">
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-            <Home className="mr-2" size={24} />
-            Hostel & Room Details
-          </h2>
-        </div>
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Hostel Information */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                <Home className="mr-2" size={16} />
-                Hostel
-              </label>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-lg text-gray-900 font-medium">{hostel?.name || 'Not Assigned'}</p>
-                {hostel?.address && (
-                  <p className="text-sm text-gray-500 mt-1">{hostel.address}</p>
-                )}
-                {hostel?.contact_number && (
-                  <p className="text-sm text-gray-500 mt-1">Contact: {hostel.contact_number}</p>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 24 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+        
+        {/* Header Section */}
+        <div className="flex justify-between items-end">
+          <div className="flex items-center gap-6">
+            <div className="relative group">
+              <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-white text-4xl font-bold shadow-xl shadow-blue-100 border-4 border-white overflow-hidden">
+                {profile?.profile_picture ? (
+                  <img src={profile.profile_picture} className="w-full h-full object-cover" alt="Avatar" />
+                ) : (
+                  profile?.username?.charAt(0).toUpperCase()
                 )}
               </div>
+              <div className="absolute -bottom-1 -right-1 bg-emerald-500 w-6 h-6 rounded-full border-4 border-white" />
             </div>
-
-            {/* Room Information */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                <Bed className="mr-2" size={16} />
-                Room Information
-              </label>
-              
+              <Title level={2} style={{ margin: 0 }}>{profile?.username}</Title>
+              <Space split={<Divider type="vertical" />}>
+                <Text className="text-slate-400 font-medium">#{profile?.roll_number || 'STU-ID'}</Text>
+                <Tag bordered={false} color="blue" className="rounded-full px-4 font-bold uppercase text-[10px]">Student Member</Tag>
+              </Space>
+            </div>
+          </div>
+          <Button icon={<Key size={16}/>} onClick={() => setIsChangingPassword(true)} className="rounded-xl h-12 px-6 font-bold shadow-sm">Password Settings</Button>
+        </div>
+
+        <Row gutter={[24, 24]}>
+          {/* Account Details */}
+          <Col lg={12} xs={24}>
+            <Card className="border-none shadow-sm rounded-[32px] h-full" title={<div className="flex items-center gap-2"><User size={18} className="text-blue-600" /><Text strong>Account Information</Text></div>}>
+              <div className="space-y-6">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center gap-4">
+                  <div className="p-3 bg-white rounded-xl text-blue-500 shadow-sm"><Mail size={20} /></div>
+                  <div>
+                    <Text className="text-[10px] uppercase font-bold text-slate-400 block">Primary Email</Text>
+                    <Text strong className="text-slate-700">{profile?.email}</Text>
+                  </div>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center gap-4">
+                  <div className="p-3 bg-white rounded-xl text-blue-500 shadow-sm"><Home size={20} /></div>
+                  <div>
+                    <Text className="text-[10px] uppercase font-bold text-slate-400 block">Assigned Hostel</Text>
+                    <Text strong className="text-slate-700">{hostel?.name || 'N/A'}</Text>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 p-2 px-4 bg-blue-50 rounded-xl border border-blue-100 text-blue-700 text-xs">
+                   <Info size={14} /> To update official details, contact the Hostel Administration Office.
+                </div>
+              </div>
+            </Card>
+          </Col>
+
+          {/* Room Allocation */}
+          <Col lg={12} xs={24}>
+            <Card className="border-none shadow-sm rounded-[32px] h-full" title={<div className="flex items-center gap-2"><Bed size={18} className="text-purple-600" /><Text strong>Housing Status</Text></div>}>
               {roomInfo ? (
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-lg text-gray-900 font-medium">Room: {roomInfo.room_number || 'N/A'}</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Type: {roomType?.name || 'Standard'}
-                    {roomType?.capacity && ` (${roomType.capacity} capacity)`}
-                  </p>
-                  {roomAllotment?.allotment_date && (
-                    <p className="text-sm text-gray-500 mt-1">
-                      Allotted on: {new Date(roomAllotment.allotment_date).toLocaleDateString()}
-                    </p>
-                  )}
+                <div className="space-y-4">
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <div className="bg-slate-50 p-6 rounded-3xl text-center border border-slate-100">
+                        <Text className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Room Number</Text>
+                        <Title level={2} style={{ margin: 0, color: '#1e293b' }}>{roomInfo.room_number}</Title>
+                      </div>
+                    </Col>
+                    <Col span={12}>
+                      <div className="bg-slate-50 p-6 rounded-3xl text-center border border-slate-100">
+                        <Text className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Room Type</Text>
+                        <Title level={3} style={{ margin: 0, color: '#1e293b' }}>{roomInfo.tbl_RoomType?.name || 'Standard'}</Title>
+                      </div>
+                    </Col>
+                  </Row>
+                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
+                    <Space><MapPin size={16} className="text-slate-400" /><Text className="text-xs text-slate-500">{hostel?.address || 'Main Campus'}</Text></Space>
+                    <Tag color="success" className="rounded-full border-none px-3 font-bold uppercase text-[9px]">Verified Allocation</Tag>
+                  </div>
                 </div>
               ) : (
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-gray-500">No room currently assigned.</p>
+                <div className="h-full flex flex-col items-center justify-center py-8">
+                  <XCircle size={48} className="text-slate-200 mb-4" />
+                  <Text className="text-slate-400 italic">No room currently allotted</Text>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      </div>
+            </Card>
+          </Col>
+        </Row>
 
-      {/* Enhanced Room Mates Section */}
-      {roomInfo ? (
-        <div className="bg-white shadow-md rounded-lg overflow-hidden">
-          <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-              <Users className="mr-2" size={24} />
-              Room Mates in Room {roomInfo.room_number || 'N/A'} ({roomMates.length})
-            </h2>
-          </div>
-          <div className="p-6">
-            {roomMates.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {roomMates.map((mate) => (
-                  <div 
-                    key={mate.id} 
-                    className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-5 shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
-                  >
-                    <div className="flex items-start space-x-4">
-                      {renderAvatar(mate, "w-14 h-14")}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-gray-900 text-lg truncate">{mate.username}</h4>
-                        {mate.roll_number && (
-                          <p className="text-sm text-blue-600 font-medium mt-1">{mate.roll_number}</p>
-                        )}
-                        <p className="text-sm text-gray-500 mt-1 truncate max-w-[200px]">{mate.email}</p>
-                      </div>
+        {/* Roommates Grid */}
+        {roomInfo && (
+          <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: '24px' }} title={
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2"><Users size={18} className="text-emerald-600" /><Text strong>Shared Occupants</Text></div>
+              <Badge count={roomMates.length} color="#10b981" />
+            </div>
+          }>
+            <Row gutter={[20, 20]}>
+              {roomMates.length > 0 ? roomMates.map((mate) => (
+                <Col lg={8} md={12} xs={24} key={mate.id}>
+                  <div className="p-5 rounded-[24px] bg-white border border-slate-100 shadow-sm hover:border-blue-200 transition-all group flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                      {mate.username?.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <Text strong className="block truncate text-slate-700">{mate.username}</Text>
+                      <Text className="text-[10px] font-bold text-blue-500 uppercase">{mate.roll_number || 'STU'}</Text>
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <Users className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Room Mates Yet</h3>
-                <p className="text-gray-500">You are the only occupant in Room {roomInfo.room_number || 'N/A'}.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : null}
-    </div>
+                </Col>
+              )) : (
+                <Col span={24} className="text-center py-10">
+                   <Text className="text-slate-400 italic">You are currently the sole occupant of this room</Text>
+                </Col>
+              )}
+            </Row>
+          </Card>
+        )}
+
+        {/* Change Password Modal */}
+        <Modal
+          title={<div className="flex items-center gap-2 text-blue-600"><ShieldCheck size={20}/> Account Security</div>}
+          open={isChangingPassword}
+          onCancel={() => { setIsChangingPassword(false); passwordForm.resetFields(); }}
+          footer={null}
+          width={480}
+          className="rounded-3xl"
+        >
+          <Form form={passwordForm} layout="vertical" onFinish={onPasswordFinish} className="mt-6">
+            <Form.Item name="currentPassword" label="Existing Password" rules={[{ required: true }]}>
+              <Input.Password prefix={<Lock size={14} className="mr-2 text-slate-300"/>} placeholder="••••••••" className="h-12 rounded-xl" />
+            </Form.Item>
+            
+            <Divider className="my-6 border-slate-100" />
+            
+            <Form.Item name="newPassword" label="New Secure Password" rules={[{ required: true, min: 8 }]}>
+              <Input.Password prefix={<ShieldCheck size={14} className="mr-2 text-slate-300"/>} placeholder="Min. 8 characters" className="h-12 rounded-xl" />
+            </Form.Item>
+
+            <Form.Item name="confirmNewPassword" label="Confirm Password" dependencies={['newPassword']} rules={[{ required: true }, ({ getFieldValue }) => ({
+              validator(_, value) {
+                if (!value || getFieldValue('newPassword') === value) return Promise.resolve();
+                return Promise.reject(new Error('Passwords do not match!'));
+              },
+            })]}>
+              <Input.Password prefix={<CheckCircle2 size={14} className="mr-2 text-slate-300"/>} placeholder="Repeat new password" className="h-12 rounded-xl" />
+            </Form.Item>
+
+            <Button type="primary" htmlType="submit" block size="large" loading={submittingPassword} className="h-14 rounded-2xl shadow-lg shadow-blue-100 font-bold mt-4">
+              Update Security Credentials
+            </Button>
+          </Form>
+        </Modal>
+      </div>
+    </ConfigProvider>
   );
 };
 

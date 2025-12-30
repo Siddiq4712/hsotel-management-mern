@@ -1,355 +1,281 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Table, DatePicker, Button, Space, Tag, Spin, Alert, Collapse, Descriptions, Typography, Timeline, Badge, Modal, message } from 'antd';
-import { SearchOutlined, ReloadOutlined, EyeOutlined, CloseOutlined } from '@ant-design/icons';
-import { studentAPI } from '../../services/api'; // Corrected import
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Card, Table, DatePicker, Button, Space, Tag, Typography, 
+  Timeline, Badge, Modal, message, ConfigProvider, theme, 
+  Skeleton, Descriptions, Divider, Empty, Tooltip 
+} from 'antd';
+import { 
+  Eye, XCircle, Search, RefreshCw, ClipboardList, 
+  History, ShoppingBag, Clock, CheckCircle2, Truck, 
+  AlertTriangle, IndianRupee, Utensils, Inbox, ChevronLeft, ChevronRight
+} from 'lucide-react';
+import { studentAPI } from '../../services/api';
 import moment from 'moment';
 
-const { RangePicker } = DatePicker;
-const { Panel } = Collapse;
-const { Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
-const orderStatusColors = {
-  pending: 'gold',
-  confirmed: 'blue',
-  preparing: 'purple',
-  ready: 'cyan',
-  delivered: 'green',
-  cancelled: 'red'
-};
+const OrderSkeleton = () => (
+  <div className="p-8 space-y-6 bg-slate-50 min-h-screen">
+    <Skeleton.Input active style={{ width: 300 }} />
+    <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white">
+      <Skeleton active paragraph={{ rows: 10 }} />
+    </Card>
+  </div>
+);
 
 const MyFoodOrders = () => {
   const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [viewModalVisible, setViewModalVisible] = useState(false);
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 8;
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
       let params = {};
-      if (dateRange) {
+      if (dateRange && dateRange[0] && dateRange[1]) {
         params = {
           from_date: dateRange[0].format('YYYY-MM-DD'),
           to_date: dateRange[1].format('YYYY-MM-DD')
         };
       }
-      
-      const response = await studentAPI.getFoodOrders(params); // USE studentAPI
+      const response = await studentAPI.getFoodOrders(params);
       if (response.data.success) {
         setOrders(response.data.data);
-      } else {
-        setError('Failed to load orders: ' + (response.data.message || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Failed to fetch orders:', error);
-      setError('Failed to load orders. Please try again later.');
+      message.error('Failed to sync institutional canteen logs.');
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 800);
     }
-  };
+  }, [dateRange]);
 
-  const handleSearch = () => {
-    fetchOrders();
-  };
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
-  const handleReset = () => {
-    setDateRange(null);
-    fetchOrders();
-  };
-
-  const handleViewOrder = (order) => {
-    setSelectedOrder(order);
-    setViewModalVisible(true);
-  };
-
-  const handleCancelOrder = async (id) => {
+  const handleCancelOrder = (id) => {
     Modal.confirm({
       title: 'Confirm Cancellation',
-      content: 'Are you sure you want to cancel this order? This action cannot be undone.',
-      okText: 'Yes, Cancel',
+      icon: <AlertTriangle className="text-rose-500 mr-2" size={22} />,
+      content: 'Warden approval may be required if preparation has begun. Proceed?',
+      okText: 'Yes, Void Request',
       okType: 'danger',
-      cancelText: 'No',
+      cancelText: 'Back',
+      className: 'rounded-3xl',
       onOk: async () => {
         try {
-          const response = await studentAPI.cancelFoodOrder(id); // USE studentAPI
+          const response = await studentAPI.cancelFoodOrder(id);
           if (response.data.success) {
-            message.success('Order cancelled successfully');
+            message.success('Request voided successfully');
             fetchOrders();
-          } else {
-            message.error('Failed to cancel order: ' + (response.data.message || 'Unknown error'));
           }
-        } catch (error) {
-          console.error('Failed to cancel order:', error);
-          message.error('Failed to cancel order. Please try again later.');
-        }
+        } catch (e) { message.error('Cancellation rejected by server.'); }
       },
     });
   };
 
-  const renderOrderStatus = (status) => {
-    return <Tag color={orderStatusColors[status] || 'default'}>{status.toUpperCase()}</Tag>;
+  const statusMap = {
+    pending: { color: 'warning', icon: <Clock size={12} />, label: 'Requested' },
+    confirmed: { color: 'blue', icon: <CheckCircle2 size={12} />, label: 'Confirmed' },
+    preparing: { color: 'purple', icon: <Utensils size={12} />, label: 'In Kitchen' },
+    ready: { color: 'cyan', icon: <ShoppingBag size={12} />, label: 'At Counter' },
+    delivered: { color: 'success', icon: <Truck size={12} />, label: 'Served' },
+    cancelled: { color: 'error', icon: <XCircle size={12} />, label: 'Cancelled' }
   };
 
   const columns = [
     {
-      title: 'Order ID',
-      dataIndex: 'id',
+      title: 'Order Ref',
       key: 'id',
-      render: (id) => <span>#{id}</span>
+      render: (_, r) => (
+        <Space direction="vertical" size={0}>
+          <Text strong className="text-slate-700">ORD-#{r.id}</Text>
+          <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+            {moment(r.order_date).format('DD MMM, hh:mm A')}
+          </Text>
+        </Space>
+      )
     },
     {
-      title: 'Order Date',
-      dataIndex: 'order_date',
-      key: 'order_date',
-      render: (date) => moment(date).format('DD/MM/YYYY h:mm A')
-    },
-    {
-      title: 'Requested Time',
-      dataIndex: 'requested_time',
-      key: 'requested_time',
-      render: (time) => moment(time).format('DD/MM/YYYY h:mm A')
-    },
-    {
-      title: 'Status',
+      title: 'Workflow Status',
       dataIndex: 'status',
-      key: 'status',
-      render: renderOrderStatus
-    },
-    {
-      title: 'Payment',
-      dataIndex: 'payment_status',
-      key: 'payment',
       render: (status) => (
-        <Tag color={status === 'paid' ? 'green' : status === 'refunded' ? 'volcano' : 'gold'}>
-          {status.toUpperCase()}
+        <Tag 
+          icon={statusMap[status]?.icon} 
+          color={statusMap[status]?.color} 
+          className="rounded-full border-none px-3 font-bold uppercase text-[10px]"
+        >
+          {statusMap[status]?.label || status}
         </Tag>
       )
     },
     {
-      title: 'Amount',
+      title: 'Recon Amount',
       dataIndex: 'total_amount',
-      key: 'amount',
-      render: (amount) => `₹${parseFloat(amount).toFixed(2)}`
+      align: 'right',
+      render: (amt) => (
+        <Text strong className="text-blue-600">₹{parseFloat(amt).toFixed(2)}</Text>
+      )
     },
     {
       title: 'Actions',
       key: 'actions',
-      render: (_, record) => (
+      align: 'right',
+      render: (_, r) => (
         <Space>
-          <Button
-            type="primary"
-            icon={<EyeOutlined />}
-            size="small"
-            onClick={() => handleViewOrder(record)}
-          >
-            View
-          </Button>
-          
-          {record.status === 'pending' && (
-            <Button
-              type="danger"
-              icon={<CloseOutlined />}
-              size="small"
-              onClick={() => handleCancelOrder(record.id)}
-            >
-              Cancel
-            </Button>
+          <Button 
+            icon={<Eye size={14}/>} 
+            className="rounded-lg border-none shadow-sm bg-slate-50 hover:bg-blue-50 transition-colors"
+            onClick={() => { setSelectedOrder(r); setViewModalVisible(true); }}
+          />
+          {r.status === 'pending' && (
+            <Tooltip title="Void Request">
+              <Button 
+                danger 
+                type="text" 
+                icon={<XCircle size={14}/>} 
+                onClick={() => handleCancelOrder(r.id)} 
+              />
+            </Tooltip>
           )}
         </Space>
       )
     }
   ];
 
-  const renderOrderDetailModal = () => {
-    if (!selectedOrder) return null;
-    
-    return (
-      <Modal
-        title={<div>Order #{selectedOrder.id} Details</div>}
-        open={viewModalVisible} // Changed from `visible` to `open`
-        onCancel={() => setViewModalVisible(false)}
-        footer={[
-          <Button key="close" onClick={() => setViewModalVisible(false)}>
-            Close
-          </Button>
-        ]}
-        width={700}
-      >
-        <Descriptions bordered column={2}>
-          <Descriptions.Item label="Order Date" span={2}>
-            {moment(selectedOrder.order_date).format('DD/MM/YYYY h:mm A')}
-          </Descriptions.Item>
-          <Descriptions.Item label="Requested Time" span={2}>
-            {moment(selectedOrder.requested_time).format('DD/MM/YYYY h:mm A')}
-          </Descriptions.Item>
-          <Descriptions.Item label="Status">
-            {renderOrderStatus(selectedOrder.status)}
-          </Descriptions.Item>
-          <Descriptions.Item label="Payment Status">
-            <Tag color={selectedOrder.payment_status === 'paid' ? 'green' : selectedOrder.payment_status === 'refunded' ? 'volcano' : 'gold'}>
-              {selectedOrder.payment_status.toUpperCase()}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="Total Amount" span={2}>
-            ₹{parseFloat(selectedOrder.total_amount).toFixed(2)}
-          </Descriptions.Item>
-          {selectedOrder.notes && (
-            <Descriptions.Item label="Notes" span={2}>
-              {selectedOrder.notes}
-            </Descriptions.Item>
-          )}
-        </Descriptions>
-        
-        <Collapse defaultActiveKey={['1']} style={{ marginTop: 16 }}>
-          <Panel header="Order Items" key="1">
-            <Table
-              dataSource={selectedOrder.FoodOrderItems}
-              rowKey="id"
-              pagination={false}
-              columns={[
-                {
-                  title: 'Item',
-                  dataIndex: ['SpecialFoodItem', 'name'],
-                  key: 'item'
-                },
-                {
-                  title: 'Unit Price',
-                  dataIndex: 'unit_price',
-                  key: 'unit_price',
-                  render: (price) => `₹${parseFloat(price).toFixed(2)}`
-                },
-                {
-                  title: 'Quantity',
-                  dataIndex: 'quantity',
-                  key: 'quantity'
-                },
-                {
-                  title: 'Subtotal',
-                  dataIndex: 'subtotal',
-                  key: 'subtotal',
-                  render: (price) => `₹${parseFloat(price).toFixed(2)}`
-                }
-              ]}
-              expandable={{
-                expandedRowRender: record => 
-                  record.special_instructions ? (
-                    <p style={{ margin: 0 }}>
-                      <Text strong>Special Instructions:</Text> {record.special_instructions}
-                    </p>
-                  ) : null,
-                rowExpandable: record => record.special_instructions,
-              }}
-            />
-          </Panel>
-          
-          <Panel header="Order Timeline" key="2">
-            <Timeline mode="left">
-              <Timeline.Item color="green">
-                Order Placed
-                <p>{moment(selectedOrder.createdAt).format('DD/MM/YYYY h:mm A')}</p>
-              </Timeline.Item>
-              
-              {selectedOrder.status !== 'pending' && (
-                <Timeline.Item color="blue">
-                  Order Confirmed
-                  <p>{selectedOrder.status === 'pending' ? 'Pending' : moment(selectedOrder.updatedAt).format('DD/MM/YYYY h:mm A')}</p>
-                </Timeline.Item>
-              )}
-              
-              {(selectedOrder.status === 'preparing' || selectedOrder.status === 'ready' || selectedOrder.status === 'delivered') && (
-                <Timeline.Item color="purple">
-                  Preparing
-                  <p>{moment(selectedOrder.updatedAt).format('DD/MM/YYYY h:mm A')}</p>
-                </Timeline.Item>
-              )}
-              
-              {(selectedOrder.status === 'ready' || selectedOrder.status === 'delivered') && (
-                <Timeline.Item color="cyan">
-                  Ready for Pickup
-                  <p>{moment(selectedOrder.updatedAt).format('DD/MM/YYYY h:mm A')}</p>
-                </Timeline.Item>
-              )}
-              
-              {selectedOrder.status === 'delivered' && (
-                <Timeline.Item color="green">
-                  Delivered
-                  <p>{moment(selectedOrder.updatedAt).format('DD/MM/YYYY h:mm A')}</p>
-                </Timeline.Item>
-              )}
-              
-              {selectedOrder.status === 'cancelled' && (
-                <Timeline.Item color="red">
-                  Cancelled
-                  <p>{moment(selectedOrder.updatedAt).format('DD/MM/YYYY h:mm A')}</p>
-                </Timeline.Item>
-              )}
-            </Timeline>
-          </Panel>
-        </Collapse>
-      </Modal>
-    );
-  };
+  if (loading) return <OrderSkeleton />;
 
   return (
-    <Card 
-      title={<span>My Food Orders <Badge count={orders.filter(o => o.status === 'pending' || o.status === 'confirmed' || o.status === 'preparing' || o.status === 'ready').length} /></span>}
-      variant="borderless" // Changed from `bordered={false}` to `variant="borderless"` for Ant Design v5
-    >
-      {error && (
-        <Alert
-          message="Error"
-          description={error}
-          type="error"
-          showIcon
-          closable
-          style={{ marginBottom: 16 }}
-          onClose={() => setError(null)}
-        />
-      )}
-      
-      <div style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <RangePicker
-            value={dateRange}
-            onChange={setDateRange}
-            format="YYYY-MM-DD"
-          />
-          
-          <Button
-            type="primary"
-            icon={<SearchOutlined />}
-            onClick={handleSearch}
-          >
-            Search
-          </Button>
-          
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={handleReset}
-          >
-            Reset
-          </Button>
-        </Space>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+        
+        {/* Institutional Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <ClipboardList className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Canteen Requests</Title>
+              <Text type="secondary">Monitor special meal requests and their impact on your mess ledger</Text>
+            </div>
+          </div>
+          <Badge count={orders.filter(o => !['delivered', 'cancelled'].includes(o.status)).length} overflowCount={99}>
+             <div className="bg-white p-3 px-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
+                <Clock size={16} className="text-blue-600" />
+                <Text strong className="text-[11px] uppercase tracking-wider text-slate-500">Live Requests</Text>
+             </div>
+          </Badge>
+        </div>
+
+        {/* Filter Toolbar */}
+        <Card className="border-none shadow-sm rounded-[24px]">
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex items-center gap-3 bg-slate-50 p-1 px-3 rounded-xl border border-slate-100 flex-1 md:max-w-md focus-within:border-blue-300 transition-all">
+              <Search size={18} className="text-slate-300" />
+              <DatePicker.RangePicker 
+                value={dateRange} 
+                onChange={(val) => { setDateRange(val); setCurrentPage(1); }} 
+                bordered={false} 
+                className="w-full h-10 font-medium"
+              />
+            </div>
+            <Button 
+              type="primary" 
+              icon={<Search size={16}/>} 
+              onClick={fetchOrders} 
+              className="rounded-xl h-12 px-8 font-bold shadow-lg shadow-blue-100"
+            >
+              Apply Filter
+            </Button>
+            <Button 
+              icon={<RefreshCw size={16}/>} 
+              onClick={() => { setDateRange(null); setCurrentPage(1); fetchOrders(); }}
+              className="rounded-xl h-12 w-12 flex items-center justify-center border-slate-200"
+            />
+          </div>
+        </Card>
+
+        {/* Data Container */}
+        <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+          {orders.length > 0 ? (
+            <Table 
+              dataSource={orders} 
+              columns={columns} 
+              rowKey="id" 
+              pagination={{ 
+                current: currentPage,
+                pageSize: pageSize,
+                onChange: (p) => setCurrentPage(p),
+                position: ['bottomCenter'],
+                showSizeChanger: false,
+                itemRender: (page, type, originalElement) => {
+                  if (type === 'prev') return <Button type="text" icon={<ChevronLeft size={14}/>} />;
+                  if (type === 'next') return <Button type="text" icon={<ChevronRight size={14}/>} />;
+                  return originalElement;
+                }
+              }}
+            />
+          ) : (
+            <div className="py-24 flex flex-col items-center justify-center bg-white">
+              <Empty 
+                image={<div className="bg-slate-50 p-8 rounded-full mb-4"><Inbox size={64} className="text-slate-200" /></div>}
+                description={
+                  <div className="space-y-1">
+                    <Text strong className="text-slate-600 text-lg block">No Requests Found</Text>
+                    <Text className="text-slate-400 block">Your institutional canteen order history for this period is empty.</Text>
+                  </div>
+                }
+              >
+                <Button type="link" onClick={() => { setDateRange(null); fetchOrders(); }} className="font-bold text-blue-600 mt-2">
+                  View All Orders
+                </Button>
+              </Empty>
+            </div>
+          )}
+        </Card>
+
+        {/* Audit Modal (Unchanged Detail Logic) */}
+        <Modal
+          title={<div className="flex items-center gap-2 text-blue-600"><ClipboardList size={20}/> Canteen Audit Dossier</div>}
+          open={viewModalVisible}
+          onCancel={() => setViewModalVisible(false)}
+          footer={<Button type="primary" onClick={() => setViewModalVisible(false)} className="rounded-xl h-11 px-8">Close Dossier</Button>}
+          width={800}
+          className="rounded-[32px]"
+        >
+          {selectedOrder && (
+            <div className="mt-6 space-y-6">
+              <Descriptions bordered column={2} className="bg-slate-50/50 rounded-2xl overflow-hidden">
+                <Descriptions.Item label="Ref ID">REC-#{selectedOrder.id}</Descriptions.Item>
+                <Descriptions.Item label="Serving Status">
+                   {statusMap[selectedOrder.status]?.label}
+                </Descriptions.Item>
+                <Descriptions.Item label="Amount">₹{parseFloat(selectedOrder.total_amount).toFixed(2)}</Descriptions.Item>
+                <Descriptions.Item label="Notes">{selectedOrder.notes || 'N/A'}</Descriptions.Item>
+              </Descriptions>
+
+              <Table
+                dataSource={selectedOrder.FoodOrderItems}
+                rowKey="id"
+                pagination={false}
+                size="small"
+                className="border border-slate-100 rounded-xl overflow-hidden"
+                columns={[
+                  { title: 'Item', dataIndex: ['SpecialFoodItem', 'name'] },
+                  { title: 'Qty', dataIndex: 'quantity', align: 'center' },
+                  { title: 'Subtotal', dataIndex: 'subtotal', align: 'right', render: (s) => `₹${parseFloat(s).toFixed(2)}` }
+                ]}
+              />
+            </div>
+          )}
+        </Modal>
       </div>
-      
-      <Spin spinning={loading}>
-        <Table
-          dataSource={orders}
-          columns={columns}
-          rowKey="id"
-          pagination={{ pageSize: 10 }}
-          bordered
-        />
-      </Spin>
-      
-      {renderOrderDetailModal()}
-    </Card>
+    </ConfigProvider>
   );
 };
 

@@ -1,165 +1,185 @@
-// src/components/Student/ApplyDayReduction.jsx
 import React, { useState } from 'react';
-import { studentAPI } from '../../services/api';
-import { CalendarDays, AlertCircle, CheckCircle } from 'lucide-react';
+import { 
+  Card, Form, Input, DatePicker, Button, Typography, 
+  Row, Col, Space, Divider, message, ConfigProvider, 
+  theme, Alert, Statistic 
+} from 'antd';
+import { 
+  CalendarDays, Send, RefreshCw, Info, 
+  Clock, ShieldCheck, Calculator, AlertTriangle 
+} from 'lucide-react';
 import moment from 'moment';
-import { Input, DatePicker, Button, Alert } from 'antd'; // Ant Design imports
-import { toast } from 'react-toastify'; // react-toastify import
+import { studentAPI } from '../../services/api';
 
+const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 const ApplyDayReduction = () => {
-  const [formData, setFormData] = useState({
-    from_date: null, // Use moment objects for Ant Design DatePicker
-    to_date: null,
-    reason: ''
-  });
+  const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [previewDays, setPreviewDays] = useState(0);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // --- Calculate Day Difference for UI Feedback ---
+  const handleValuesChange = (_, allValues) => {
+    if (allValues.dates && allValues.dates[0] && allValues.dates[1]) {
+      const diff = allValues.dates[1].diff(allValues.dates[0], 'days') + 1;
+      setPreviewDays(diff > 0 ? diff : 0);
+    } else {
+      setPreviewDays(0);
+    }
+  };
+
+  const onFinish = async (values) => {
     setLoading(true);
-
-    const fromDateStr = formData.from_date ? formData.from_date.format('YYYY-MM-DD') : null;
-    const toDateStr = formData.to_date ? formData.to_date.format('YYYY-MM-DD') : null;
-
-    // Client-side date validation
-    if (!fromDateStr || !toDateStr || !formData.reason) {
-      toast.error('All fields are required.');
-      setLoading(false);
-      return;
-    }
-    if (moment(fromDateStr).isAfter(moment(toDateStr))) {
-      toast.error('From date cannot be after to date.');
-      setLoading(false);
-      return;
-    }
-    if (moment(toDateStr).isBefore(moment(), 'day')) {
-      toast.error('Cannot request day reduction for past dates.');
-      setLoading(false);
-      return;
-    }
+    const payload = {
+      from_date: values.dates[0].format('YYYY-MM-DD'),
+      to_date: values.dates[1].format('YYYY-MM-DD'),
+      reason: values.reason
+    };
 
     try {
-      await studentAPI.applyDayReduction({
-        from_date: fromDateStr,
-        to_date: toDateStr,
-        reason: formData.reason
-      });
-      toast.success('Day reduction request submitted successfully for admin review!');
-      setFormData({
-        from_date: null,
-        to_date: null,
-        reason: ''
-      });
+      await studentAPI.applyDayReduction(payload);
+      message.success('Day reduction request submitted for admin review');
+      form.resetFields();
+      setPreviewDays(0);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to submit day reduction request.');
+      message.error(error.response?.data?.message || 'Failed to submit request');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDateChange = (date, dateString, name) => {
-    setFormData({
-      ...formData,
-      [name]: date
-    });
-  };
-
-  const handleReasonChange = (e) => {
-    setFormData({
-      ...formData,
-      reason: e.target.value
-    });
-  };
-
-  const disabledToDate = (current) => {
-    // Can not select days before `from_date`
-    return current && formData.from_date && current.isBefore(formData.from_date, 'day');
-  };
-
   return (
-    <div className="p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-          <CalendarDays className="mr-3 text-blue-600" size={32} /> Apply Day Reduction
-        </h1>
-        <p className="text-gray-600 mt-2">Request reduction in your mess man-days for specific dates.</p>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-md p-6 max-w-2xl">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="from_date" className="block text-sm font-medium text-gray-700 mb-2">
-                From Date *
-              </label>
-              <DatePicker
-                id="from_date"
-                value={formData.from_date}
-                onChange={(date, dateString) => handleDateChange(date, dateString, 'from_date')}
-                format="YYYY-MM-DD"
-                style={{ width: '100%' }}
-                disabledDate={(current) => current && current.isBefore(moment().startOf('day'))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
+        
+        {/* Header Section */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <Clock className="text-white" size={24} />
             </div>
-
             <div>
-              <label htmlFor="to_date" className="block text-sm font-medium text-gray-700 mb-2">
-                To Date *
-              </label>
-              <DatePicker
-                id="to_date"
-                value={formData.to_date}
-                onChange={(date, dateString) => handleDateChange(date, dateString, 'to_date')}
-                format="YYYY-MM-DD"
-                style={{ width: '100%' }}
-                disabledDate={disabledToDate}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
+              <Title level={2} style={{ margin: 0 }}>Day Reduction</Title>
+              <Text type="secondary">Request a rebate on mess charges for scheduled absences</Text>
             </div>
           </div>
+        </div>
 
-          <div>
-            <label htmlFor="reason" className="block text-sm font-medium text-gray-700 mb-2">
-              Reason for Day Reduction *
-            </label>
-            <TextArea
-              id="reason"
-              value={formData.reason}
-              onChange={handleReasonChange}
-              rows={4}
-              placeholder="Please provide a detailed reason for your day reduction request (e.g., family emergency, off-campus event, medical leave)."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
-            />
-          </div>
+        <Row gutter={24}>
+          {/* Form Side */}
+          <Col lg={14} xs={24}>
+            <Card className="border-none shadow-sm rounded-[32px] p-2">
+              <Form 
+                form={form} 
+                layout="vertical" 
+                onFinish={onFinish}
+                onValuesChange={handleValuesChange}
+              >
+                <Form.Item 
+                  name="dates" 
+                  label={<Text strong>Reduction Period</Text>} 
+                  rules={[{ required: true, message: 'Please select dates' }]}
+                >
+                  <DatePicker.RangePicker 
+                    className="w-full h-12 rounded-xl" 
+                    format="YYYY-MM-DD"
+                    disabledDate={(current) => current && current < moment().startOf('day')}
+                  />
+                </Form.Item>
 
-          <div className="flex gap-4">
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={loading}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Submitting...' : 'Submit Request'}
-            </Button>
+                <Form.Item 
+                  name="reason" 
+                  label={<Text strong>Justification</Text>} 
+                  rules={[{ required: true, min: 10, message: 'Please provide a detailed reason' }]}
+                >
+                  <TextArea 
+                    rows={5} 
+                    placeholder="Describe why you are requesting reduction (e.g. Internship, Medical, Family event)..." 
+                    className="rounded-xl p-4" 
+                  />
+                </Form.Item>
 
-            <Button
-              onClick={() => {
-                setFormData({ from_date: null, to_date: null, reason: '' });
-              }}
-              className="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 transition-colors"
-            >
-              Reset
-            </Button>
-          </div>
-        </form>
+                <Divider className="my-6 border-slate-100" />
+
+                <div className="flex gap-4">
+                  <Button 
+                    type="primary" 
+                    htmlType="submit" 
+                    size="large" 
+                    loading={loading} 
+                    icon={<Send size={18} />}
+                    className="h-14 rounded-2xl shadow-lg shadow-blue-100 font-bold flex-1"
+                  >
+                    Submit Request
+                  </Button>
+                  <Button 
+                    size="large" 
+                    icon={<RefreshCw size={18} />} 
+                    onClick={() => { form.resetFields(); setPreviewDays(0); }}
+                    className="h-14 rounded-2xl px-8"
+                  >
+                    Reset
+                  </Button>
+                </div>
+              </Form>
+            </Card>
+          </Col>
+
+          {/* Info Side */}
+          <Col lg={10} xs={24}>
+            <div className="space-y-6">
+              {/* Live Preview Card */}
+              <Card className="border-none shadow-sm rounded-[32px] bg-blue-600 text-white relative overflow-hidden">
+                <div className="relative z-10">
+                  <Title level={4} className="text-white mb-6 flex items-center gap-2">
+                    <Calculator size={20} /> Impact Preview
+                  </Title>
+                  
+                  <div className="space-y-6">
+                    <Statistic 
+                      title={<span className="text-blue-100 text-xs uppercase font-bold tracking-widest">Total Days Saved</span>}
+                      value={previewDays}
+                      valueStyle={{ color: 'white', fontWeight: 900, fontSize: '2.5rem' }}
+                      suffix={<span className="text-lg opacity-60 ml-2">Days</span>}
+                    />
+                    
+                    <div className="bg-blue-500/30 p-4 rounded-2xl border border-blue-400/50 flex items-center gap-3">
+                      <Info size={20} className="text-blue-100" />
+                      <Text className="text-[11px] text-blue-50 leading-relaxed">
+                        Reductions are subject to warden approval. Once approved, these days will be deducted from your monthly mess bill.
+                      </Text>
+                    </div>
+                  </div>
+                </div>
+                <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-blue-400 rounded-full opacity-20" />
+              </Card>
+
+              {/* Policy Notice */}
+              <Alert
+                message={<Text strong>Submission Rules</Text>}
+                description={
+                  <div className="text-[12px] text-slate-500 mt-1 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <ShieldCheck size={14} className="text-emerald-500 mt-0.5" />
+                      <span>Requests must be submitted at least 24 hours prior to leave.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={14} className="text-amber-500 mt-0.5" />
+                      <span>Backdated reductions are generally not permitted.</span>
+                    </div>
+                  </div>
+                }
+                type="info"
+                showIcon
+                icon={<Info className="text-blue-500" size={20} />}
+                className="rounded-[24px] border-blue-50 bg-white p-4"
+              />
+            </div>
+          </Col>
+        </Row>
       </div>
-    </div>
+    </ConfigProvider>
   );
 };
 
