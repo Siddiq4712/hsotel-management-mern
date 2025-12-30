@@ -1,403 +1,316 @@
-import React, { useState, useEffect } from 'react';
-import { studentAPI } from '../../services/api';
-import {
-  User, Bed, Receipt, Calendar, Home,
-  CreditCard, FileText, Clock, Utensils, AlertTriangle, Info
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  Card, Typography, Row, Col, Statistic, Button, Space, 
+  Select, Divider, ConfigProvider, theme, Skeleton, Badge, Tooltip 
+} from 'antd';
+import { 
+  User, Bed, Receipt, Calendar, Home, CreditCard, 
+  FileText, Clock, Utensils, AlertTriangle, Info, 
+  ChevronLeft, ChevronRight, LayoutGrid, RefreshCw, 
+  TrendingUp, CheckCircle2, XCircle, MinusCircle 
 } from 'lucide-react';
-import {
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  ClockCircleOutlined
-} from '@ant-design/icons';
 import { Bar } from 'react-chartjs-2';
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
+  Chart as ChartJS, CategoryScale, LinearScale, 
+  BarElement, Title as ChartTitle, Tooltip as ChartTooltip, Legend
 } from 'chart.js';
 import moment from 'moment';
 import { motion } from 'framer-motion';
-import clsx from 'clsx';
+import { studentAPI } from '../../services/api';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTitle, ChartTooltip, Legend);
 
-/* -------------------- UI HELPERS -------------------- */
-const fadeUp = {
-  hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0 },
-};
+const { Title, Text } = Typography;
 
-const Card = ({ title, icon: Icon, accent = 'blue', right, children }) => (
-  <motion.div
-    variants={fadeUp}
-    initial="hidden"
-    animate="visible"
-    transition={{ duration: 0.35 }}
-    className="relative overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100"
-  >
-    <div className={`absolute inset-x-0 top-0 h-1 bg-${accent}-500`} />
-    <div className="p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {Icon && <Icon className={`text-${accent}-600`} size={20} />}
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-        </div>
-        {right}
-      </div>
-      {children}
+// --- 1. Meaningful Skeleton for Dashboard ---
+const DashboardSkeleton = () => (
+  <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
+    <div className="flex justify-between items-center">
+      <Skeleton active title={{ width: 200 }} paragraph={{ rows: 1 }} />
+      <Skeleton.Button active style={{ width: 150 }} />
     </div>
-  </motion.div>
-);
-
-const Stat = ({ label, value, icon: Icon, color }) => (
-  <div className="flex items-center gap-3 rounded-xl bg-gray-50 p-4 ring-1 ring-gray-100">
-    <div className={`rounded-xl p-2 bg-${color}-100 text-${color}-700`}>
-      <Icon size={20} />
-    </div>
-    <div>
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="text-lg font-semibold text-gray-900">{value}</div>
-    </div>
+    <Row gutter={24}>
+      {[...Array(4)].map((_, i) => (
+        <Col span={6} key={i}><Skeleton.Button active block style={{ height: 100, borderRadius: 24 }} /></Col>
+      ))}
+    </Row>
+    <Row gutter={24}>
+      <Col span={16}><Skeleton active paragraph={{ rows: 12 }} /></Col>
+      <Col span={8}><Skeleton active paragraph={{ rows: 12 }} /></Col>
+    </Row>
   </div>
 );
 
-/* -------------------- CALENDAR HEATMAP HELPER -------------------- */
-const generateCalendarDays = (year, month, attendanceData) => {
-  const firstDay = moment(`${year}-${month.toString().padStart(2, '0')}-01`);
-  const startDate = firstDay.clone().startOf('week'); 
-  const endDate = firstDay.clone().endOf('month').endOf('week');
-  const days = [];
-  let current = startDate.clone();
-  while (current.isBefore(endDate) || current.isSame(endDate)) {
-    days.push({
-      date: current.clone(),
-      isCurrentMonth: current.month() === firstDay.month(),
-      status: null,
-    });
-    current.add(1, 'day');
-  }
-  const attMap = new Map(
-    attendanceData.map((d) => [moment(d.date).format('YYYY-MM-DD'), d.status])
-  );
-  days.forEach((day) => {
-    const key = day.date.format('YYYY-MM-DD');
-    if (attMap.has(key)) {
-      day.status = attMap.get(key);
-    }
-  });
-  return days;
-};
-
-/* -------------------- MAIN COMPONENT -------------------- */
 const StudentDashboard = ({ setCurrentView }) => {
   const [profile, setProfile] = useState(null);
-  const [attendance, setAttendance] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(true);
   const [heatmapLoading, setHeatmapLoading] = useState(true);
+  
   const [messExpenseChartData, setMessExpenseChartData] = useState(null);
   const [attendanceChartData, setAttendanceChartData] = useState(null);
   const [attendanceHeatmapData, setAttendanceHeatmapData] = useState([]);
 
-  const currentYear = moment().year();
-  const [selectedYear, setSelectedYear] = useState(currentYear);
+  // Independent Navigators
+  const [selectedYear, setSelectedYear] = useState(moment().year());
   const [selectedMonth, setSelectedMonth] = useState(moment().month() + 1);
 
-  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
-  const monthOptions = Array.from({ length: 12 }, (_, i) => ({
-    value: i + 1,
-    label: moment().month(i).format('MMM'),
-  }));
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { labels: { color: '#374151', font: { size: 12 } } },
-    },
-    scales: {
-      x: { ticks: { color: '#6b7280' }, grid: { display: false } },
-      y: { ticks: { color: '#6b7280' }, grid: { color: 'rgba(0,0,0,0.05)' } },
-    },
+  /* -------- NAVIGATION HANDLERS -------- */
+  const changeYear = (offset) => setSelectedYear(prev => prev + offset);
+  const changeMonth = (offset) => {
+    let next = selectedMonth + offset;
+    if (next > 12) next = 1;
+    if (next < 1) next = 12;
+    setSelectedMonth(next);
   };
 
-  /* -------- DATA PROCESSORS -------- */
-  const processMessExpenseData = (data, year) => {
-    const labels = [];
-    const expenses = [];
-    for (let i = 0; i < 12; i++) {
-      const m = moment().year(year).month(i);
-      const hit = data.find((d) => d.year === year && d.month === i + 1);
-      labels.push(m.format('MMM'));
-      expenses.push(hit ? Number(hit.total_amount) : 0);
+  /* -------- DATA FETCHING -------- */
+  const fetchDashboardData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const p = await studentAPI.getProfile();
+      setProfile(p.data.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTimeout(() => setLoading(false), 800);
     }
-    setMessExpenseChartData({
-      labels,
-      datasets: [
-        {
-          label: `Mess Expense (₹) - ${year}`,
-          data: expenses,
-          backgroundColor: 'rgba(239, 68, 68, 0.6)',
-          borderColor: 'rgba(239, 68, 68, 1)',
-          borderRadius: 8,
-        },
-      ],
-    });
-  };
-
-  const processAttendanceData = (data, year) => {
-    const labels = [];
-    const present = [];
-    const absent = [];
-    const od = [];
-    for (let i = 0; i < 12; i++) {
-      const m = moment().year(year).month(i);
-      const hit = data.find((d) => d.year === year && d.month === i + 1);
-      labels.push(m.format('MMM'));
-      if (hit) {
-        present.push(Math.max(Number(hit.present_days || 0), 0));
-        absent.push(Number(hit.absent_days || 0));
-        od.push(Number(hit.on_duty_days || 0));
-      } else {
-        present.push(0); absent.push(0); od.push(0);
-      }
-    }
-    setAttendanceChartData({
-      labels,
-      datasets: [
-        { label: 'Present', data: present, backgroundColor: 'rgba(34, 197, 94, 0.7)' },
-        { label: 'Absent', data: absent, backgroundColor: 'rgba(239, 68, 68, 0.7)' },
-        { label: 'On Duty', data: od, backgroundColor: 'rgba(59, 130, 246, 0.7)' },
-      ],
-    });
-  };
-
-  /* -------- FETCH BASIC DATA -------- */
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const p = await studentAPI.getProfile();
-        setProfile(p.data.data);
-        const date = moment().format('YYYY-MM-DD');
-        const a = await studentAPI.getMyAttendance({ date });
-        setAttendance(a.data.data?.[0] || null);
-      } finally {
-        setLoading(false);
-      }
-    })();
   }, []);
 
-  /* -------- FETCH CHART DATA -------- */
-  useEffect(() => {
-    if (!profile) return;
-    (async () => {
-      setChartLoading(true);
-      try {
-        const mess = await studentAPI.getMonthlyMessExpensesChart();
-        if (mess.data.success) processMessExpenseData(mess.data.data, selectedYear);
-        const att = await studentAPI.getMonthlyAttendanceChart();
-        if (att.data.success) processAttendanceData(att.data.data, selectedYear);
-      } finally {
-        setChartLoading(false);
-      }
-    })();
-  }, [selectedYear, profile]);
+  const fetchChartData = useCallback(async () => {
+    setChartLoading(true);
+    try {
+      const [messRes, attRes] = await Promise.all([
+        studentAPI.getMonthlyMessExpensesChart(),
+        studentAPI.getMonthlyAttendanceChart()
+      ]);
+      
+      const expenses = Array(12).fill(0).map((_, i) => {
+        const hit = messRes.data.data?.find(d => d.year === selectedYear && d.month === i + 1);
+        return hit ? Number(hit.total_amount) : 0;
+      });
 
-  /* -------- FETCH HEATMAP DATA -------- */
-  useEffect(() => {
-    (async () => {
-      setHeatmapLoading(true);
-      try {
-        const from_date = moment(`${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`).format('YYYY-MM-DD');
-        const to_date = moment(from_date).endOf('month').format('YYYY-MM-DD');
-        const res = await studentAPI.getMyAttendance({ from_date, to_date });
-        setAttendanceHeatmapData(res.data.data || []);
-      } finally {
-        setHeatmapLoading(false);
-      }
-    })();
+      setMessExpenseChartData({
+        labels: moment.monthsShort(),
+        datasets: [{
+          label: 'Mess Bill (₹)',
+          data: expenses,
+          backgroundColor: '#2563eb',
+          borderRadius: 8,
+        }]
+      });
+
+      const present = Array(12).fill(0);
+      const absent = Array(12).fill(0);
+      attRes.data.data?.forEach(d => {
+        if(d.year === selectedYear) {
+          present[d.month - 1] = d.present_days;
+          absent[d.month - 1] = d.absent_days;
+        }
+      });
+
+      setAttendanceChartData({
+        labels: moment.monthsShort(),
+        datasets: [
+          { label: 'Present', data: present, backgroundColor: '#10b981' },
+          { label: 'Absent', data: absent, backgroundColor: '#f43f5e' }
+        ]
+      });
+    } finally {
+      setChartLoading(false);
+    }
+  }, [selectedYear]);
+
+  const fetchHeatmap = useCallback(async () => {
+    setHeatmapLoading(true);
+    try {
+      const start = moment().year(selectedYear).month(selectedMonth - 1).startOf('month').format('YYYY-MM-DD');
+      const end = moment(start).endOf('month').format('YYYY-MM-DD');
+      const res = await studentAPI.getMyAttendance({ from_date: start, to_date: end });
+      setAttendanceHeatmapData(res.data.data || []);
+    } finally {
+      setHeatmapLoading(false);
+    }
   }, [selectedYear, selectedMonth]);
 
-  const statusMap = {
-    P: { text: 'Present', icon: <CheckCircleOutlined className="text-green-600 text-2xl" />, bg: 'bg-green-50 ring-green-200' },
-    A: { text: 'Absent', icon: <CloseCircleOutlined className="text-red-600 text-2xl" />, bg: 'bg-red-50 ring-red-200' },
-    OD: { text: 'On Duty', icon: <ClockCircleOutlined className="text-blue-600 text-2xl" />, bg: 'bg-blue-50 ring-blue-200' },
-  };
-  const status = attendance ? statusMap[attendance.status] : null;
+  useEffect(() => { fetchDashboardData(); }, [fetchDashboardData]);
+  useEffect(() => { fetchChartData(); }, [fetchChartData]);
+  useEffect(() => { fetchHeatmap(); }, [fetchHeatmap]);
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-gray-50"><div className="animate-pulse text-blue-600 font-bold">LOADING DASHBOARD...</div></div>;
+  const heatmapDays = useMemo(() => {
+    const firstDay = moment().year(selectedYear).month(selectedMonth - 1).startOf('month');
+    const start = firstDay.clone().startOf('week');
+    const end = firstDay.clone().endOf('month').endOf('week');
+    const days = [];
+    let curr = start.clone();
+    
+    const attMap = new Map(attendanceHeatmapData.map(d => [moment(d.date).format('YYYY-MM-DD'), d.status]));
 
-  const days = generateCalendarDays(selectedYear, selectedMonth, attendanceHeatmapData);
+    while (curr.isBefore(end) || curr.isSame(end)) {
+      days.push({
+        date: curr.clone(),
+        isCurrentMonth: curr.month() === firstDay.month(),
+        status: attMap.get(curr.format('YYYY-MM-DD'))
+      });
+      curr.add(1, 'day');
+    }
+    return days;
+  }, [selectedYear, selectedMonth, attendanceHeatmapData]);
+
+  if (loading) return <DashboardSkeleton />;
 
   return (
-    <div className="space-y-6 pb-10">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500">Welcome back, {profile?.username}</p>
-      </div>
-
-      {/* --- ANNUAL FEE REMINDER BANNER --- */}
-      {profile?.Hostel?.show_fee_reminder && (
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-orange-500 p-5 rounded-2xl shadow-sm flex flex-col md:flex-row items-center justify-between gap-4"
-        >
-          <div className="flex items-center gap-4">
-            <div className="bg-orange-100 p-3 rounded-full text-orange-600">
-              <AlertTriangle size={24} />
-            </div>
-            <div>
-              <h3 className="text-orange-900 font-bold text-lg leading-tight">Annual Hostel Fee Payment</h3>
-              <p className="text-orange-800 text-sm">
-                The annual management fee has been released. Total amount due: 
-                <span className="font-bold text-lg ml-1">₹{profile.Hostel.annual_fee_amount}</span>
-              </p>
-            </div>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+        
+        {/* Header Section */}
+        <div className="flex justify-between items-center">
+          <div>
+            <Title level={2} style={{ margin: 0 }}>Dashboard</Title>
+            <Text type="secondary">Welcome back, {profile?.username} • {profile?.roll_number}</Text>
           </div>
-          <button 
-            onClick={() => setCurrentView('mess-bills')} 
-            className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-all active:scale-95"
-          >
-            Pay Now
-          </button>
-        </motion.div>
-      )}
-
-      {/* Stats Grid */}
-      {/* Stats Grid */}
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-  <Stat label="Attendance Status" value={status?.text || 'Not Marked'} icon={Calendar} color="blue" />
-  <Stat label="Current Hostel" value={profile?.Hostel?.name || '-'} icon={Home} color="green" />
-  <Stat label="Room No" value={profile?.tbl_RoomAllotments?.[0]?.HostelRoom?.room_number || '-'} icon={Bed} color="purple" />
-  
-  {/* The updated Fee Stat Card */}
-<Stat 
-  label="Annual Fee Status" 
-  value={(profile?.Hostel?.show_fee_reminder == 1) // Using == 1 handles both true and the number 1
-    ? `₹ ${Number(profile?.Hostel?.annual_fee_amount).toLocaleString()}` 
-    : "No Pending Fees"
-  } 
-  icon={Receipt} 
-  color={(profile?.Hostel?.show_fee_reminder == 1) ? "orange" : "green"} 
-/>
-</div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Attendance Card */}
-          <Card title="Today's Attendance" icon={Calendar} accent="blue">
-            <div className={clsx("flex gap-4 rounded-xl p-4 ring-1", status?.bg || "bg-gray-50 ring-gray-200")}>
-              {status?.icon || <ClockCircleOutlined className="text-gray-400 text-2xl" />}
-              <div>
-                <div className="font-medium">{status?.text || 'Attendance not marked yet'}</div>
-                <div className="text-xs text-gray-500">
-                  {attendance?.date ? moment(attendance.date).format('LL') : moment().format('LL')}
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          {/* Action Buttons */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <button onClick={() => setCurrentView('submit-complaint')} className="flex flex-col items-center p-4 rounded-xl bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-all active:scale-95">
-              <FileText className="w-6 h-6 text-blue-600 mb-2" />
-              <span className="text-xs font-bold text-gray-700 text-center">Complaints</span>
-            </button>
-            <button onClick={() => setCurrentView('apply-leave')} className="flex flex-col items-center p-4 rounded-xl bg-green-50 border border-green-100 hover:bg-green-100 transition-all active:scale-95">
-              <Calendar className="w-6 h-6 text-green-600 mb-2" />
-              <span className="text-xs font-bold text-gray-700 text-center">Leave</span>
-            </button>
-            <button onClick={() => setCurrentView('day-reduction')} className="flex flex-col items-center p-4 rounded-xl bg-purple-50 border border-purple-100 hover:bg-purple-100 transition-all active:scale-95">
-              <Clock className="w-6 h-6 text-purple-600 mb-2" />
-              <span className="text-xs font-bold text-gray-700 text-center">Reduction</span>
-            </button>
-            <button onClick={() => setCurrentView('food-order')} className="flex flex-col items-center p-4 rounded-xl bg-orange-50 border border-orange-100 hover:bg-orange-100 transition-all active:scale-95">
-              <Utensils className="w-6 h-6 text-orange-600 mb-2" />
-              <span className="text-xs font-bold text-gray-700 text-center">Order Food</span>
-            </button>
-          </div>
-
-          {/* Mess Expense Chart */}
-          <Card 
-            title="Mess Expense Trend" 
-            icon={CreditCard} 
-            accent="red"
-            right={
-              <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="rounded-lg border px-2 py-1 text-xs font-medium">
-                {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-            }
-          >
-            <div className="h-64">
-              {chartLoading ? <div className="h-full animate-pulse bg-gray-50 rounded-xl" /> : <Bar data={messExpenseChartData} options={chartOptions} />}
-            </div>
-          </Card>
+          <Button icon={<RefreshCw size={16}/>} onClick={() => fetchDashboardData()} className="rounded-xl h-11">Refresh</Button>
         </div>
 
-        <div className="space-y-6">
-          {/* Attendance Chart */}
-          <Card title="Attendance Overview" icon={Calendar} accent="green">
-            <div className="h-56">
-              {chartLoading ? <div className="h-full animate-pulse bg-gray-50 rounded-xl" /> : <Bar data={attendanceChartData} options={chartOptions} />}
-            </div>
-          </Card>
-
-          {/* Attendance Heatmap */}
-          <Card 
-            title="Attendance Heatmap" 
-            icon={Calendar} 
-            accent="yellow"
-            right={
-              <div className="flex gap-1">
-                <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="rounded-lg border px-2 py-1 text-xs">
-                  {monthOptions.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                </select>
+        {/* --- FEE REMINDER ALERT --- */}
+        {profile?.Hostel?.show_fee_reminder == 1 && (
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="bg-orange-600 rounded-[32px] p-6 shadow-lg shadow-orange-100 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="p-4 bg-white/20 rounded-2xl"><AlertTriangle className="text-white" size={28} /></div>
+              <div>
+                <Title level={4} style={{ color: 'white', margin: 0 }}>Hostel Management Fee Pending</Title>
+                <Text style={{ color: 'rgba(255,255,255,0.8)' }}>Final amount due: <span className="font-bold text-white text-lg">₹{profile.Hostel.annual_fee_amount}</span></Text>
               </div>
-            }
-          >
-            <div className="min-h-60">
-              {heatmapLoading ? (
-                <div className="h-60 animate-pulse bg-gray-50 rounded-xl" />
-              ) : (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-7 gap-1 text-[10px] text-center font-bold text-gray-400">
-                    {['S','M','T','W','T','F','S'].map(d => <div key={d}>{d}</div>)}
+            </div>
+            <Button size="large" className="rounded-2xl h-14 px-8 font-bold border-none shadow-xl" onClick={() => setCurrentView('mess-bills')}>Pay Now</Button>
+          </motion.div>
+        )}
+
+        {/* Top Stats Grid */}
+        <Row gutter={[24, 24]}>
+          {[
+            { label: 'Hostel Unit', val: profile?.Hostel?.name || '-', icon: Home, color: 'text-blue-500', bg: 'bg-blue-50' },
+            { label: 'Allotted Room', val: profile?.tbl_RoomAllotments?.[0]?.HostelRoom?.room_number || '-', icon: Bed, color: 'text-purple-500', bg: 'bg-purple-50' },
+            { label: 'Annual Fee Status', val: profile?.Hostel?.show_fee_reminder == 1 ? 'Pending' : 'Cleared', icon: Receipt, color: profile?.Hostel?.show_fee_reminder == 1 ? 'text-orange-500' : 'text-emerald-500', bg: profile?.Hostel?.show_fee_reminder == 1 ? 'bg-orange-50' : 'bg-emerald-50' },
+            { label: 'Today Attendance', val: 'Marked', icon: CheckCircle2, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+          ].map((stat, i) => (
+            <Col xs={24} sm={12} lg={6} key={i}>
+              <Card className="border-none shadow-sm rounded-3xl h-full">
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-2xl ${stat.bg} ${stat.color}`}><stat.icon size={24} /></div>
+                  <Statistic title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{stat.label}</span>} value={stat.val} valueStyle={{ fontSize: '1.1rem', fontWeight: 700 }} />
+                </div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+
+        {/* Main Grid: Using flex to ensure height matching */}
+        <Row gutter={[24, 24]} align="stretch">
+          {/* Charts Column */}
+          <Col lg={16} xs={24} className="flex flex-col gap-6">
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 shrink-0">
+              {[
+                { label: 'Leave', icon: Calendar, color: 'text-emerald-600', bg: 'bg-emerald-50', view: 'apply-leave' },
+                { label: 'Complaints', icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50', view: 'submit-complaint' },
+                { label: 'Reduction', icon: Clock, color: 'text-purple-600', bg: 'bg-purple-50', view: 'day-reduction' },
+                { label: 'Food Order', icon: Utensils, color: 'text-orange-600', bg: 'bg-orange-50', view: 'food-order' },
+              ].map((act, i) => (
+                <button key={i} onClick={() => setCurrentView(act.view)} className={`p-6 rounded-[32px] border-none shadow-sm bg-white flex flex-col items-center gap-3 hover:scale-105 transition-transform group`}>
+                   <div className={`p-3 rounded-2xl ${act.bg} ${act.color} group-hover:scale-110 transition-transform`}><act.icon size={24} /></div>
+                   <Text strong className="text-slate-600">{act.label}</Text>
+                </button>
+              ))}
+            </div>
+
+            {/* Mess Expense Trend - Extended Height */}
+            <Card
+              className="border-none shadow-sm rounded-[32px] flex-1 flex flex-col"
+              bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+              title={
+                <div className="flex justify-between items-center w-full">
+                  <div className="flex items-center gap-2">
+                    <CreditCard size={20} className="text-blue-600" />
+                    <Text strong>Mess Expense Trend</Text>
+                  </div>
+                  <div className="bg-slate-100 p-1 rounded-xl flex items-center">
+                    <Button type="text" size="small" icon={<ChevronLeft size={14} />} onClick={() => changeYear(-1)} />
+                    <Text className="px-3 text-xs font-bold">{selectedYear}</Text>
+                    <Button type="text" size="small" icon={<ChevronRight size={14} />} onClick={() => changeYear(1)} />
+                  </div>
+                </div>
+              }
+            >
+              <div className="flex-1 w-full">
+                {chartLoading ? (
+                  <Skeleton active paragraph={{ rows: 8 }} />
+                ) : (
+                  <Bar
+                    data={messExpenseChartData}
+                    options={{
+                      maintainAspectRatio: false,
+                      responsive: true,
+                      plugins: { legend: { display: false } }
+                    }}
+                  />
+                )}
+              </div>
+            </Card>
+
+          </Col>
+
+          {/* Heatmap Column */}
+          <Col lg={8} xs={24} className="flex flex-col gap-6">
+            <Card className="border-none shadow-sm rounded-[32px] p-2 flex-1" title={
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2"><LayoutGrid size={20} className="text-blue-600"/> <Text strong>Attendance Heatmap</Text></div>
+                <div className="flex gap-2">
+                  <div className="bg-slate-100 p-1 rounded-xl flex items-center flex-1 justify-between">
+                    <Button type="text" size="small" icon={<ChevronLeft size={14}/>} onClick={() => changeMonth(-1)} />
+                    <Text className="text-[10px] font-bold uppercase">{moment().month(selectedMonth - 1).format('MMMM')}</Text>
+                    <Button type="text" size="small" icon={<ChevronRight size={14}/>} onClick={() => changeMonth(1)} />
+                  </div>
+                </div>
+              </div>
+            }>
+              {heatmapLoading ? <Skeleton active /> : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-7 gap-1 text-center">
+                    {['S','M','T','W','T','F','S'].map(d => <Text key={d} className="text-[10px] font-bold text-slate-300">{d}</Text>)}
                   </div>
                   <div className="grid grid-cols-7 gap-1">
-                    {days.map((day, i) => (
-                      <div
-                        key={i}
-                        className={clsx(
-                          'aspect-square rounded-md flex flex-col items-center justify-center text-[10px] border',
-                          !day.isCurrentMonth && 'bg-gray-50 text-gray-300 border-transparent',
-                          day.status === 'P' && 'bg-green-500 border-green-600 text-white',
-                          day.status === 'A' && 'bg-red-500 border-red-600 text-white',
-                          day.status === 'OD' && 'bg-blue-500 border-blue-600 text-white',
-                          day.isCurrentMonth && !day.status && 'bg-gray-100 border-gray-200 text-gray-400'
-                        )}
-                      >
-                        <span className="font-bold">{day.date.date()}</span>
+                    {heatmapDays.map((day, i) => (
+                      <div key={i} className={`aspect-square rounded-lg flex items-center justify-center text-[10px] font-bold transition-all ${
+                        !day.isCurrentMonth ? 'opacity-10' : 
+                        day.status === 'P' ? 'bg-emerald-500 text-white shadow-md shadow-emerald-100' :
+                        day.status === 'A' ? 'bg-rose-500 text-white shadow-md shadow-rose-100' :
+                        day.status === 'OD' ? 'bg-blue-500 text-white shadow-md shadow-blue-100' :
+                        'bg-slate-100 text-slate-400'
+                      }`}>
+                        {day.date.date()}
                       </div>
                     ))}
                   </div>
-                  <div className="pt-4 flex justify-between text-[10px] font-medium text-gray-500">
-                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-green-500" /> Present</div>
-                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-red-500" /> Absent</div>
-                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-blue-500" /> OD</div>
+                  <div className="flex justify-between pt-4 border-t border-slate-50">
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500" /><Text className="text-[10px] text-slate-400">Present</Text></div>
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-rose-500" /><Text className="text-[10px] text-slate-400">Absent</Text></div>
+                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" /><Text className="text-[10px] text-slate-400">OD</Text></div>
                   </div>
                 </div>
               )}
-            </div>
-          </Card>
-        </div>
+            </Card>
+
+            {/* Attendance Chart */}
+            <Card className="border-none shadow-sm rounded-[32px] p-2" title={<Text strong>Yearly Overview</Text>}>
+              <div className="h-48 mt-2">
+                {chartLoading ? <Skeleton active /> : <Bar data={attendanceChartData} options={{ maintainAspectRatio: false, scales: { x: { display: false } } }} />}
+              </div>
+            </Card>
+          </Col>
+        </Row>
       </div>
-    </div>
+    </ConfigProvider>
   );
 };
 

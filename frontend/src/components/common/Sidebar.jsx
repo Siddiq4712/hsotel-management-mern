@@ -94,7 +94,7 @@ const MENU_STRUCTURE = {
     {
       title: 'Information',
       items: [
-        { id: 'facilities', label: 'Facilities', icon: Wifi },
+        // { id: 'facilities', label: 'Facilities', icon: Wifi },
         { id: 'view-rooms', label: 'View Room', icon: Building },
       ]
     },
