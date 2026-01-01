@@ -4,13 +4,14 @@ import Sidebar from './Sidebar';
 
 const Layout = ({ children, currentView, setCurrentView }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Default to collapsed so it expands on hover
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <Header onMenuClick={() => {
         setSidebarOpen(!sidebarOpen);
-        setIsCollapsed(false); // When clicking header menu, open it fully
+        setIsCollapsed(false); // Fully open when toggled on mobile
       }} />
 
       <div className="flex flex-1">

@@ -1,277 +1,348 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { 
+  Card, Table, Tag, Button, Select, Space, Typography, 
+  Modal, Input, Badge, Descriptions, Empty, message, ConfigProvider, theme, Tooltip, Skeleton, Row, Col, Statistic 
+} from "antd";
+import { 
+  Home, User, Clock, CheckCircle2, XCircle, 
+  RefreshCw, ClipboardList, Filter, Search, MessageSquare, Inbox, Info
+} from "lucide-react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { wardenAPI } from "../../services/api";
 
 dayjs.extend(relativeTime);
 
-const STATUS_BADGES = {
-  pending: "bg-amber-100 text-amber-700 border border-amber-300",
-  approved: "bg-green-100 text-green-700 border border-green-300",
-  rejected: "bg-red-100 text-red-700 border border-red-300",
-  cancelled: "bg-gray-100 text-gray-600 border border-gray-300",
-};
+const { Title, Text } = Typography;
+const { TextArea } = Input;
 
-const DecisionDialog = ({ request, onClose, onSubmit, busy }) => {
-  const [decision, setDecision] = useState("approved");
-  const [remarks, setRemarks] = useState("");
+// --- 1. Specialized Skeletons ---
 
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-        <div className="mb-4 flex items-start justify-between">
-          <div>
-            <h3 className="text-xl font-semibold">Process Room Request</h3>
-            <p className="text-sm text-gray-500">
-              Student: {request.Student?.username} ({request.Student?.roll_number || "No roll"})
-            </p>
-            <p className="text-sm text-gray-500">
-              Room: {request.Room?.room_number} ({request.Room?.RoomType?.name || "Unknown type"})
-            </p>
-          </div>
-          <button
-            type="button"
-            className="text-gray-400 transition hover:text-gray-600"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
+const StatsSkeleton = () => (
+  <Row gutter={[24, 24]} className="mb-8">
+    {[...Array(3)].map((_, i) => (
+      <Col xs={24} md={8} key={i}>
+        <Card className="border-none shadow-sm rounded-2xl p-4">
+          <Skeleton loading active avatar={{ size: 'small', shape: 'square' }} paragraph={{ rows: 1 }} />
+        </Card>
+      </Col>
+    ))}
+  </Row>
+);
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700">Decision</label>
-            <select
-              className="mt-1 w-full rounded border px-3 py-2 text-sm"
-              value={decision}
-              onChange={(e) => setDecision(e.target.value)}
-            >
-              <option value="approved">Approve & allot room</option>
-              <option value="rejected">Reject request</option>
-              <option value="cancelled">Cancel request</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700">
-              Remarks <span className="text-xs text-gray-400">(optional)</span>
-            </label>
-            <textarea
-              rows={3}
-              className="mt-1 w-full rounded border px-3 py-2 text-sm"
-              value={remarks}
-              onChange={(e) => setRemarks(e.target.value)}
-              placeholder="Add a note for audit trail"
-            />
-          </div>
-        </div>
-
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            className="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-            onClick={onClose}
-          >
-            Close
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 disabled:bg-blue-400"
-            onClick={() => onSubmit({ decision, remarks })}
-          >
-            {busy ? "Submitting…" : "Submit"}
-          </button>
-        </div>
+const FilterSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-2xl mb-6">
+    <div className="flex gap-4 items-center">
+      <div className="flex-1 md:max-w-md">
+        <Skeleton.Input active block style={{ height: 48, borderRadius: 12 }} />
       </div>
+      <Skeleton.Button active style={{ width: 48, height: 48, borderRadius: 12 }} />
     </div>
-  );
-};
+  </Card>
+);
+
+const TableSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] overflow-hidden bg-white">
+    {[...Array(6)].map((_, i) => (
+      <div key={i} className="flex items-center gap-6 p-6 border-b border-slate-50 last:border-0">
+        <Skeleton.Avatar active shape="circle" size="large" />
+        <div className="flex-1"><Skeleton active title={false} paragraph={{ rows: 1, width: '100%' }} /></div>
+        <Skeleton.Input active style={{ width: 100 }} />
+        <Skeleton.Button active style={{ width: 80 }} />
+      </div>
+    ))}
+  </Card>
+);
 
 const RoomRequests = () => {
   const [requests, setRequests] = useState([]);
-  const [filters, setFilters] = useState({ status: "pending" });
+  const [statusFilter, setStatusFilter] = useState("pending");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [dialog, setDialog] = useState({ open: false, request: null });
-  const [processingId, setProcessingId] = useState(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [decision, setDecision] = useState("approved");
+  const [remarks, setRemarks] = useState("");
 
   const fetchRequests = async () => {
     try {
       setLoading(true);
-      setError(null);
-      const res = await wardenAPI.getRoomRequests(filters.status === "all" ? {} : { status: filters.status });
+      const res = await wardenAPI.getRoomRequests(
+        statusFilter === "all" ? {} : { status: statusFilter }
+      );
       setRequests(res.data?.data || []);
     } catch (err) {
-      console.error("Warden room request fetch error:", err);
-      setError(err?.message || "Failed to load room requests.");
+      message.error("Institutional sync failed: " + err.message);
     } finally {
-      setLoading(false);
+      // Intentional delay for smooth shimmer effect
+      setTimeout(() => setLoading(false), 600);
     }
   };
 
   useEffect(() => {
     fetchRequests();
-  }, [filters.status]);
+  }, [statusFilter]);
 
-  const handleDecision = async ({ decision, remarks }) => {
-    if (!dialog.request) return;
-
-    setProcessingId(dialog.request.id);
+  const handleDecisionSubmit = async () => {
+    if (!selectedRequest) return;
+    setProcessing(true);
     try {
-      await wardenAPI.updateRoomRequest(dialog.request.id, { decision, remarks });
-      await fetchRequests();
-      setDialog({ open: false, request: null });
+      await wardenAPI.updateRoomRequest(selectedRequest.id, { decision, remarks });
+      message.success(`Request ${decision} successfully`);
+      setDialogOpen(false);
+      setRemarks("");
+      fetchRequests();
     } catch (err) {
-      console.error("Room request decision error:", err);
-      alert(err?.message || "Failed to process the request.");
+      message.error("Protocol error: " + err.message);
     } finally {
-      setProcessingId(null);
+      setProcessing(false);
     }
   };
 
-  const tableRows = useMemo(
-    () =>
-      requests.map((req) => {
-        const statusClass = STATUS_BADGES[req.status] || STATUS_BADGES.pending;
-        const capacity = req.Room?.RoomType?.capacity ?? "-";
-        const occupancy = req.Room?.occupancy_count ?? 0;
+  const statusConfig = {
+    pending: { color: "warning", icon: <Clock size={12} />, label: "Pending Review" },
+    approved: { color: "success", icon: <CheckCircle2 size={12} />, label: "Allotted" },
+    rejected: { color: "error", icon: <XCircle size={12} />, label: "Rejected" },
+    cancelled: { color: "default", icon: <XCircle size={12} />, label: "Voided" },
+  };
 
-        return (
-          <tr key={req.id} className="border-b last:border-none">
-            <td className="px-3 py-3 text-sm">
-              <div className="font-semibold text-gray-800">{req.Student?.username}</div>
-              <div className="text-xs text-gray-500">
-                {req.Student?.roll_number ? `Roll: ${req.Student.roll_number}` : "Roll number not set"}
-              </div>
-              <div className="text-xs text-gray-400">{req.Student?.email}</div>
-            </td>
-
-            <td className="px-3 py-3 text-sm">
-              <div className="font-medium text-gray-800">{req.Room?.room_number}</div>
-              <div className="text-xs text-gray-500">{req.Room?.RoomType?.name || "Room type N/A"}</div>
-              <div className="text-xs text-gray-400">
-                {occupancy}/{capacity} occupants
-              </div>
-            </td>
-
-            <td className="px-3 py-3 text-sm">
-              <div>{dayjs(req.requested_at).format("DD MMM YYYY, hh:mm A")}</div>
-              <div className="text-xs text-gray-500">{dayjs(req.requested_at).fromNow()}</div>
-            </td>
-
-            <td className="px-3 py-3 text-sm">
-              <span className={`inline-block rounded px-2 py-1 text-xs font-semibold ${statusClass}`}>
-                {req.status}
-              </span>
-              {req.ProcessedBy && (
-                <div className="mt-1 text-xs text-gray-500">
-                  By {req.ProcessedBy.username} on {req.processed_at ? dayjs(req.processed_at).format("DD MMM YYYY") : "-"}
-                </div>
-              )}
-            </td>
-
-            <td className="px-3 py-3 text-sm">
-              <div className="flex flex-wrap gap-2">
-                {req.status === "pending" && (
-                  <button
-                    type="button"
-                    className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
-                    onClick={() => setDialog({ open: true, request: req })}
-                  >
-                    Review
-                  </button>
-                )}
-                {req.status !== "pending" && req.remarks && (
-                  <button
-                    type="button"
-                    className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-gray-50"
-                    onClick={() =>
-                      alert(
-                        `Processed by: ${req.ProcessedBy?.username || "N/A"}\nStatus: ${req.status}\nRemarks: ${req.remarks}`,
-                      )
-                    }
-                  >
-                    View remarks
-                  </button>
-                )}
-              </div>
-            </td>
-          </tr>
-        );
-      }),
-    [requests],
-  );
+  const columns = [
+    {
+      title: "Student Details",
+      key: "student",
+      render: (_, record) => (
+        <Space gap={3}>
+           <div className="p-2 bg-blue-50 rounded-xl text-blue-600"><User size={18} /></div>
+           <Space direction="vertical" size={0}>
+              <Text strong className="text-slate-700">{record.Student?.username}</Text>
+              <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                Roll: {record.Student?.roll_number || "UNSET"}
+              </Text>
+           </Space>
+        </Space>
+      ),
+    },
+    {
+      title: "Requested Inventory",
+      key: "room",
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <div className="flex items-center gap-2">
+            <Home size={14} className="text-blue-500" />
+            <Text strong>Room {record.Room?.room_number}</Text>
+          </div>
+          <Text className="text-xs text-slate-400">
+            {record.Room?.RoomType?.name} • {record.Room?.occupancy_count}/{record.Room?.RoomType?.capacity} Occupied
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: "Workflow",
+      key: "status",
+      render: (_, record) => (
+        <Space direction="vertical" size={4}>
+          <Tag 
+            icon={statusConfig[record.status]?.icon} 
+            color={statusConfig[record.status]?.color}
+            className="rounded-full border-none px-3 font-bold uppercase text-[9px]"
+          >
+            {statusConfig[record.status]?.label}
+          </Tag>
+          <Text className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
+            {dayjs(record.requested_at).fromNow()}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: "Control",
+      key: "action",
+      align: "right",
+      render: (_, record) => (
+        <Space>
+          {record.status === "pending" ? (
+            <Button 
+              type="primary" 
+              size="small" 
+              className="rounded-lg font-bold text-[11px] h-8 shadow-sm"
+              onClick={() => {
+                setSelectedRequest(record);
+                setDialogOpen(true);
+              }}
+            >
+              PROCESS
+            </Button>
+          ) : record.remarks ? (
+            <Tooltip title="View Audit Remarks">
+              <Button 
+                icon={<MessageSquare size={14} />} 
+                className="rounded-lg border-none bg-slate-50"
+                onClick={() => Modal.info({
+                  title: 'Audit Remarks',
+                  content: record.remarks,
+                  className: 'rounded-3xl'
+                })}
+              />
+            </Tooltip>
+          ) : null}
+        </Space>
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-6 p-6">
-      <header>
-        <h1 className="text-2xl font-bold">Room Booking Requests</h1>
-        <p className="text-sm text-gray-500">
-          Review student booking requests and approve or reject them. Approving will immediately allot the room.
-        </p>
-      </header>
-
-      <section className="rounded border bg-white p-4 shadow">
-        <div className="flex flex-wrap items-center gap-4">
-          <label className="text-sm font-medium text-gray-600">
-            Status
-            <select
-              className="ml-2 rounded border px-3 py-2 text-sm"
-              value={filters.status}
-              onChange={(e) => setFilters({ status: e.target.value })}
-            >
-              <option value="all">All</option>
-              <option value="pending">Pending only</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </label>
-          <button
-            type="button"
-            className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
-            onClick={fetchRequests}
-          >
-            Refresh
-          </button>
-        </div>
-      </section>
-
-      <section className="rounded border bg-white shadow">
-        {loading ? (
-          <div className="p-6 text-center text-sm text-gray-500">Loading requests…</div>
-        ) : error ? (
-          <div className="p-6 text-center text-sm text-red-600">{error}</div>
-        ) : requests.length === 0 ? (
-          <div className="p-6 text-center text-sm text-gray-500">No room requests found.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y">
-              <thead className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">
-                <tr>
-                  <th className="px-3 py-3">Student</th>
-                  <th className="px-3 py-3">Room</th>
-                  <th className="px-3 py-3">Requested at</th>
-                  <th className="px-3 py-3">Status</th>
-                  <th className="px-3 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">{tableRows}</tbody>
-            </table>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
+        
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <ClipboardList className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Allocation Ledger</Title>
+              <Text type="secondary">Authorize and audit institutional room booking protocols</Text>
+            </div>
           </div>
-        )}
-      </section>
+          {!loading && (
+            <div className="bg-white p-3 px-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
+              <Badge status="processing" color="#2563eb" />
+              <Text strong className="text-[11px] uppercase tracking-wider text-slate-500">
+                {requests.length} Requests Found
+              </Text>
+            </div>
+          )}
+        </div>
 
-      {dialog.open && dialog.request && (
-        <DecisionDialog
-          request={dialog.request}
-          onClose={() => setDialog({ open: false, request: null })}
-          onSubmit={handleDecision}
-          busy={processingId === dialog.request.id}
-        />
-      )}
-    </div>
+        {loading ? (
+          <>
+            <StatsSkeleton />
+            <FilterSkeleton />
+            <TableSkeleton />
+          </>
+        ) : (
+          <>
+            {/* Quick Metrics */}
+            <Row gutter={[24, 24]} className="mb-8">
+              {[
+                { label: 'Pending Audit', val: requests.filter(r => r.status === 'pending').length, icon: Clock, color: 'text-amber-500' },
+                { label: 'Allotted', val: requests.filter(r => r.status === 'approved').length, icon: CheckCircle2, color: 'text-emerald-500' },
+                { label: 'Declined', val: requests.filter(r => r.status === 'rejected').length, icon: XCircle, color: 'text-rose-500' },
+              ].map((stat, i) => (
+                <Col xs={24} md={8} key={i}>
+                  <Card className="border-none shadow-sm rounded-2xl">
+                    <Statistic 
+                      title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{stat.label}</span>} 
+                      value={stat.val} 
+                      prefix={<stat.icon size={18} className={`${stat.color} mr-2`} />}
+                      valueStyle={{ fontWeight: 800 }}
+                    />
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+
+            {/* Filter Toolbar */}
+            <Card className="border-none shadow-sm rounded-2xl mb-6">
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 md:max-w-md focus-within:border-blue-300 transition-all">
+                  <Filter size={18} className="text-slate-300" />
+                  <Select 
+                    value={statusFilter} 
+                    onChange={setStatusFilter} 
+                    bordered={false} 
+                    className="w-full font-medium"
+                  >
+                    <Select.Option value="all">Display All Requests</Select.Option>
+                    <Select.Option value="pending">Awaiting Review</Select.Option>
+                    <Select.Option value="approved">Approved Requests</Select.Option>
+                    <Select.Option value="rejected">Rejected Ledger</Select.Option>
+                  </Select>
+                </div>
+                <Button 
+                  icon={<RefreshCw size={16}/>} 
+                  onClick={fetchRequests} 
+                  className="rounded-xl h-12 w-12 flex items-center justify-center border-slate-200" 
+                />
+              </div>
+            </Card>
+
+            {/* Main Table */}
+            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+              {requests.length > 0 ? (
+                <Table 
+                  dataSource={requests} 
+                  columns={columns} 
+                  rowKey="id" 
+                  pagination={{ pageSize: 8, position: ['bottomCenter'], showSizeChanger: false }}
+                />
+              ) : (
+                <div className="py-24">
+                  <Empty 
+                    image={<div className="bg-slate-50 p-8 rounded-full inline-block mb-4"><Inbox size={64} className="text-slate-200" /></div>}
+                    description={<Text className="text-slate-400 block">No requests matching these criteria found.</Text>}
+                  />
+                </div>
+              )}
+            </Card>
+          </>
+        )}
+
+        {/* Authorization Modal */}
+        <Modal
+          title={<div className="flex items-center gap-2 text-blue-600"><ClipboardList size={20}/> Authorization Protocol</div>}
+          open={dialogOpen}
+          onCancel={() => setDialogOpen(false)}
+          footer={[
+            <Button key="back" onClick={() => setDialogOpen(false)} className="rounded-xl h-11 px-6">Abort</Button>,
+            <Button 
+              key="submit" 
+              type="primary" 
+              loading={processing} 
+              onClick={handleDecisionSubmit}
+              className="rounded-xl h-11 px-8 font-bold shadow-lg shadow-blue-100"
+            >
+              Authorize Decision
+            </Button>
+          ]}
+          width={600}
+          className="rounded-[32px]"
+        >
+          {selectedRequest && (
+            <div className="mt-6 space-y-6">
+              <Descriptions bordered column={1} className="bg-slate-50/50 rounded-2xl overflow-hidden">
+                <Descriptions.Item label="Applicant Name">{selectedRequest.Student?.username}</Descriptions.Item>
+                <Descriptions.Item label="Target Inventory">Room {selectedRequest.Room?.room_number} ({selectedRequest.Room?.RoomType?.name})</Descriptions.Item>
+              </Descriptions>
+
+              <div className="space-y-4">
+                <div>
+                  <Text strong className="text-[11px] uppercase text-slate-400 block mb-2 tracking-widest">Protocol Decision</Text>
+                  <Select className="w-full h-12" value={decision} onChange={setDecision}>
+                    <Select.Option value="approved">Execute Room Allotment</Select.Option>
+                    <Select.Option value="rejected">Reject Submission</Select.Option>
+                    <Select.Option value="cancelled">Void Request</Select.Option>
+                  </Select>
+                </div>
+
+                <div>
+                  <Text strong className="text-[11px] uppercase text-slate-400 block mb-2 tracking-widest">Audit Remarks</Text>
+                  <TextArea 
+                    rows={4} 
+                    className="rounded-2xl p-4 border-slate-200" 
+                    placeholder="Provide justification for this decision..." 
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </Modal>
+      </div>
+    </ConfigProvider>
   );
 };
 

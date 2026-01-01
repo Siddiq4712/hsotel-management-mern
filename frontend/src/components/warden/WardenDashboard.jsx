@@ -1,588 +1,231 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { wardenAPI } from '../../services/api'; 
 import { 
-  Users, Bed, BedDouble, CheckCircle, TrendingUp, AlertTriangle, 
-  Calendar, BarChart3, ArrowUpRight, ArrowDownRight, Eye, FileText,
-  Clock, CheckSquare
+  Card, Typography, Row, Col, Statistic, Button, Space, 
+  Divider, ConfigProvider, theme, Skeleton, Badge, Progress, Tooltip, Tag 
+} from 'antd';
+import { 
+  Users, Bed, BedDouble, CheckCircle2, TrendingUp, AlertTriangle, 
+  Calendar, BarChart3, ArrowUpRight, FileText, Clock, 
+  CheckSquare, LayoutDashboard, RefreshCw, UserPlus, Home, MessageSquare
 } from 'lucide-react';
-
-// CHART.JS IMPORTS
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement,
-  PointElement,
-  LineElement
+  Chart as ChartJS, CategoryScale, LinearScale, BarElement, 
+  Title as ChartTitle, Tooltip as ChartTooltip, Legend, ArcElement, 
+  PointElement, LineElement, Filler
 } from 'chart.js';
+import { wardenAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
-// Register Chart.js components
 ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement,
-  PointElement,
-  LineElement
+  CategoryScale, LinearScale, BarElement, ChartTitle, 
+  ChartTooltip, Legend, ArcElement, PointElement, LineElement, Filler
 );
 
+const { Title, Text } = Typography;
+
 const WardenDashboard = ({ setCurrentView }) => {
-  const navigate = useNavigate();
   const { user } = useAuth();
-  const [stats, setStats] = useState({
-    totalStudents: 0,
-    totalCapacity: 0,
-    occupiedBeds: 0,
-    availableBeds: 0,
-    pendingLeaves: 0,
-    totalLeaves: 0,
-    leaveStatus: { pending: 0, approved: 0, rejected: 0 },
-    pendingComplaints: 0,
-    totalComplaints: 0,
-    complaintStatus: { submitted: 0, in_progress: 0, resolved: 0, closed: 0 },
-    recentLeaves: [],
-    recentComplaints: [],
-    attendanceStatus: { P: 0, A: 0, OD: 0 },
-    totalTodayAttendance: 0
-  });
-  
   const [loading, setLoading] = useState(true);
-  const [monthlyData, setMonthlyData] = useState({
-    monthlyAttendance: [
-      { month: 'Aug', present: 95, absent: 5 },
-      { month: 'Sep', present: 92, absent: 8 },
-      { month: 'Oct', present: 98, absent: 2 }
-    ],
-    monthlyComplaints: [
-      { month: 'Aug', total: 12 },
-      { month: 'Sep', total: 8 },
-      { month: 'Oct', total: 15 }
-    ],
-    monthlyLeaves: [
-      { month: 'Aug', total: 20 },
-      { month: 'Sep', total: 25 },
-      { month: 'Oct', total: 18 }
-    ]
-  });
+  const [stats, setStats] = useState(null);
 
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
-  const fetchStats = async () => {
+  const fetchDashboardStats = useCallback(async () => {
+    setLoading(true);
     try {
       const response = await wardenAPI.getDashboardStats();
       setStats(response.data.data);
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      console.error('Institutional Stats Error:', error);
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 800);
     }
+  }, []);
+
+  useEffect(() => { fetchDashboardStats(); }, [fetchDashboardStats]);
+
+  if (loading || !stats) return <div className="p-8"><Skeleton active paragraph={{ rows: 20 }} /></div>;
+
+  const handleAction = (view) => setCurrentView ? setCurrentView(view) : null;
+
+  // --- CHART CONFIGURATIONS ---
+  const commonOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }
   };
-
-  const handleQuickAction = (viewName) => {
-    if (setCurrentView) {
-      setCurrentView(viewName);
-    } else {
-      console.warn('setCurrentView not available. Falling back to navigation.');
-      navigate('/warden/' + viewName);
-    }
-  };
-
-  // Enhanced stat cards with trend indicators
-  const statCards = [
-    {
-      title: 'Total Students',
-      value: stats.totalStudents,
-      icon: Users,
-      color: 'bg-blue-500',
-      bgLight: 'bg-blue-50',
-      textColor: 'text-blue-600',
-      trend: '+2.5%',
-      description: 'Active students'
-    },
-    {
-      title: 'Total Capacity',
-      value: stats.totalCapacity,
-      icon: Bed,
-      color: 'bg-green-500',
-      bgLight: 'bg-green-50',
-      textColor: 'text-green-600',
-      trend: 'Beds available',
-      description: 'Room capacity'
-    },
-    {
-      title: 'Occupied Beds',
-      value: stats.occupiedBeds,
-      icon: BedDouble,
-      color: 'bg-orange-500',
-      bgLight: 'bg-orange-50',
-      textColor: 'text-orange-600',
-      trend: `${stats.totalCapacity > 0 ? Math.round((stats.occupiedBeds / stats.totalCapacity) * 100) : 0}%`,
-      description: 'Occupancy rate'
-    },
-    {
-      title: 'Available Beds',
-      value: stats.availableBeds,
-      icon: CheckCircle,
-      color: 'bg-purple-500',
-      bgLight: 'bg-purple-50',
-      textColor: 'text-purple-600',
-      trend: 'Ready to allot',
-      description: 'Vacant beds'
-    }
-  ];
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-6">
-      {/* Header Section */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900">Welcome back, {user?.username} 👋</h1>
-        <p className="text-gray-500 mt-2">Here's what's happening in your hostel today</p>
-      </div>
-
-      {/* Enhanced Stat Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((card, index) => {
-          const Icon = card.icon;
-          return (
-            <div 
-              key={index} 
-              className="bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 p-6 group"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className={`${card.bgLight} p-3 rounded-lg group-hover:scale-110 transition-transform`}>
-                  <Icon className={`${card.textColor}`} size={24} />
-                </div>
-                <div className="flex items-center text-green-600 text-sm font-semibold">
-                  <ArrowUpRight size={16} className="mr-1" />
-                  {card.trend}
-                </div>
-              </div>
-              <p className="text-sm text-gray-600 mb-1">{card.title}</p>
-              <p className="text-3xl font-bold text-gray-900">{card.value}</p>
-              <p className="text-xs text-gray-500 mt-2">{card.description}</p>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Quick Actions - Enhanced */}
-        <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
-            <BarChart3 className="mr-2 text-blue-600" size={24} />
-            Quick Actions
-          </h2>
-          <div className="space-y-3">
-            <button 
-              onClick={() => handleQuickAction('enroll-student')} 
-              className="w-full text-left p-4 bg-gradient-to-r from-blue-50 to-blue-100/50 hover:from-blue-100 hover:to-blue-100 rounded-lg transition-all duration-300 border border-blue-200 hover:border-blue-400 flex items-start group"
-            >
-              <div className="bg-blue-500 p-2 rounded-lg mr-3 group-hover:scale-110 transition-transform">
-                <Users className="text-white" size={18} />
-              </div>
-              <div>
-                <div className="font-semibold text-blue-900">Enroll New Student</div>
-                <div className="text-xs text-blue-700 mt-1">Add a new student</div>
-              </div>
-            </button>
-
-            <button 
-              onClick={() => handleQuickAction('room-allotment')}
-              className="w-full text-left p-4 bg-gradient-to-r from-green-50 to-green-100/50 hover:from-green-100 hover:to-green-100 rounded-lg transition-all duration-300 border border-green-200 hover:border-green-400 flex items-start group"
-            >
-              <div className="bg-green-500 p-2 rounded-lg mr-3 group-hover:scale-110 transition-transform">
-                <Bed className="text-white" size={18} />
-              </div>
-              <div>
-                <div className="font-semibold text-green-900">Room Allotment</div>
-                <div className="text-xs text-green-700 mt-1">Assign rooms to students</div>
-              </div>
-            </button>
-
-            <button 
-              onClick={() => handleQuickAction('attendance')}
-              className="w-full text-left p-4 bg-gradient-to-r from-purple-50 to-purple-100/50 hover:from-purple-100 hover:to-purple-100 rounded-lg transition-all duration-300 border border-purple-200 hover:border-purple-400 flex items-start group"
-            >
-              <div className="bg-purple-500 p-2 rounded-lg mr-3 group-hover:scale-110 transition-transform">
-                <CheckSquare className="text-white" size={18} />
-              </div>
-              <div>
-                <div className="font-semibold text-purple-900">Mark Attendance</div>
-                <div className="text-xs text-purple-700 mt-1">Record daily attendance</div>
-              </div>
-            </button>
-
-            <button 
-              onClick={() => handleQuickAction('leave-requests')}
-              className="w-full text-left p-4 bg-gradient-to-r from-yellow-50 to-yellow-100/50 hover:from-yellow-100 hover:to-yellow-100 rounded-lg transition-all duration-300 border border-yellow-200 hover:border-yellow-400 flex items-start group"
-            >
-              <div className="bg-yellow-500 p-2 rounded-lg mr-3 group-hover:scale-110 transition-transform">
-                <Calendar className="text-white" size={18} />
-              </div>
-              <div>
-                <div className="font-semibold text-yellow-900">Manage Leaves</div>
-                <div className="text-xs text-yellow-700 mt-1">Review leave requests</div>
-              </div>
-            </button>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+        
+        {/* Header Section */}
+        <div className="flex justify-between items-center">
+          <div>
+            <Title level={2} style={{ margin: 0 }}>Warden Dashboard</Title>
+            <Text type="secondary">Hostel Administration & Oversight • Academic Year 2024-25</Text>
           </div>
+          <Button icon={<RefreshCw size={16}/>} onClick={fetchDashboardStats} className="rounded-xl h-11 px-6 font-bold">Sync Data</Button>
         </div>
 
-        {/* Room Occupancy & Overview - Enhanced */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Occupancy Progress */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900">Room Occupancy</h2>
-              <span className="text-2xl font-bold text-blue-600">
-                {stats.totalCapacity > 0 
-                  ? Math.round((stats.occupiedBeds / stats.totalCapacity) * 100) 
-                  : 0}%
-              </span>
+        {/* 1. Primary Metrics Grid */}
+        <Row gutter={[24, 24]}>
+          {[
+            { label: 'Total Enrolment', val: stats.totalStudents, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'Occupied Beds', val: stats.occupiedBeds, icon: BedDouble, color: 'text-orange-600', bg: 'bg-orange-50' },
+            { label: 'Pending Leaves', val: stats.pendingLeaves, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+            { label: 'Open Complaints', val: stats.pendingComplaints, icon: MessageSquare, color: 'text-rose-600', bg: 'bg-rose-50' },
+          ].map((card, i) => (
+            <Col xs={24} sm={12} lg={6} key={i}>
+              <Card className="border-none shadow-sm rounded-[32px]">
+                <Statistic 
+                  title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{card.label}</span>} 
+                  value={card.val} 
+                  prefix={<div className={`p-2 rounded-xl ${card.bg} ${card.color} mr-3`}><card.icon size={20} /></div>}
+                  valueStyle={{ fontWeight: 900 }}
+                />
+              </Card>
+            </Col>
+          ))}
+        </Row>
+
+        <Row gutter={[24, 24]}>
+          {/* 2. Quick Actions & Trends */}
+          <Col lg={16} xs={24} className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Enrolment', icon: UserPlus, color: 'text-blue-600', bg: 'bg-blue-50', view: 'enroll-student' },
+                { label: 'Allotment', icon: Home, color: 'text-emerald-600', bg: 'bg-emerald-50', view: 'room-allotment' },
+                { label: 'Attendance', icon: CheckSquare, color: 'text-purple-600', bg: 'bg-purple-50', view: 'attendance' },
+                { label: 'Leave Auth', icon: Calendar, color: 'text-orange-600', bg: 'bg-orange-50', view: 'leave-requests' },
+              ].map((act, i) => (
+                <button key={i} onClick={() => handleAction(act.view)} className="bg-white p-6 rounded-[32px] shadow-sm flex flex-col items-center gap-3 hover:scale-105 transition-transform border-none">
+                   <div className={`p-4 rounded-2xl ${act.bg} ${act.color}`}><act.icon size={24} /></div>
+                   <Text strong className="text-slate-600 text-[11px] uppercase">{act.label}</Text>
+                </button>
+              ))}
             </div>
-            
-            <div className="space-y-4">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600">
-                  <span className="font-semibold text-gray-900">{stats.occupiedBeds}</span> / {stats.totalCapacity} beds occupied
-                </span>
-              </div>
-              
-              <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500"
-                  style={{ 
-                    width: stats.totalCapacity > 0 
-                      ? `${(stats.occupiedBeds / stats.totalCapacity) * 100}%` 
-                      : '0%' 
+
+            {/* Attendance Trend Line Chart */}
+            <Card className="border-none shadow-sm rounded-[32px]" title={<Text strong>Institutional Attendance Trend (%)</Text>}>
+              <div className="h-72">
+                <Line 
+                  options={commonOptions}
+                  data={{
+                    labels: ['Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                    datasets: [{
+                      label: 'Present %',
+                      data: [95, 92, 98, 91, 94],
+                      borderColor: '#2563eb',
+                      backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                      fill: true,
+                      tension: 0.4
+                    }]
                   }}
-                ></div>
+                />
               </div>
+            </Card>
 
-              <div className="grid grid-cols-2 gap-4 mt-6">
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <p className="text-xs text-blue-600 font-semibold uppercase">Occupied</p>
-                  <p className="text-2xl font-bold text-blue-900 mt-1">{stats.occupiedBeds}</p>
-                </div>
-                <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                  <p className="text-xs text-green-600 font-semibold uppercase">Available</p>
-                  <p className="text-2xl font-bold text-green-900 mt-1">{stats.availableBeds}</p>
-                </div>
-              </div>
-            </div>
-          </div>
+            <Row gutter={24}>
+              {/* Complaint Status Bar Chart */}
+              <Col span={12}>
+                <Card className="border-none shadow-sm rounded-[32px]" title={<Text strong>Complaint Resolution Status</Text>}>
+                  <div className="h-64">
+                    <Bar 
+                      options={commonOptions}
+                      data={{
+                        labels: ['Submitted', 'Actioned', 'Resolved', 'Closed'],
+                        datasets: [{
+                          data: [stats.complaintStatus.submitted, stats.complaintStatus.in_progress, stats.complaintStatus.resolved, stats.complaintStatus.closed],
+                          backgroundColor: ['#60a5fa', '#facc15', '#22c55e', '#94a3b8'],
+                          borderRadius: 8
+                        }]
+                      }}
+                    />
+                  </div>
+                </Card>
+              </Col>
+              {/* Leave Requests Bar Chart */}
+              <Col span={12}>
+                <Card className="border-none shadow-sm rounded-[32px]" title={<Text strong>Leave Approval Lifecycle</Text>}>
+                  <div className="h-64">
+                    <Bar 
+                      options={commonOptions}
+                      data={{
+                        labels: ['Pending', 'Approved', 'Rejected'],
+                        datasets: [{
+                          data: [stats.leaveStatus.pending, stats.leaveStatus.approved, stats.leaveStatus.rejected],
+                          backgroundColor: ['#f59e0b', '#10b981', '#ef4444'],
+                          borderRadius: 8
+                        }]
+                      }}
+                    />
+                  </div>
+                </Card>
+              </Col>
+            </Row>
+          </Col>
 
-          {/* Key Metrics */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <p className="text-sm text-gray-600 mb-2">Pending Leaves</p>
-              <div className="flex items-end justify-between">
-                <p className="text-3xl font-bold text-yellow-600">{stats.pendingLeaves}</p>
-                <Clock className="text-yellow-500" size={20} />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <p className="text-sm text-gray-600 mb-2">Pending Complaints</p>
-              <div className="flex items-end justify-between">
-                <p className="text-3xl font-bold text-red-600">{stats.pendingComplaints}</p>
-                <AlertTriangle className="text-red-500" size={20} />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {/* Room Occupancy Chart */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-6">Bed Occupancy</h2>
-          {stats.totalCapacity > 0 ? (
-            <div className="flex justify-center">
-              <div className="w-48 h-48">
-                <Doughnut
+          {/* 3. Distribution & Pulse */}
+          <Col lg={8} xs={24} className="space-y-6">
+            {/* Bed Occupancy Doughnut */}
+            <Card className="border-none shadow-sm rounded-[32px]" title={<Text strong>Bed Inventory Distribution</Text>}>
+              <div className="h-60">
+                <Doughnut 
+                  options={commonOptions}
                   data={{
                     labels: ['Occupied', 'Available'],
-                    datasets: [
-                      {
-                        data: [stats.occupiedBeds, stats.availableBeds],
-                        backgroundColor: ['#3b82f6', '#e5e7eb'],
-                        borderColor: ['#1e40af', '#d1d5db'],
-                        borderWidth: 2,
-                      },
-                    ],
-                  }}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                      legend: { position: 'bottom', labels: { padding: 20 } },
-                      tooltip: {
-                        callbacks: {
-                          label: function(context) {
-                            let label = context.label || '';
-                            if (label) label += ': ';
-                            if (context.parsed !== null) {
-                              label += context.parsed + ' (' + (context.parsed / stats.totalCapacity * 100).toFixed(1) + '%)';
-                            }
-                            return label;
-                          }
-                        }
-                      }
-                    },
+                    datasets: [{
+                      data: [stats.occupiedBeds, stats.availableBeds],
+                      backgroundColor: ['#2563eb', '#f1f5f9'],
+                      borderWidth: 0
+                    }]
                   }}
                 />
               </div>
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-8">No data available</p>
-          )}
-        </div>
+              <div className="text-center mt-4">
+                <Text type="secondary" className="text-[11px] uppercase font-bold tracking-widest">Efficiency: {Math.round((stats.occupiedBeds / stats.totalCapacity) * 100)}%</Text>
+              </div>
+            </Card>
 
-        {/* Complaint Status Chart */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-6">Complaint Status</h2>
-          {stats.totalComplaints > 0 ? (
-            <div className="h-80">
-              <Bar
-                data={{
-                  labels: ['Submitted', 'In Progress', 'Resolved', 'Closed'],
-                  datasets: [
-                    {
-                      label: 'Complaints',
-                      data: [
-                        stats.complaintStatus.submitted,
-                        stats.complaintStatus.in_progress,
-                        stats.complaintStatus.resolved,
-                        stats.complaintStatus.closed,
-                      ],
-                      backgroundColor: ['#60a5fa', '#facc15', '#22c55e', '#6b7280'],
-                      borderRadius: 6,
-                      borderSkipped: false,
-                    },
-                  ],
-                }}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: { display: false },
-                  },
-                  scales: {
-                    y: { beginAtZero: true, border: { display: false } },
-                    x: { border: { display: false } }
-                  },
-                }}
-              />
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-12">No data available</p>
-          )}
-        </div>
-
-        {/* Leave Status Chart */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-6">Leave Requests</h2>
-          {stats.totalLeaves > 0 ? (
-            <div className="h-80">
-              <Bar
-                data={{
-                  labels: ['Pending', 'Approved', 'Rejected'],
-                  datasets: [
-                    {
-                      label: 'Leaves',
-                      data: [
-                        stats.leaveStatus.pending,
-                        stats.leaveStatus.approved,
-                        stats.leaveStatus.rejected,
-                      ],
-                      backgroundColor: ['#f97316', '#22c55e', '#ef4444'],
-                      borderRadius: 6,
-                      borderSkipped: false,
-                    },
-                  ],
-                }}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: { display: false },
-                  },
-                  scales: {
-                    y: { beginAtZero: true, border: { display: false } },
-                    x: { border: { display: false } }
-                  },
-                }}
-              />
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-12">No data available</p>
-          )}
-        </div>
-
-        {/* Attendance Overview */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-6">Today's Attendance</h2>
-          {stats.totalTodayAttendance > 0 ? (
-            <div className="flex justify-center">
-              <div className="w-48 h-48">
-                <Doughnut
+            {/* Today's Attendance Doughnut */}
+            <Card className="border-none shadow-sm rounded-[32px]" title={<Text strong>Today's Attendance Pulse</Text>}>
+              <div className="h-60">
+                <Doughnut 
+                  options={commonOptions}
                   data={{
-                    labels: ['Present', 'Absent', 'On Duty'],
-                    datasets: [
-                      {
-                        data: [
-                          stats.attendanceStatus.P,
-                          stats.attendanceStatus.A,
-                          stats.attendanceStatus.OD,
-                        ],
-                        backgroundColor: ['#22c55e', '#ef4444', '#facc15'],
-                        borderColor: ['#16a34a', '#dc2626', '#eab308'],
-                        borderWidth: 2,
-                      },
-                    ],
-                  }}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    plugins: {
-                      legend: { position: 'bottom', labels: { padding: 20 } },
-                      tooltip: {
-                        callbacks: {
-                          label: function(context) {
-                            let label = context.label || '';
-                            if (label) label += ': ';
-                            if (context.parsed !== null) {
-                              label += context.parsed + ' (' + (context.parsed / stats.totalTodayAttendance * 100).toFixed(1) + '%)';
-                            }
-                            return label;
-                          }
-                        }
-                      }
-                    },
+                    labels: ['Present', 'Absent', 'On-Duty'],
+                    datasets: [{
+                      data: [stats.attendanceStatus.P, stats.attendanceStatus.A, stats.attendanceStatus.OD],
+                      backgroundColor: ['#10b981', '#f43f5e', '#facc15'],
+                      borderWidth: 0
+                    }]
                   }}
                 />
               </div>
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-12">No attendance marked</p>
-          )}
-        </div>
+            </Card>
 
-        {/* Monthly Attendance Trend */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-6">Attendance Trend</h2>
-          {monthlyData.monthlyAttendance.length > 0 ? (
-            <div className="h-80">
-              <Line
-                data={{
-                  labels: monthlyData.monthlyAttendance.map(item => item.month),
-                  datasets: [
-                    {
-                      label: 'Present %',
-                      data: monthlyData.monthlyAttendance.map(item => item.present),
-                      borderColor: '#3b82f6',
-                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                      borderWidth: 3,
-                      tension: 0.4,
-                      fill: true,
-                      pointBackgroundColor: '#3b82f6',
-                      pointBorderColor: '#fff',
-                      pointBorderWidth: 2,
-                      pointRadius: 5,
-                    },
-                    {
-                      label: 'Absent %',
-                      data: monthlyData.monthlyAttendance.map(item => item.absent),
-                      borderColor: '#ef4444',
-                      backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                      borderWidth: 3,
-                      tension: 0.4,
-                      fill: true,
-                      pointBackgroundColor: '#ef4444',
-                      pointBorderColor: '#fff',
-                      pointBorderWidth: 2,
-                      pointRadius: 5,
-                    },
-                  ],
-                }}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: { position: 'top', labels: { padding: 20 } },
-                  },
-                  scales: {
-                    y: { beginAtZero: true, max: 100, border: { display: false } },
-                    x: { border: { display: false } }
-                  },
-                }}
-              />
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-12">No data available</p>
-          )}
-        </div>
-
-        {/* Monthly Complaints Trend */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-lg font-bold text-gray-900 mb-6">Complaint Trends</h2>
-          {monthlyData.monthlyComplaints.length > 0 ? (
-            <div className="h-80">
-              <Bar
-                data={{
-                  labels: monthlyData.monthlyComplaints.map(item => item.month),
-                  datasets: [
-                    {
-                      label: 'Complaints',
-                      data: monthlyData.monthlyComplaints.map(item => item.total),
-                      backgroundColor: '#f59e0b',
-                      borderColor: '#d97706',
-                      borderRadius: 6,
-                      borderSkipped: false,
-                    },
-                  ],
-                }}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: { display: false },
-                  },
-                  scales: {
-                    y: { beginAtZero: true, border: { display: false } },
-                    x: { border: { display: false } }
-                  },
-                }}
-              />
-            </div>
-          ) : (
-            <p className="text-gray-500 text-center py-12">No data available</p>
-          )}
-        </div>
+            {/* Complaint Trend Bar Chart */}
+            <Card className="border-none shadow-sm rounded-[32px]" title={<Text strong>Monthly Incident Volume</Text>}>
+              <div className="h-48">
+                <Bar 
+                  options={commonOptions}
+                  data={{
+                    labels: ['Oct', 'Nov', 'Dec'],
+                    datasets: [{
+                      label: 'Total Incidents',
+                      data: [12, 8, 15],
+                      backgroundColor: '#f97316',
+                      borderRadius: 4
+                    }]
+                  }}
+                />
+              </div>
+            </Card>
+          </Col>
+        </Row>
       </div>
-    </div>
+    </ConfigProvider>
   );
 };
 
