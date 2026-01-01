@@ -1,379 +1,312 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  Card, Typography, Row, Col, Statistic, Button, Space, 
+  Select, Divider, ConfigProvider, theme, Skeleton, Badge, 
+  Tag, Modal, Input, Empty, message, Form, Table 
+} from 'antd';
+import { 
+  Wrench, Plus, CheckCircle2, AlertCircle, Calendar,XCircle,ClipboardList, 
+  User, RefreshCw, Filter, Search, ShieldAlert,Info, 
+  Clock, Tools, MapPin, Inbox, Send, Activity
+} from 'lucide-react';
 import { adminAPI } from '../../services/api';
-import { Wrench, Plus, CheckCircle, AlertCircle, Calendar, User } from 'lucide-react';
+import moment from 'moment';
+
+const { Title, Text, Paragraph } = Typography;
+const { TextArea } = Input;
+const { Option } = Select;
+
+// --- Specialized Skeletons for Precise UI Matching ---
+
+const StatsSkeleton = () => (
+  <Row gutter={[20, 20]} className="mb-8">
+    {[...Array(4)].map((_, i) => (
+      <Col xs={24} sm={12} lg={6} key={i}>
+        <Card className="border-none shadow-sm rounded-[24px] p-5 bg-white">
+          <div className="flex items-center gap-4">
+            <Skeleton.Button active style={{ width: 44, height: 44, borderRadius: 12 }} />
+            <div className="space-y-2 flex-1">
+              <Skeleton.Input active size="small" style={{ width: '50%', height: 10 }} />
+              <Skeleton.Input active size="small" style={{ width: '30%', height: 20 }} />
+            </div>
+          </div>
+        </Card>
+      </Col>
+    ))}
+  </Row>
+);
+
+const TableSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] overflow-hidden bg-white">
+    {[...Array(6)].map((_, i) => (
+      <div key={i} className="flex items-center gap-6 p-6 border-b border-slate-50 last:border-0">
+        <Skeleton.Avatar active shape="square" size="large" />
+        <div className="flex-1"><Skeleton active title={false} paragraph={{ rows: 1, width: '100%' }} /></div>
+        <Skeleton.Input active style={{ width: 100 }} />
+        <Skeleton.Button active style={{ width: 80 }} />
+      </div>
+    ))}
+  </Card>
+);
 
 const ManageMaintenance = () => {
+  const [form] = Form.useForm();
   const [maintenance, setMaintenance] = useState([]);
   const [hostels, setHostels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [formData, setFormData] = useState({
-    hostel_id: '',
-    room_id: '',
-    facility_id: '',
-    issue_type: '',
-    description: '',
-    priority: 'medium'
-  });
-  const [message, setMessage] = useState({ type: '', text: '' });
   const [createLoading, setCreateLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    fetchMaintenance();
-    fetchHostels();
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [maintRes, hostelRes] = await Promise.all([
+        adminAPI.getMaintenance(),
+        adminAPI.getHostels()
+      ]);
+      setMaintenance(maintRes.data.data || []);
+      setHostels(hostelRes.data.data || []);
+    } catch (error) {
+      message.error('Facility ledger synchronization failed.');
+    } finally {
+      setTimeout(() => setLoading(false), 800);
+    }
   }, []);
 
-  const fetchMaintenance = async () => {
-    try {
-      const response = await adminAPI.getMaintenance();
-      setMaintenance(response.data.data || []);
-    } catch (error) {
-      console.error('Error fetching maintenance:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  const fetchHostels = async () => {
-    try {
-      const response = await adminAPI.getHostels();
-      setHostels(response.data.data || []);
-    } catch (error) {
-      console.error('Error fetching hostels:', error);
-    }
-  };
-
-  const handleCreateMaintenance = async (e) => {
-    e.preventDefault();
+  const handleCreateMaintenance = async (values) => {
     setCreateLoading(true);
-    setMessage({ type: '', text: '' });
-
     try {
       await adminAPI.createMaintenance({
-        ...formData,
-        hostel_id: parseInt(formData.hostel_id),
-        room_id: formData.room_id ? parseInt(formData.room_id) : null,
-        facility_id: formData.facility_id ? parseInt(formData.facility_id) : null
+        ...values,
+        hostel_id: parseInt(values.hostel_id),
+        room_id: values.room_id ? parseInt(values.room_id) : null,
       });
       
-      setMessage({ type: 'success', text: 'Maintenance record created successfully!' });
-      setFormData({
-        hostel_id: '',
-        room_id: '',
-        facility_id: '',
-        issue_type: '',
-        description: '',
-        priority: 'medium'
-      });
+      message.success('Maintenance protocol initiated successfully.');
       setShowCreateModal(false);
-      fetchMaintenance();
+      form.resetFields();
+      fetchData();
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to create maintenance record' 
-      });
+      message.error(error.response?.data?.message || 'Protocol violation: Creation failed');
     } finally {
       setCreateLoading(false);
     }
   };
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+  const priorityConfig = {
+    urgent: { color: 'error', label: 'Urgent', bg: 'bg-rose-50', text: 'text-rose-600' },
+    high: { color: 'warning', label: 'High', bg: 'bg-orange-50', text: 'text-orange-600' },
+    medium: { color: 'processing', label: 'Medium', bg: 'bg-blue-50', text: 'text-blue-600' },
+    low: { color: 'default', label: 'Low', bg: 'bg-slate-50', text: 'text-slate-600' }
   };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'urgent':
-        return 'bg-red-100 text-red-800';
-      case 'high':
-        return 'bg-orange-100 text-orange-800';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'low':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  const statusConfig = {
+    reported: { color: 'warning', label: 'Reported', icon: <AlertCircle size={12} /> },
+    in_progress: { color: 'processing', label: 'In Repair', icon: <Clock size={12} /> },
+    completed: { color: 'success', label: 'Resolved', icon: <CheckCircle2 size={12} /> },
+    cancelled: { color: 'default', label: 'Voided', icon: <XCircle size={12} /> }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'in_progress':
-        return 'bg-blue-100 text-blue-800';
-      case 'reported':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+  const filteredData = useMemo(() => {
+    return maintenance.filter(item => 
+      item.issue_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.Hostel?.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }
+  }, [maintenance, searchTerm]);
+
+  const columns = [
+    {
+      title: 'Issue Identification',
+      key: 'issue',
+      render: (_, r) => (
+        <Space gap={3}>
+          <div className={`p-2 rounded-xl ${priorityConfig[r.priority].bg} ${priorityConfig[r.priority].text}`}>
+            <Wrench size={18} />
+          </div>
+          <Space direction="vertical" size={0}>
+            <Text strong className="text-slate-700" style={{ fontWeight: 500 }}>{r.issue_type}</Text>
+            <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Ref: #MNT-{r.id}</Text>
+          </Space>
+        </Space>
+      )
+    },
+    {
+      title: 'Hostel Unit',
+      dataIndex: ['Hostel', 'name'],
+      render: (name) => <Text className="text-xs text-slate-600">{name || 'General'}</Text>
+    },
+    {
+      title: 'Workflow Status',
+      dataIndex: 'status',
+      render: (s) => (
+        <Tag icon={statusConfig[s]?.icon} color={statusConfig[s]?.color} className="rounded-full border-none px-3 font-bold uppercase text-[9px]">
+          {statusConfig[s]?.label || s}
+        </Tag>
+      )
+    },
+    {
+      title: 'Protocol Info',
+      key: 'reporter',
+      render: (_, r) => (
+        <div className="flex flex-col">
+          <Space size={4} className="text-xs text-slate-600"><User size={12} strokeWidth={1.5}/> {r.ReportedBy?.username || 'System'}</Space>
+          <Text className="text-[9px] text-slate-400 font-bold uppercase">{moment(r.createdAt).fromNow()}</Text>
+        </div>
+      )
+    },
+    {
+      title: 'Action',
+      key: 'action',
+      align: 'right',
+      render: () => <Button type="text" icon={<RefreshCw size={14}/>} className="text-slate-300 hover:text-blue-500" />
+    }
+  ];
 
   return (
-    <div>
-      <div className="mb-8 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Maintenance Management</h1>
-          <p className="text-gray-600 mt-2">Track and manage maintenance requests</p>
-        </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-        >
-          <Plus size={20} className="mr-2" />
-          Report Issue
-        </button>
-      </div>
-
-      {message.text && (
-        <div className={`mb-4 p-3 rounded-lg flex items-center ${
-          message.type === 'success' 
-            ? 'bg-green-100 border border-green-400 text-green-700' 
-            : 'bg-red-100 border border-red-400 text-red-700'
-        }`}>
-          {message.type === 'success' ? (
-            <CheckCircle size={20} className="mr-2" />
-          ) : (
-            <AlertCircle size={20} className="mr-2" />
-          )}
-          {message.text}
-        </div>
-      )}
-
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center">
-            <Wrench className="text-gray-400 mr-2" size={20} />
-            <h2 className="text-lg font-medium text-gray-900">Maintenance Records</h2>
-            <span className="ml-2 text-sm text-gray-500">
-              ({maintenance.length} records)
-            </span>
-          </div>
-        </div>
-
-        {maintenance.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Issue
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Hostel
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Location
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Priority
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Reported By
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {maintenance.map((record) => (
-                  <tr key={record.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {record.issue_type}
-                        </div>
-                        <div className="text-sm text-gray-500 max-w-xs truncate">
-                          {record.description}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {record.Hostel?.name || 'Unknown'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {record.Hostel?.room_number 
-                        ? `Room ${record.HostelRoom.room_number}`
-                        : record.HostelFacility?.name || 'General'
-                      }
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(record.priority)}`}>
-                        {record.priority.charAt(0).toUpperCase() + record.priority.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(record.status)}`}>
-                        {record.status.replace('_', ' ').charAt(0).toUpperCase() + record.status.replace('_', ' ').slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <User className="text-gray-400 mr-1" size={16} />
-                        <span className="text-sm text-gray-900">
-                          {record.ReportedBy?.username || 'Unknown'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-sm text-gray-500">
-                        <Calendar className="mr-1" size={16} />
-                        {new Date(record.createdAt).toLocaleDateString()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900 mr-3">
-                        View
-                      </button>
-                      <button className="text-green-600 hover:text-green-900">
-                        Update
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <Wrench className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No maintenance records</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Start tracking maintenance by reporting the first issue.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Create Maintenance Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Report Maintenance Issue</h3>
-              
-              <form onSubmit={handleCreateMaintenance} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Hostel *
-                  </label>
-                  <select
-                    name="hostel_id"
-                    value={formData.hostel_id}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Select Hostel</option>
-                    {hostels.map(hostel => (
-                      <option key={hostel.id} value={hostel.id}>
-                        {hostel.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Issue Type *
-                  </label>
-                  <input
-                    type="text"
-                    name="issue_type"
-                    value={formData.issue_type}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., Plumbing, Electrical, Wi-Fi"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description *
-                  </label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Describe the issue in detail..."
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Priority *
-                  </label>
-                  <select
-                    name="priority"
-                    value={formData.priority}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="submit"
-                    disabled={createLoading}
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  >
-                    {createLoading ? 'Reporting...' : 'Report Issue'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCreateModal(false);
-                      setFormData({
-                        hostel_id: '',
-                        room_id: '',
-                        facility_id: '',
-                        issue_type: '',
-                        description: '',
-                        priority: 'medium'
-                      });
-                      setMessage({ type: '', text: '' });
-                    }}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
+        
+        {/* Institutional Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-100">
+              <Activity className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0, fontWeight: 400 }}>Facility Maintenance</Title>
+              <Text type="secondary" style={{ fontWeight: 300 }}>Institutional oversight of hostel repair protocols and infrastructure health</Text>
             </div>
           </div>
+          <Button 
+            type="primary" 
+            icon={<Plus size={18}/>} 
+            onClick={() => setShowCreateModal(true)}
+            className="h-10 rounded-lg px-6 font-medium shadow-sm border-none bg-blue-600"
+          >
+            Report Incident
+          </Button>
         </div>
-      )}
-    </div>
+
+        {loading ? (
+          <>
+            <StatsSkeleton />
+            <TableSkeleton />
+          </>
+        ) : (
+          <>
+            {/* Improved Non-Bold Stat Cards */}
+            <Row gutter={[20, 20]} className="mb-8">
+              {[
+                { label: 'Total Incidents', val: maintenance.length, icon: ClipboardList, bg: 'bg-indigo-50', color: 'text-indigo-500' },
+                { label: 'Active Repairs', val: maintenance.filter(m => m.status === 'in_progress').length, icon: Clock, bg: 'bg-blue-50', color: 'text-blue-500' },
+                { label: 'Resolved Cases', val: maintenance.filter(m => m.status === 'completed').length, icon: CheckCircle2, bg: 'bg-emerald-50', color: 'text-emerald-500' },
+                { label: 'Critical Ops', val: maintenance.filter(m => m.priority === 'urgent').length, icon: ShieldAlert, bg: 'bg-rose-50', color: 'text-rose-500' },
+              ].map((stat, i) => (
+                <Col xs={24} sm={12} lg={6} key={i}>
+                  <Card className="border-none shadow-sm rounded-[24px] p-5 bg-white transition-all hover:bg-slate-50/50">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center`}>
+                        <stat.icon size={20} strokeWidth={1.5} />
+                      </div>
+                      <div className="flex flex-col">
+                        <Text className="text-[11px] uppercase text-slate-400 tracking-wider" style={{ fontWeight: 400 }}>{stat.label}</Text>
+                        <Text className="text-2xl text-slate-700" style={{ fontWeight: 500, lineHeight: 1.2 }}>{stat.val}</Text>
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+
+            {/* Filter Hub */}
+            <Card className="border-none shadow-sm rounded-2xl mb-6 bg-white">
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 md:max-w-md focus-within:border-blue-300 transition-all">
+                  <Search size={18} className="text-slate-300" />
+                  <Input 
+                    placeholder="Search by issue or unit..." 
+                    bordered={false} 
+                    className="w-full font-medium" 
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <Button icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''}/>} onClick={fetchData} className="rounded-lg h-10 w-10 flex items-center justify-center border-slate-200" />
+              </div>
+            </Card>
+
+            {/* Data Ledger */}
+            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+              {filteredData.length > 0 ? (
+                <Table 
+                  dataSource={filteredData} 
+                  columns={columns} 
+                  rowKey="id" 
+                  pagination={{ pageSize: 8, position: ['bottomCenter'], showSizeChanger: false }} 
+                />
+              ) : (
+                <div className="py-24 flex flex-col items-center justify-center bg-white">
+                  <Empty image={<div className="bg-slate-50 p-10 rounded-full mb-4"><Inbox size={64} className="text-slate-200" strokeWidth={1} /></div>} description={<Text className="text-slate-400 font-light block">No maintenance records found.</Text>} />
+                </div>
+              )}
+            </Card>
+          </>
+        )}
+
+        {/* Incident Reporting Modal */}
+        <Modal
+          title={<div className="flex items-center gap-2 text-blue-600" style={{ fontWeight: 400 }}><ShieldAlert size={18}/> Incident Reporting Protocol</div>}
+          open={showCreateModal}
+          onCancel={() => setShowCreateModal(false)}
+          footer={null}
+          className="rounded-2xl"
+          width={500}
+        >
+          <Form form={form} layout="vertical" onFinish={handleCreateMaintenance} className="mt-6" initialValues={{ priority: 'medium' }}>
+            <Form.Item name="hostel_id" label={<Text style={{ fontWeight: 500 }} className="text-xs text-slate-500 uppercase tracking-wider">Target Hostel Unit</Text>} rules={[{ required: true }]}>
+              <Select placeholder="Select Institutional Unit" className="h-11 w-full">
+                {hostels.map(h => <Option key={h.id} value={h.id}>{h.name}</Option>)}
+              </Select>
+            </Form.Item>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="issue_type" label={<Text style={{ fontWeight: 500 }} className="text-xs text-slate-500 uppercase tracking-wider">Classification</Text>} rules={[{ required: true }]}>
+                  <Input placeholder="e.g. Plumbing" className="h-11 rounded-lg" />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="priority" label={<Text style={{ fontWeight: 500 }} className="text-xs text-slate-500 uppercase tracking-wider">Urgency Level</Text>} rules={[{ required: true }]}>
+                  <Select className="h-11">
+                    <Option value="low">Low Impact</Option>
+                    <Option value="medium">Standard</Option>
+                    <Option value="high">High Priority</Option>
+                    <Option value="urgent">Critical Failure</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item name="description" label={<Text style={{ fontWeight: 500 }} className="text-xs text-slate-500 uppercase tracking-wider">Diagnostic Details</Text>} rules={[{ required: true }]}>
+              <TextArea rows={4} placeholder="Detail the physical failure or maintenance requirement..." className="rounded-lg p-3 border-slate-200" />
+            </Form.Item>
+
+            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 flex gap-3 mb-6">
+              <Info size={16} className="text-blue-500 shrink-0 mt-0.5" strokeWidth={1.5} />
+              <Text className="text-[11px] text-blue-700 font-light leading-relaxed">Recording this incident notifies the relevant facility vendors and initiates the repair audit trail.</Text>
+            </div>
+
+            <Space className="w-full justify-end">
+              <Button onClick={() => setShowCreateModal(false)} className="rounded-lg h-11 px-6">Abort</Button>
+              <Button type="primary" htmlType="submit" loading={createLoading} className="h-11 rounded-lg px-8 font-medium shadow-sm bg-blue-600 border-none">Commit Record</Button>
+            </Space>
+          </Form>
+        </Modal>
+      </div>
+    </ConfigProvider>
   );
 };
 
