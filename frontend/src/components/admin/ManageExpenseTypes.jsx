@@ -1,208 +1,327 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  Card, Typography, Row, Col, Button, Space, 
+  Divider, ConfigProvider, theme, Skeleton, 
+  Tag, Modal, Input, Empty, message, Form, 
+  Table, Segmented, Tooltip
+} from 'antd';
+import { 
+  CreditCard, Plus, AlertCircle, 
+  Edit3, Trash2, RefreshCw, LayoutGrid, Inbox, 
+  Settings2, List, AlignJustify, Maximize, 
+  Square, Hash, Clock, Receipt, BarChart3
+} from 'lucide-react';
 import { adminAPI } from '../../services/api';
-import { CreditCard, Plus, CheckCircle, AlertCircle, Edit, Trash2 } from 'lucide-react';
+import moment from 'moment';
+
+const { Title, Text, Paragraph } = Typography;
+
+// --- Specialized Skeletons for Statistics ---
+const StatsSkeleton = () => (
+  <Row gutter={[20, 20]} className="mb-8">
+    {[...Array(3)].map((_, i) => (
+      <Col xs={24} md={8} key={i}>
+        <Card className="border-none shadow-sm rounded-[24px] p-5 bg-white">
+          <div className="flex items-center gap-4">
+            <Skeleton.Button active style={{ width: 44, height: 44, borderRadius: 12 }} />
+            <div className="space-y-2 flex-1">
+              <Skeleton.Input active size="small" style={{ width: '50%', height: 10 }} />
+              <Skeleton.Input active size="small" style={{ width: '30%', height: 20 }} />
+            </div>
+          </div>
+        </Card>
+      </Col>
+    ))}
+  </Row>
+);
 
 const ManageExpenseTypes = () => {
+  const [form] = Form.useForm();
   const [expenseTypes, setExpenseTypes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: ''
-  });
-  const [message, setMessage] = useState({ type: '', text: '' });
-  const [createLoading, setCreateLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [btnLoading, setBtnLoading] = useState(false);
+  const [viewMode, setViewMode] = useState('tiles');
 
-  useEffect(() => {
-    fetchExpenseTypes();
-  }, []);
-
-  const fetchExpenseTypes = async () => {
+  const fetchExpenseTypes = useCallback(async () => {
+    setLoading(true);
     try {
       const response = await adminAPI.getExpenseTypes();
       setExpenseTypes(response.data.data || []);
     } catch (error) {
-      console.error('Error fetching expense types:', error);
+      message.error('Expense ledger synchronization failed.');
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 600);
     }
+  }, []);
+
+  useEffect(() => { fetchExpenseTypes(); }, [fetchExpenseTypes]);
+
+  // --- Derived Statistics ---
+  const stats = useMemo(() => {
+    return [
+      { label: 'Expense Categories', val: expenseTypes.length, icon: Receipt, bg: 'bg-rose-50', color: 'text-rose-500' },
+      { label: 'New This Month', val: expenseTypes.filter(e => moment(e.createdAt).isSame(moment(), 'month')).length, icon: BarChart3, bg: 'bg-orange-50', color: 'text-orange-500' },
+      { label: 'System Status', val: 'Operational', icon: Hash, bg: 'bg-slate-50', color: 'text-slate-500' },
+    ];
+  }, [expenseTypes]);
+
+  const handleOpenModal = (record = null) => {
+    if (record) {
+      setEditingId(record.id);
+      form.setFieldsValue(record);
+    } else {
+      setEditingId(null);
+      form.resetFields();
+    }
+    setIsModalOpen(true);
   };
 
-  const handleCreateExpenseType = async (e) => {
-    e.preventDefault();
-    setCreateLoading(true);
-    setMessage({ type: '', text: '' });
-
+  const handleFinish = async (values) => {
+    setBtnLoading(true);
     try {
-      await adminAPI.createExpenseType(formData);
-      setMessage({ type: 'success', text: 'Expense type created successfully!' });
-      setFormData({ name: '', description: '' });
-      setShowCreateModal(false);
+      if (editingId) {
+        await adminAPI.updateExpenseType(editingId, values);
+        message.success('Expense protocol updated.');
+      } else {
+        await adminAPI.createExpenseType(values);
+        message.success('New expense stream registered.');
+      }
+      setIsModalOpen(false);
       fetchExpenseTypes();
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to create expense type' 
-      });
+      message.error(error.response?.data?.message || 'Update failed.');
     } finally {
-      setCreateLoading(false);
+      setBtnLoading(false);
     }
   };
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
+  const handleDelete = (id) => {
+    Modal.confirm({
+      title: 'Void Expense Category?',
+      icon: <AlertCircle className="text-rose-500 mr-2" strokeWidth={1.5} />,
+      content: 'This will archive the category. Existing logs using this type will remain in historical records.',
+      okText: 'Confirm Deletion',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await adminAPI.deleteExpenseType(id);
+          message.success('Registry purged.');
+          fetchExpenseTypes();
+        } catch (e) { message.error('Dependency error: Category is currently active.'); }
+      }
     });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  // --- VIEW RENDERERS ---
+
+  const renderIconsView = () => (
+    <Row gutter={[16, 16]}>
+      {expenseTypes.map(item => (
+        <Col xs={12} sm={8} md={6} lg={4} key={item.id}>
+          <div className="group bg-white p-6 rounded-3xl border border-transparent hover:border-rose-200 hover:shadow-xl transition-all flex flex-col items-center text-center cursor-pointer" onClick={() => handleOpenModal(item)}>
+              <div className="p-4 rounded-2xl mb-3 bg-rose-50 text-rose-500">
+                 <CreditCard size={40} strokeWidth={1.2} />
+              </div>
+              <Text strong className="block truncate w-full">{item.name}</Text>
+              <Text type="secondary" className="text-[10px] uppercase tracking-wider">Expense Type</Text>
+          </div>
+        </Col>
+      ))}
+    </Row>
+  );
+
+  const renderTilesView = () => (
+    <Row gutter={[20, 20]}>
+      {expenseTypes.map(item => (
+        <Col xs={24} md={12} lg={8} key={item.id}>
+          <Card className="border-none shadow-sm rounded-2xl hover:shadow-md transition-all overflow-hidden border-l-4 border-l-rose-500">
+            <div className="flex justify-between items-start">
+              <Space size={12}>
+                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><CreditCard size={20}/></div>
+                <div>
+                  <Text strong className="text-base block">{item.name}</Text>
+                  <Text type="secondary" className="text-[11px] truncate max-w-[150px] block">{item.description || 'No description'}</Text>
+                </div>
+              </Space>
+              <div className="flex gap-1">
+                <Button type="text" size="small" icon={<Edit3 size={14}/>} onClick={() => handleOpenModal(item)} />
+                <Button type="text" size="small" danger icon={<Trash2 size={14}/>} onClick={() => handleDelete(item.id)} />
+              </div>
+            </div>
+            <div className="mt-4 flex justify-between items-center">
+              <Tag color="volcano" className="rounded-full border-none px-3 m-0 text-[10px]">Managed</Tag>
+              <Text className="text-xs text-slate-400 font-light"><Clock size={12} className="inline mr-1"/> {moment(item.createdAt).format('MMM YYYY')}</Text>
+            </div>
+          </Card>
+        </Col>
+      ))}
+    </Row>
+  );
+
+  const renderListView = () => (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      {expenseTypes.map((item, idx) => (
+        <div key={item.id} className={`flex items-center justify-between p-4 hover:bg-rose-50/50 transition-colors ${idx !== expenseTypes.length - 1 ? 'border-b border-slate-50' : ''}`}>
+           <Space size={16} className="flex-1">
+              <CreditCard size={18} className="text-slate-300" />
+              <div className="w-48"><Text strong>{item.name}</Text></div>
+              <Tag color="default" className="rounded-full text-[10px] uppercase font-bold border-none px-3">Category</Tag>
+              <Text type="secondary" className="text-xs italic truncate max-w-xs">{item.description}</Text>
+           </Space>
+           <Space size={24}>
+             <Text className="text-xs text-slate-400">ID: {item.id}</Text>
+             <Space>
+               <Button type="text" size="small" icon={<Edit3 size={16}/>} onClick={() => handleOpenModal(item)} />
+               <Button type="text" size="small" danger icon={<Trash2 size={16}/>} onClick={() => handleDelete(item.id)} />
+             </Space>
+           </Space>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderTableView = () => (
+    <Table 
+      dataSource={expenseTypes} 
+      rowKey="id"
+      className="bg-white rounded-2xl shadow-sm overflow-hidden"
+      pagination={{ pageSize: 10 }}
+      columns={[
+        { title: 'Expense Name', dataIndex: 'name', render: (t) => <Text strong>{t}</Text> },
+        { title: 'Description', dataIndex: 'description', render: (d) => <Text type="secondary" className="text-xs">{d || '-'}</Text> },
+        { title: 'Date Created', dataIndex: 'createdAt', render: (d) => moment(d).format('LL') },
+        { 
+          title: 'Actions', 
+          align: 'right',
+          render: (_, record) => (
+            <Space>
+              <Button type="link" size="small" className="text-rose-500" onClick={() => handleOpenModal(record)}>Edit</Button>
+              <Button type="link" danger size="small" onClick={() => handleDelete(record.id)}>Void</Button>
+            </Space>
+          ) 
+        }
+      ]} 
+    />
+  );
 
   return (
-    <div>
-      <div className="mb-8 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Manage Expense Types</h1>
-          <p className="text-gray-600 mt-2">Create and manage categories of expenses</p>
-        </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors flex items-center"
-        >
-          <Plus size={20} className="mr-2" />
-          Create Expense Type
-        </button>
-      </div>
-
-      {message.text && (
-        <div className={`mb-4 p-3 rounded-lg flex items-center ${
-          message.type === 'success' 
-            ? 'bg-green-100 border border-green-400 text-green-700' 
-            : 'bg-red-100 border border-red-400 text-red-700'
-        }`}>
-          {message.type === 'success' ? (
-            <CheckCircle size={20} className="mr-2" />
-          ) : (
-            <AlertCircle size={20} className="mr-2" />
-          )}
-          {message.text}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {expenseTypes.map((expenseType) => (
-          <div key={expenseType.id} className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <div className="bg-red-100 p-3 rounded-lg">
-                  <CreditCard className="text-red-600" size={24} />
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-lg font-semibold text-gray-900">{expenseType.name}</h3>
-                </div>
-              </div>
-              <div className="flex space-x-2">
-                <button className="text-blue-600 hover:text-blue-800 p-1">
-                  <Edit size={16} />
-                </button>
-                <button className="text-red-600 hover:text-red-800 p-1">
-                  <Trash2 size={16} />
-                </button>
-              </div>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#e11d48', borderRadius: 14 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
+        
+        {/* Header Section */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-10">
+          <div className="flex items-center gap-5">
+            <div className="p-4 bg-rose-600 rounded-2xl shadow-xl shadow-rose-200 -rotate-2 transition-transform">
+              <CreditCard className="text-white" size={28} strokeWidth={1.5} />
             </div>
+            <div>
+              <Title level={2} style={{ margin: 0, fontWeight: 600, letterSpacing: '-0.02em' }}>Expense Categories</Title>
+              <Text type="secondary" className="font-light">Manage outflows and institutional spending types</Text>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-4 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
+            <Segmented
+              value={viewMode}
+              onChange={setViewMode}
+              options={[
+                { label: <Tooltip title="Icons"><Square size={16} className="mt-1.5 mx-auto"/></Tooltip>, value: 'icons' },
+                { label: <Tooltip title="Tiles"><LayoutGrid size={16} className="mt-1.5 mx-auto"/></Tooltip>, value: 'tiles' },
+                { label: <Tooltip title="List"><AlignJustify size={16} className="mt-1.5 mx-auto"/></Tooltip>, value: 'list' },
+                { label: <Tooltip title="Table"><List size={16} className="mt-1.5 mx-auto"/></Tooltip>, value: 'details' },
+              ]}
+              className="p-1 bg-slate-100 rounded-xl"
+            />
+            <Divider type="vertical" className="h-8" />
+            <Button icon={<RefreshCw size={16}/>} onClick={fetchExpenseTypes} type="text" className="rounded-xl">Sync</Button>
+            <Button type="primary" icon={<Plus size={18}/>} onClick={() => handleOpenModal()} className="rounded-xl px-6 h-10 shadow-lg shadow-rose-100 border-none">Create Type</Button>
+          </div>
+        </div>
 
-            {expenseType.description && (
-              <div className="text-sm text-gray-600 mb-4">
-                <p>{expenseType.description}</p>
-              </div>
+        {loading ? (
+          <>
+            <StatsSkeleton />
+            <Skeleton active avatar paragraph={{ rows: 4 }} className="bg-white p-8 rounded-3xl" />
+          </>
+        ) : (
+          <div className="animate-in fade-in duration-700">
+            {/* Stats Cards */}
+            <Row gutter={[20, 20]} className="mb-8">
+              {stats.map((stat, i) => (
+                <Col xs={24} md={8} key={i}>
+                  <Card className="border-none shadow-sm rounded-[24px] p-5 bg-white hover:bg-rose-50/20 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center`}>
+                        <stat.icon size={20} strokeWidth={1.5} />
+                      </div>
+                      <div className="flex flex-col">
+                        <Text className="text-[11px] uppercase text-slate-400 tracking-wider font-medium">{stat.label}</Text>
+                        <Text className="text-2xl text-slate-700 font-semibold leading-tight">{stat.val}</Text>
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+
+            {expenseTypes.length === 0 ? (
+               <div className="py-24 flex flex-col items-center justify-center bg-white rounded-[32px] shadow-sm border border-slate-50">
+                 <Empty image={<Inbox size={64} className="text-slate-200 mb-4" />} description="No expense types categorized." />
+               </div>
+            ) : (
+              <>
+                {viewMode === 'icons' && renderIconsView()}
+                {viewMode === 'tiles' && renderTilesView()}
+                {viewMode === 'list' && renderListView()}
+                {viewMode === 'details' && renderTableView()}
+              </>
             )}
-
-            <div className="text-sm text-gray-500 pt-2 border-t border-gray-200">
-              Created: {new Date(expenseType.createdAt).toLocaleDateString()}
-            </div>
           </div>
-        ))}
+        )}
+
+        {/* Action Modal */}
+        <Modal
+          title={
+            <div className="flex items-center gap-3 py-2 border-b border-slate-50 w-full">
+              <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><Settings2 size={20}/></div>
+              <span className="font-semibold text-slate-700">{editingId ? 'Modify Expense Protocol' : 'Register Expense Type'}</span>
+            </div>
+          }
+          open={isModalOpen}
+          onCancel={() => setIsModalOpen(false)}
+          footer={null}
+          width={450}
+          centered
+          className="rounded-3xl overflow-hidden"
+        >
+          <Form form={form} layout="vertical" onFinish={handleFinish} className="mt-6 px-2">
+            <Form.Item name="name" label={<Text strong className="text-[11px] text-slate-400 uppercase tracking-widest">Type Label</Text>} rules={[{ required: true, message: 'Please enter a name' }]}>
+              <Input placeholder="e.g., Campus Maintenance" className="h-12 bg-slate-50 border-none rounded-xl" />
+            </Form.Item>
+            
+            <Form.Item name="description" label={<Text strong className="text-[11px] text-slate-400 uppercase tracking-widest">Purpose Description</Text>}>
+              <Input.TextArea placeholder="Describe the scope of this expense..." rows={4} className="bg-slate-50 border-none rounded-xl" />
+            </Form.Item>
+
+            <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100 flex gap-3 mb-6">
+              <AlertCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+              <Text className="text-[11px] text-amber-700 leading-relaxed font-light">
+                New expense types will immediately become available for book-keeping entries.
+              </Text>
+            </div>
+
+            <div className="flex gap-3 mt-8">
+              <Button onClick={() => setIsModalOpen(false)} className="flex-1 h-12 rounded-xl font-medium">Cancel</Button>
+              <Button type="primary" block htmlType="submit" loading={btnLoading} className="flex-[2] h-12 rounded-xl font-semibold shadow-xl shadow-rose-100 border-none">
+                {editingId ? 'Save Changes' : 'Confirm Registry'}
+              </Button>
+            </div>
+          </Form>
+        </Modal>
       </div>
-
-      {expenseTypes.length === 0 && (
-        <div className="text-center py-12">
-          <CreditCard className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No expense types</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Get started by creating your first expense type.
-          </p>
-        </div>
-      )}
-
-      {/* Create Expense Type Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Create Expense Type</h3>
-              
-              <form onSubmit={handleCreateExpenseType} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Expense Type Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., Utilities, Maintenance, Salaries"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Optional description..."
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="submit"
-                    disabled={createLoading}
-                    className="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
-                  >
-                    {createLoading ? 'Creating...' : 'Create'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCreateModal(false);
-                      setFormData({ name: '', description: '' });
-                      setMessage({ type: '', text: '' });
-                    }}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </ConfigProvider>
   );
 };
 
