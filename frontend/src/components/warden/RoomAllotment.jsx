@@ -1,659 +1,353 @@
-import React, { useState, useEffect } from 'react';
-import { wardenAPI } from '../../services/api';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
-  Bed, User, CheckCircle, AlertCircle, Users, Home, Eye, X, 
-  ChevronRight, Search, Loader2, Building, Users2, MapPin
+  Card, Table, Tag, Button, Input, Select, Typography, 
+  Row, Col, Statistic, Space, Skeleton, Modal, Badge, 
+  Progress, Divider, Empty, message, ConfigProvider, theme 
+} from 'antd';
+import { 
+  Bed, User, CheckCircle2, AlertCircle, Users, Home, Eye, 
+  Search, RefreshCw, Building, Users2, MapPin, Inbox,
+  ShieldCheck, ArrowRight, UserPlus
 } from 'lucide-react';
+import { wardenAPI } from '../../services/api';
+
+const { Title, Text, Paragraph } = Typography;
+
+// --- Specialized Skeletons for Precise UI Matching ---
+
+const SidebarSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+    <Skeleton active title={{ width: '60%' }} paragraph={{ rows: 1 }} />
+    <div className="space-y-4 mt-6">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="p-4 rounded-xl border border-slate-50 bg-slate-50/30">
+          <Skeleton active avatar={{ shape: 'square' }} title={{ width: '40%' }} paragraph={{ rows: 1 }} />
+        </div>
+      ))}
+    </div>
+  </Card>
+);
+
+const FormSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] p-8 bg-white overflow-hidden">
+    <div className="flex items-center gap-4 mb-8">
+      <Skeleton.Avatar active size="large" shape="square" />
+      <Skeleton active title={{ width: '40%' }} paragraph={false} />
+    </div>
+    <div className="space-y-8">
+      <Skeleton.Input active block style={{ height: 50, borderRadius: 12 }} />
+      <Skeleton active paragraph={{ rows: 4 }} />
+      <Skeleton.Button active block style={{ height: 60, borderRadius: 16 }} />
+    </div>
+  </Card>
+);
 
 const RoomAllotment = () => {
   const [students, setStudents] = useState([]);
   const [availableRooms, setAvailableRooms] = useState([]);
-  const [selectedRoom, setSelectedRoom] = useState('');
-  const [selectedStudents, setSelectedStudents] = useState([]);
-  const [selectedRoomOccupants, setSelectedRoomOccupants] = useState([]);
+  const [selectedRoomId, setSelectedRoomId] = useState(null);
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
-  const [studentsLoading, setStudentsLoading] = useState(true);
-  const [roomsLoading, setRoomsLoading] = useState(true);
-  const [occupantsLoading, setOccupantsLoading] = useState(false);
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
-  const [showBulkSelection, setShowBulkSelection] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
 
-  useEffect(() => {
-    fetchStudents();
-    fetchAvailableRooms();
-  }, []);
-
-  const fetchStudents = async () => {
+  // --- Data Synchronization ---
+  const fetchData = useCallback(async () => {
+    setDataLoading(true);
     try {
-      setStudentsLoading(true);
-      const response = await wardenAPI.getStudents();
-      
-      const unassignedStudents = response.data.data.filter(student => 
-        !student.tbl_RoomAllotments || 
-        student.tbl_RoomAllotments.length === 0 || 
-        !student.tbl_RoomAllotments.some(allotment => allotment.is_active)
+      const [studentRes, roomRes] = await Promise.all([
+        wardenAPI.getStudents(),
+        wardenAPI.getAvailableRooms()
+      ]);
+
+      // Filter unassigned students
+      const unassigned = studentRes.data.data.filter(s => 
+        !s.tbl_RoomAllotments?.some(a => a.is_active)
       );
-      
-      setStudents(unassignedStudents);
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      setMessage({ 
-        type: 'error', 
-        text: 'Failed to fetch students. Please try again.' 
-      });
-    } finally {
-      setStudentsLoading(false);
-    }
-  };
+      setStudents(unassigned);
 
-  const fetchAvailableRooms = async () => {
-    try {
-      setRoomsLoading(true);
-      const response = await wardenAPI.getAvailableRooms();
-
-      const roomsWithOccupants = await Promise.all(
-        response.data.data.map(async (room) => {
-          try {
-            const occupantsResponse = await wardenAPI.getRoomOccupants(room.id);
-            const occupants = occupantsResponse.data.data || [];
-            return {
-              ...room,
-              current_occupants: occupants.length,
-              spacesLeft: (room.RoomType?.capacity || 0) - occupants.length,
-              occupants
-            };
-          } catch (error) {
-            console.error(`Error fetching occupants for room ${room.id}:`, error);
-            return {
-              ...room,
-              current_occupants: 0,
-              spacesLeft: room.RoomType?.capacity || 0,
-              occupants: []
-            };
-          }
+      // Map rooms with occupancy data
+      const roomData = await Promise.all(
+        roomRes.data.data.map(async (room) => {
+          const occRes = await wardenAPI.getRoomOccupants(room.id);
+          const occupants = occRes.data.data || [];
+          return {
+            ...room,
+            current_occupants: occupants.length,
+            spacesLeft: (room.RoomType?.capacity || 0) - occupants.length,
+            occupants
+          };
         })
       );
-
-      setAvailableRooms(roomsWithOccupants);
+      setAvailableRooms(roomData);
     } catch (error) {
-      console.error('Error fetching available rooms:', error);
-      setMessage({ 
-        type: 'error', 
-        text: 'Failed to fetch available rooms. Please try again.' 
-      });
+      message.error('Institutional data sync failed.');
     } finally {
-      setRoomsLoading(false);
+      setTimeout(() => setDataLoading(false), 800);
     }
-  };
+  }, []);
 
-  const handleRoomSelect = async (room) => {
-    setSelectedRoom(room.id);
-    setSelectedStudents([]);
-    setShowBulkSelection(true);
-    setSelectedRoomOccupants(room.occupants || []);
-  };
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  const toggleStudentSelection = (studentId) => {
-    setSelectedStudents(prev => 
-      prev.includes(studentId)
-        ? prev.filter(id => id !== studentId)
-        : [...prev, studentId]
-    );
-  };
+  // --- Computed States ---
+  const selectedRoom = useMemo(() => 
+    availableRooms.find(r => r.id === selectedRoomId), [availableRooms, selectedRoomId]);
 
-  const filteredStudents = students.filter(student =>
-    student.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (student.roll_number && student.roll_number.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredStudents = useMemo(() => students.filter(s =>
+    s.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.roll_number && s.roll_number.toLowerCase().includes(searchTerm.toLowerCase()))
+  ), [students, searchTerm]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedRoom) {
-      setMessage({ type: 'error', text: 'Please select a room first.' });
-      return;
-    }
-    if (selectedStudents.length === 0) {
-      setMessage({ type: 'error', text: 'Please select at least one student.' });
-      return;
-    }
-
-    const selectedRoomObj = availableRooms.find(r => r.id === parseInt(selectedRoom));
-    if (selectedStudents.length > selectedRoomObj.spacesLeft) {
-      setMessage({ type: 'error', text: `Selected room only has ${selectedRoomObj.spacesLeft} spaces left.` });
-      return;
-    }
-
-    setShowConfirmation(true);
+  // --- Handlers ---
+  const handleToggleStudent = (id) => {
+    setSelectedStudentIds(prev => {
+      if (prev.includes(id)) return prev.filter(i => i !== id);
+      if (selectedRoom && prev.length >= selectedRoom.spacesLeft) {
+        message.warning(`Room threshold reached (${selectedRoom.spacesLeft} spaces)`);
+        return prev;
+      }
+      return [...prev, id];
+    });
   };
 
   const confirmAllotment = async () => {
     setLoading(true);
-    setShowConfirmation(false);
-    setMessage({ type: '', text: '' });
-
     try {
-      for (const studentId of selectedStudents) {
-        await wardenAPI.allotRoom({
-          student_id: parseInt(studentId),
-          room_id: parseInt(selectedRoom)
-        });
-      }
-      
-      setMessage({ 
-        type: 'success', 
-        text: `✅ ${selectedStudents.length} student${selectedStudents.length !== 1 ? 's' : ''} allotted successfully!` 
-      });
-      setSelectedRoom('');
-      setSelectedStudents([]);
-      setSelectedRoomOccupants([]);
-      setShowBulkSelection(false);
-      setSearchTerm('');
-      
-      fetchStudents();
-      fetchAvailableRooms();
+      await Promise.all(selectedStudentIds.map(sid => 
+        wardenAPI.allotRoom({ student_id: sid, room_id: selectedRoomId })
+      ));
+      message.success(`${selectedStudentIds.length} profiles updated in room registry.`);
+      setSelectedRoomId(null);
+      setSelectedStudentIds([]);
+      setConfirmModalVisible(false);
+      fetchData();
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to allot students' 
-      });
+      message.error('Execution protocol failed.');
     } finally {
       setLoading(false);
     }
   };
 
-  const selectedRoomObj = availableRooms.find(r => r.id === parseInt(selectedRoom));
-  const selectedStudentObjs = selectedStudents.map(id => students.find(s => s.id === id)).filter(Boolean);
+  if (dataLoading) {
+    return (
+      <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
+        <Row gutter={24}>
+          <Col lg={16} xs={24}><FormSkeleton /></Col>
+          <Col lg={8} xs={24}><SidebarSkeleton /></Col>
+        </Row>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900">Room Allotment</h1>
-        <p className="text-gray-600 mt-2">Efficiently assign rooms to multiple students at once</p>
-      </div>
-
-      {/* Alert Messages */}
-      {message.text && (
-        <div className={`p-4 rounded-xl border flex items-start space-x-3 animate-in fade-in ${
-          message.type === 'success'
-            ? 'bg-green-50 border-green-200'
-            : 'bg-red-50 border-red-200'
-        }`}>
-          {message.type === 'success' ? (
-            <div className="bg-green-100 p-3 rounded-lg">
-              <CheckCircle className="text-green-600" size={24} />
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+        
+        {/* Institutional Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <Building className="text-white" size={24} />
             </div>
-          ) : (
-            <div className="bg-red-100 p-3 rounded-lg">
-              <AlertCircle className="text-red-600" size={24} />
-            </div>
-          )}
-          <div className="flex-1">
-            <h3 className={`font-semibold ${message.type === 'success' ? 'text-green-900' : 'text-red-900'}`}>
-              {message.type === 'success' ? 'Success' : 'Error'}
-            </h3>
-            <p className={`text-sm mt-1 ${message.type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
-              {message.text}
-            </p>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Allotment Form */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-8 flex items-center">
-            <div className="bg-blue-100 p-3 rounded-lg mr-4">
-              <Building className="text-blue-600" size={24} />
-            </div>
-            Bulk Room Assignment
-          </h2>
-          
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Room Selection */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-3">
-                Select a Room <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <Bed className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <select
-                  value={selectedRoom}
-                  onChange={(e) => {
-                    const roomId = e.target.value;
-                    setSelectedRoom(roomId);
-                    setSelectedStudents([]);
-                    if (roomId) {
-                      const roomObj = availableRooms.find(r => r.id === parseInt(roomId));
-                      if (roomObj && roomObj.spacesLeft > 0) {
-                        setShowBulkSelection(true);
-                        setSelectedRoomOccupants(roomObj.occupants || []);
-                      } else {
-                        setShowBulkSelection(false);
-                      }
-                    } else {
-                      setShowBulkSelection(false);
-                      setSelectedRoomOccupants([]);
-                    }
-                  }}
-                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all appearance-none bg-white"
-                  required
-                  disabled={roomsLoading}
-                >
-                  <option value="">
-                    {roomsLoading ? 'Loading rooms...' : 'Choose a room'}
-                  </option>
-                  {availableRooms.map(room => (
-                    <option 
-                      key={room.id} 
-                      value={room.id} 
-                      disabled={room.spacesLeft <= 0}
-                    >
-                      Room {room.room_number} - {room.RoomType?.name} (Floor {room.floor}) - {room.spacesLeft} spaces
-                    </option>
-                  ))}
-                </select>
+              <Title level={2} style={{ margin: 0 }}>Inventory Hub: Room Allotment</Title>
+              <Text type="secondary">Execute batch student assignments to available room inventory</Text>
+            </div>
+          </div>
+          <Button icon={<RefreshCw size={16}/>} onClick={fetchData} className="rounded-xl h-11 px-6 font-bold shadow-sm">Sync Inventory</Button>
+        </div>
+
+        <Row gutter={[24, 24]}>
+          {/* Main Action Area */}
+          <Col lg={16} xs={24} className="space-y-6">
+            <Card className="border-none shadow-sm rounded-[32px] p-4">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="p-3 bg-slate-100 rounded-xl"><UserPlus className="text-slate-600" size={20}/></div>
+                <Title level={4} style={{ margin: 0 }}>Step 1: Selection Logic</Title>
               </div>
 
-              {selectedRoom && selectedRoomObj && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600 font-medium">Capacity</p>
-                      <p className="text-lg font-bold text-blue-900 mt-1">
-                        {selectedRoomObj.current_occupants} / {selectedRoomObj.RoomType?.capacity || 0} occupied
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-gray-600 font-medium">Available Spaces</p>
-                      <p className="text-lg font-bold text-green-600 mt-1">{selectedRoomObj.spacesLeft}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 w-full bg-gray-300 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full transition-all"
-                      style={{ width: `${(selectedRoomObj.current_occupants / selectedRoomObj.RoomType?.capacity) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Student Selection */}
-            {showBulkSelection && selectedRoom && (
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="text-sm font-semibold text-gray-700">
-                      Select Students 
-                      <span className="text-blue-600 font-bold ml-2">
-                        ({selectedStudents.length} / {selectedRoomObj?.spacesLeft})
-                      </span>
-                    </label>
-                    {searchTerm && (
-                      <button
-                        type="button"
-                        onClick={() => setSearchTerm('')}
-                        className="text-sm text-gray-500 hover:text-gray-700 font-medium"
-                      >
-                        Clear Search
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Search Input */}
-                  <div className="relative mb-4">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                    <input
-                      type="text"
-                      placeholder="Search by name or roll number..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
-                    />
-                  </div>
-
-                  {/* Students List */}
-                  <div className="border border-gray-200 rounded-lg bg-gray-50 max-h-72 overflow-y-auto">
-                    {studentsLoading ? (
-                      <div className="flex items-center justify-center py-12">
-                        <div className="text-center">
-                          <Loader2 className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
-                          <p className="text-gray-600 font-medium">Loading students...</p>
+              <div className="space-y-8">
+                {/* Room Selector Dropdown */}
+                <div className="space-y-2">
+                  <Text strong className="text-[11px] uppercase tracking-widest text-slate-400">Target Inventory Unit</Text>
+                  <Select
+                    placeholder="Select room to begin assignment..."
+                    className="w-full h-14"
+                    onChange={(val) => { setSelectedRoomId(val); setSelectedStudentIds([]); }}
+                    value={selectedRoomId}
+                  >
+                    {availableRooms.map(room => (
+                      <Select.Option key={room.id} value={room.id} disabled={room.spacesLeft === 0}>
+                        <div className="flex justify-between items-center py-1">
+                          <Space><Home size={16} className="text-blue-500"/> <Text strong>Room {room.room_number}</Text></Space>
+                          <Tag bordered={false} color={room.spacesLeft > 0 ? 'green' : 'default'} className="m-0 rounded-full font-bold uppercase text-[9px]">
+                            {room.spacesLeft} Slots Available
+                          </Tag>
                         </div>
-                      </div>
-                    ) : filteredStudents.length > 0 ? (
-                      <div className="divide-y divide-gray-200">
-                        {filteredStudents.slice(0, selectedRoomObj?.spacesLeft * 2).map(student => (
-                          <div 
-                            key={student.id} 
-                            className="p-4 hover:bg-white transition-colors cursor-pointer flex items-center"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedStudents.includes(student.id)}
-                              onChange={() => toggleStudentSelection(student.id)}
-                              className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                              disabled={selectedStudents.length >= selectedRoomObj?.spacesLeft && !selectedStudents.includes(student.id)}
-                            />
-                            <div className="ml-4 flex-1">
-                              <p className="font-semibold text-gray-900">{student.username}</p>
-                              <p className="text-sm text-gray-600 mt-1">Roll: {student.roll_number || 'N/A'}</p>
-                            </div>
-                            {selectedStudents.includes(student.id) && (
-                              <div className="ml-2 w-2 h-2 rounded-full bg-blue-600"></div>
-                            )}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </div>
+
+                {selectedRoom && (
+                  <div className="animate-in fade-in slide-in-from-top-4 duration-500 space-y-6">
+                    {/* Capacity Analytics */}
+                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                      <Row gutter={24} align="middle">
+                        <Col span={14}>
+                          <Text type="secondary" className="text-[10px] uppercase font-bold block mb-3">Live Occupancy Monitor</Text>
+                          <Progress 
+                            percent={Math.round((selectedRoom.current_occupants / selectedRoom.RoomType.capacity) * 100)} 
+                            strokeColor={{ '0%': '#3b82f6', '100%': '#2563eb' }}
+                            strokeWidth={12}
+                          />
+                        </Col>
+                        <Col span={10}>
+                          <div className="flex justify-around text-center">
+                            <Statistic title={<span className="text-[10px] uppercase font-bold text-slate-400">Occupied</span>} value={selectedRoom.current_occupants} valueStyle={{ fontWeight: 900 }} />
+                            <Statistic title={<span className="text-[10px] uppercase font-bold text-slate-400">Total</span>} value={selectedRoom.RoomType.capacity} valueStyle={{ fontWeight: 900 }} />
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center py-12">
-                        <div className="text-center">
-                          <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-gray-600 font-medium">
-                            {searchTerm ? 'No students found' : 'No unassigned students'}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Selected Students Preview */}
-                {selectedStudents.length > 0 && (
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-sm font-semibold text-blue-900 mb-3">Selected Students:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedStudentObjs.map(s => (
-                        <div key={s.id} className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1.5 rounded-full flex items-center">
-                          {s.username}
-                          <button
-                            type="button"
-                            onClick={() => toggleStudentSelection(s.id)}
-                            className="ml-2 hover:text-blue-600"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
+                        </Col>
+                      </Row>
                     </div>
+
+                    {/* Student Multi-Select List */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                         <Text strong className="text-[11px] uppercase tracking-widest text-slate-400">Step 2: Assign Student Members ({selectedStudentIds.length} Selected)</Text>
+                         <Input 
+                            prefix={<Search size={14} className="text-slate-300"/>} 
+                            placeholder="Filter by name or roll..." 
+                            className="w-64 rounded-xl border-slate-200" 
+                            onChange={e => setSearchTerm(e.target.value)}
+                         />
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        {filteredStudents.map(student => {
+                          const isSelected = selectedStudentIds.includes(student.id);
+                          return (
+                            <div 
+                              key={student.id} 
+                              onClick={() => handleToggleStudent(student.id)}
+                              className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-slate-100 bg-white hover:border-slate-300'}`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-xl ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                  <User size={18} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <Text strong className="block truncate">{student.username}</Text>
+                                  <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{student.roll_number || 'No Roll Set'}</Text>
+                                </div>
+                                {isSelected && <CheckCircle2 size={20} className="text-blue-600" />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <Button 
+                      type="primary" 
+                      block 
+                      size="large" 
+                      className="h-16 rounded-2xl font-bold shadow-lg shadow-blue-100 flex items-center justify-center gap-3 mt-4"
+                      disabled={selectedStudentIds.length === 0}
+                      onClick={() => setConfirmModalVisible(true)}
+                    >
+                      Process Assignment <ArrowRight size={20}/>
+                    </Button>
                   </div>
                 )}
               </div>
-            )}
+            </Card>
+          </Col>
 
-            {/* Current Occupants Preview */}
-            {selectedRoom && selectedRoomOccupants.length > 0 && (
-              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                  <Eye className="mr-2 h-5 w-5 text-gray-600" />
-                  Current Roommates ({selectedRoomOccupants.length}/{selectedRoomObj?.RoomType?.capacity || 0})
-                </h4>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {selectedRoomOccupants.map(occupant => (
-                    <div key={occupant.id} className="flex items-center text-sm text-gray-700 bg-white p-2 rounded">
-                      <User className="mr-2 h-4 w-4 text-gray-400" />
-                      <span className="font-medium">{occupant.username}</span>
-                      <span className="text-gray-500 ml-2">({occupant.roll_number || 'N/A'})</span>
+          {/* Institutional Sidebar */}
+          <Col lg={8} xs={24} className="space-y-6">
+            {/* Quick Status Sidebar */}
+            <Card className="border-none shadow-sm rounded-[32px]" title={<Space><Users2 size={18} className="text-orange-500"/> <Text strong>Pending Registry</Text></Space>}>
+              <div className="flex flex-col gap-3">
+                <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100">
+                   <Statistic title={<span className="text-orange-700 font-bold text-[10px] uppercase">Unassigned Members</span>} value={students.length} valueStyle={{ color: '#c2410c', fontWeight: 900 }} />
+                </div>
+                <Divider className="my-2 border-slate-50" />
+                <div className="max-h-[300px] overflow-y-auto space-y-2">
+                  {students.slice(0, 5).map(s => (
+                    <div key={s.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+                      <Space size={3}><User size={12} className="text-slate-400"/><Text className="text-xs font-medium">{s.username}</Text></Space>
+                      <Text className="text-[9px] font-bold text-slate-400">{s.roll_number}</Text>
                     </div>
                   ))}
+                  <Text className="text-[10px] text-slate-400 text-center block mt-2">Only top 5 shown</Text>
                 </div>
               </div>
-            )}
+            </Card>
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading || !selectedRoom || selectedStudents.length === 0 || studentsLoading || roomsLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-lg transition-all flex items-center justify-center space-x-2 group"
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={20} className="animate-spin" />
-                  <span>Allotting Students...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle size={20} />
-                  <span>Allot {selectedStudents.length} Student{selectedStudents.length !== 1 ? 's' : ''} to Room {selectedRoom ? availableRooms.find(r => r.id === parseInt(selectedRoom))?.room_number : ''}</span>
-                </>
-              )}
-            </button>
-          </form>
-        </div>
+            {/* Protocol Card */}
+            <Card className="border-none shadow-sm rounded-[32px] bg-slate-900 text-white relative overflow-hidden">
+               <div className="relative z-10">
+                  <Title level={5} className="text-white mb-4 flex items-center gap-2"><ShieldCheck size={18} className="text-blue-400"/> Protocol Compliance</Title>
+                  <Paragraph className="text-slate-400 text-[11px] leading-relaxed">
+                    Room allotment creates a permanent record in the institutional ledger. This action will trigger:
+                  </Paragraph>
+                  <ul className="text-[10px] space-y-2 text-slate-300 pl-4 list-disc">
+                    <li>Registry entry for Academic Year 2024-25</li>
+                    <li>Automatic monthly mess reconciliation</li>
+                    <li>Profile status update to "Resident"</li>
+                  </ul>
+               </div>
+               <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-blue-500 rounded-full opacity-10" />
+            </Card>
+          </Col>
+        </Row>
 
-        {/* Right Sidebar */}
-        <div className="space-y-6">
-          {/* Available Rooms */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-              <div className="bg-green-100 p-2 rounded-lg mr-3">
-                <Home className="text-green-600" size={20} />
-              </div>
-              Available Rooms
-              <span className="ml-2 bg-green-100 text-green-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                {availableRooms.filter(r => r.spacesLeft > 0).length}
-              </span>
-            </h3>
-            
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {roomsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
-                </div>
-              ) : availableRooms.filter(r => r.spacesLeft > 0).length > 0 ? (
-                availableRooms.filter(r => r.spacesLeft > 0).map(room => (
-                  <button
-                    key={room.id}
-                    onClick={() => handleRoomSelect(room)}
-                    className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                      selectedRoom === room.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="font-bold text-gray-900">Room {room.room_number}</div>
-                        <div className="text-xs text-gray-600 mt-1">
-                          {room.RoomType?.name} • Floor {room.floor}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-xs text-gray-500 font-medium">Occupancy</div>
-                        <div className="text-sm font-bold text-gray-900 mt-1">
-                          {room.current_occupants}/{room.RoomType?.capacity}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex items-center justify-between">
-                      <div className="w-full bg-gray-300 rounded-full h-1.5 mr-3">
-                        <div 
-                          className="bg-green-500 h-1.5 rounded-full transition-all"
-                          style={{ width: `${(room.current_occupants / room.RoomType?.capacity) * 100}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-xs font-bold text-green-600 whitespace-nowrap">
-                        {room.spacesLeft} left
-                      </span>
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <div className="text-center py-12">
-                  <Bed className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                  <p className="text-gray-600 font-medium">No available rooms</p>
-                  <p className="text-sm text-gray-500 mt-1">All rooms are full</p>
-                </div>
-              )}
+        {/* Audit Confirmation Modal */}
+        <Modal
+          title={<div className="flex items-center gap-2 text-blue-600"><Building size={20}/> Institutional Allotment Review</div>}
+          open={confirmModalVisible}
+          onCancel={() => setConfirmModalVisible(false)}
+          footer={[
+            <Button key="back" onClick={() => setConfirmModalVisible(false)} className="rounded-xl h-11 px-8">Abort</Button>,
+            <Button key="submit" type="primary" loading={loading} onClick={confirmAllotment} className="rounded-xl h-11 px-12 font-bold shadow-lg shadow-blue-100">Execute Protocol</Button>
+          ]}
+          width={600}
+          className="rounded-[32px]"
+        >
+          <div className="mt-6 space-y-6">
+            <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 flex justify-between items-center">
+               <div>
+                 <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest">Inventory Target</Text>
+                 <Title level={3} style={{ margin: 0 }}>Room {selectedRoom?.room_number}</Title>
+                 <Text type="secondary" className="text-xs">{selectedRoom?.RoomType?.name}</Text>
+               </div>
+               <Badge count={`${selectedStudentIds.length} Students`} style={{ backgroundColor: '#2563eb' }} className="h-fit font-bold" />
             </div>
-          </div>
 
-          {/* Unassigned Students Summary */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-              <div className="bg-orange-100 p-2 rounded-lg mr-3">
-                <Users2 className="text-orange-600" size={20} />
-              </div>
-              Waiting for Room
-              <span className="ml-2 bg-orange-100 text-orange-700 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                {students.length}
-              </span>
-            </h3>
-            
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {studentsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 text-blue-600 animate-spin" />
-                </div>
-              ) : students.length > 0 ? (
-                students.map(student => (
-                  <div 
-                    key={student.id} 
-                    className="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-white transition-colors"
-                  >
-                    <div className="flex items-center">
-                      <div className="bg-orange-100 p-1.5 rounded-full mr-3">
-                        <User className="text-orange-600" size={16} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">
-                          {student.username}
-                        </p>
-                        <p className="text-xs text-gray-600">
-                          Roll: {student.roll_number || 'N/A'}
-                        </p>
-                      </div>
-                    </div>
+            <Divider orientation="left" plain><Text className="text-[10px] uppercase font-bold text-slate-400">Batch Members</Text></Divider>
+
+            <div className="grid grid-cols-2 gap-3 max-h-[200px] overflow-y-auto">
+              {selectedStudentIds.map(id => {
+                const s = students.find(item => item.id === id);
+                return (
+                  <div key={id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="p-1.5 bg-white rounded-lg shadow-sm"><User size={12} className="text-blue-500"/></div>
+                    <Text strong className="text-xs truncate">{s?.username}</Text>
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <CheckCircle className="mx-auto h-8 w-8 text-green-400 mb-2" />
-                  <p className="text-gray-600 font-medium">All students assigned!</p>
-                </div>
-              )}
+                );
+              })}
+            </div>
+
+            <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 flex gap-3">
+              <AlertCircle className="text-orange-500 shrink-0 mt-1" size={18} />
+              <Text className="text-[11px] text-orange-800 italic leading-tight">Note: This action updates system-wide residency records and cannot be undone via this module.</Text>
             </div>
           </div>
-        </div>
+        </Modal>
       </div>
-
-      {/* Confirmation Modal */}
-      {showConfirmation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="p-8">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-blue-100 p-3 rounded-lg">
-                    <Building className="text-blue-600" size={24} />
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-900">Confirm Allotment</h3>
-                </div>
-                <button
-                  onClick={() => setShowConfirmation(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              {selectedRoomObj && (
-                <div className="space-y-6">
-                  {/* Room Info */}
-                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                    <p className="text-xs text-blue-600 font-semibold uppercase mb-2">Room Details</p>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-2xl font-bold text-gray-900">
-                          Room {selectedRoomObj.room_number}
-                        </p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {selectedRoomObj.RoomType?.name} • Floor {selectedRoomObj.floor}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-gray-600">Spaces Left</p>
-                        <p className="text-2xl font-bold text-green-600">{selectedRoomObj.spacesLeft}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Students to Allot */}
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700 mb-3">
-                      Students to be Allotted ({selectedStudents.length})
-                    </p>
-                    <div className="space-y-2 bg-gray-50 rounded-lg p-4 max-h-48 overflow-y-auto border border-gray-200">
-                      {selectedStudentObjs.map(student => (
-                        <div key={student.id} className="flex items-center p-3 bg-white rounded-lg border border-gray-200">
-                          <div className="bg-blue-100 p-2 rounded-full mr-3">
-                            <User className="text-blue-600" size={16} />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-semibold text-gray-900 text-sm">{student.username}</p>
-                            <p className="text-xs text-gray-600">Roll: {student.roll_number || 'N/A'}</p>
-                          </div>
-                          <CheckCircle className="text-blue-600" size={18} />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Current Roommates */}
-                  {selectedRoomOccupants.length > 0 && (
-                    <div>
-                      <p className="text-sm font-semibold text-gray-700 mb-3">
-                        Current Roommates ({selectedRoomOccupants.length})
-                      </p>
-                      <div className="space-y-2 bg-gray-50 rounded-lg p-4 max-h-32 overflow-y-auto border border-gray-200">
-                        {selectedRoomOccupants.map(occupant => (
-                          <div key={occupant.id} className="flex items-center text-sm text-gray-700 bg-white p-2 rounded">
-                            <User className="mr-2 h-4 w-4 text-gray-400" />
-                            <span className="font-medium">{occupant.username}</span>
-                            <span className="text-gray-500 ml-auto">({occupant.roll_number || 'N/A'})</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      onClick={() => setShowConfirmation(false)}
-                      className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-900 font-semibold py-3 px-4 rounded-lg transition-all"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={confirmAllotment}
-                      disabled={loading}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-lg transition-all flex items-center justify-center space-x-2"
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 size={20} className="animate-spin" />
-                          <span>Processing...</span>
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle size={20} />
-                          <span>Confirm Allotment</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </ConfigProvider>
   );
 };
 

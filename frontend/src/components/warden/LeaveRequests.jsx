@@ -1,369 +1,304 @@
-// components/warden/LeaveRequests.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Card, Typography, Row, Col, Statistic, Button, Space, 
+  Select, Divider, ConfigProvider, theme, Skeleton, Badge, 
+  Tooltip, Tag, Table, Modal, Input, Empty, message
+} from 'antd';
+import { 
+  Calendar, User, Clock, CheckCircle2, XCircle, 
+  RefreshCw, Filter, ShieldCheck, ClipboardList, 
+  Info, MessageSquare, UserCheck, Inbox
+} from 'lucide-react';
 import { wardenAPI } from '../../services/api';
-import { Calendar, User, Clock, CheckCircle, XCircle, AlertCircle, Filter } from 'lucide-react';
+import moment from 'moment';
+
+const { Title, Text, Paragraph } = Typography;
+const { TextArea } = Input;
+
+// --- 1. Specialized Skeletons for Metrics Cards ---
+const StatCardsSkeleton = () => (
+  <Row gutter={[24, 24]}>
+    {[...Array(4)].map((_, i) => (
+      <Col xs={24} sm={12} lg={6} key={i}>
+        <Card className="border-none shadow-sm rounded-2xl">
+          <Skeleton loading active avatar={{ size: 'small', shape: 'square' }} paragraph={{ rows: 1, width: '60%' }} title={false} />
+        </Card>
+      </Col>
+    ))}
+  </Row>
+);
+
+// --- 2. Specialized Skeleton for the Ledger Table ---
+const LeaveRequestSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden mt-8">
+    <div className="space-y-6">
+      <div className="flex justify-between items-center mb-4">
+        <Skeleton.Input active style={{ width: 250 }} />
+        <Skeleton.Button active />
+      </div>
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="flex gap-4 items-center border-b border-slate-50 pb-6 last:border-0">
+          <Skeleton.Avatar active shape="circle" size="large" />
+          <div className="flex-1">
+            <Skeleton active title={{ width: '40%' }} paragraph={{ rows: 1, width: '20%' }} />
+          </div>
+          <Skeleton.Button active style={{ width: 100 }} />
+        </div>
+      ))}
+    </div>
+  </Card>
+);
 
 const LeaveRequests = () => {
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [selectedLeave, setSelectedLeave] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [actionType, setActionType] = useState('');
   const [remarks, setRemarks] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => {
-    fetchLeaveRequests();
-  }, [filter]);
-
-  const fetchLeaveRequests = async () => {
+  const fetchLeaveRequests = useCallback(async () => {
     setLoading(true);
     try {
-      const params = filter !== 'all' ? { status: filter } : {};
+      const params = statusFilter !== 'all' ? { status: statusFilter } : {};
       const response = await wardenAPI.getLeaveRequests(params);
       setLeaveRequests(response.data.data || []);
     } catch (error) {
-      console.error('Error fetching leave requests:', error);
-      setLeaveRequests([]);
+      message.error('Session timeout or network error. Try again.');
     } finally {
-      setLoading(false);
+      // Small timeout to allow the warden to see the clean shimmer transition
+      setTimeout(() => setLoading(false), 800);
     }
-  };
+  }, [statusFilter]);
 
-  const handleAction = (leave, action) => {
-    setSelectedLeave(leave);
-    setActionType(action);
-    setRemarks('');
-    setShowModal(true);
-  };
+  useEffect(() => { fetchLeaveRequests(); }, [fetchLeaveRequests]);
 
   const confirmAction = async () => {
     if (!selectedLeave || !actionType) return;
-
     setActionLoading(true);
     try {
       await wardenAPI.approveLeave(selectedLeave.id, {
         status: actionType,
         remarks: remarks
       });
-      
-      // Refresh the list
-      await fetchLeaveRequests();
+      message.success(`Institutional decision recorded: ${actionType.toUpperCase()}`);
       setShowModal(false);
-      setSelectedLeave(null);
-      setActionType('');
-      setRemarks('');
+      fetchLeaveRequests();
     } catch (error) {
-      console.error('Error updating leave request:', error);
-      alert('Error updating leave request. Please try again.');
+      message.error('Authorization failed. Check system logs.');
     } finally {
       setActionLoading(false);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'approved':
-        return 'bg-green-100 text-green-800';
-      case 'rejected':
-        return 'bg-red-100 text-red-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+  const statusConfig = {
+    approved: { color: 'success', icon: <CheckCircle2 size={12} />, label: 'Authorized' },
+    rejected: { color: 'error', icon: <XCircle size={12} />, label: 'Declined' },
+    pending: { color: 'warning', icon: <Clock size={12} />, label: 'Awaiting Review' }
+  };
+
+  const columns = [
+    {
+      title: 'Student Identity',
+      key: 'student',
+      render: (_, r) => (
+        <Space gap={3}>
+          <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
+            <User size={18} />
+          </div>
+          <Space direction="vertical" size={0}>
+            <Text strong className="text-slate-700">{r.Student?.username}</Text>
+            <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+              Roll: {r.Student?.roll_number || 'N/A'}
+            </Text>
+          </Space>
+        </Space>
+      )
+    },
+    {
+      title: 'Leave Metrics',
+      key: 'details',
+      render: (_, r) => (
+        <Space direction="vertical" size={0}>
+          <Tag bordered={false} color="blue" className="rounded-lg text-[10px] font-bold uppercase m-0">
+            {r.leave_type}
+          </Tag>
+          <Text className="text-xs text-slate-500 mt-1">
+            {moment(r.from_date).format('DD MMM')} - {moment(r.to_date).format('DD MMM')} 
+            <span className="ml-1 text-slate-300">({moment(r.to_date).diff(moment(r.from_date), 'days') + 1}D)</span>
+          </Text>
+        </Space>
+      )
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      render: (s) => (
+        <Tag icon={statusConfig[s]?.icon} color={statusConfig[s]?.color} className="rounded-full border-none px-3 font-bold uppercase text-[9px]">
+          {statusConfig[s]?.label || s}
+        </Tag>
+      )
+    },
+    {
+      title: 'Warden Control',
+      key: 'action',
+      align: 'right',
+      render: (_, r) => (
+        r.status === 'pending' ? (
+          <Space>
+            <Button 
+              type="primary" 
+              size="small" 
+              className="rounded-lg font-bold text-[10px] bg-emerald-600 border-none shadow-sm h-8"
+              onClick={() => { setSelectedLeave(r); setActionType('approved'); setShowModal(true); }}
+            >
+              APPROVE
+            </Button>
+            <Button 
+              danger 
+              size="small" 
+              className="rounded-lg font-bold text-[10px] border-none bg-rose-50 h-8"
+              onClick={() => { setSelectedLeave(r); setActionType('rejected'); setShowModal(true); }}
+            >
+              REJECT
+            </Button>
+          </Space>
+        ) : (
+          <Tooltip title={r.remarks || 'No remarks provided'}>
+            <Button icon={<MessageSquare size={14}/>} type="text" className="text-slate-300" />
+          </Tooltip>
+        )
+      )
     }
-  };
-
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'approved':
-        return <CheckCircle className="text-green-600" size={16} />;
-      case 'rejected':
-        return <XCircle className="text-red-600" size={16} />;
-      case 'pending':
-        return <Clock className="text-yellow-600" size={16} />;
-      default:
-        return <AlertCircle className="text-gray-400" size={16} />;
-    }
-  };
-
-  const calculateDays = (fromDate, toDate) => {
-    const from = new Date(fromDate);
-    const to = new Date(toDate);
-    const diffTime = Math.abs(to - from);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    return diffDays;
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  ];
 
   return (
-    <div>
-      <div className="mb-8 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Leave Requests</h1>
-          <p className="text-gray-600 mt-2">Review and manage student leave requests</p>
-        </div>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
         
-        <div className="flex items-center space-x-2">
-          <Filter size={20} className="text-gray-400" />
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Requests</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <Calendar className="text-blue-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Total Requests</p>
-              <p className="text-2xl font-bold text-blue-900">{leaveRequests.length}</p>
+        {/* Institutional Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <ShieldCheck className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Absence Authorization</Title>
+              <Text type="secondary">Institutional review of student leave protocols</Text>
             </div>
           </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <Clock className="text-yellow-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Pending</p>
-              <p className="text-2xl font-bold text-yellow-900">
-                {leaveRequests.filter(l => l.status === 'pending').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <CheckCircle className="text-green-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Approved</p>
-              <p className="text-2xl font-bold text-green-900">
-                {leaveRequests.filter(l => l.status === 'approved').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <XCircle className="text-red-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Rejected</p>
-              <p className="text-2xl font-bold text-red-900">
-                {leaveRequests.filter(l => l.status === 'rejected').length}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Calendar className="text-gray-400 mr-2" size={20} />
-              <h2 className="text-lg font-medium text-gray-900">
-                Leave Requests {filter !== 'all' && `(${filter.charAt(0).toUpperCase() + filter.slice(1)})`}
-              </h2>
-            </div>
-            <span className="text-sm text-gray-500">
-              {leaveRequests.length} requests
-            </span>
-          </div>
+          <Button icon={<RefreshCw size={16}/>} onClick={fetchLeaveRequests} className="rounded-xl h-11 px-6 font-bold shadow-sm">Sync Journal</Button>
         </div>
 
-        {leaveRequests.length > 0 ? (
-          <div className="divide-y divide-gray-200">
-            {leaveRequests.map((leave) => (
-              <div key={leave.id} className="p-6 hover:bg-gray-50">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-3">
-                      <div className="flex items-center">
-                        <User className="text-blue-600 mr-2" size={16} />
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {leave.Student?.username || 'Unknown Student'}
-                        </h3>
-                      </div>
-                      
-                      <div className="flex items-center">
-                        {getStatusIcon(leave.status)}
-                        <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(leave.status)}`}>
-                          {leave.status.charAt(0).toUpperCase() + leave.status.slice(1)}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      <div>
-                        <p className="text-sm text-gray-600">Leave Type</p>
-                        <p className="font-medium text-gray-900">
-                          {leave.leave_type?.charAt(0).toUpperCase() + leave.leave_type?.slice(1)}
-                        </p>
-                      </div>
-                      
-                      <div>
-                        <p className="text-sm text-gray-600">Duration</p>
-                        <p className="font-medium text-gray-900">
-                          {new Date(leave.from_date).toLocaleDateString()} - {new Date(leave.to_date).toLocaleDateString()}
-                          <span className="text-sm text-gray-500 ml-2">
-                            ({calculateDays(leave.from_date, leave.to_date)} days)
-                          </span>
-                        </p>
-                      </div>
-                      
-                      <div>
-                        <p className="text-sm text-gray-600">Applied Date</p>
-                        <p className="font-medium text-gray-900">
-                          {new Date(leave.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="mb-4">
-                      <p className="text-sm text-gray-600 mb-1">Reason</p>
-                      <p className="text-gray-800 bg-gray-50 p-3 rounded-md">
-                        {leave.reason}
-                      </p>
-                    </div>
-
-                    {leave.remarks && (
-                      <div className="mb-4">
-                        <p className="text-sm text-gray-600 mb-1">Warden's Remarks</p>
-                        <p className="text-gray-800 bg-blue-50 p-3 rounded-md border-l-4 border-blue-400">
-                          {leave.remarks}
-                        </p>
-                      </div>
-                    )}
-
-                    {leave.ApprovedBy && (
-                      <div className="text-sm text-gray-500">
-                        {leave.status === 'approved' ? 'Approved' : 'Rejected'} by: {leave.ApprovedBy.username} 
-                        {leave.approved_date && (
-                          <span> on {new Date(leave.approved_date).toLocaleDateString()}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {leave.status === 'pending' && (
-                    <div className="flex space-x-2 ml-6">
-                      <button
-                        onClick={() => handleAction(leave, 'approved')}
-                        className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 flex items-center"
-                      >
-                        <CheckCircle size={16} className="mr-1" />
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleAction(leave, 'rejected')}
-                        className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-red-500 flex items-center"
-                      >
-                        <XCircle size={16} className="mr-1" />
-                        Reject
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* Audit Stats & Shimmers */}
+        {loading ? (
+          <StatCardsSkeleton />
         ) : (
-          <div className="text-center py-12">
-            <Calendar className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">
-              {filter === 'all' ? 'No leave requests' : `No ${filter} leave requests`}
-            </h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {filter === 'all' 
-                ? 'Leave requests from students will appear here.' 
-                : `${filter.charAt(0).toUpperCase() + filter.slice(1)} leave requests will appear here.`
-              }
-            </p>
+          <Row gutter={[24, 24]}>
+            {[
+              { label: 'Total Logs', val: leaveRequests.length, icon: ClipboardList, color: 'text-blue-500' },
+              { label: 'Pending Audit', val: leaveRequests.filter(l => l.status === 'pending').length, icon: Clock, color: 'text-amber-500' },
+              { label: 'Authorized', val: leaveRequests.filter(l => l.status === 'approved').length, icon: UserCheck, color: 'text-emerald-500' },
+              { label: 'Declined', val: leaveRequests.filter(l => l.status === 'rejected').length, icon: XCircle, color: 'text-rose-500' },
+            ].map((stat, i) => (
+              <Col xs={24} sm={12} lg={6} key={i}>
+                <Card className="border-none shadow-sm rounded-2xl">
+                  <Statistic title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{stat.label}</span>} value={stat.val} prefix={<stat.icon size={18} className={`${stat.color} mr-2`} />} valueStyle={{ fontWeight: 800 }} />
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        )}
+
+        {/* Filter Hub */}
+        <Card className="border-none shadow-sm rounded-2xl mb-6">
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 md:max-w-md focus-within:border-blue-300 transition-all">
+              <Filter size={18} className="text-slate-300" />
+              <Select 
+                value={statusFilter} 
+                onChange={setStatusFilter} 
+                bordered={false} 
+                className="w-full font-medium"
+              >
+                <Select.Option value="all">Display All Requests</Select.Option>
+                <Select.Option value="pending">Awaiting Review</Select.Option>
+                <Select.Option value="approved">Authorized & Active</Select.Option>
+                <Select.Option value="rejected">Declined Requests</Select.Option>
+              </Select>
+            </div>
+          </div>
+        </Card>
+
+        {/* Ledger Container */}
+        {loading ? (
+          <LeaveRequestSkeleton />
+        ) : leaveRequests.length > 0 ? (
+          <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+            <Table 
+              dataSource={leaveRequests} 
+              columns={columns} 
+              rowKey="id" 
+              pagination={{ pageSize: 10, position: ['bottomCenter'] }} 
+            />
+          </Card>
+        ) : (
+          <div className="py-24 flex flex-col items-center justify-center bg-white rounded-[32px] shadow-sm">
+            <Empty image={<div className="bg-slate-50 p-8 rounded-full mb-4"><Inbox size={64} className="text-slate-200" /></div>} description={<Text className="text-slate-400 block">No leave requests found in the current audit.</Text>} />
           </div>
         )}
-      </div>
 
-      {/* Action Modal */}
-      {showModal && selectedLeave && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {actionType === 'approved' ? 'Approve' : 'Reject'} Leave Request
-              </h3>
-              
-              <div className="mb-4 p-3 bg-gray-50 rounded-md">
-                <p className="text-sm text-gray-600">Student: <span className="font-medium">{selectedLeave.Student?.username}</span></p>
-                <p className="text-sm text-gray-600">Leave Type: <span className="font-medium">{selectedLeave.leave_type}</span></p>
-                <p className="text-sm text-gray-600">Duration: <span className="font-medium">
-                  {new Date(selectedLeave.from_date).toLocaleDateString()} - {new Date(selectedLeave.to_date).toLocaleDateString()}
-                </span></p>
+        {/* Institutional Decision Modal */}
+        <Modal
+          title={<div className="flex items-center gap-2 text-blue-600"><ShieldCheck size={20}/> Authorization Protocol</div>}
+          open={showModal}
+          onCancel={() => setShowModal(false)}
+          footer={[
+            <Button key="back" onClick={() => setShowModal(false)} className="rounded-xl h-11 px-6">Abort</Button>,
+            <Button 
+              key="submit" 
+              type="primary" 
+              danger={actionType === 'rejected'}
+              loading={actionLoading} 
+              onClick={confirmAction}
+              className={`rounded-xl h-11 px-8 font-bold shadow-lg ${actionType === 'approved' ? 'shadow-emerald-100 bg-emerald-600 hover:bg-emerald-700' : 'shadow-rose-100 bg-rose-600 hover:bg-rose-700'}`}
+            >
+              Authorize {actionType === 'approved' ? 'Approval' : 'Rejection'}
+            </Button>
+          ]}
+          className="rounded-[32px]"
+          width={500}
+        >
+          {selectedLeave && (
+            <div className="mt-6 space-y-6">
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest block mb-2">Request Overview</Text>
+                <div className="flex items-center justify-between mb-2">
+                   <Text strong className="text-lg">{selectedLeave.Student?.username}</Text>
+                   <Tag color="blue" className="m-0 rounded-lg">{selectedLeave.leave_type}</Tag>
+                </div>
+                <Paragraph className="text-xs text-slate-500 m-0 italic bg-white p-3 rounded-xl border border-slate-100">
+                  "{selectedLeave.reason}"
+                </Paragraph>
               </div>
-              
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Remarks {actionType === 'rejected' && <span className="text-red-500">*</span>}
-                </label>
-                <textarea
+
+              <div className="space-y-3 px-1">
+                <Text strong className="text-[11px] uppercase text-slate-400 block mb-2">Audit Remarks</Text>
+                <TextArea 
+                  rows={4} 
+                  className="rounded-2xl p-4 border-slate-200" 
+                  placeholder={actionType === 'approved' ? "Enter instructions (e.g. return by 6PM)..." : "State the official reason for rejection..."}
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder={actionType === 'approved' ? 'Optional approval remarks...' : 'Please provide reason for rejection...'}
-                  required={actionType === 'rejected'}
                 />
               </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={confirmAction}
-                  disabled={actionLoading || (actionType === 'rejected' && !remarks.trim())}
-                  className={`flex-1 py-2 px-4 rounded-md text-white font-medium ${
-                    actionType === 'approved'
-                      ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
-                      : 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
-                  } focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {actionLoading ? 'Processing...' : `${actionType === 'approved' ? 'Approve' : 'Reject'} Leave`}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowModal(false);
-                    setSelectedLeave(null);
-                    setActionType('');
-                    setRemarks('');
-                  }}
-                  disabled={actionLoading}
-                  className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
             </div>
-          </div>
-        </div>
-      )}
-    </div>
+          )}
+        </Modal>
+      </div>
+    </ConfigProvider>
   );
 };
 

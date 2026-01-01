@@ -1,202 +1,322 @@
-// src/pages/Warden/DayReductionRequests.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Table, Tag, Button, Select, Input, Modal, Typography, 
+  Card, Row, Col, Statistic, Space, Skeleton, Empty, ConfigProvider, theme, Divider
+} from 'antd';
+import { 
+  CalendarDays, User, Home, Clock, CheckCircle2,ShieldCheck,
+  XCircle, Info, RefreshCw, Filter, Search, ClipboardList, Inbox 
+} from 'lucide-react';
 import { wardenAPI } from '../../services/api';
-import { Table, Button, Select, Input, Modal, Tag, Spin } from 'antd'; // Ant Design imports
-import { toast } from 'react-toastify'; // react-toastify import
-import { CalendarDays } from 'lucide-react'; // Removed Check, X as they are no longer used for actions
 import moment from 'moment';
 
-const { Option } = Select;
+const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
-const statusColors = {
-  pending_admin: 'orange',
-  approved_by_admin: 'blue',
-  rejected_by_admin: 'red',
-  approved_by_warden: 'green', // Still keep these for display if status is already in this state
-  rejected_by_warden: 'red',   // from historical data
+// --- Specialized Skeletons for Precise UI Matching ---
+
+const StatsSkeleton = () => (
+  <Row gutter={[24, 24]} className="mb-8">
+    {[...Array(3)].map((_, i) => (
+      <Col xs={24} md={8} key={i}>
+        <Card className="border-none shadow-sm rounded-2xl p-4">
+          <Skeleton loading active avatar={{ size: 'small', shape: 'square' }} paragraph={{ rows: 1 }} />
+        </Card>
+      </Col>
+    ))}
+  </Row>
+);
+
+const TableSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] overflow-hidden bg-white">
+    {[...Array(6)].map((_, i) => (
+      <div key={i} className="flex items-center gap-6 p-6 border-b border-slate-50 last:border-0">
+        <Skeleton.Avatar active shape="circle" size="large" />
+        <div className="flex-1"><Skeleton active title={false} paragraph={{ rows: 1, width: '100%' }} /></div>
+        <Skeleton.Input active style={{ width: 100 }} />
+        <Skeleton.Button active style={{ width: 80 }} />
+      </div>
+    ))}
+  </Card>
+);
+
+const statusConfig = {
+  pending_admin: { color: 'orange', label: 'Pending Admin', icon: <Clock size={12} /> },
+  approved_by_admin: { color: 'blue', label: 'Admin Approved', icon: <CheckCircle2 size={12} /> },
+  rejected_by_admin: { color: 'red', label: 'Admin Rejected', icon: <XCircle size={12} /> },
+  approved_by_warden: { color: 'green', label: 'Warden Final', icon: <CheckCircle2 size={12} /> },
+  rejected_by_warden: { color: 'red', label: 'Warden Rejected', icon: <XCircle size={12} /> },
 };
 
 const DayReductionRequestsWarden = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  // Default filter for warden to see requests approved by admin
   const [filters, setFilters] = useState({ status: 'approved_by_admin' });
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [wardenRemarks, setWardenRemarks] = useState(''); // Still useful for displaying past remarks
+  const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    fetchRequests();
-  }, [filters]);
-
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     setLoading(true);
     try {
       const response = await wardenAPI.getDayReductionRequests(filters);
-      // Ensure we access the nested 'data' array as per previous correction
       setRequests(response.data.data);
     } catch (error) {
-      toast.error('Failed to fetch day reduction requests.');
-      console.error('Error fetching day reduction requests:', error);
+      console.error('Fetch error:', error);
     } finally {
-      setLoading(false);
+      // Subtle delay to allow the "Shimmer" to be meaningful
+      setTimeout(() => setLoading(false), 600);
     }
-  };
+  }, [filters]);
 
-  const handleFilterChange = (value) => {
-    setFilters(prev => ({ ...prev, status: value }));
-  };
+  useEffect(() => {
+    fetchRequests();
+  }, [fetchRequests]);
 
-  const openModal = (request) => {
-    setSelectedRequest(request);
-    // Populate warden remarks if already available in the request (e.g., from a 'rejected_by_warden' status historically)
-    setWardenRemarks(request.warden_remarks || '');
-    setIsModalVisible(true);
-  };
-
-  const closeModal = () => {
-    setIsModalVisible(false);
-    setSelectedRequest(null);
-    setWardenRemarks('');
-  };
-
-  // The handleStatusUpdate function is REMOVED as the warden no longer takes action.
+  const filteredData = requests.filter(req => 
+    req.Student?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    req.reason?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const columns = [
     {
-      title: 'Student',
-      dataIndex: ['Student', 'username'],
+      title: 'Student Identity',
       key: 'student',
-      render: (text) => text || 'N/A',
-    },
-    {
-      title: 'Hostel',
-      dataIndex: ['Hostel', 'name'],
-      key: 'hostel',
-      render: (text) => text || 'N/A',
-    },
-    {
-      title: 'Dates',
-      key: 'dates',
       render: (_, record) => (
-        <span>
-          {moment(record.from_date).format('MMM D, YYYY')} - {moment(record.to_date).format('MMM D, YYYY')}
-        </span>
+        <Space gap={3}>
+          <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
+            <User size={18} />
+          </div>
+          <Space direction="vertical" size={0}>
+            <Text strong className="text-slate-700">{record.Student?.username || 'Unknown'}</Text>
+            <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+              {record.Hostel?.name || 'N/A'}
+            </Text>
+          </Space>
+        </Space>
       ),
     },
     {
-      title: 'Reason',
-      dataIndex: 'reason',
-      key: 'reason',
-      ellipsis: true,
-      width: 200,
+      title: 'Reduction Period',
+      key: 'dates',
+      render: (_, record) => (
+        <div className="flex flex-col">
+          <Text className="text-xs font-medium">
+            {moment(record.from_date).format('DD MMM')} — {moment(record.to_date).format('DD MMM, YYYY')}
+          </Text>
+          <Text className="text-[10px] text-slate-400 uppercase font-bold">
+            {moment(record.to_date).diff(moment(record.from_date), 'days') + 1} Total Days
+          </Text>
+        </div>
+      ),
     },
     {
-      title: 'Admin Remarks',
-      dataIndex: 'admin_remarks',
-      key: 'admin_remarks',
-      ellipsis: true,
-      width: 150,
-      render: (text) => text || '-',
-    },
-    {
-      title: 'Status',
+      title: 'Workflow Status',
       dataIndex: 'status',
       key: 'status',
       render: (status) => (
-        <Tag color={statusColors[status]}>
-          {status.replace(/_/g, ' ').toUpperCase()}
+        <Tag 
+          icon={statusConfig[status]?.icon} 
+          color={statusConfig[status]?.color}
+          className="rounded-full border-none px-3 font-bold uppercase text-[9px]"
+        >
+          {statusConfig[status]?.label || status.replace(/_/g, ' ')}
         </Tag>
       ),
     },
     {
-      title: 'Actions',
+      title: 'Audit Control',
       key: 'actions',
+      align: 'right',
       render: (_, record) => (
-        // Warden can only view details, no approval/rejection action
-        <Button type="default" size="small" onClick={() => openModal(record)}>
-          View Details
+        <Button 
+          type="text" 
+          icon={<ClipboardList size={16} className="text-slate-400" />} 
+          onClick={() => { setSelectedRequest(record); setIsModalVisible(true); }}
+          className="hover:bg-slate-100 rounded-lg"
+        >
+          Audit
         </Button>
       ),
     },
   ];
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-          <CalendarDays className="mr-3 text-blue-600" size={32} /> Day Reduction Requests
-        </h1>
-      </div>
-
-      <div className="bg-white p-4 rounded-lg shadow-md mb-6">
-        <div className="flex gap-4 items-center">
-          <Select
-            value={filters.status}
-            onChange={handleFilterChange}
-            style={{ width: 200 }}
-            placeholder="Filter by Status"
-          >
-            <Option value="all">All Statuses</Option>
-            <Option value="approved_by_admin">Approved by Admin (View)</Option> {/* Renamed for clarity */}
-            <Option value="approved_by_warden">Approved by Warden (Final)</Option>
-            <Option value="rejected_by_warden">Rejected by Warden (Final)</Option>
-            <Option value="pending_admin">Pending Admin Review</Option> {/* Still viewable if needed */}
-            <Option value="rejected_by_admin">Rejected by Admin</Option>
-          </Select>
-          {/* Add more filters as needed */}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <Spin spinning={loading}>
-          <Table
-            dataSource={requests}
-            columns={columns}
-            rowKey="id"
-            pagination={{ pageSize: 10 }}
-            locale={{
-              emptyText: <div className="text-center py-8 text-gray-500">No day reduction requests found for your hostel.</div>
-            }}
-          />
-        </Spin>
-      </div>
-
-      <Modal
-        title="Day Reduction Request Details"
-        open={isModalVisible}
-        onCancel={closeModal}
-        // Footer now only has a "Close" button
-        footer={[
-          <Button key="close" onClick={closeModal}>
-            Close
-          </Button>,
-        ]}
-      >
-        {selectedRequest && (
-          <div className="space-y-4 py-4">
-            <p><strong>Student:</strong> {selectedRequest.Student?.username}</p>
-            <p><strong>Hostel:</strong> {selectedRequest.Hostel?.name}</p>
-            <p><strong>Dates:</strong> {moment(selectedRequest.from_date).format('MMM D, YYYY')} - {moment(selectedRequest.to_date).format('MMM D, YYYY')}</p>
-            <p><strong>Reason:</strong> {selectedRequest.reason}</p>
-            <p><strong>Admin Remarks:</strong> {selectedRequest.admin_remarks || '-'}</p>
-            <p><strong>Current Status:</strong> <Tag color={statusColors[selectedRequest.status]}>{selectedRequest.status.replace(/_/g, ' ').toUpperCase()}</Tag></p>
-
-            <div className="grid gap-2">
-              <label htmlFor="wardenRemarks" className="text-sm font-medium">Warden Remarks (If any, from previous stages)</label>
-              <TextArea
-                id="wardenRemarks"
-                value={selectedRequest.warden_remarks || wardenRemarks || '-'} // Display existing warden remarks
-                rows={3}
-                disabled={true} // Warden cannot add or edit remarks here
-              />
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+        
+        {/* Institutional Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <CalendarDays className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Day Reduction Audit</Title>
+              <Text type="secondary">Review and monitor mess bill reduction requests processed by Administration</Text>
             </div>
           </div>
+          <Button icon={<RefreshCw size={16}/>} onClick={fetchRequests} className="rounded-xl h-11 px-6 font-bold shadow-sm">Sync Ledger</Button>
+        </div>
+
+        {loading ? (
+          <>
+            <StatsSkeleton />
+            <TableSkeleton />
+          </>
+        ) : (
+          <>
+            {/* Quick Metrics */}
+            <Row gutter={[24, 24]}>
+              <Col xs={24} md={8}>
+                <Card className="border-none shadow-sm rounded-2xl">
+                  <Statistic 
+                    title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Admin Approved</span>} 
+                    value={requests.filter(r => r.status === 'approved_by_admin').length} 
+                    prefix={<CheckCircle2 size={18} className="text-blue-500 mr-2" />}
+                    valueStyle={{ fontWeight: 800 }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} md={8}>
+                <Card className="border-none shadow-sm rounded-2xl">
+                  <Statistic 
+                    title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Active Reductions</span>} 
+                    value={requests.length} 
+                    prefix={<ClipboardList size={18} className="text-slate-400 mr-2" />}
+                    valueStyle={{ fontWeight: 800 }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} md={8}>
+                <Card className="border-none shadow-sm rounded-2xl">
+                  <Statistic 
+                    title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Finalized (Warden)</span>} 
+                    value={requests.filter(r => r.status.includes('warden')).length} 
+                    prefix={<ShieldCheck size={18} className="text-emerald-500 mr-2" />}
+                    valueStyle={{ fontWeight: 800 }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+
+            {/* Filter Toolbar */}
+            <Card className="border-none shadow-sm rounded-2xl">
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 md:max-w-md focus-within:border-blue-300 transition-all">
+                  <Search size={18} className="text-slate-300" />
+                  <Input 
+                    placeholder="Search Student or Reason..." 
+                    bordered={false} 
+                    className="w-full font-medium"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-3 bg-slate-50 p-1 px-3 rounded-xl border border-slate-100">
+                  <Filter size={16} className="text-slate-400" />
+                  <Select
+                    value={filters.status}
+                    onChange={(val) => setFilters(prev => ({ ...prev, status: val }))}
+                    bordered={false}
+                    className="w-48 font-medium"
+                  >
+                    <Select.Option value="all">All Logs</Select.Option>
+                    <Select.Option value="approved_by_admin">Approved by Admin</Select.Option>
+                    <Select.Option value="pending_admin">Awaiting Admin</Select.Option>
+                    <Select.Option value="approved_by_warden">Finalized (Approved)</Select.Option>
+                  </Select>
+                </div>
+              </div>
+            </Card>
+
+            {/* Data Table */}
+            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+              {filteredData.length > 0 ? (
+                <Table 
+                  dataSource={filteredData} 
+                  columns={columns} 
+                  rowKey="id" 
+                  pagination={{ pageSize: 8, position: ['bottomCenter'], showSizeChanger: false }} 
+                />
+              ) : (
+                <div className="py-24">
+                  <Empty 
+                    image={<div className="bg-slate-50 p-8 rounded-full inline-block mb-4"><Inbox size={64} className="text-slate-200" /></div>}
+                    description={<Text className="text-slate-400 block">No reduction requests found in this ledger.</Text>}
+                  />
+                </div>
+              )}
+            </Card>
+          </>
         )}
-      </Modal>
-    </div>
+
+        {/* Audit Modal */}
+        <Modal
+          title={<div className="flex items-center gap-2 text-blue-600"><ClipboardList size={20}/> Request Audit Dossier</div>}
+          open={isModalVisible}
+          onCancel={() => setIsModalVisible(false)}
+          footer={<Button type="primary" onClick={() => setIsModalVisible(false)} className="rounded-xl h-11 px-8 font-bold">Close Dossier</Button>}
+          width={600}
+          className="rounded-[32px]"
+        >
+          {selectedRequest && (
+            <div className="mt-6 space-y-6">
+              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                <Row gutter={[16, 16]}>
+                  <Col span={12}>
+                    <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest block mb-1">Student</Text>
+                    <Text strong className="text-lg">{selectedRequest.Student?.username}</Text>
+                  </Col>
+                  <Col span={12}>
+                    <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest block mb-1">Status</Text>
+                    <Tag color={statusConfig[selectedRequest.status]?.color} className="rounded-full border-none px-3 font-bold uppercase text-[9px] m-0">
+                      {selectedRequest.status.replace(/_/g, ' ')}
+                    </Tag>
+                  </Col>
+                  <Col span={24}>
+                    <Divider className="my-2 border-slate-200" />
+                    <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest block mb-2">Original Reason for Reduction</Text>
+                    <Paragraph className="text-xs text-slate-600 italic bg-white p-3 rounded-xl border border-slate-100">
+                      "{selectedRequest.reason}"
+                    </Paragraph>
+                  </Col>
+                </Row>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100">
+                  <Text strong className="text-[11px] uppercase text-blue-400 block mb-2 tracking-widest">Admin Remarks</Text>
+                  <Text className="text-sm">{selectedRequest.admin_remarks || 'No remarks recorded.'}</Text>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                  <Text strong className="text-[11px] uppercase text-slate-400 block mb-2 tracking-widest">Historical Warden Remarks</Text>
+                  <Text className="text-sm italic text-slate-500">{selectedRequest.warden_remarks || 'System log: No prior warden intervention.'}</Text>
+                </div>
+              </div>
+
+              <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3">
+                <Info size={18} className="text-amber-500 shrink-0 mt-0.5" />
+                <Text className="text-[11px] text-amber-700 leading-tight">
+                  Institutional Policy: Day reductions are processed by Administration. Warden access is limited to auditing and ledger verification.
+                </Text>
+              </div>
+            </div>
+          )}
+        </Modal>
+      </div>
+    </ConfigProvider>
   );
 };
 
 export default DayReductionRequestsWarden;
+
+// Standard CSS snippet for smooth scrollbar inside the student list
+const style = document.createElement('style');
+style.innerHTML = `
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+`;
+document.head.appendChild(style);
