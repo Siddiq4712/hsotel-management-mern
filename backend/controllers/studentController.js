@@ -1566,10 +1566,11 @@ const getStudentRooms = async (req, res) => {
     const hostel_id = ensureStudentHostel(req);
     const rooms = await HostelRoom.findAll({
       where: { hostel_id, is_active: true },
+      include: [{ model: RoomType, as: 'RoomType' }], // Make sure this association exists
       order: [["room_number", "ASC"]],
     });
     res.json({ success: true, data: rooms });
-  } catch (error) {
+  }catch (error) {
     console.error("Student rooms fetch error:", error);
     res.status(400).json({ success: false, message: error.message });
   }
@@ -1644,33 +1645,64 @@ const requestRoomBooking = async (req, res) => {
   try {
     const hostel_id = ensureStudentHostel(req);
     const { room_id } = req.body;
-    if (!room_id) throw new Error("room_id is required.");
+    const student_id = req.user.id;
 
+    if (!room_id) {
+      return res.status(400).json({ success: false, message: "Room selection is required." });
+    }
+
+    // 1. Check if student already has an active room
+    const existingAllotment = await RoomAllotment.findOne({
+      where: { student_id, is_active: true }
+    });
+    if (existingAllotment) {
+      return res.status(400).json({ success: false, message: "You already have an active room allotment." });
+    }
+
+    // 2. Verify the room exists and belongs to this hostel
     const room = await HostelRoom.findOne({
       where: { id: room_id, hostel_id, is_active: true },
+      include: [{ model: RoomType }]
     });
-    if (!room) throw new Error("Room not found or is inactive.");
 
-    const pending = await RoomRequest.findOne({
-      where: { student_id: req.user.id, room_id, status: "pending" },
+    if (!room) {
+      return res.status(404).json({ success: false, message: "Room not found or unavailable." });
+    }
+
+    // 3. Check for existing PENDING request (don't allow duplicates)
+    const pendingRequest = await RoomRequest.findOne({
+      where: { 
+        student_id, 
+        status: 'pending' 
+      }
     });
-    if (pending) throw new Error("You already have a pending request for this room.");
 
+    if (pendingRequest) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `You already have a pending request for Room ${pendingRequest.room_id === room.id ? 'this room' : 'another room'}.` 
+      });
+    }
+
+    // 4. Create the request
     const request = await RoomRequest.create({
       hostel_id,
-      student_id: req.user.id,
+      student_id,
       room_id,
       status: "pending",
       requested_at: new Date(),
     });
 
-    res.status(201).json({ success: true, data: request, message: "Room request submitted." });
+    res.status(201).json({ 
+      success: true, 
+      data: request, 
+      message: "Room request submitted successfully for Warden approval." 
+    });
   } catch (error) {
     console.error("Room request creation error:", error);
-    res.status(400).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: "Server error: " + error.message });
   }
 };
-
 const cancelRoomRequest = async (req, res) => {
   try {
     const { id } = req.params;

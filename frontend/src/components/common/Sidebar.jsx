@@ -44,9 +44,8 @@ const MENU_STRUCTURE = {
       ]
     },
     {
-      title: 'Store & Supply',
+      title: 'Measure',
       items: [
-        { id: 'suppliers', label: 'Suppliers', icon: Truck },
         { id: 'uoms', label: 'Units of Measure', icon: Database },
       ]
     }
