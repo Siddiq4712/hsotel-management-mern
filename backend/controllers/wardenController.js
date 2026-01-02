@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
 const { 
   sequelize, User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,
-  Attendance, Leave, Complaint, Suspension, Holiday,Fee, MessBill,Hostel,RoomRequest,DayReductionRequest
+  Attendance, Leave, Complaint, Suspension, Holiday,Fee, MessBill,Hostel,RoomRequest,DayReductionRequest, Rebate
   // Note: Models not used in this controller have been removed from this import for clarity
 } = require('../models');
 
@@ -2632,6 +2632,61 @@ const updateDayReductionRequestStatusByWarden = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+// Add these to wardenController.js
+
+const getRebates = async (req, res) => {
+  try {
+    const hostel_id = req.user.hostel_id;
+    const { status, type } = req.query;
+
+    let whereClause = {};
+    if (status && status !== 'all') whereClause.status = status;
+    if (type && type !== 'all') whereClause.rebate_type = type;
+
+    const rebates = await Rebate.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: User,
+          as: 'RebateStudent',
+          where: { hostel_id },
+          attributes: ['id', 'username', 'roll_number']
+        },
+        {
+          model: User,
+          as: 'RebateApprovedBy',
+          attributes: ['id', 'username'],
+          required: false
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({ success: true, data: rebates });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+const updateRebateStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body; // 'approved' or 'rejected'
+    const warden_id = req.user.id;
+
+    const rebate = await Rebate.findByPk(id);
+    if (!rebate) return res.status(404).json({ success: false, message: 'Rebate not found' });
+
+    await rebate.update({
+      status,
+      approved_by: warden_id
+    });
+
+    res.json({ success: true, message: `Rebate ${status} successfully` });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 
 module.exports = {
   // Student Enrollment
@@ -2697,4 +2752,7 @@ decideRoomRequest,
 
 getDayReductionRequestsForWarden,       // <-- NEW EXPORT
 updateDayReductionRequestStatusByWarden, // <-- NEW EXPORT
+
+getRebates,
+updateRebateStatus
 };

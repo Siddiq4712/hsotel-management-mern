@@ -77,6 +77,7 @@ const MENU_STRUCTURE = {
         { id: 'warden-day-red', label: 'Day Reduction List', icon: FileText },
         { id: 'complaints', label: 'Complaints', icon: MessageCircle },
         { id: 'holidays', label: 'Holidays', icon: CalendarDays },
+        { id: 'rebate', label: 'Rebates', icon: CreditCard},
       ]
     }
   ],

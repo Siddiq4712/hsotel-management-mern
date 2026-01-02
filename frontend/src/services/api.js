@@ -209,6 +209,9 @@ saveLayout: (data) => api.post('/warden/layout', data),
  updateRoomRequest: (id, data) => api.put(`/warden/room-requests/${id}`, data),
   getDayReductionRequests: (params) => api.get('/warden/day-reduction-requests', { params }),
   updateDayReductionRequestStatus: (id, data) => api.put(`/warden/day-reduction-requests/${id}/status`, data),
+
+  getRebates: (params) => api.get('/warden/rebates', { params }),
+  updateRebateStatus: (id, data) => api.put(`/warden/rebates/${id}/status`, data),
 };
 export const studentAPI = {
   // Profile

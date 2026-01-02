@@ -35,6 +35,7 @@ import MessBillManagement from './components/warden/MessBillManagement';
 import CreateRoom from './components/warden/CreateRoom';
 import ViewLayout from './components/warden/ViewLayout';
 import RoomRequests from './components/warden/RoomRequests';
+import ManageRebates from './components/warden/ManageRebates';
 
 // Student Components
 import StudentDashboard from './components/student/StudentDashboard';
@@ -181,6 +182,8 @@ const DashboardRouter = () => {
             return <SuspensionManagement />;
           case 'holidays':
             return <HolidayManagement />;
+          case 'rebate':
+            return <ManageRebates />;
           case 'mess-bills':
             return <MessBillManagement />;
           case 'approve-room-requests':
