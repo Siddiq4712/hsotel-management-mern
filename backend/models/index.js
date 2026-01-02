@@ -2885,7 +2885,11 @@ const HostelLayout = sequelize.define('HostelLayout', {
   open_side: {
     type: DataTypes.STRING,
     allowNull: true      // "t", "b", "l", "r"
-  }
+  },
+  layout_json: {
+    type: DataTypes.TEXT, // or DataTypes.JSON if using Postgres
+    allowNull: true
+  },
 
 }, {
   tableName: 'tbl_HostelLayout',
