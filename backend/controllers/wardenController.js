@@ -1711,33 +1711,32 @@ const createSuspension = async (req, res) => {
 };
 
 const getSuspensions = async (req, res) => {
-  try {
-    const hostel_id = req.user.hostel_id;
+  try {
+    const hostel_id = req.user.hostel_id;
 
-    const suspensions = await Suspension.findAll({
-      include: [
-        {
-          model: User,
-          as: 'Student',
-          where: { hostel_id },
-          attributes: ['id', 'username']
-        },
-        {
-          model: User,
-          as: 'IssuedBy',
-          attributes: ['id', 'username']
-        }
-      ],
-      order: [['createdAt', 'DESC']]
-    });
+    const suspensions = await Suspension.findAll({
+      include: [
+        {
+          model: User,
+          as: 'Student',
+          where: { hostel_id },
+          attributes: ['id', 'username', 'roll_number']
+        },
+        {
+          model: User,
+          as: 'IssuedBy',
+          attributes: ['id', 'username']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
-    res.json({ success: true, data: suspensions });
-  } catch (error) {
-    console.error('Suspensions fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+    res.json({ success: true, data: suspensions });
+  } catch (error) {
+    console.error('Suspensions fetch error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 };
-
 const updateSuspension = async (req, res) => {
   try {
     const { id } = req.params;

@@ -146,6 +146,21 @@ const SuspensionManagement = () => {
     }
   ];
 
+  const handleCreateSuspension = async (values) => {
+    setCreateLoading(true);
+    try {
+      await wardenAPI.createSuspension(values);
+      message.success('Suspension order issued successfully.');
+      setShowCreateModal(false);
+      form.resetFields();
+      fetchData();
+    } catch (error) {
+      message.error(error.message || 'Failed to issue suspension order.');
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#f43f5e', borderRadius: 16 } }}>
       <div className="p-8 bg-slate-50 min-h-screen">
@@ -216,6 +231,81 @@ const SuspensionManagement = () => {
             </Card>
           </>
         )}
+
+        {/* Create Suspension Modal */}
+        <Modal
+          title={<Title level={5} className="mb-0">Issue Suspension Order</Title>}
+          open={showCreateModal}
+          onCancel={() => {
+            setShowCreateModal(false);
+            form.resetFields();
+          }}
+          footer={null}
+          width={600}
+          destroyOnClose
+        >
+          <Form form={form} layout="vertical" onFinish={handleCreateSuspension}>
+            <Form.Item
+              name="student_id"
+              label="Student"
+              rules={[{ required: true, message: 'Please select a student' }]}
+            >
+              <Select placeholder="Select a student" showSearch optionFilterProp="children">
+                {students.map((student) => (
+                  <Select.Option key={student.id} value={student.id}>
+                    {student.username} - Roll: {student.roll_number || 'UNSET'}
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+
+            <Form.Item
+              name="reason"
+              label="Reason for Suspension"
+              rules={[{ required: true, message: 'Please enter the reason' }]}
+            >
+              <TextArea rows={3} placeholder="Describe the violation or infraction..." />
+            </Form.Item>
+
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="start_date"
+                  label="Start Date"
+                  rules={[{ required: true, message: 'Please select start date' }]}
+                >
+                  <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="Select start date" />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="end_date"
+                  label="End Date (Optional)"
+                >
+                  <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="Select end date" />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item name="remarks" label="Additional Remarks">
+              <TextArea rows={2} placeholder="Any further notes or conditions..." />
+            </Form.Item>
+
+            <Divider />
+
+            <div className="flex justify-end gap-3 pt-4">
+              <Button onClick={() => {
+                setShowCreateModal(false);
+                form.resetFields();
+              }}>
+                Cancel
+              </Button>
+              <Button type="primary" htmlType="submit" loading={createLoading} className="bg-rose-600">
+                Issue Order
+              </Button>
+            </div>
+          </Form>
+        </Modal>
       </div>
     </ConfigProvider>
   );
