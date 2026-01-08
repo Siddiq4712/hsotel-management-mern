@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authAPI, studentAPI } from '../api/api';
+import { authAPI } from '../api/api';
 
 export const AuthContext = createContext();
 
@@ -8,6 +8,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Load user data on startup
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -15,11 +16,10 @@ export const AuthProvider = ({ children }) => {
         const savedUser = await AsyncStorage.getItem('user');
 
         if (token && savedUser) {
-          const parsedUser = JSON.parse(savedUser);
-          setUser(parsedUser);
+          setUser(JSON.parse(savedUser));
         }
       } catch (error) {
-        console.error('Failed to load user:', error);
+        console.error('Failed to load user from storage:', error);
       } finally {
         setLoading(false);
       }
@@ -28,6 +28,7 @@ export const AuthProvider = ({ children }) => {
     loadUser();
   }, []);
 
+  // Standard Login (Username/Password)
   const login = async (credentials) => {
     try {
       setLoading(true);
@@ -46,18 +47,34 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Google Login Completion (Hand-off from LoginScreen)
+  const completeExternalLogin = async (token, userData) => {
+    try {
+      setLoading(true);
+      await AsyncStorage.setItem('token', token);
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      setUser(userData);
+      return { success: true };
+    } catch (error) {
+      console.error('External login storage error:', error);
+      return { success: false };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
       setUser(null);
     } catch (error) {
-      console.error('Failed to clear user from AsyncStorage', error);
+      console.error('Failed to logout:', error);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, completeExternalLogin }}>
       {children}
     </AuthContext.Provider>
   );

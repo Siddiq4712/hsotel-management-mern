@@ -1,30 +1,28 @@
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ScrollView,
-  Modal,
-  TouchableWithoutFeedback,
-  Keyboard,
-  StatusBar,
-  Image,
+  View, Text, TextInput, TouchableOpacity, ActivityIndicator,
+  KeyboardAvoidingView, Platform, Alert, ScrollView, Modal,
+  TouchableWithoutFeedback, Keyboard, StatusBar, Image,
 } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 import { User, Lock, Info, AlertCircle } from 'lucide-react-native';
 import { AntDesign } from '@expo/vector-icons';
 
+// GOOGLE AUTH IMPORTS
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+
+// This is required to close the browser popup after redirect
+WebBrowser.maybeCompleteAuthSession();
+
 const LoginScreen = () => {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [showError, setShowError] = useState('');
   const [showLoading, setShowLoading] = useState(false);
-  const { login } = useAuth();
+  
+  const { login, completeExternalLogin } = useAuth();
 
+  // --- STANDARD LOGIN ---
   const handleLogin = async () => {
     Keyboard.dismiss();
     setShowError('');
@@ -35,22 +33,43 @@ const LoginScreen = () => {
     }
 
     setShowLoading(true);
-
-    setTimeout(async () => {
-      const result = await login(credentials);
-      if (!result.success) {
-        setShowLoading(false);
-        setShowError(result.message || 'Sign in failed. Please try again.');
-      }
-    }, 1200);
+    const result = await login(credentials);
+    if (!result.success) {
+      setShowLoading(false);
+      setShowError(result.message || 'Sign in failed.');
+    }
   };
 
-  const handleGoogleLogin = () => {
-    Alert.alert(
-      'Google Login',
-      'Google login is not available yet. Please use username/password.',
-      [{ text: 'OK' }]
-    );
+  // --- GOOGLE OAUTH LOGIN ---
+  const handleGoogleLogin = async () => {
+    setShowLoading(true);
+    setShowError('');
+
+    try {
+      // 1. Define your Backend URL
+      const authUrl = `http://192.168.66.186:5001/api/auth/google`;
+
+      // 2. Open Web Browser and wait for the redirect back to 'hostelapp://'
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, 'hostelapp://');
+
+      // 3. Handle the result from the redirect URL
+      if (result.type === 'success' && result.url) {
+        const parsed = Linking.parse(result.url);
+        const { token, user: userJson } = parsed.queryParams;
+
+        if (token && userJson) {
+          const userData = JSON.parse(decodeURIComponent(userJson));
+          await completeExternalLogin(token, userData);
+        } else {
+          setShowError('Failed to retrieve user data from Google.');
+        }
+      }
+    } catch (error) {
+      console.error('Google Auth Error:', error);
+      setShowError('An error occurred during Google Sign-in.');
+    } finally {
+      setShowLoading(false);
+    }
   };
 
   const handleInputChange = (field, value) => {
@@ -61,203 +80,111 @@ const LoginScreen = () => {
   return (
     <>
       <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
-
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         className="flex-1"
         style={{ backgroundColor: '#F8FAFC' }}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1 }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
+          <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
             <View className="flex-1 items-center justify-center py-8 px-5">
-
-              {/* ================= LOGO SECTION ================= */}
+              
+              {/* LOGO SECTION */}
               <View className="mb-10 mt-8 items-center">
                 <View className="flex-row items-center">
-                  <View
-                    className="rounded-2xl h-16 w-16 justify-center items-center bg-white"
-                    style={{
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.1,
-                      shadowRadius: 8,
-                      elevation: 4,
-                    }}
-                  >
-                    <Image
-                      source={require('../../assets/nec_logo.jpeg')}
-                      style={{
-                        width: 56,
-                        height: 56,
-                        resizeMode: 'contain',
-                        borderRadius: 12,
-                      }}
+                  <View className="bg-white rounded-2xl h-16 w-16 justify-center items-center shadow-md">
+                    <Image 
+                        source={require('../../assets/nec_logo.jpeg')} 
+                        style={{ width: 56, height: 56, borderRadius: 12 }} 
                     />
                   </View>
-
                   <View className="ml-4">
-                    <Text className="font-bold text-gray-900 text-xl">
-                      NATIONAL
-                    </Text>
-                    <Text className="font-bold text-gray-900 text-xl">
-                      ENGINEERING COLLEGE
-                    </Text>
-                    <Text className="text-gray-600 text-sm font-semibold mt-1">
-                      Hostel Management
-                    </Text>
+                    <Text className="font-bold text-gray-900 text-xl">NATIONAL</Text>
+                    <Text className="font-bold text-gray-900 text-xl">ENGINEERING COLLEGE</Text>
                   </View>
                 </View>
               </View>
 
-              {/* ================= LOGIN CARD ================= */}
-              <View
-                className="bg-white rounded-2xl w-full max-w-md py-8 px-6"
-                style={{
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.05,
-                  shadowRadius: 12,
-                  elevation: 6,
-                  borderWidth: 1,
-                  borderColor: '#E2E8F0',
-                }}
-              >
-                <Text className="text-2xl font-bold text-center text-gray-900 mb-2">
-                  Sign In
-                </Text>
-                <Text className="text-center text-gray-500 mb-6 text-base">
-                  Student Portal
-                </Text>
+              {/* LOGIN CARD */}
+              <View className="bg-white rounded-2xl w-full max-w-md py-8 px-6 shadow-sm border border-slate-200">
+                <Text className="text-2xl font-bold text-center text-gray-900 mb-6">Sign In</Text>
 
                 {showError ? (
-                  <View className="flex-row items-start bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-5">
+                  <View className="flex-row items-center bg-red-50 border border-red-200 rounded-lg p-3 mb-5">
                     <AlertCircle size={20} color="#EF4444" />
-                    <Text className="text-red-700 text-sm flex-1 ml-3">
-                      {showError}
-                    </Text>
+                    <Text className="text-red-700 text-sm ml-3 flex-1">{showError}</Text>
                   </View>
                 ) : null}
 
-                {/* Username */}
                 <View className="mb-4">
-                  <Text className="text-sm font-semibold text-gray-700 mb-2">
-                    Username
-                  </Text>
-                  <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-lg px-4 h-[52px]">
+                  <Text className="text-sm font-semibold text-gray-700 mb-2">Username</Text>
+                  <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-lg px-4 h-12">
                     <User size={20} color="#374151" />
                     <TextInput
-                      className="flex-1 text-base ml-3"
-                      placeholder="Enter username"
-                      placeholderTextColor="#9CA3AF"
+                      className="flex-1 ml-3 text-base"
+                      placeholder="Username or Roll Number"
                       value={credentials.username}
-                      onChangeText={(val) => handleInputChange('username', val)}
+                      onChangeText={(v) => handleInputChange('username', v)}
                       autoCapitalize="none"
-                      editable={!showLoading}
                     />
                   </View>
                 </View>
 
-                {/* Password */}
                 <View className="mb-6">
-                  <Text className="text-sm font-semibold text-gray-700 mb-2">
-                    Password
-                  </Text>
-                  <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-lg px-4 h-[52px]">
+                  <Text className="text-sm font-semibold text-gray-700 mb-2">Password</Text>
+                  <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-lg px-4 h-12">
                     <Lock size={20} color="#374151" />
                     <TextInput
-                      className="flex-1 text-base ml-3"
-                      placeholder="Enter password"
-                      placeholderTextColor="#9CA3AF"
+                      className="flex-1 ml-3 text-base"
+                      placeholder="••••••••"
                       secureTextEntry
                       value={credentials.password}
-                      onChangeText={(val) => handleInputChange('password', val)}
-                      editable={!showLoading}
-                      onSubmitEditing={handleLogin}
+                      onChangeText={(v) => handleInputChange('password', v)}
                     />
                   </View>
                 </View>
 
-                {/* Sign In Button */}
-                <TouchableOpacity disabled={showLoading} onPress={handleLogin}>
-                  <View
-                    className="rounded-lg flex-row items-center justify-center h-[52px] bg-gray-500"
-                    style={{
-                      backgroundColor: showLoading ? '#9CA3AF' : '#2982ffff',
-                    }}
-                  >
-                    {showLoading ? (
-                      <>
-                        <ActivityIndicator color="#fff" />
-                        <Text className="ml-2 text-white font-bold">
-                          Signing In...
-                        </Text>
-                      </>
-                    ) : (
-                      <Text className="text-white font-bold text-base">
-                        Sign In →
-                      </Text>
-                    )}
-                  </View>
+                <TouchableOpacity 
+                  onPress={handleLogin} 
+                  disabled={showLoading}
+                  className={`rounded-lg h-12 justify-center items-center ${showLoading ? 'bg-gray-400' : 'bg-blue-600'}`}
+                >
+                  <Text className="text-white font-bold text-base">Sign In →</Text>
                 </TouchableOpacity>
 
-                {/* Divider */}
                 <View className="my-6 flex-row items-center">
                   <View className="flex-1 h-px bg-gray-200" />
                   <Text className="mx-4 text-gray-400 font-semibold">OR</Text>
                   <View className="flex-1 h-px bg-gray-200" />
                 </View>
 
-                {/* Google Button */}
+                {/* GOOGLE LOGIN BUTTON */}
                 <TouchableOpacity
-                  className="flex-row justify-center items-center bg-white border border-gray-300 rounded-lg h-[52px]"
+                  className="flex-row justify-center items-center bg-white border border-gray-300 rounded-lg h-12"
                   onPress={handleGoogleLogin}
                   disabled={showLoading}
                 >
-                  <AntDesign name="google" size={22} color="#DB4437" />
-                  <Text className="ml-3 font-semibold text-gray-700">
-                    Continue with Google
-                  </Text>
+                  <AntDesign name="google" size={20} color="#DB4437" />
+                  <Text className="ml-3 font-semibold text-gray-700">Continue with Google</Text>
                 </TouchableOpacity>
-
-                {/* Info */}
-                <View className="mt-5 p-4 bg-gray-50 border border-gray-200 rounded-lg flex-row">
-                  <Info size={18} color="#6B7280" />
-                  <Text className="ml-3 text-gray-700 text-sm flex-1">
-                    Only authorized college users can access this system.
-                  </Text>
-                </View>
-
-                {/* Test Credentials */}
-                <View className="mt-6 border-t border-gray-200 pt-4">
-                  <Text className="text-xs text-gray-500 text-center">
-                    Test Login: admin / admin123
-                  </Text>
-                </View>
               </View>
 
-              {/* Footer */}
-              <View className="mt-10">
-                <Text className="text-xs text-gray-400">
-                  © 2025 National Engineering College
-                </Text>
-              </View>
+              <Text className="mt-10 text-xs text-gray-400">© 2026 National Engineering College</Text>
             </View>
           </ScrollView>
         </TouchableWithoutFeedback>
 
-        {/* Loading Modal */}
-        <Modal visible={showLoading} transparent animationType="fade">
-          <View className="flex-1 bg-black/40 justify-center items-center">
-            <View className="bg-white rounded-2xl px-10 py-8 items-center">
-              <ActivityIndicator size="large" color="#374151" />
-              <Text className="mt-4 font-bold text-lg text-gray-900">Loading app...</Text>
+        {/* LOADING OVERLAY */}
+        {showLoading && (
+          <Modal transparent visible={showLoading}>
+            <View className="flex-1 bg-black/30 justify-center items-center">
+              <View className="bg-white p-6 rounded-xl items-center">
+                <ActivityIndicator size="large" color="#2563EB" />
+                <Text className="mt-4 font-semibold">Authenticating...</Text>
+              </View>
             </View>
-          </View>
-        </Modal>
+          </Modal>
+        )}
       </KeyboardAvoidingView>
     </>
   );

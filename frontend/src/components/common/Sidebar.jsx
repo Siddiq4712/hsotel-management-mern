@@ -77,6 +77,7 @@ const MENU_STRUCTURE = {
         { id: 'warden-day-red', label: 'Day Reduction List', icon: FileText },
         { id: 'complaints', label: 'Complaints', icon: MessageCircle },
         { id: 'holidays', label: 'Holidays', icon: CalendarDays },
+        { id: 'rebate', label: 'Rebates', icon: CreditCard},
       ]
     }
   ],
@@ -87,6 +88,7 @@ const MENU_STRUCTURE = {
       items: [
         { id: 'my-leaves', label: 'My Leaves', icon: FileText },
         { id: 'my-complaints', label: 'My Complaints', icon: AlertCircle },
+        { id: 'my-rebates', label: 'My Rebates', icon: CreditCard},
         { id: 'day-reduction', label: 'Apply Day Reduction', icon: FileText },
       ]
     },

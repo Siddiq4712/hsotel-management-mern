@@ -1,14 +1,12 @@
 const bcrypt = require('bcryptjs');
 const { Op } = require('sequelize');
+const moment = require('moment');
 const { 
-  sequelize, User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,
-  Attendance, Leave, Complaint, Suspension, Holiday,Fee, MessBill,Hostel,RoomRequest,DayReductionRequest
+  sequelize, User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,MessFeesAllot,
+  Attendance, Leave, Complaint, Suspension, Holiday,Fee, MessBill,Hostel,RoomRequest,DayReductionRequest, Rebate
   // Note: Models not used in this controller have been removed from this import for clarity
 } = require('../models');
 
-// STUDENT ENROLLMENT
-// STUDENT ENROLLMENT - MODIFIED
-// STUDENT ENROLLMENT - MODIFIED
 const enrollStudent = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
@@ -2632,7 +2630,102 @@ const updateDayReductionRequestStatusByWarden = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+// const moment = require('moment');
 
+const getRebates = async (req, res) => {
+  try {
+    const hostel_id = req.user.hostel_id;
+    const { status } = req.query;
+    let whereClause = {};
+    if (status && status !== 'all') whereClause.status = status;
+    const rebates = await Rebate.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: User,
+          as: 'RebateStudent',
+          where: { hostel_id },
+          attributes: ['id', 'username', 'roll_number']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+    // We use a regular loop to handle async lookups
+    const processedRebates = [];
+   
+    for (const rebate of rebates) {
+      const start = moment(rebate.from_date);
+      const end = moment(rebate.to_date);
+      const daysInMonth = start.daysInMonth();
+     
+      // Look for the finalized rate
+      const allotment = await MessFeesAllot.findOne({
+        where: {
+          month: start.month() + 1,
+          year: start.year()
+        }
+      });
+      let applicableRate = 0;
+      let isFinalized = false;
+      if (allotment && allotment.individual_share) {
+        // Safe division
+        applicableRate = parseFloat(allotment.individual_share) / (daysInMonth || 30);
+        isFinalized = true;
+      } else {
+        // Fallback to Hostel base rate
+        const hostel = await Hostel.findByPk(hostel_id);
+        applicableRate = parseFloat(hostel ? hostel.daily_mess_rate : 0) || 0;
+        isFinalized = false;
+      }
+      const diffDays = end.diff(start, 'days') + 1;
+      processedRebates.push({
+        ...rebate.toJSON(),
+        calculationDetail: {
+          rate: applicableRate.toFixed(2),
+          days: diffDays,
+          estimatedTotal: (applicableRate * diffDays).toFixed(2),
+          isFinalized
+        }
+      });
+    }
+    res.json({ success: true, data: processedRebates });
+  } catch (error) {
+    console.error("REBATE FETCH ERROR:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+const updateRebateStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, amount } = req.body; // amount is now sent from frontend
+    const warden_id = req.user.id;
+
+    const rebate = await Rebate.findByPk(id);
+    if (!rebate) return res.status(404).json({ success: false, message: 'Rebate not found' });
+
+    if (status === 'approved') {
+      if (!amount || parseFloat(amount) <= 0) {
+        return res.status(400).json({ success: false, message: 'Please provide a valid manual amount' });
+      }
+
+      await rebate.update({
+        status: 'approved',
+        amount: parseFloat(amount).toFixed(2),
+        approved_by: warden_id
+      });
+
+      return res.json({ success: true, message: `Rebate approved for ₹${amount}` });
+    }
+
+    // Handle Rejection
+    await rebate.update({ status: 'rejected', approved_by: warden_id });
+    res.json({ success: true, message: 'Rebate rejected' });
+
+  } catch (error) {
+    console.error("Update Rebate Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 module.exports = {
   // Student Enrollment
   enrollStudent,
@@ -2697,4 +2790,7 @@ decideRoomRequest,
 
 getDayReductionRequestsForWarden,       // <-- NEW EXPORT
 updateDayReductionRequestStatusByWarden, // <-- NEW EXPORT
+
+getRebates,
+updateRebateStatus
 };

@@ -22,7 +22,7 @@ const {
   // Room Management for Warden
   createRoomWarden, updateRoomWarden, deleteRoomWarden, getRoomsWarden,getLayout, saveLayout,getDayReductionRequestsForWarden,updateDayReductionRequestStatusByWarden,
 
-  getRoomRequestsWarden,decideRoomRequest
+  getRoomRequestsWarden,decideRoomRequest, getRebates, updateRebateStatus
 } = require('../controllers/wardenController');
 const express = require('express'); 
 
@@ -110,4 +110,8 @@ router.put('/room-requests/:id', decideRoomRequest);
 
 router.get('/day-reduction-requests', getDayReductionRequestsForWarden);
 router.put('/day-reduction-requests/:id/status', updateDayReductionRequestStatusByWarden); 
+
+router.get('/rebates', getRebates);
+router.put('/rebates/:id/status', updateRebateStatus);
+
 module.exports = router;

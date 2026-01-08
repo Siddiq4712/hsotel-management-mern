@@ -35,6 +35,7 @@ import MessBillManagement from './components/warden/MessBillManagement';
 import CreateRoom from './components/warden/CreateRoom';
 import ViewLayout from './components/warden/ViewLayout';
 import RoomRequests from './components/warden/RoomRequests';
+import ManageRebates from './components/warden/ManageRebates';
 
 // Student Components
 import StudentDashboard from './components/student/StudentDashboard';
@@ -50,6 +51,7 @@ import FoodOrderForm from './components/student/StudentFoodMenu';
 import MyFoodOrders from './components/student/MyFoodOrders';
 import StudentProfile from './components/student/StudentProfile';
 import ViewRooms from './components/student/ViewRooms';
+import StudentRebates from './components/student/StudentRebates';
 // Mess Components
 import MessDashboard from './components/mess/MessDashboard';
 import EnhancedMenuManagement from './components/mess/EnhancedMenuManagement';
@@ -181,6 +183,8 @@ const DashboardRouter = () => {
             return <SuspensionManagement />;
           case 'holidays':
             return <HolidayManagement />;
+          case 'rebate':
+            return <ManageRebates />;
           case 'mess-bills':
             return <MessBillManagement />;
           case 'approve-room-requests':
@@ -218,6 +222,8 @@ const DashboardRouter = () => {
             return <FoodOrderForm />;
           case 'my-food-orders':
             return <MyFoodOrders />;
+          case 'my-rebates':
+            return <StudentRebates />;
           case 'mess-history':
             return <StudentMessHistory />;
           case 'profile':
