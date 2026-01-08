@@ -127,6 +127,12 @@ export const adminAPI = {
   updateDayReductionRequestStatus: (id, data) => api.put(`/admin/day-reduction-requests/${id}/status`, data),
 
   updateHostelFeeSettings: (id, data) => api.put(`/admin/hostels/${id}/fee-settings`, data),
+
+  getNotifications: () => api.get('/admin/notifications'),
+markNotificationRead: (id) => api.put(`/admin/notifications/${id}/read`),
+
+// Add to messAPI
+notifyAdmin: (data) => api.post('/mess/notify-admin', data),
 };
 
 // Warden API - Updated with complete endpoints
@@ -268,6 +274,9 @@ export const studentAPI = {
   getMonthlyMessExpensesChart: () => api.get('/student/chart-data/mess-expenses'),
   getMonthlyAttendanceChart: () => api.get('/student/chart-data/attendance'),
   getRoommates: () => api.get('/student/roommates'),
+
+  applyRebate: (data) => api.post('/student/rebates', data),
+  getMyRebates: () => api.get('/student/rebates'),
 };
 // Mess API - Complete with all CRUD operations
 export const messAPI = {

@@ -1143,7 +1143,7 @@ const Rebate = sequelize.define('Rebate', {
   },
   approved_by: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true,
     references: {
       model: 'tbl_Users',
       key: 'id'

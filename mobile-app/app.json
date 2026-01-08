@@ -2,6 +2,7 @@
   "expo": {
     "name": "HostelManagementApp",
     "slug": "hostelmanagementapp",
+    "scheme": "hostelapp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -16,6 +17,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.yourname.hostelmanagement",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -26,9 +28,10 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-  "API_BASE_URL": "http://192.168.74.186:5001/api"
-}
-
-    
+      "API_BASE_URL": "http://192.168.66.186:5001/api"
+    },
+    "plugins": [
+      "expo-web-browser"
+    ]
   }
 }

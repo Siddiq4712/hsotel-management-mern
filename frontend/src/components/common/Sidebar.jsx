@@ -88,6 +88,7 @@ const MENU_STRUCTURE = {
       items: [
         { id: 'my-leaves', label: 'My Leaves', icon: FileText },
         { id: 'my-complaints', label: 'My Complaints', icon: AlertCircle },
+        { id: 'my-rebates', label: 'My Rebates', icon: CreditCard},
         { id: 'day-reduction', label: 'Apply Day Reduction', icon: FileText },
       ]
     },

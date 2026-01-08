@@ -51,6 +51,7 @@ import FoodOrderForm from './components/student/StudentFoodMenu';
 import MyFoodOrders from './components/student/MyFoodOrders';
 import StudentProfile from './components/student/StudentProfile';
 import ViewRooms from './components/student/ViewRooms';
+import StudentRebates from './components/student/StudentRebates';
 // Mess Components
 import MessDashboard from './components/mess/MessDashboard';
 import EnhancedMenuManagement from './components/mess/EnhancedMenuManagement';
@@ -221,6 +222,8 @@ const DashboardRouter = () => {
             return <FoodOrderForm />;
           case 'my-food-orders':
             return <MyFoodOrders />;
+          case 'my-rebates':
+            return <StudentRebates />;
           case 'mess-history':
             return <StudentMessHistory />;
           case 'profile':

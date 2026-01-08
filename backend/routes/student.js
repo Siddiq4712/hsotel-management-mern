@@ -42,7 +42,9 @@ const {
   requestRoomBooking,
   cancelRoomRequest,
   applyDayReduction,
-  getMyDayReductionRequests
+  getMyDayReductionRequests,
+  applyRebate,
+  getMyRebates
 } = require('../controllers/studentController');
 const {
   createFoodOrder,
@@ -131,4 +133,7 @@ router.post('/room-requests', requestRoomBooking);
 router.delete('/room-requests/:id', cancelRoomRequest);
 router.post('/day-reduction-requests', applyDayReduction);
 router.get('/day-reduction-requests', getMyDayReductionRequests); // To allow students to view their own requests
+
+router.post('/rebates', applyRebate);
+router.get('/rebates', getMyRebates);
 module.exports = router;

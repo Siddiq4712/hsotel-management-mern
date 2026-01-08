@@ -1,7 +1,7 @@
 // controllers/studentController.js
 const { 
   User, HostelRoom, RoomType, MessBill, MessCharge,DailyMessCharge,MenuSchedule,MessDailyExpense,ExpenseType,
-  Leave, Complaint, Transaction, Attendance, Token,
+  Leave, Complaint, Transaction, Attendance, Token, Rebate,
   HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel,HostelLayout,RoomRequest,
   SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, sequelize,DailyConsumption,IncomeType,AdditionalIncome,StudentFee,
    FeeType,DayReductionRequest,
@@ -1810,7 +1810,78 @@ const getMyDayReductionRequests = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+// Add these to studentController.js
 
+const applyRebate = async (req, res) => {
+  try {
+    const student_id = req.user.id;
+    const { rebate_type, from_date, to_date, reason } = req.body;
+
+    // Basic Validation
+    if (!rebate_type || !from_date || !to_date || !reason) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
+    }
+
+    // Check for overlapping pending/approved rebates to prevent double-claiming
+    const overlapping = await Rebate.findOne({
+      where: {
+        student_id,
+        status: ['pending', 'approved'],
+        [Op.or]: [
+          { from_date: { [Op.between]: [from_date, to_date] } },
+          { to_date: { [Op.between]: [from_date, to_date] } }
+        ]
+      }
+    });
+
+    if (overlapping) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'You already have an active or pending rebate for these dates.' 
+      });
+    }
+
+    // Note: The 'amount' is often calculated by the Warden during approval 
+    // based on daily rates, but we'll set it to 0.00 as a placeholder here.
+    const rebate = await Rebate.create({
+      student_id,
+      rebate_type,
+      from_date,
+      to_date,
+      reason,
+      amount: 0.00, // To be updated by warden during approval
+      status: 'pending'
+    });
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Rebate application submitted successfully', 
+      data: rebate 
+    });
+  } catch (error) {
+    console.error('Apply rebate error:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const getMyRebates = async (req, res) => {
+  try {
+    const student_id = req.user.id;
+    const rebates = await Rebate.findAll({
+      where: { student_id },
+      include: [{
+        model: User,
+        as: 'RebateApprovedBy',
+        attributes: ['username']
+      }],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({ success: true, data: rebates });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
 module.exports = {
   // Profile Management
   getProfile,
@@ -1872,4 +1943,6 @@ module.exports = {
   cancelRoomRequest,
   applyDayReduction,       // <-- NEW EXPORT
   getMyDayReductionRequests, // <-- NEW EXPORT
+  applyRebate,
+  getMyRebates
 };
