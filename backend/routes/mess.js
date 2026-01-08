@@ -1,61 +1,82 @@
-// routes/messRoutes.js - COMPLETE VERSION
 const express = require('express');
+const { body } = require('express-validator');
+
+const rateLimit = require('express-rate-limit');
 const {
-  // Menu Management - Complete CRUD
-  createMenu, getMenus, getMenuById, updateMenu, deleteMenu,
-  
-  // Item Management - Complete CRUD
-  createItem, getItems, getItemById, updateItem, deleteItem,
-  
-  // Item Category Management - Complete CRUD
-  createItemCategory, getItemCategories, updateItemCategory, deleteItemCategory,
-  
-  // Menu Item Management - Complete CRUD
-  addItemsToMenu, getMenuWithItems, updateMenuItems, removeItemFromMenu,
-  
-  // Cost and Analytics
+  // Menu Management
+  createMenu,
+  getMenus,
+  getMenuById,
+  updateMenu,
+  deleteMenu,
+
+  // Item Management
+  createItem,
+  getItems,
+  getItemById,
+  updateItem,
+  deleteItem,
+
+  // Item Category Management
+  createItemCategory,
+  getItemCategories,
+  updateItemCategory,
+  deleteItemCategory,
+
+  // Menu Item Management
+  addItemsToMenu,
+  getMenuWithItems,
+  updateMenuItems,
+  removeItemFromMenu,
+
+  // Menu Scheduling
+  scheduleMenu,
+  getMenuSchedule,
+  updateMenuSchedule,
+  deleteMenuSchedule,
+
+  // Stock Management
+  updateItemStock,
+  getItemStock,
+  getDailyConsumption,
+  recordBulkConsumption,
+  recordInventoryPurchase,
+  getInventoryTransactions,
+  exportStockToExcel,
+
+  // UOM Management
+  createUOM,
+  getUOMs,
+  updateUOM,
+  deleteUOM,
+
+  // Menu Cost Calculation
   calculateMenuCost,
-  
+
   // Dashboard
   getMessDashboardStats,
-  
-  // Supplier Management - Complete CRUD
-  createSupplier, getSuppliers, updateSupplier, deleteSupplier,
-  
-  // UOM Management - Complete CRUD
-  createUOM, getUOMs, updateUOM, deleteUOM,
 
-  recordBulkConsumption,
-  
-  // Grocery Management - Complete CRUD
-  createGroceryType,getGroceryTypes, updateGroceryType, deleteGroceryType,
-  createGrocery, getGroceries, updateGrocery, deleteGrocery,
-  
-  // Expense Type Management
-  createExpenseType, getExpenseTypes,
-  
-  // Existing functions
-  generateMessBills, getMessBills, scheduleMenu, getMenuSchedule,
-  generateTokens, updateItemStock, getItemStock, recordConsumption, 
-  getDailyConsumption, createPurchaseOrder, getPurchaseOrders, 
-  createSupplierBill, getSupplierBills, createOtherExpense, getOtherExpenses, 
-  allocateMessFees, getMessFeesAllocation, getAttendanceStatsForDate,
-  calculateAndApplyDailyCharges, getMyMessCharges,  getInventoryReport,getConsumptionReport,
-  getExpenseReport,getMenuPlanningReport,getMonthlyReport,
-    createStore,
+  // Store Management
+  createStore,
   getStores,
   updateStore,
   deleteStore,
+
+  // Item-Store Mapping
   mapItemToStore,
   getItemStores,
   removeItemStoreMapping,
-  recordInventoryPurchase,
-  getInventoryTransactions,
+  getItemsByStoreId,
+  getStoresByItemId,
+
+  // Special Food Items
   createSpecialFoodItem,
   getSpecialFoodItems,
   getSpecialFoodItemById,
   updateSpecialFoodItem,
   deleteSpecialFoodItem,
+
+  // Food Orders
   createFoodOrder,
   getFoodOrders,
   getFoodOrderById,
@@ -63,179 +84,300 @@ const {
   updatePaymentStatus,
   cancelFoodOrder,
   getMonthlyFoodOrderReport,
-  updateMenuSchedule,
-  deleteMenuSchedule,
-  getStoresByItemId,
-  getItemsByStoreId,
+
+  // Reports
   getSummarizedConsumptionReport,
+  markMenuAsServed,
 
+  // Mess Daily Expenses
+  createMessDailyExpense,
+  getMessDailyExpenses,
+  getMessDailyExpenseById,
+  updateMessDailyExpense,
+  deleteMessDailyExpense,
+  createExpenseType,
+  getExpenseTypes,
+  updateExpenseType,
+  deleteExpenseType,
+  getItemFIFOPrice,
+  getItemBatches,
+  fetchBatchPrices,
+
+  // Special Consumption
+  createSpecialConsumption,
+  getSpecialConsumptions,
+  getSpecialConsumptionById,
+  calculateAndApplyDailyMessCharges,
+  getRoundingAdjustments,
+  getLatestPurchaseReport,
+  correctLastPurchase,
+  getMessFeeSummary,
+  getStudentFeeBreakdown,
+  createStudentFee,
+  generateMonthlyMessReport,
+  getDailyConsumptionDetails,
+  exportUnitRateCalculation, // Make sure this is imported
+  createBulkStudentFee,
+  getStudentFees,
+  createCreditToken,
+  getCreditTokens,
+  updateCreditToken,
+  deleteCreditToken,
+  createConcern,
+  getConcerns,
+  updateConcern,
+  deleteConcern,
+
+  getIncomeEntries,
+  createIncomeEntry,
+  getMonthlyExpensesChartData, // Add this
+  getItemStockChartData, 
+  getSessions,
+
+  generateDailyRateReport,
+  getStudents,
+  recordStaffRecordedSpecialFoodConsumption,
+  generateMessBills,
+  createBedFee,
+  getStudentBedFees,
+  createBulkBedFees,
+  getAllBedFees,
+  deleteBedFee,
+
+  getPurchaseOrders,
+  clearPurchaseOrders,
+
+  createRecipe,
+  getRecipes,
+  updateRecipe,
+  deleteRecipe
 } = require('../controllers/messController');
-
 const { auth, authorize } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.use(auth);
-router.use(authorize(['mess', 'warden', 'admin'])); // Allow multiple roles
+// Rate limiting for sensitive endpoints
+const createOrderLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each user to 10 food order creations per window
+  message: 'Too many food order requests, please try again later.'
+});
 
-// Dashboard
-router.get('/dashboard-stats', getMessDashboardStats);
+// Input validation middleware
+const validateMenu = [
+  body('name').notEmpty().withMessage('Menu name is required'),
+  body('meal_type').notEmpty().withMessage('Meal type is required')
+];
+
+const validateItem = [
+  body('name').notEmpty().withMessage('Item name is required'),
+  body('category_id').notEmpty().withMessage('Category ID is required'),
+  body('maximum_quantity')
+   .optional({ nullable: true })
+   .isFloat({ min: 0 })
+   .withMessage('Maximum quantity must be a non-negative number')
+];
+
+const validateItemCategory = [
+  body('name').notEmpty().withMessage('Category name is required')
+];
+
+const validateUOM = [
+  body('name').notEmpty().withMessage('UOM name is required'),
+  body('abbreviation').notEmpty().withMessage('UOM abbreviation is required'),
+  body('type').notEmpty().withMessage('UOM type is required')
+];
+
+const validateStore = [
+  body('name').notEmpty().withMessage('Store name is required')
+];
+
+const validateSpecialFoodItem = [
+  body('name').notEmpty().withMessage('Food item name is required'),
+  body('price').isFloat({ min: 0 }).withMessage('Valid price is required'),
+  body('category').notEmpty().withMessage('Category is required')
+];
+
+const validateFoodOrder = [
+  body('items').isArray({ min: 1 }).withMessage('At least one food item is required'),
+  body('requested_time').notEmpty().withMessage('Requested time is required')
+];
+
+const validateMenuSchedule = [
+  body('menu_id').notEmpty().withMessage('Menu ID is required'),
+  body('scheduled_date').notEmpty().withMessage('Scheduled date is required'),
+  body('meal_time').notEmpty().withMessage('Meal time is required'),
+  body('estimated_servings').isInt({ min: 1 }).withMessage('Estimated servings must be a positive integer')
+];
+
+
+// Apply authentication middleware to all routes
+router.use(auth);
+
+// Dashboard (accessible to mess, warden, admin)
+router.get('/dashboard-stats', authorize(['mess', 'warden', 'admin']), getMessDashboardStats);
+
+router.get('/chart-data/monthly-expenses', authorize(['mess', 'admin']), getMonthlyExpensesChartData);
+router.get('/chart-data/item-stock', authorize(['mess', 'admin']), getItemStockChartData);
 
 // Menu Management - Complete CRUD
-router.post('/menus', createMenu);
-router.get('/menus', getMenus);
-router.get('/menus/:id', getMenuById);
-router.put('/menus/:id', updateMenu);
-router.delete('/menus/:id', deleteMenu);
+router.post('/menus', authorize(['mess', 'admin']), validateMenu, createMenu);
+router.get('/menus', authorize(['mess', 'warden', 'admin']), getMenus);
+router.get('/menus/:id', authorize(['mess', 'warden', 'admin']), getMenuById);
+router.put('/menus/:id', authorize(['mess', 'admin']), validateMenu, updateMenu);
+router.delete('/menus/:id', authorize(['admin', 'warden']), deleteMenu);
 
 // Item Management - Complete CRUD
-router.post('/items', createItem);
-router.get('/items', getItems);
-router.get('/items/:id', getItemById);
-router.put('/items/:id', updateItem);
-router.delete('/items/:id', deleteItem);
-
+router.post('/items', authorize(['mess', 'admin']), validateItem, createItem);
+router.get('/items', authorize(['mess', 'warden', 'admin']), getItems);
+router.get('/items/:id', authorize(['mess', 'warden', 'admin']), getItemById);
+router.put('/items/:id', authorize(['mess', 'admin']), validateItem, updateItem);
+router.delete('/items/:id', authorize(['admin', 'warden']), deleteItem);
+// In your routes file
+router.get('/items/:id/batches', authorize(['mess', 'admin']), getItemBatches);
 // Item Category Management - Complete CRUD
-router.post('/item-categories', createItemCategory);
-router.get('/item-categories', getItemCategories);
-router.put('/item-categories/:id', updateItemCategory);
-router.delete('/item-categories/:id', deleteItemCategory);
+router.post('/item-categories', authorize(['mess', 'admin']), validateItemCategory, createItemCategory);
+router.get('/item-categories', authorize(['mess', 'warden', 'admin']), getItemCategories);
+router.put('/item-categories/:id', authorize(['mess', 'admin']), validateItemCategory, updateItemCategory);
+router.delete('/item-categories/:id', authorize(['admin', 'warden']), deleteItemCategory);
 
 // Menu Item Management - Complete CRUD
-router.post('/menus/:menu_id/items', addItemsToMenu);
-router.get('/menus/:menu_id/items', getMenuWithItems);
-router.put('/menus/:menu_id/items', updateMenuItems);
-router.delete('/menus/:menu_id/items/:item_id', removeItemFromMenu);
+router.post('/menus/:menu_id/items', authorize(['mess', 'admin']), addItemsToMenu);
+router.get('/menus/:menu_id/items', authorize(['mess', 'warden', 'admin']), getMenuWithItems);
+router.put('/menus/:menu_id/items', authorize(['mess', 'admin']), updateMenuItems);
+router.delete('/menus/:menu_id/items/:item_id', authorize(['mess', 'admin']), removeItemFromMenu);
 
-// Cost and Analytics
-router.get('/menus/:menu_id/cost', calculateMenuCost);
-
-// Supplier Management - Complete CRUD
-router.post('/suppliers', createSupplier);
-router.get('/suppliers', getSuppliers);
-router.put('/suppliers/:id', updateSupplier);
-router.delete('/suppliers/:id', deleteSupplier);
+// Menu Scheduling - Complete CRUD
+router.post('/menu-schedule', authorize(['mess', 'admin']), validateMenuSchedule, scheduleMenu);
+router.get('/menu-schedule', authorize(['mess', 'warden', 'admin']), getMenuSchedule);
+router.put('/menu-schedule/:id', authorize(['mess', 'admin']), validateMenuSchedule, updateMenuSchedule);
+router.delete('/menu-schedule/:id', authorize(['admin', 'warden']), deleteMenuSchedule);
+router.put('/menu-schedule/:id/serve', authorize(['mess', 'admin']), markMenuAsServed);
 
 // UOM Management - Complete CRUD
-router.post('/uoms', createUOM);
-router.get('/uoms', getUOMs);
-router.put('/uoms/:id', updateUOM);
-router.delete('/uoms/:id', deleteUOM);
-
-// Grocery Type Management - Complete CRUD
-router.post('/grocery-types', createGroceryType);
-router.get('/grocery-types', getGroceryTypes); // Add this function to controller
-router.put('/grocery-types/:id', updateGroceryType);
-router.delete('/grocery-types/:id', deleteGroceryType);
-
-// Grocery Management - Complete CRUD
-router.post('/groceries', createGrocery);
-router.get('/groceries', getGroceries);
-router.put('/groceries/:id', updateGrocery);
-router.delete('/groceries/:id', deleteGrocery);
-
-// Expense Type Management
-router.post('/expense-types', createExpenseType);
-router.get('/expense-types', getExpenseTypes);
-
-// Bills and Finances
-router.post('/bills/generate', generateMessBills);
-router.get('/bills', getMessBills);
-
-// Menu Scheduling
-// router.post('/menu-schedule', scheduleMenu);
-// router.get('/menu-schedule', getMenuSchedule);
-
-// Token Management
-router.post('/tokens/generate', generateTokens);
+router.post('/uoms', authorize(['mess', 'admin']), validateUOM, createUOM);
+router.get('/uoms', authorize(['mess', 'warden', 'admin']), getUOMs);
+router.put('/uoms/:id', authorize(['mess', 'admin']), validateUOM, updateUOM);
+router.delete('/uoms/:id', authorize(['admin', 'warden']), deleteUOM);
 
 // Stock Management
-router.post('/stock', updateItemStock);
-router.get('/stock', getItemStock);
+router.post('/stock', authorize(['mess', 'admin']), updateItemStock);
+router.get('/stock', authorize(['mess', 'warden', 'admin']), getItemStock);
+router.get('/stock/export-excel', authorize(['mess', 'admin']), exportStockToExcel);
+router.post('/consumption/bulk', authorize(['mess', 'admin']), recordBulkConsumption);
+router.get('/consumption', authorize(['mess', 'warden', 'admin']), getDailyConsumption);
+router.post('/inventory-purchase', authorize(['mess', 'admin']), recordInventoryPurchase);
+router.get('/inventory-transactions', authorize(['mess', 'warden', 'admin']), getInventoryTransactions);
 
-// Daily Operations
-//router.post('/consumption', recordConsumption);
-router.get('/consumption', getDailyConsumption);
+// Store Management - Complete CRUD
+router.post('/stores', authorize(['mess', 'admin']), validateStore, createStore);
+router.get('/stores', authorize(['mess', 'warden', 'admin']), getStores);
+router.put('/stores/:id', authorize(['mess', 'admin']), validateStore, updateStore);
+router.delete('/stores/:id', authorize(['admin', 'warden']), deleteStore);
 
-// Purchase Orders
-router.post('/purchase-orders', createPurchaseOrder);
-router.get('/purchase-orders', getPurchaseOrders);
+// Item-Store Mapping - Complete CRUD
+router.post('/item-stores', authorize(['mess', 'admin']), mapItemToStore);
+router.get('/item-stores', authorize(['mess', 'warden', 'admin']), getItemStores);
+router.delete('/item-stores/:id', authorize(['mess', 'admin']), removeItemStoreMapping);
+router.get('/items/:item_id/stores', authorize(['mess', 'warden', 'admin']), getStoresByItemId);
+router.get('/stores/:store_id/items', authorize(['mess', 'warden', 'admin']), getItemsByStoreId);
 
-// Supplier Bills
-router.post('/supplier-bills', createSupplierBill);
-router.get('/supplier-bills', getSupplierBills);
+// Special Food Items - Complete CRUD
+router.post('/special-food-items', authorize(['mess', 'admin']), validateSpecialFoodItem, createSpecialFoodItem);
+router.get('/special-food-items', authorize(['mess', 'warden', 'admin', 'student']), getSpecialFoodItems);
+router.get('/special-food-items/:id', authorize(['mess', 'warden', 'admin', 'student']), getSpecialFoodItemById);
+router.put('/special-food-items/:id', authorize(['mess', 'admin']), validateSpecialFoodItem, updateSpecialFoodItem);
+router.delete('/special-food-items/:id', authorize(['admin', 'warden']), deleteSpecialFoodItem);
 
-// Other Expenses
-router.post('/expenses', createOtherExpense);
-router.get('/expenses', getOtherExpenses);
+// Food Orders - Complete CRUD
+router.post('/food-orders', authorize(['student', 'mess', 'admin']), createOrderLimiter, validateFoodOrder, createFoodOrder);
+router.get('/food-orders', authorize(['mess', 'warden', 'admin', 'student']), getFoodOrders);
+router.get('/food-orders/:id', authorize(['mess', 'warden', 'admin', 'student']), getFoodOrderById);
+router.put('/food-orders/:id/status', authorize(['mess', 'admin']), updateFoodOrderStatus);
+router.put('/food-orders/:id/payment', authorize(['mess', 'admin']), updatePaymentStatus);
+router.put('/food-orders/:id/cancel', authorize(['mess', 'admin', 'student']), cancelFoodOrder);
 
-// Mess Fees
-router.post('/fees/allocate', allocateMessFees);
-router.get('/fees/allocation', getMessFeesAllocation);
-
-// Attendance and Charges
-router.get('/attendance-stats', getAttendanceStatsForDate);
-router.post('/charges/calculate-daily', calculateAndApplyDailyCharges);
-router.get('/mess-charges', getMyMessCharges);
-
-router.get('/reports/inventory', getInventoryReport);
-router.get('/reports/consumption', getConsumptionReport);
-router.get('/reports/expenses', getExpenseReport);
-router.get('/reports/menu-planning', getMenuPlanningReport);
-router.get('/reports/monthly', getMonthlyReport);
-// In your routes file (e.g., messRoutes.js)
-router.post('/consumption/bulk', auth, recordBulkConsumption);
-
-// Store Management
-router.post('/stores', auth, createStore);
-router.get('/stores', auth, getStores);
-router.put('/stores/:id', auth, updateStore);
-router.delete('/stores/:id', auth, deleteStore);
-
-// Item-Store Mapping
-router.post('/item-stores', auth, mapItemToStore);
-router.get('/item-stores', auth, getItemStores);
-router.delete('/item-stores/:id', auth, removeItemStoreMapping);
-
-// Inventory Transactions
-router.post('/inventory/purchases', auth, recordInventoryPurchase);
-router.get('/inventory/transactions', auth, getInventoryTransactions);
-
-// Special Food Items Management
-router.post('/special-food-items', auth, createSpecialFoodItem);
-router.get('/special-food-items', auth, getSpecialFoodItems);
-router.get('/special-food-items/:id', auth, getSpecialFoodItemById);
-router.put('/special-food-items/:id', auth, updateSpecialFoodItem);
-router.delete('/special-food-items/:id', auth, deleteSpecialFoodItem);
-
-// Food Orders Management
-router.post('/food-orders', auth, createFoodOrder);
-router.get('/food-orders', auth, getFoodOrders);
-router.get('/food-orders/:id', auth, getFoodOrderById);
-router.put('/food-orders/:id/status', auth, updateFoodOrderStatus);
-router.put('/food-orders/:id/payment', auth, updatePaymentStatus);
-router.put('/food-orders/:id/cancel', auth, cancelFoodOrder);
+// Cost and Analytics
+router.get('/menus/:menu_id/cost', authorize(['mess', 'warden', 'admin']), calculateMenuCost);
 
 // Reports
-router.get('/reports/monthly-food-orders', auth, getMonthlyFoodOrderReport);
+router.get('/reports/monthly-food-orders', authorize(['mess', 'warden', 'admin']), getMonthlyFoodOrderReport);
+router.get('/reports/consumption-summary', authorize(['mess', 'warden', 'admin']), getSummarizedConsumptionReport);
 
-router.post('/bills/generate', generateMessBills);
-router.get('/bills', getMessBills);
+router.post('/daily-expenses', authorize(['mess', 'admin']), createMessDailyExpense);
+router.get('/daily-expenses', authorize(['mess', 'admin']), getMessDailyExpenses);
+router.get('/daily-expenses/:id', authorize(['mess', 'admin']), getMessDailyExpenseById);
+router.put('/daily-expenses/:id', authorize(['mess', 'admin']), updateMessDailyExpense);
+router.delete('/daily-expenses/:id', authorize(['mess', 'admin']), deleteMessDailyExpense);
 
-router.post('/menu-schedule', scheduleMenu);
-router.get('/menu-schedule', getMenuSchedule);
-router.put('/menu-schedule/:id', updateMenuSchedule); // Add this for editing
-router.delete('/menu-schedule/:id', deleteMenuSchedule); 
+router.post('/expenses-types', authorize(['mess', 'admin']), createExpenseType);
+router.get('/expenses-types', authorize(['mess', 'admin']), getExpenseTypes);
+router.put('/expenses-types/:id', authorize(['mess', 'admin']), updateExpenseType);
+router.delete('/expenses-types/:id', authorize(['mess', 'admin']), deleteExpenseType);
 
-router.post('/tokens/generate', generateTokens);
+router.get('/items/:id/fifo-price', authorize(['mess', 'admin']), getItemFIFOPrice);
 
-router.get('/items/:item_id/stores', auth, getStoresByItemId);
-router.get('/stores/:store_id/items', auth, getItemsByStoreId);
+router.post('/special-consumption', authorize(['mess', 'admin']), createSpecialConsumption);
+router.get('/special-consumption', authorize(['mess', 'admin']), getSpecialConsumptions);
+router.get('/special-consumption/:id', authorize(['mess', 'admin']), getSpecialConsumptionById);
+router.get('/daily-charges/calculate', authorize(['mess', 'admin']), calculateAndApplyDailyMessCharges);
 
-// Add this new route for the summarized report
-router.get('/reports/consumption-summary', auth, getSummarizedConsumptionReport);
-// Add this to your routes/mess.js file
+router.post('/daily-charges/calculate', authorize(['mess', 'admin']), calculateAndApplyDailyMessCharges);
 
-// router.post('/inventory/purchases', auth, recordInventoryPurchase);
-// router.get('/inventory/transactions', auth, getInventoryTransactions);
+router.get('/additional-income/rounding', authorize(['mess', 'admin']), getRoundingAdjustments);
+router.get('/reports/latest-purchase', authorize(['mess', 'admin']), getLatestPurchaseReport);
+
+router.post('/inventory/correct-last-purchase', authorize(['mess', 'admin']), correctLastPurchase);
+
+router.get('/reports/mess-fee-summary', authorize(['mess', 'admin']), getMessFeeSummary);
+
+router.get('/reports/student-fee-breakdown', authorize(['mess', 'admin']), getStudentFeeBreakdown);
+router.post('/student-fees', authorize(['mess', 'admin']), createStudentFee);
+router.get('/reports/monthly-mess-bill', authorize(['mess', 'admin']), generateMonthlyMessReport);
+
+router.get('/reports/daily-consumption-details', authorize(['mess', 'admin']), getDailyConsumptionDetails);
+
+router.get('/stock/export-unit-rate', authorize(['mess', 'admin']), exportUnitRateCalculation); // NEW ROUTE
+
+router.post('/student-fees/bulk', authorize(['mess', 'admin']), createBulkStudentFee);
+router.get('/student-fees', authorize(['mess', 'admin']), getStudentFees);
+router.get('/sessions', authorize(['mess', 'warden', 'admin']), getSessions);
+
+
+router.post('/credit-token',authorize(['mess', 'admin']),createCreditToken);
+router.get('/credit-token', authorize(['mess', 'admin']),getCreditTokens);
+router.put('/credit-token/:id', authorize(['mess', 'admin']),updateCreditToken);
+router.delete('/credit-token/:id', authorize(['mess', 'admin']),deleteCreditToken);
+
+router.post('/concerns', authorize(['mess', 'admin']), createConcern);
+router.get('/concerns', authorize(['mess', 'admin', 'warden']), getConcerns);
+router.put('/concerns/:id', authorize(['mess', 'admin']), updateConcern);
+router.delete('/concerns/:id', authorize(['mess', 'admin']), deleteConcern);
+
+router.get('/income-entries', authorize(['mess', 'admin']), getIncomeEntries);
+router.post('/income-entries', authorize(['mess', 'admin']), createIncomeEntry);
+
+router.get('/reports/daily-rate-calculation', authorize(['mess', 'admin']), generateDailyRateReport);
+
+router.get('/students',authorize(['mess', 'admin']),getStudents);
+router.post('/student-special-consumption-staff',authorize(['mess', 'admin']),recordStaffRecordedSpecialFoodConsumption);
+
+router.post('/generate-mess-bills',authorize(['mess', 'admin']),generateMessBills);
+router.post('/bed-fees', authorize(['mess', 'warden', 'admin']), createBedFee);
+router.get('/bed-fees', authorize(['mess', 'warden', 'admin']), getAllBedFees);
+router.get('/students/:student_id/bed-fees', authorize(['mess', 'warden', 'admin']), getStudentBedFees);
+router.delete('/bed-fees/:id', authorize(['mess', 'warden', 'admin']), deleteBedFee);
+
+// Bulk bed fee creation
+router.post('/bed-fees/bulk', authorize(['mess', 'warden', 'admin']), createBulkBedFees);
+
+router.get('/purchase-orders', authorize(['mess', 'admin']), getPurchaseOrders);
+router.put('/purchase-orders/clear', authorize(['mess', 'admin']), clearPurchaseOrders);
+
+
+// messRoutes.js
+router.post('/recipes', authorize(['mess', 'admin']), createRecipe);
+router.get('/recipes', authorize(['mess', 'warden', 'admin']), getRecipes);
+router.put('/recipes/:id', authorize(['mess', 'admin']), updateRecipe);
+router.delete('/recipes/:id', authorize(['admin', 'mess']), deleteRecipe);
 module.exports = router;

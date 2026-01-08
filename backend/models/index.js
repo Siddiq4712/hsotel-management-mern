@@ -12,7 +12,7 @@ const User = sequelize.define('User', {
   username: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true
+    unique: false
   },
   email: {
     type: DataTypes.STRING,
@@ -24,8 +24,14 @@ const User = sequelize.define('User', {
     allowNull: false
   },
   role: {
-    type: DataTypes.ENUM('student', 'warden', 'admin', 'mess'),
+    type: DataTypes.ENUM('student', 'warden', 'admin', 'mess','lapc'),
     allowNull: false
+  },
+  //Comment this out temporarily until DB is fixed
+  roll_number: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true
   },
   hostel_id: {
     type: DataTypes.INTEGER,
@@ -35,9 +41,18 @@ const User = sequelize.define('User', {
       key: 'id'
     }
   },
-  is_active: {  // ADD THIS FIELD
+  is_active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
+  },
+  google_id: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true
+  },
+  profile_picture: {
+    type: DataTypes.TEXT,
+    allowNull: true
   }
 }, {
   tableName: 'tbl_Users',
@@ -81,6 +96,14 @@ const Hostel = sequelize.define('Hostel', {
   is_active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
+  },
+  annual_fee_amount: {
+    type: DataTypes.DECIMAL(10, 2),
+    defaultValue: 0.00
+  },
+  show_fee_reminder: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   tableName: 'tbl_Hostel',
@@ -101,6 +124,14 @@ const RoomType = sequelize.define('RoomType', {
     type: DataTypes.INTEGER,
     allowNull: false
   },
+  hostel_id: {
+  type: DataTypes.INTEGER,
+  allowNull: false,
+  references: {
+    model: 'tbl_Hostel',
+    key: 'id'
+  }
+  },
   description: {
     type: DataTypes.TEXT,
     allowNull: true
@@ -115,6 +146,11 @@ const HostelRoom = sequelize.define('HostelRoom', {
     type: DataTypes.INTEGER,
     primaryKey: true,
     autoIncrement: true
+  },
+  layout_slot: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Grid slot (floorIdx-rowIdx-colIdx) used by layout builder'
   },
   hostel_id: {
     type: DataTypes.INTEGER,
@@ -187,6 +223,7 @@ const Session = sequelize.define('Session', {
   timestamps: true
 });
 
+// In your Enrollment model
 const Enrollment = sequelize.define('Enrollment', {
   id: {
     type: DataTypes.INTEGER,
@@ -200,6 +237,11 @@ const Enrollment = sequelize.define('Enrollment', {
       model: User,
       key: 'id'
     }
+  },
+  roll_number: {  // NEW FIELD
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true
   },
   hostel_id: {
     type: DataTypes.INTEGER,
@@ -222,9 +264,18 @@ const Enrollment = sequelize.define('Enrollment', {
     allowNull: false,
     defaultValue: DataTypes.NOW
   },
+  // Add these fields to the Enrollment model
+  requires_bed: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
+  },
   status: {
     type: DataTypes.ENUM('active', 'inactive', 'suspended'),
     defaultValue: 'active'
+  },
+   college: {
+    type: DataTypes.ENUM('nec', 'lapc'),
+    allowNull: true // Or false if it's a required field
   }
 }, {
   tableName: 'tbl_Enrollment',
@@ -385,6 +436,11 @@ const Item = sequelize.define('Item', {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: true
   },
+ maximum_quantity: {
+   type: DataTypes.DECIMAL(10,2),
+   allowNull: true,
+   comment: 'Target stock maintained after procurement'
+ },
   unit_id: {
     type: DataTypes.INTEGER,
     allowNull: true,
@@ -725,6 +781,7 @@ const Suspension = sequelize.define('Suspension', {
 
 // ... (imports)
 
+// Updated Attendance Model
 const Attendance = sequelize.define('Attendance', {
   id: {
     type: DataTypes.INTEGER,
@@ -736,12 +793,17 @@ const Attendance = sequelize.define('Attendance', {
     allowNull: false,
     references: { model: 'tbl_Users', key: 'id' }
   },
-  date: { // This 'date' is the primary date of the record
+  hostel_id: {  
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Hostel', key: 'id' }
+  },
+  date: { 
     type: DataTypes.DATEONLY,
     allowNull: false
   },
- status: {
-    type: DataTypes.ENUM('P', 'A', 'OD'), 
+  status: {
+    type: DataTypes.ENUM('P', 'A', 'OD'),
     allowNull: false
   },
   from_date: {
@@ -752,12 +814,11 @@ const Attendance = sequelize.define('Attendance', {
     type: DataTypes.DATEONLY,
     allowNull: true
   },
-  // NEW/UPDATED: Changed from remarks to reason with ENUM
   reason: {
     type: DataTypes.ENUM('NCC', 'NSS', 'Internship', 'Other'),
-    allowNull: true, // Only required for OD
+    allowNull: true, 
   },
-  remarks: { // Kept for general remarks or 'Other' reason
+  remarks: { 
     type: DataTypes.TEXT,
     allowNull: true
   },
@@ -765,12 +826,19 @@ const Attendance = sequelize.define('Attendance', {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: { model: 'tbl_Users', key: 'id' }
+  },
+  totalManDays:{
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+  is_monthly: {  // NEW FIELD: To identify monthly summary records
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   tableName: 'tbl_Attendance',
   timestamps: true
 });
-
 const Holiday = sequelize.define('Holiday', {
   id: {
     type: DataTypes.INTEGER,
@@ -820,9 +888,19 @@ const Fee = sequelize.define('Fee', {
       key: 'id'
     }
   },
+  enrollment_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'tbl_Enrollment',
+      key: 'id'
+    },
+    comment: 'Links fee to a specific enrollment period'
+  },
   fee_type: {
-    type: DataTypes.ENUM('hostel', 'mess', 'maintenance', 'security', 'other'),
-    allowNull: false
+    type: DataTypes.ENUM('hostel', 'mess', 'maintenance', 'security', 'emi', 'other'),
+    allowNull: false,
+    comment: 'Type of fee - added "emi" option for bed allocation EMI payments'
   },
   amount: {
     type: DataTypes.DECIMAL(10, 2),
@@ -839,11 +917,67 @@ const Fee = sequelize.define('Fee', {
   payment_date: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  payment_method: {
+    type: DataTypes.ENUM('cash', 'card', 'upi', 'bank_transfer', 'other'),
+    allowNull: true,
+    comment: 'Method used for payment, if paid'
+  },
+  transaction_id: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Reference ID for the payment transaction'
+  },
+  receipt_number: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Receipt number for the payment'
+  },
+  emi_month: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'For EMI payments, tracks which month in the sequence (1-5)'
+  },
+  collected_by: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'tbl_Users',
+      key: 'id'
+    },
+    comment: 'User who collected the payment'
+  },
+  remarks: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'Any additional notes about this fee or payment'
   }
 }, {
   tableName: 'tbl_Fee',
-  timestamps: true
+  timestamps: true,
+  indexes: [
+    {
+      fields: ['student_id']
+    },
+    {
+      fields: ['enrollment_id']
+    },
+    {
+      fields: ['fee_type']
+    },
+    {
+      fields: ['status']
+    },
+    {
+      fields: ['due_date']
+    }
+  ]
 });
+
+// Add associations
+Fee.belongsTo(User, { foreignKey: 'collected_by', as: 'CollectedBy' });
+Fee.belongsTo(Enrollment, { foreignKey: 'enrollment_id', as: 'Enrollment' });
+Enrollment.hasMany(Fee, { foreignKey: 'enrollment_id', as: 'Fees' });
 
 const AdditionalCollectionType = sequelize.define('AdditionalCollectionType', {
   id: {
@@ -1009,7 +1143,7 @@ const Rebate = sequelize.define('Rebate', {
   },
   approved_by: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true,
     references: {
       model: 'tbl_Users',
       key: 'id'
@@ -1213,11 +1347,16 @@ const MenuItem = sequelize.define('MenuItem', {
     type: DataTypes.DECIMAL(8, 2),
     allowNull: false
   },
-  unit: {
-    type: DataTypes.STRING,
-    allowNull: false
+  unit_id: {  // Changed from 'unit' to 'unit_id'
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tbl_UOM',
+      key: 'id'
+    },
+    comment: 'Unit of measurement (linked to UOM)'
   },
-  preparation_notes: {  // Add this field
+  preparation_notes: {
     type: DataTypes.TEXT,
     allowNull: true
   }
@@ -1225,7 +1364,6 @@ const MenuItem = sequelize.define('MenuItem', {
   tableName: 'tbl_Menu_Item',
   timestamps: true
 });
-
 
 const MenuSchedule = sequelize.define('MenuSchedule', {
   id: {
@@ -1383,129 +1521,100 @@ const ItemStock = sequelize.define('ItemStock', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
-    autoIncrement: true
+    autoIncrement: true,
   },
   item_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'tbl_Item',
-      key: 'id'
-    }
+    references: { model: 'tbl_Item', key: 'id' },
   },
   hostel_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'tbl_Hostel',
-      key: 'id'
-    }
+    references: { model: 'tbl_Hostel', key: 'id' },
   },
   current_stock: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
-    defaultValue: 0.00
+    defaultValue: 0.00,
+    comment: 'Total stock across all batches for this item and hostel',
   },
   minimum_stock: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
-    defaultValue: 0.00
+    defaultValue: 0.00,
+    comment: 'Minimum stock threshold for reordering',
   },
   last_updated: {
     type: DataTypes.DATE,
     allowNull: false,
-    defaultValue: DataTypes.NOW
-  }
+    defaultValue: DataTypes.NOW,
+    comment: 'Last time stock was updated',
+  },
+  last_purchase_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+    comment: 'Date of the most recent batch purchase',
+  },
 }, {
   tableName: 'tbl_ItemStock',
-  timestamps: true
+  timestamps: true,
+  indexes: [
+    { fields: ['item_id', 'hostel_id'] },
+  ],
 });
-
 const DailyConsumption = sequelize.define('DailyConsumption', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
-    autoIncrement: true
+    autoIncrement: true,
   },
   hostel_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'tbl_Hostel',
-      key: 'id'
-    }
+    references: { model: 'tbl_Hostel', key: 'id' },
   },
   item_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'tbl_Item',
-      key: 'id'
-    }
+    references: { model: 'tbl_Item', key: 'id' },
   },
   consumption_date: {
     type: DataTypes.DATEONLY,
-    allowNull: false
+    allowNull: false,
   },
   quantity_consumed: {
     type: DataTypes.DECIMAL(10, 2),
-    allowNull: false
+    allowNull: false,
+    comment: 'Total quantity consumed for this item on this date',
   },
   unit: {
-    type: DataTypes.STRING,
-    allowNull: false
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_UOM', key: 'id' },
+    comment: 'Unit of measurement (linked to UOM)',
   },
   meal_type: {
     type: DataTypes.ENUM('breakfast', 'lunch', 'dinner', 'snacks'),
-    allowNull: false
+    allowNull: false,
   },
   recorded_by: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'tbl_Users',
-      key: 'id'
-    }
-  }
+    references: { model: 'tbl_Users', key: 'id' },
+  },
+  total_cost: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    defaultValue: 0.00,
+    comment: 'Total cost of consumption based on FIFO batches',
+  },
 }, {
   tableName: 'tbl_DailyConsumption',
-  timestamps: true
-});
-
-
-const DailyConsumptionReturn = sequelize.define('DailyConsumptionReturn', {
-  id: {
-    type: DataTypes.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
-  },
-  daily_consumption_id: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'tbl_DailyConsumption',
-      key: 'id'
-    }
-  },
-  quantity_returned: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false
-  },
-  reason: {
-    type: DataTypes.TEXT,
-    allowNull: true
-  },
-  returned_by: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'tbl_Users',
-      key: 'id'
-    }
-  }
-}, {
-  tableName: 'tbl_DailyConsumptionReturn',
-  timestamps: true
+  timestamps: true,
+  indexes: [
+    { fields: ['item_id', 'hostel_id', 'consumption_date'] },
+  ],
 });
 
 const NonConsumables = sequelize.define('NonConsumables', {
@@ -1900,6 +2009,55 @@ const OtherExpense = sequelize.define('OtherExpense', {
   tableName: 'tbl_OtherExpense',
   timestamps: true
 });
+
+const MessDailyExpense = sequelize.define('MessDailyExpense', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tbl_Hostel',
+      key: 'id'
+    }
+  },
+  expense_type_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tbl_ExpenseType',
+      key: 'id'
+    }
+  },
+  amount: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false
+  },
+  expense_date: {
+    type: DataTypes.DATEONLY, // Date-only for daily expenses
+    allowNull: false,
+    defaultValue: DataTypes.NOW
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  recorded_by: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tbl_Users',
+      key: 'id'
+    }
+  }
+}, {
+  tableName: 'tbl_MessDailyExpense',
+  timestamps: true
+});
+
 // GUEST MANAGEMENT
 const Guest = sequelize.define('Guest', {
   id: {
@@ -2041,7 +2199,7 @@ const DailyMessCharge = sequelize.define('DailyMessCharge', {
     defaultValue: 0.00
   },
   attendance_status: {
-    type: DataTypes.ENUM('present', 'absent', 'leave', 'not_marked'),
+    type: DataTypes.ENUM('present', 'absent', 'on_duty', 'not_marked'),
     allowNull: false
   },
   is_charged: {
@@ -2127,6 +2285,8 @@ const ItemStore = sequelize.define('ItemStore', {
 });
 
 // Inventory Transaction Model for tracking purchases and consumption
+// models/index.js - PARTIAL UPDATE: Find this section and modify it.
+
 const InventoryTransaction = sequelize.define('InventoryTransaction', {
   id: {
     type: DataTypes.INTEGER,
@@ -2157,9 +2317,12 @@ const InventoryTransaction = sequelize.define('InventoryTransaction', {
       key: 'id'
     }
   },
+  // Removed the old 'transaction_date' (which was the inward_date)
+  // Renamed 'invoice_date' to 'transaction_date' to be the single date field
   transaction_date: {
     type: DataTypes.DATEONLY,
-    allowNull: false
+    allowNull: false,
+    comment: 'Date when the inventory transaction (e.g., purchase) occurred / Date on the supplier invoice'
   },
   quantity: {
     type: DataTypes.DECIMAL(10, 2),
@@ -2193,8 +2356,8 @@ const InventoryTransaction = sequelize.define('InventoryTransaction', {
   tableName: 'tbl_InventoryTransaction',
   timestamps: true
 });
-// SpecialFoodItem Model
-const SpecialFoodItem = sequelize.define('SpecialFoodItem', {
+
+  const SpecialFoodItem = sequelize.define('SpecialFoodItem', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2330,9 +2493,37 @@ const FoodOrderItem = sequelize.define('FoodOrderItem', {
   tableName: 'tbl_FoodOrderItem',
   timestamps: true
 });
+const Concern = sequelize.define('Concern', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    unique: true,
+    comment: 'The specific name, e.g., "K.R. Memorial Scholarship Meeting"',
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  is_active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+  },
+}, {
+  tableName: 'tbl_Concern',
+  timestamps: true,
+});
 
 const InventoryBatch = sequelize.define('InventoryBatch', {
-  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
   item_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -2343,27 +2534,53 @@ const InventoryBatch = sequelize.define('InventoryBatch', {
     allowNull: false,
     references: { model: 'tbl_Hostel', key: 'id' },
   },
+  quantity_purchased: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    comment: 'Original quantity purchased in this batch',
+  },
   quantity_remaining: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
-    comment: 'The current quantity left in this specific batch',
+    defaultValue: 0.00,
+    comment: 'Current quantity left in this batch',
   },
   unit_price: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
-    comment: 'The price at which this batch was purchased',
+    comment: 'Purchase price per unit for this batch',
   },
   purchase_date: {
     type: DataTypes.DATEONLY,
     allowNull: false,
+    comment: 'Date the batch was purchased',
+  },
+  expiry_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+    comment: 'Optional expiry date for perishable items',
+  },
+  status: {
+    type: DataTypes.ENUM('active', 'depleted', 'expired'),
+    allowNull: false,
+    defaultValue: 'active',
+    comment: 'Batch status for FIFO management',
   },
 }, {
   tableName: 'tbl_InventoryBatch',
-  timestamps: true, // createdAt helps FIFO
+  timestamps: true,
+  indexes: [
+    { fields: ['item_id', 'hostel_id', 'purchase_date'] }, // Optimize FIFO queries
+    { fields: ['status'] },
+  ],
 });
-
 // Remove the beforeCreate hook from this model definition
 const ConsumptionLog = sequelize.define('ConsumptionLog', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
   daily_consumption_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -2371,21 +2588,545 @@ const ConsumptionLog = sequelize.define('ConsumptionLog', {
   },
   batch_id: {
     type: DataTypes.INTEGER,
-    allowNull: false, // This is the crucial constraint
+    allowNull: false,
     references: { model: 'tbl_InventoryBatch', key: 'id' },
   },
   quantity_consumed: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
+    comment: 'Quantity consumed from this batch',
   },
   cost: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
+    comment: 'Cost of consumed quantity (quantity * batch unit_price)',
   },
-}, { 
+  meal_type: {
+    type: DataTypes.ENUM('breakfast', 'lunch', 'dinner', 'snacks'),
+    allowNull: false,
+    comment: 'Meal type for which this consumption was recorded',
+  },
+}, {
   tableName: 'tbl_ConsumptionLog',
   timestamps: true,
+  indexes: [
+    { fields: ['daily_consumption_id'] },
+    { fields: ['batch_id'] },
+  ],
 });
+const DailyConsumptionReturn = sequelize.define('DailyConsumptionReturn', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  daily_consumption_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_DailyConsumption', key: 'id' },
+  },
+  returned_by: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Users', key: 'id' },
+  },
+  quantity_returned: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+  },
+  return_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false,
+    defaultValue: DataTypes.NOW,
+  },
+  reason: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+}, {
+  tableName: 'tbl_DailyConsumptionReturn',
+  timestamps: true,
+});
+// In your models file (e.g., models/index.js)
+
+// ... other model definitions
+
+// NEW: Special Consumption Model
+const CreditToken = sequelize.define('CreditToken', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Hostel', key: 'id' },
+  },
+    concern_id: { // Replaces 'name' and 'description'
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Concern', key: 'id' },
+  },
+  amount: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+  },
+  date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false,
+  },
+  recorded_by: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Users', key: 'id' },
+  },
+}, {
+  tableName: 'tbl_CreditToken',
+  timestamps: true,
+});
+const SpecialConsumption = sequelize.define('SpecialConsumption', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Hostel', key: 'id' },
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    comment: 'Descriptive name for the consumption event, e.g., "Annual Day Celebration"',
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  consumption_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false,
+  },
+  recorded_by: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Users', key: 'id' },
+  },
+  total_cost: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    defaultValue: 0.00,
+    comment: 'Total calculated cost of all items consumed in this event',
+  },
+}, {
+  tableName: 'tbl_SpecialConsumption',
+  timestamps: true,
+});
+
+// NEW: Special Consumption Item Model
+const SpecialConsumptionItem = sequelize.define('SpecialConsumptionItem', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  special_consumption_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_SpecialConsumption', key: 'id' },
+  },
+  item_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Item', key: 'id' },
+  },
+  daily_consumption_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_DailyConsumption', key: 'id' },
+    comment: 'Links to the underlying consumption record which handled stock deduction'
+  },
+  quantity_consumed: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+  },
+  unit_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_UOM', key: 'id' },
+  },
+  cost: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    comment: 'Cost of this specific item line, calculated via FIFO',
+  },
+}, {
+  tableName: 'tbl_SpecialConsumptionItem',
+  timestamps: false, // These are just log entries, timestamps on parent are enough
+});
+// In your main models file (e.g., models/index.js)
+
+// ... after the 'FoodOrderItem' or 'Fee' model definition ...
+
+const StudentFee = sequelize.define('StudentFee', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  student_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Users', key: 'id' }
+  },
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Hostel', key: 'id' }
+  },
+  fee_type: {
+    type: DataTypes.STRING, // e.g., 'water_bill', 'fine', 'other_expense'
+    allowNull: false,
+  },
+  amount: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+  },
+  description: {
+    type: DataTypes.TEXT,
+  },
+  month: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    comment: 'Month this fee applies to (1-12)',
+  },
+  year: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    comment: 'Year this fee applies to',
+  },
+  status: {
+    type: DataTypes.ENUM('pending', 'paid'),
+    defaultValue: 'pending',
+  },
+  issued_by: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Users', key: 'id' }
+  },
+  issue_date: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW,
+  },
+}, {
+  tableName: 'tbl_StudentFee',
+  timestamps: true,
+});
+const HostelLayout = sequelize.define('HostelLayout', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tbl_Hostel',
+      key: 'id'
+    }
+  },
+
+  building_type: {
+    type: DataTypes.ENUM('single', 'l', 'u', 'square'),
+    allowNull: false
+  },
+
+  entrance_side: {
+    type: DataTypes.ENUM('t', 'b', 'l', 'r'),
+    allowNull: false
+  },
+
+  floors: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+
+  top_rooms: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+
+  bottom_rooms: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+
+  left_rooms: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+
+  right_rooms: {
+    type: DataTypes.INTEGER,
+    allowNull: true
+  },
+
+  // REQUIRED for L-shaped
+  orientation: {
+    type: DataTypes.STRING,
+    allowNull: true      // "tl", "tr", "bl", "br"
+  },
+
+  // REQUIRED for U-shaped
+  open_side: {
+    type: DataTypes.STRING,
+    allowNull: true      // "t", "b", "l", "r"
+  },
+  layout_json: {
+    type: DataTypes.TEXT, // or DataTypes.JSON if using Postgres
+    allowNull: true
+  },
+
+}, {
+  tableName: 'tbl_HostelLayout',
+  timestamps: true
+});
+const RoomRequest = sequelize.define(
+  "RoomRequest",
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    hostel_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: "tbl_Hostel",
+        key: "id",
+      },
+    },
+    student_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: "tbl_Users",
+        key: "id",
+      },
+    },
+    room_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: "tbl_HostelRoom",
+        key: "id",
+      },
+    },
+    status: {
+      type: DataTypes.ENUM("pending", "approved", "rejected", "cancelled"),
+      allowNull: false,
+      defaultValue: "pending",
+    },
+    requested_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW,
+    },
+    processed_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    approved_by: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: "tbl_Users",
+        key: "id",
+      },
+    },
+    remarks: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+  },
+  {
+    tableName: "tbl_RoomRequest",
+    timestamps: true,
+  }
+);
+const RestockPlan = sequelize.define('RestockPlan', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: false },
+  item_id: { type: DataTypes.INTEGER, allowNull: false },
+  month: { type: DataTypes.TINYINT, allowNull: false },
+  year: { type: DataTypes.SMALLINT, allowNull: false },
+  quantity_needed: { type: DataTypes.DECIMAL(10,2), allowNull: false, defaultValue: 0 },
+  last_consumed_at: { type: DataTypes.DATEONLY, allowNull: false },
+  is_cleared: { type: DataTypes.BOOLEAN, defaultValue: false },
+  cleared_at: { type: DataTypes.DATE, allowNull: true }
+}, { tableName: 'tbl_RestockPlan', timestamps: true });
+
+// models/index.js (add this new model definition)
+
+// ... existing models ...
+
+const DayReductionRequest = sequelize.define('DayReductionRequest', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  student_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tbl_Users',
+      key: 'id'
+    }
+  },
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tbl_Hostel',
+      key: 'id'
+    }
+  },
+  from_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  },
+  to_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  },
+  reason: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  status: {
+    type: DataTypes.ENUM('pending_admin', 'approved_by_admin', 'rejected_by_admin', 'approved_by_warden', 'rejected_by_warden'),
+    defaultValue: 'pending_admin',
+    allowNull: false
+  },
+  admin_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'tbl_Users',
+      key: 'id'
+    }
+  },
+  admin_remarks: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  warden_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'tbl_Users',
+      key: 'id'
+    }
+  },
+  warden_remarks: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+}, {
+  tableName: 'tbl_DayReductionRequests',
+  timestamps: true
+});
+// models/index.js
+
+const Recipe = sequelize.define('Recipe', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Hostel', key: 'id' }
+  },
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    comment: 'Name of the dish (e.g., Sambar, Dosa)'
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  }
+}, {
+  tableName: 'tbl_Recipe',
+  timestamps: true
+});
+
+const RecipeItem = sequelize.define('RecipeItem', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  recipe_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Recipe', key: 'id' }
+  },
+  item_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Item', key: 'id' }
+  },
+  quantity_per_serving: {
+    type: DataTypes.DECIMAL(10, 4),
+    allowNull: false,
+    comment: 'Quantity required for ONE person'
+  },
+  unit_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_UOM', key: 'id' }
+  }
+}, {
+  tableName: 'tbl_RecipeItem',
+  timestamps: false
+});
+
+// Associations
+Recipe.hasMany(RecipeItem, { foreignKey: 'recipe_id', as: 'Ingredients' });
+RecipeItem.belongsTo(Recipe, { foreignKey: 'recipe_id' });
+RecipeItem.belongsTo(Item, { foreignKey: 'item_id', as: 'ItemDetail' });
+RecipeItem.belongsTo(UOM, { foreignKey: 'unit_id', as: 'UOMDetail' });
+// Add associations for the new model
+DayReductionRequest.belongsTo(User, { foreignKey: 'student_id', as: 'Student' });
+DayReductionRequest.belongsTo(User, { foreignKey: 'admin_id', as: 'AdminProcessor' });
+DayReductionRequest.belongsTo(User, { foreignKey: 'warden_id', as: 'WardenProcessor' });
+DayReductionRequest.belongsTo(Hostel, { foreignKey: 'hostel_id', as: 'Hostel' }); // Added as 'Hostel' for easier include
+
+RestockPlan.belongsTo(Item, { foreignKey: 'item_id' });
+RestockPlan.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+Item.hasMany(RestockPlan, { foreignKey: 'item_id' });
+
+
+// NEW Associations for Special Consumption
+SpecialConsumption.hasMany(SpecialConsumptionItem, { foreignKey: 'special_consumption_id', as: 'ItemsConsumed' });
+SpecialConsumptionItem.belongsTo(SpecialConsumption, { foreignKey: 'special_consumption_id' });
+
+SpecialConsumptionItem.belongsTo(Item, { foreignKey: 'item_id' });
+SpecialConsumptionItem.belongsTo(UOM, { foreignKey: 'unit_id' });
+SpecialConsumptionItem.belongsTo(DailyConsumption, { foreignKey: 'daily_consumption_id' });
+
+SpecialConsumption.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+SpecialConsumption.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy' });
+
 // Add associations
 SpecialFoodItem.hasMany(FoodOrderItem, { foreignKey: 'food_item_id' });
 FoodOrderItem.belongsTo(SpecialFoodItem, { foreignKey: 'food_item_id' });
@@ -2395,9 +3136,6 @@ FoodOrderItem.belongsTo(FoodOrder, { foreignKey: 'food_order_id' });
 
 FoodOrder.belongsTo(User, { foreignKey: 'student_id', as: 'Student' });
 FoodOrder.belongsTo(Hostel, { foreignKey: 'hostel_id' });
-
-
-
 // Add associations
 Store.hasMany(ItemStore, { foreignKey: 'store_id' });
 ItemStore.belongsTo(Store, { foreignKey: 'store_id' });
@@ -2410,7 +3148,11 @@ InventoryTransaction.belongsTo(Store, { foreignKey: 'store_id' });
 InventoryTransaction.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 InventoryTransaction.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy' });
 
-// Include in exports
+CreditToken.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+CreditToken.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy' });
+
+Concern.hasMany(CreditToken, { foreignKey: 'concern_id' });
+CreditToken.belongsTo(Concern, { foreignKey: 'concern_id', as: 'Concern' }); 
 
 
 // Add associations for the new model
@@ -2506,7 +3248,7 @@ Rebate.belongsTo(User, { foreignKey: 'approved_by', as: 'RebateApprovedBy' });
 
 // Transaction associations
 Transaction.belongsTo(User, { foreignKey: 'student_id', as: 'TransactionStudent' });
-Transaction.belongsTo(User, { foreignKey: 'processed_by', as: 'TransactionProcessedBy' });
+Transaction.belongsTo(User, { foreignKey: 'processed_by', as: 'ProcessedBy' });
 
 // Menu and item associations
 MenuItem.belongsTo(Menu, { foreignKey: 'menu_id' });
@@ -2532,6 +3274,8 @@ Item.hasMany(DailyConsumption, {foreignKey: "item_id"});
 DailyConsumption.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 DailyConsumption.belongsTo(Item, { foreignKey: 'item_id' });
 DailyConsumption.belongsTo(User, { foreignKey: 'recorded_by', as: 'ConsumptionRecordedBy' });
+RoomType.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+Hostel.hasMany(RoomType, { foreignKey: 'hostel_id' });
 
 DailyConsumptionReturn.belongsTo(DailyConsumption, { foreignKey: "daily_consumption_id" });
 DailyConsumptionReturn.belongsTo(User, { foreignKey: "returned_by", as: "ConsumptionReturnedBy" });
@@ -2591,6 +3335,43 @@ ConsumptionLog.belongsTo(DailyConsumption, { foreignKey: 'daily_consumption_id',
 
 DailyConsumption.belongsTo(Item, { foreignKey: 'item_id', as: 'tbl_Item' });
 Item.hasMany(DailyConsumption, { foreignKey: 'item_id', as: 'DailyConsumption' });
+
+// Existing associations (unchanged except where noted)
+Hostel.hasMany(InventoryBatch, { foreignKey: 'hostel_id', as: 'InventoryBatches' });
+
+ConsumptionLog.belongsTo(InventoryBatch, { foreignKey: 'batch_id', as: 'Batch' });
+InventoryBatch.hasMany(ConsumptionLog, { foreignKey: 'batch_id', as: 'ConsumptionLogs' });
+
+DailyConsumption.belongsTo(Item, { foreignKey: 'item_id'});
+DailyConsumption.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy' });
+DailyConsumption.belongsTo(UOM, { foreignKey: 'unit', as: 'UOM' });
+
+// Ensure ItemStock is linked
+ItemStock.belongsTo(Item, { foreignKey: 'item_id'});
+ItemStock.belongsTo(Hostel, { foreignKey: 'hostel_id'});
+
+
+// Add associations for MessDailyExpense
+MessDailyExpense.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+MessDailyExpense.belongsTo(ExpenseType, { foreignKey: 'expense_type_id', as: 'ExpenseType' });
+MessDailyExpense.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy' });
+
+
+StudentFee.belongsTo(User, { foreignKey: 'student_id', as: 'Student' });
+StudentFee.belongsTo(User, { foreignKey: 'issued_by', as: 'IssuedBy' });
+StudentFee.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+User.hasMany(StudentFee, { foreignKey: 'student_id', as: 'StudentFees' });
+
+
+RoomRequest.belongsTo(User, { foreignKey: "student_id", as: "Student" });
+RoomRequest.belongsTo(User, { foreignKey: "approved_by", as: "ProcessedBy" });
+RoomRequest.belongsTo(HostelRoom, { foreignKey: "room_id", as: "Room" });
+RoomRequest.belongsTo(Hostel, { foreignKey: "hostel_id" });
+
+User.hasMany(RoomRequest, { foreignKey: "student_id", as: "RoomRequests" });
+HostelRoom.hasMany(RoomRequest, { foreignKey: "room_id", as: "RoomRequests" });
+Hostel.hasMany(RoomRequest, { foreignKey: "hostel_id", as: "RoomRequests" });
+
 
 module.exports = {
   sequelize,
@@ -2658,5 +3439,18 @@ module.exports = {
   FoodOrderItem,
 
   InventoryBatch,
-  ConsumptionLog
+  ConsumptionLog,
+
+  MessDailyExpense,
+  SpecialConsumption,
+  SpecialConsumptionItem,
+  StudentFee,
+  CreditToken,
+  Concern,
+  HostelLayout,
+  RoomRequest,
+  RestockPlan,
+  DayReductionRequest,
+  Recipe,
+  RecipeItem
 };

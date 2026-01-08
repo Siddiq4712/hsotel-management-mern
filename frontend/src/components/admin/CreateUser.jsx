@@ -1,18 +1,49 @@
 import React, { useState, useEffect } from 'react';
+import { 
+  Card, Form, Input, Button, Select, Typography, 
+  Row, Col, Divider, message, ConfigProvider, theme, 
+  Space, Skeleton 
+} from 'antd';
+import { 
+  User, Lock, Building, CheckCircle2, AlertCircle, 
+  Mail, ShieldCheck, UserPlus, RotateCcw, Send, Info
+} from 'lucide-react';
 import { adminAPI } from '../../services/api';
-import { User, Lock, Building, CheckCircle, AlertCircle, Mail } from 'lucide-react'; // Add Mail import
+
+const { Title, Text, Paragraph } = Typography;
+const { Option } = Select;
+
+// --- Specialized Skeleton for Precise UI Matching ---
+const FormSkeleton = () => (
+  <div className="p-8 space-y-8 animate-pulse">
+    <div className="space-y-4">
+      <Skeleton.Input active size="small" style={{ width: 150 }} />
+      <Skeleton.Input active block style={{ height: 48, borderRadius: 12 }} />
+    </div>
+    <Row gutter={16}>
+      <Col span={12}>
+        <Skeleton.Input active block style={{ height: 48, borderRadius: 12 }} />
+      </Col>
+      <Col span={12}>
+        <Skeleton.Input active block style={{ height: 48, borderRadius: 12 }} />
+      </Col>
+    </Row>
+    <div className="space-y-4">
+      <Skeleton.Input active block style={{ height: 48, borderRadius: 12 }} />
+    </div>
+    <div className="pt-4 flex gap-4">
+      <Skeleton.Button active style={{ width: 160, height: 56, borderRadius: 16 }} />
+      <Skeleton.Button active style={{ width: 100, height: 56, borderRadius: 16 }} />
+    </div>
+  </div>
+);
 
 const CreateUser = () => {
-  const [formData, setFormData] = useState({
-    username: '',
-    email: '', // Add email field
-    password: '',
-    role: '',
-    hostel_id: ''
-  });
+  const [form] = Form.useForm();
   const [hostels, setHostels] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({ type: '', text: '' });
+  const [componentLoading, setComponentLoading] = useState(true);
+  const [selectedRole, setSelectedRole] = useState('');
 
   useEffect(() => {
     fetchHostels();
@@ -24,202 +55,232 @@ const CreateUser = () => {
       setHostels(response.data.data || []);
     } catch (error) {
       console.error('Error fetching hostels:', error);
+      message.error('Failed to sync hostel registry.');
+    } finally {
+      // Intentional minor delay for smooth shimmer effect
+      setTimeout(() => setComponentLoading(false), 600);
     }
   };
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const onFinish = async (values) => {
     setLoading(true);
-    setMessage({ type: '', text: '' });
-
     try {
       await adminAPI.createUser({
-        ...formData,
-        hostel_id: formData.role === 'admin' ? null : parseInt(formData.hostel_id)
+        ...values,
+        hostel_id: values.role === 'admin' ? null : parseInt(values.hostel_id)
       });
       
-      setMessage({ type: 'success', text: 'User created successfully!' });
-      setFormData({
-        username: '',
-        email: '', // Reset email
-        password: '',
-        role: '',
-        hostel_id: ''
-      });
+      message.success('System identity provisioned successfully!');
+      form.resetFields();
+      setSelectedRole('');
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to create user' 
-      });
+      console.error('Provisioning Error:', error);
+      message.error(error.response?.data?.message || 'Protocol violation: User creation failed');
     } finally {
       setLoading(false);
     }
   };
 
   const roles = [
-    { value: 'admin', label: 'Admin' },
-    { value: 'warden', label: 'Warden' },
-    { value: 'student', label: 'Student' }, // Add student role
-    { value: 'mess', label: 'Mess Staff' }
+    { value: 'admin', label: 'Administrator' },
+    { value: 'warden', label: 'Hostel Warden' },
+    { value: 'student', label: 'Student Member' },
+    { value: 'mess', label: 'Mess Operations' }
   ];
 
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Create New User</h1>
-        <p className="text-gray-600 mt-2">Add a new user to the system</p>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
+        
+        {/* Header Section */}
+        <div className="flex items-center gap-4 mb-8">
+          <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+            <UserPlus className="text-white" size={24} />
+          </div>
+          <div>
+            <Title level={2} style={{ margin: 0, fontWeight: 600 }}>Provision Identity</Title>
+            <Text type="secondary">Deploy new user credentials into the institutional ecosystem</Text>
+          </div>
+        </div>
+
+        <Row gutter={24}>
+          <Col lg={16} xs={24}>
+            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden p-2">
+              {componentLoading ? (
+                <FormSkeleton />
+              ) : (
+                <>
+                  <div className="px-8 pt-8 pb-4">
+                    <Title level={4} className="flex items-center gap-2">
+                      <ShieldCheck className="text-blue-600" size={20} />
+                      Credential Configuration
+                    </Title>
+                    <Paragraph className="text-slate-500 text-sm">Define access levels and institutional binding for the new user profile.</Paragraph>
+                  </div>
+                  <Divider className="my-2 border-slate-100" />
+
+                  <Form 
+                    form={form} 
+                    layout="vertical" 
+                    onFinish={onFinish} 
+                    className="p-8"
+                    autoComplete="off"
+                    onValuesChange={(changedValues) => {
+                      if (changedValues.role) setSelectedRole(changedValues.role);
+                    }}
+                  >
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item 
+                          name="username" 
+                          label={<Text strong>Unique Username</Text>} 
+                          rules={[{ required: true, message: 'Identity handle required' }]}
+                        >
+                          <Input 
+                            prefix={<User size={18} className="text-slate-400 mr-2"/>} 
+                            placeholder="j.doe_admin" 
+                            className="h-12 rounded-xl" 
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item 
+                          name="email" 
+                          label={<Text strong>Institutional Email</Text>} 
+                          rules={[{ required: true, type: 'email', message: 'Valid email required' }]}
+                        >
+                          <Input 
+                            prefix={<Mail size={18} className="text-slate-400 mr-2"/>} 
+                            placeholder="user@institution.edu" 
+                            className="h-12 rounded-xl" 
+                          />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Form.Item 
+                      name="password" 
+                      label={<Text strong>Access Password</Text>} 
+                      rules={[{ required: true, min: 6, message: 'Minimum 6 characters' }]}
+                    >
+                      <Input.Password 
+                        prefix={<Lock size={18} className="text-slate-400 mr-2"/>} 
+                        placeholder="••••••••" 
+                        className="h-12 rounded-xl" 
+                      />
+                    </Form.Item>
+
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item 
+                          name="role" 
+                          label={<Text strong>Access Role</Text>} 
+                          rules={[{ required: true }]}
+                        >
+                          <Select placeholder="Select level" className="h-12 w-full">
+                            {roles.map(role => (
+                              <Option key={role.value} value={role.value}>{role.label}</Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                      
+                      <Col span={12}>
+                        {selectedRole && selectedRole !== 'admin' && (
+                          <Form.Item 
+                            name="hostel_id" 
+                            label={<Text strong>Assigned Hostel Unit</Text>}
+                            rules={[{ required: true, message: 'Unit binding required' }]}
+                          >
+                            <Select 
+                              prefix={<Building size={18} />}
+                              placeholder="Choose Unit" 
+                              className="h-12 w-full"
+                            >
+                              {hostels.map(h => (
+                                <Option key={h.id} value={h.id}>{h.name}</Option>
+                              ))}
+                            </Select>
+                          </Form.Item>
+                        )}
+                      </Col>
+                    </Row>
+
+                    <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex gap-3 mb-8 mt-4">
+                      <Info size={20} className="text-blue-500 shrink-0 mt-0.5" />
+                      <Text className="text-xs text-blue-700 leading-relaxed">
+                        Provisioning this user will grant immediate access based on the selected role. 
+                        Warden and Student roles require valid hostel unit binding for data isolation.
+                      </Text>
+                    </div>
+
+                    <div className="flex gap-4">
+                      <Button 
+                        type="primary" 
+                        htmlType="submit" 
+                        size="large" 
+                        loading={loading} 
+                        icon={<Send size={18}/>} 
+                        className="h-14 px-12 rounded-2xl font-bold shadow-lg shadow-blue-100 flex items-center gap-2"
+                      >
+                        Deploy Identity
+                      </Button>
+                      <Button 
+                        size="large" 
+                        icon={<RotateCcw size={18}/>} 
+                        onClick={() => { form.resetFields(); setSelectedRole(''); }}
+                        className="h-14 px-8 rounded-2xl border-slate-200"
+                      >
+                        Reset
+                      </Button>
+                    </div>
+                  </Form>
+                </>
+              )}
+            </Card>
+          </Col>
+
+          {/* Contextual Sidebar */}
+          <Col lg={8} xs={24}>
+            <div className="space-y-6">
+              <Card className="border-none shadow-sm rounded-[32px] bg-slate-900 text-white relative overflow-hidden">
+                <div className="relative z-10 p-2">
+                  <Title level={4} style={{ color: 'white' }} className="mb-4 flex items-center gap-2">
+                    <ShieldCheck size={20} className="text-blue-400" />
+                    Security Protocol
+                  </Title>
+                  <Paragraph className="text-slate-400 text-xs leading-relaxed">
+                    User identities are tied to the Institutional Access Control List (ACL). 
+                  </Paragraph>
+                  
+                  
+
+[Image of identity and access management workflow]
+
+
+                  <ul className="text-xs space-y-4 text-slate-300 pl-4 list-disc mt-4">
+                    <li>Multi-factor authentication ready</li>
+                    <li>Role-based dashboard redirection</li>
+                    <li>Encrypted credential storage (Bcrypt)</li>
+                    <li>Activity audit trail integration</li>
+                  </ul>
+                </div>
+                <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-blue-500 rounded-full opacity-10 blur-2xl" />
+              </Card>
+
+              <Card className="border-none shadow-sm rounded-[32px] p-2 bg-white">
+                <Title level={5} className="mb-4 px-4 pt-4">Provisioning Note</Title>
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+                  <Paragraph className="text-[11px] text-slate-500 m-0 leading-relaxed italic">
+                    "Assigning a 'Warden' role without a Hostel binding will restrict their ability to manage rooms, attendance, and student grievances."
+                  </Paragraph>
+                </div>
+              </Card>
+            </div>
+          </Col>
+        </Row>
       </div>
-
-      <div className="bg-white rounded-lg shadow-md p-6 max-w-2xl">
-        {message.text && (
-          <div className={`mb-4 p-3 rounded-lg flex items-center ${
-            message.type === 'success' 
-              ? 'bg-green-100 border border-green-400 text-green-700' 
-              : 'bg-red-100 border border-red-400 text-red-700'
-          }`}>
-            {message.type === 'success' ? (
-              <CheckCircle size={20} className="mr-2" />
-            ) : (
-              <AlertCircle size={20} className="mr-2" />
-            )}
-            {message.text}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Username *
-            </label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleChange}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter username"
-                required
-              />
-            </div>
-          </div>
-
-          {/* Add Email Field */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email *
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter email address"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Password *
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter password"
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Role *
-            </label>
-            <select
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
-            >
-              <option value="">Select Role</option>
-              {roles.map(role => (
-                <option key={role.value} value={role.value}>
-                  {role.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {formData.role && formData.role !== 'admin' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Hostel *
-              </label>
-              <div className="relative">
-                <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <select
-                  name="hostel_id"
-                  value={formData.hostel_id}
-                  onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Select Hostel</option>
-                  {hostels.map(hostel => (
-                    <option key={hostel.id} value={hostel.id}>
-                      {hostel.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-4">
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Creating...' : 'Create User'}
-            </button>
-            
-            <button
-              type="button"
-              onClick={() => setFormData({
-                username: '',
-                email: '', // Reset email
-                password: '',
-                role: '',
-                hostel_id: ''
-              })}
-              className="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 transition-colors"
-            >
-              Reset
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    </ConfigProvider>
   );
 };
 

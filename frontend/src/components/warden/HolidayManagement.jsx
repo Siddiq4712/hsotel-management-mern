@@ -1,425 +1,342 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  Card, Table, Tag, Button, Input, Select, DatePicker, 
+  Typography, Row, Col, Statistic, Space, Skeleton, 
+  Modal, Badge, Divider, Empty, message, ConfigProvider, theme,Form
+} from 'antd';
+import { 
+  CalendarDays, Plus, Calendar, CheckCircle2, AlertCircle, 
+  Edit3, Trash2, Search, RefreshCw, Filter, 
+  Info, Inbox, PartyPopper, History, Clock,ShieldCheck
+} from 'lucide-react';
 import { wardenAPI } from '../../services/api';
-import { CalendarDays, Plus, Calendar, CheckCircle, AlertCircle, Edit, Trash2 } from 'lucide-react';
+import moment from 'moment';
+
+const { Title, Text, Paragraph } = Typography;
+const { TextArea } = Input;
+const { Option } = Select;
+
+// --- 1. Specialized Skeletons (Precise UI Matching) ---
+
+const StatsSkeleton = () => (
+  <Row gutter={[24, 24]} className="mb-8">
+    {[...Array(4)].map((_, i) => (
+      <Col xs={24} sm={12} lg={6} key={i}>
+        <Card className="border-none shadow-sm rounded-[32px] p-5 bg-white">
+          <div className="flex items-center gap-4">
+            <Skeleton.Button active style={{ width: 48, height: 48, borderRadius: 16 }} />
+            <div className="space-y-2 flex-1">
+              <Skeleton.Input active size="small" style={{ width: '60%', height: 12 }} />
+              <Skeleton.Input active size="small" style={{ width: '40%', height: 24 }} />
+            </div>
+          </div>
+        </Card>
+      </Col>
+    ))}
+  </Row>
+);
+
+const FilterSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-2xl mb-6 bg-white">
+    <div className="flex gap-4 items-center p-1">
+      <Skeleton.Input active style={{ width: 300, height: 44, borderRadius: 12 }} />
+      <Skeleton.Button active style={{ width: 44, height: 44, borderRadius: 12 }} />
+    </div>
+  </Card>
+);
+
+const TableSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] overflow-hidden bg-white">
+    {[...Array(6)].map((_, i) => (
+      <div key={i} className="flex items-center gap-6 p-6 border-b border-slate-50 last:border-0">
+        <Skeleton.Avatar active shape="square" size="large" />
+        <div className="flex-1"><Skeleton active title={false} paragraph={{ rows: 1, width: '100%' }} /></div>
+        <Skeleton.Input active style={{ width: 100 }} />
+        <Skeleton.Button active style={{ width: 80 }} />
+      </div>
+    ))}
+  </Card>
+);
 
 const HolidayManagement = () => {
+  const [form] = Form.useForm();
   const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    date: '',
-    type: '',
-    description: ''
-  });
-  const [message, setMessage] = useState({ type: '', text: '' });
-  const [createLoading, setCreateLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [modalLoading, setModalLoading] = useState(false);
 
-  useEffect(() => {
-    fetchHolidays();
-  }, []);
-
-  const fetchHolidays = async () => {
+  const fetchHolidays = useCallback(async () => {
+    setLoading(true);
     try {
       const response = await wardenAPI.getHolidays();
       setHolidays(response.data.data || []);
     } catch (error) {
-      console.error('Error fetching holidays:', error);
-      setMessage({ type: 'error', text: 'Failed to fetch holidays' });
+      message.error('Holiday registry synchronization failed.');
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 800);
     }
+  }, []);
+
+  useEffect(() => { fetchHolidays(); }, [fetchHolidays]);
+
+  // --- Logic Helpers ---
+  const filteredHolidays = useMemo(() => {
+    return holidays.filter(h => 
+      h.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      h.type.toLowerCase().includes(searchTerm.toLowerCase())
+    ).sort((a, b) => moment(a.date).unix() - moment(b.date).unix());
+  }, [holidays, searchTerm]);
+
+  const holidayTypeMeta = {
+    national: { color: 'volcano', label: 'National', icon: <ShieldCheck size={12} /> },
+    religious: { color: 'purple', label: 'Religious', icon: <PartyPopper size={12} /> },
+    institutional: { color: 'blue', label: 'Institutional', icon: <Calendar size={12} /> },
+    other: { color: 'cyan', label: 'Other', icon: <Info size={12} /> }
   };
 
-  const handleCreateHoliday = async (e) => {
-    e.preventDefault();
-    setCreateLoading(true);
-    setMessage({ type: '', text: '' });
+  const getStatusTag = (date) => {
+    const today = moment().startOf('day');
+    const hDate = moment(date).startOf('day');
+    if (hDate.isSame(today)) return <Tag color="blue" className="rounded-full border-none px-3 font-bold text-[9px]">TODAY</Tag>;
+    if (hDate.isAfter(today)) return <Tag color="green" className="rounded-full border-none px-3 font-bold text-[9px]">UPCOMING</Tag>;
+    return <Tag color="default" className="rounded-full border-none px-3 font-bold text-[9px]">PAST</Tag>;
+  };
 
+  // --- Handlers ---
+  const handleOpenModal = (holiday = null) => {
+    if (holiday) {
+      setEditingId(holiday.id);
+      form.setFieldsValue({ ...holiday, date: moment(holiday.date) });
+    } else {
+      setEditingId(null);
+      form.resetFields();
+    }
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (values) => {
+    setModalLoading(true);
+    const payload = { ...values, date: values.date.format('YYYY-MM-DD') };
     try {
-      await wardenAPI.createHoliday(formData);
+      if (editingId) await wardenAPI.updateHoliday(editingId, payload);
+      else await wardenAPI.createHoliday(payload);
       
-      setMessage({ type: 'success', text: 'Holiday created successfully!' });
-      setFormData({
-        name: '',
-        date: '',
-        type: '',
-        description: ''
-      });
-      setShowCreateModal(false);
+      message.success(`Holiday registry updated successfully.`);
+      setShowModal(false);
       fetchHolidays();
-    } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to create holiday' 
-      });
+    } catch (e) {
+      message.error(e.response?.data?.message || 'Update protocol failed.');
     } finally {
-      setCreateLoading(false);
+      setModalLoading(false);
     }
   };
 
-  const handleDeleteHoliday = async (holidayId) => {
-    if (!window.confirm('Are you sure you want to delete this holiday?')) {
-      return;
-    }
-
-    try {
-      await wardenAPI.deleteHoliday(holidayId);
-      setMessage({ type: 'success', text: 'Holiday deleted successfully!' });
-      fetchHolidays();
-    } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to delete holiday' 
-      });
-    }
-  };
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
+  const handleDelete = (id) => {
+    Modal.confirm({
+      title: 'Confirm Deletion',
+      icon: <Trash2 className="text-rose-500 mr-2" size={22} />,
+      content: 'This will remove the holiday from the institutional calendar. Proceed?',
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      className: 'rounded-3xl',
+      onOk: async () => {
+        try {
+          await wardenAPI.deleteHoliday(id);
+          message.success('Entry purged from registry.');
+          fetchHolidays();
+        } catch (e) { message.error('Deletion failed.'); }
+      }
     });
   };
 
-  const getHolidayTypeColor = (type) => {
-    switch (type) {
-      case 'national':
-        return 'bg-red-50 text-red-700 border-red-200';
-      case 'religious':
-        return 'bg-purple-50 text-purple-700 border-purple-200';
-      case 'institutional':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'other':
-        return 'bg-green-50 text-green-700 border-green-200';
-      default:
-        return 'bg-gray-50 text-gray-700 border-gray-200';
+  const columns = [
+    {
+      title: 'Holiday Identity',
+      key: 'name',
+      render: (_, r) => (
+        <Space gap={3}>
+          <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600"><PartyPopper size={18} /></div>
+          <Space direction="vertical" size={0}>
+            <Text strong className="text-slate-700">{r.name}</Text>
+            <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{moment(r.date).format('dddd')}</Text>
+          </Space>
+        </Space>
+      )
+    },
+    {
+      title: 'Date Protocol',
+      dataIndex: 'date',
+      render: (date) => (
+        <div className="flex flex-col">
+          <Text className="text-xs font-medium">{moment(date).format('DD MMM, YYYY')}</Text>
+          <Text className="text-[9px] text-slate-400 uppercase font-black tracking-tighter">{moment(date).fromNow()}</Text>
+        </div>
+      )
+    },
+    {
+      title: 'Classification',
+      dataIndex: 'type',
+      render: (t) => (
+        <Tag color={holidayTypeMeta[t]?.color} className="rounded-full border-none px-3 font-bold uppercase text-[9px]">
+          {holidayTypeMeta[t]?.label || t}
+        </Tag>
+      )
+    },
+    {
+      title: 'Audit Status',
+      key: 'status',
+      render: (_, r) => getStatusTag(r.date)
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      align: 'right',
+      render: (_, r) => (
+        <Space>
+          <Button icon={<Edit3 size={14}/>} type="text" className="text-blue-600 hover:bg-blue-50 rounded-lg" onClick={() => handleOpenModal(r)} />
+          <Button icon={<Trash2 size={14}/>} type="text" danger className="hover:bg-rose-50 rounded-lg" onClick={() => handleDelete(r.id)} />
+        </Space>
+      )
     }
-  };
-
-  const isUpcoming = (date) => {
-    return new Date(date) > new Date();
-  };
-
-  const isPast = (date) => {
-    return new Date(date) < new Date();
-  };
-
-  const isToday = (date) => {
-    const today = new Date();
-    const holidayDate = new Date(date);
-    return today.toDateString() === holidayDate.toDateString();
-  };
-
-  const getDateStatus = (date) => {
-    if (isToday(date)) {
-      return { status: 'today', label: 'Today', color: 'bg-blue-100 text-blue-800' };
-    } else if (isUpcoming(date)) {
-      return { status: 'upcoming', label: 'Upcoming', color: 'bg-green-100 text-green-800' };
-    } else {
-      return { status: 'past', label: 'Past', color: 'bg-gray-100 text-gray-800' };
-    }
-  };
-
-  const holidayTypes = [
-    { value: 'national', label: 'National Holiday' },
-    { value: 'religious', label: 'Religious Holiday' },
-    { value: 'institutional', label: 'Institutional Holiday' },
-    { value: 'other', label: 'Other' }
   ];
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
   return (
-    <div>
-      <div className="mb-8 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Holiday Management</h1>
-          <p className="text-gray-600 mt-2">Manage hostel holidays and special days</p>
-        </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center"
-        >
-          <Plus size={20} className="mr-2" />
-          Add Holiday
-        </button>
-      </div>
-
-      {message.text && (
-        <div className={`mb-4 p-3 rounded-lg flex items-center ${
-          message.type === 'success' 
-            ? 'bg-green-100 border border-green-400 text-green-700' 
-            : 'bg-red-100 border border-red-400 text-red-700'
-        }`}>
-          {message.type === 'success' ? (
-            <CheckCircle size={20} className="mr-2" />
-          ) : (
-            <AlertCircle size={20} className="mr-2" />
-          )}
-          {message.text}
-        </div>
-      )}
-
-      {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <CalendarDays className="text-blue-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Total Holidays</p>
-              <p className="text-2xl font-bold text-blue-900">{holidays.length}</p>
-            </div>
-          </div>
-        </div>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#059669', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
         
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <Calendar className="text-green-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Upcoming</p>
-              <p className="text-2xl font-bold text-green-900">
-                {holidays.filter(h => isUpcoming(h.date)).length}
-              </p>
+        {/* Institutional Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-emerald-600 rounded-2xl shadow-lg shadow-emerald-100">
+              <CalendarDays className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Holiday Registry</Title>
+              <Text type="secondary">Institutional calendar management for hostel closures and events</Text>
             </div>
           </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <CheckCircle className="text-blue-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Today</p>
-              <p className="text-2xl font-bold text-blue-900">
-                {holidays.filter(h => isToday(h.date)).length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <Calendar className="text-gray-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Past</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {holidays.filter(h => isPast(h.date)).length}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Holidays Table */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center">
-            <CalendarDays className="text-gray-400 mr-2" size={20} />
-            <h2 className="text-lg font-medium text-gray-900">Holidays Calendar</h2>
-          </div>
+          <Button 
+            type="primary" 
+            icon={<Plus size={18}/>} 
+            onClick={() => handleOpenModal()}
+            className="h-12 rounded-xl px-6 font-bold shadow-lg shadow-emerald-100 bg-emerald-600 border-none"
+          >
+            Add New Holiday
+          </Button>
         </div>
 
-        {holidays.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Holiday Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {holidays
-                  .sort((a, b) => new Date(a.date) - new Date(b.date))
-                  .map((holiday) => {
-                    const dateStatus = getDateStatus(holiday.date);
-                    return (
-                      <tr key={holiday.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <Calendar className="text-green-600 mr-2" size={16} />
-                            <div className="text-sm font-medium text-gray-900">
-                              {holiday.name}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">
-                            {new Date(holiday.date).toLocaleDateString('en-US', {
-                              weekday: 'short',
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric'
-                            })}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getHolidayTypeColor(holiday.type)}`}>
-                            {holidayTypes.find(t => t.value === holiday.type)?.label || holiday.type}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${dateStatus.color}`}>
-                            {dateStatus.label}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900 max-w-xs truncate">
-                            {holiday.description || '-'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button className="text-blue-600 hover:text-blue-900 mr-3">
-                            <Edit size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteHoliday(holiday.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-              </tbody>
-            </table>
-          </div>
+        {loading ? (
+          <>
+            <StatsSkeleton />
+            <FilterSkeleton />
+            <TableSkeleton />
+          </>
         ) : (
-          <div className="text-center py-12">
-            <CalendarDays className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No holidays</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Start by adding holidays for your hostel.
-            </p>
-          </div>
+          <>
+            {/* Glass-Glow Stat Cards */}
+            <Row gutter={[24, 24]} className="mb-8">
+              {[
+                { label: 'Total Registry', val: holidays.length, icon: CalendarDays, bg: 'bg-emerald-50', color: 'text-emerald-600' },
+                { label: 'Upcoming', val: holidays.filter(h => moment(h.date).isAfter(moment())).length, icon: Clock, bg: 'bg-blue-50', color: 'text-blue-600' },
+                { label: 'Active Today', val: holidays.filter(h => moment(h.date).isSame(moment(), 'day')).length, icon: CheckCircle2, bg: 'bg-amber-50', color: 'text-amber-600' },
+                { label: 'Historical', val: holidays.filter(h => moment(h.date).isBefore(moment(), 'day')).length, icon: History, bg: 'bg-slate-100', color: 'text-slate-500' },
+              ].map((stat, i) => (
+                <Col xs={24} sm={12} lg={6} key={i}>
+                  <Card className="border-none shadow-sm rounded-[32px] p-5 bg-white group hover:shadow-md transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-2xl ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform`}>
+                        <stat.icon size={22} />
+                      </div>
+                      <div className="flex flex-col">
+                        <Text className="text-[10px] uppercase font-black text-slate-400 tracking-widest leading-tight">{stat.label}</Text>
+                        <Text className="text-2xl font-black text-slate-800 leading-none mt-1">{stat.val}</Text>
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+
+            {/* Filter Toolbar */}
+            <Card className="border-none shadow-sm rounded-2xl mb-6">
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 md:max-w-md focus-within:border-emerald-300 transition-all">
+                  <Search size={18} className="text-slate-300" />
+                  <Input placeholder="Search Holiday Name..." bordered={false} className="w-full font-medium" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                </div>
+                <Button icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''}/>} onClick={fetchHolidays} className="rounded-xl h-12 w-12 flex items-center justify-center border-slate-200" />
+              </div>
+            </Card>
+
+            {/* Ledger Table */}
+            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+              {filteredHolidays.length > 0 ? (
+                <Table 
+                  dataSource={filteredHolidays} 
+                  columns={columns} 
+                  rowKey="id" 
+                  pagination={{ pageSize: 8, position: ['bottomCenter'], showSizeChanger: false }} 
+                />
+              ) : (
+                <div className="py-24">
+                  <Empty image={<div className="bg-slate-50 p-8 rounded-full inline-block mb-4"><Inbox size={64} className="text-slate-200" /></div>} description={<Text className="text-slate-400 block">No institutional holidays found.</Text>} />
+                </div>
+              )}
+            </Card>
+          </>
         )}
-      </div>
 
-      {/* Create Holiday Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Add Holiday</h3>
-              
-              <form onSubmit={handleCreateHoliday} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Holiday Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., Independence Day"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Date *
-                  </label>
-                  <input
-                    type="date"
-                    name="date"
-                    value={formData.date}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Holiday Type *
-                  </label>
-                  <select
-                    name="type"
-                    value={formData.type}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  >
-                    <option value="">Select Type</option>
-                    {holidayTypes.map(type => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Optional description..."
-                  />
-                </div>
+        {/* Action Modal */}
+        <Modal
+          title={<div className="flex items-center gap-2 text-emerald-600"><CalendarDays size={20}/> {editingId ? 'Modify Holiday Entry' : 'Create New Holiday'}</div>}
+          open={showModal}
+          onCancel={() => setShowModal(false)}
+          footer={[
+            <Button key="back" onClick={() => setShowModal(false)} className="rounded-xl h-11 px-8">Cancel</Button>,
+            <Button key="submit" type="primary" loading={modalLoading} onClick={() => form.submit()} className="rounded-xl h-11 px-10 font-bold shadow-lg shadow-emerald-100 bg-emerald-600">Save</Button>
+          ]}
+          className="rounded-[32px]"
+          width={500}
+        >
+          <Form form={form} layout="vertical" onFinish={handleSubmit} className="mt-6">
+            <Form.Item name="name" label={<Text strong>Event / Holiday Name</Text>} rules={[{ required: true }]}>
+              <Input placeholder="e.g. Independence Day" className="h-12 rounded-xl" />
+            </Form.Item>
 
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="submit"
-                    disabled={createLoading}
-                    className="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
-                  >
-                                        {createLoading ? 'Adding...' : 'Add Holiday'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCreateModal(false);
-                      setFormData({
-                        name: '',
-                        date: '',
-                        type: '',
-                        description: ''
-                      });
-                      setMessage({ type: '', text: '' });
-                    }}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="date" label={<Text strong>Protocol Date</Text>} rules={[{ required: true }]}>
+                  <DatePicker className="w-full h-12 rounded-xl" />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="type" label={<Text strong>Holiday Class</Text>} rules={[{ required: true }]}>
+                  <Select className="h-12 rounded-xl">
+                    <Option value="national">National Holiday</Option>
+                    <Option value="religious">Religious Holiday</Option>
+                    <Option value="institutional">Institutional Holiday</Option>
+                    <Option value="other">Other</Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item name="description" label={<Text strong>Institutional Description</Text>}>
+              <TextArea rows={3} placeholder="Provide details regarding hostel mess or closure status..." className="rounded-2xl p-4 border-slate-200" />
+            </Form.Item>
+
+            <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex gap-3">
+              <Info size={18} className="text-emerald-500 shrink-0 mt-0.5" />
+              <Text className="text-[11px] text-emerald-700 leading-tight">
+                This entry will be visible in the student portal and reflected in the automated attendance calculations.
+              </Text>
             </div>
-          </div>
-        </div>
-      )}
-    </div>
+          </Form>
+        </Modal>
+      </div>
+    </ConfigProvider>
   );
 };
 

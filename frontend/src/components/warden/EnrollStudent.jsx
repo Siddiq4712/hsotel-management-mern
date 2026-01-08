@@ -1,17 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { wardenAPI } from '../../services/api'; // Change from adminAPI to wardenAPI
-import { User, Lock, Calendar, CheckCircle, AlertCircle } from 'lucide-react';
+import { 
+  Card, Form, Input, Select, Button, Checkbox, 
+  Typography, Row, Col, Divider, message, 
+  ConfigProvider, theme, Skeleton, Steps, Tag, Timeline, Descriptions
+} from 'antd';
+import { 
+  User, Lock, CheckCircle2, AlertCircle, Bed, School, 
+  Hash, Mail, Send, ArrowRight, ArrowLeft, GraduationCap,
+  ShieldCheck, Info
+} from 'lucide-react';
+import { wardenAPI } from '../../services/api';
+
+const { Title, Text, Paragraph } = Typography;
+const { Option } = Select;
+
+// --- Specialized Skeleton Loader ---
+const FormSkeleton = () => (
+  <div className="p-6 space-y-8">
+    <div className="flex justify-center mb-4"><Skeleton.Button active style={{ width: 300, height: 32 }} /></div>
+    <Row gutter={16}>
+      <Col span={18}><Skeleton.Input active block style={{ height: 48 }} /></Col>
+      <Col span={6}><Skeleton.Input active block style={{ height: 48 }} /></Col>
+    </Row>
+    <Skeleton.Input active block style={{ height: 48 }} />
+    <Skeleton.Input active block style={{ height: 48 }} />
+    <div className="flex justify-between mt-10">
+      <Skeleton.Button active style={{ width: 100, height: 45 }} />
+      <Skeleton.Button active style={{ width: 150, height: 45 }} />
+    </div>
+  </div>
+);
 
 const EnrollStudent = () => {
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    session_id: ''
-  });
-  const [sessions, setSessions] = useState([]);
+  const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [sessionsLoading, setSessionsLoading] = useState(true); // Add loading state for sessions
-  const [message, setMessage] = useState({ type: '', text: '' });
+  const [sessions, setSessions] = useState([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [currentStep, setCurrentStep] = useState(0);
 
   useEffect(() => {
     fetchSessions();
@@ -20,173 +45,253 @@ const EnrollStudent = () => {
   const fetchSessions = async () => {
     try {
       setSessionsLoading(true);
-      const response = await wardenAPI.getSessions(); // Change to wardenAPI
+      const response = await wardenAPI.getSessions();
       setSessions(response.data.data || []);
     } catch (error) {
-      console.error('Error fetching sessions:', error);
-      setMessage({ 
-        type: 'error', 
-        text: 'Failed to fetch sessions. Please contact admin to create sessions.' 
-      });
+      message.error('Failed to sync academic sessions.');
     } finally {
-      setSessionsLoading(false);
+      setTimeout(() => setSessionsLoading(false), 800);
     }
   };
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // --- FINAL SAVE FUNCTION (Only called on Step 2 Submit) ---
+  const onFinish = async () => {
     setLoading(true);
-    setMessage({ type: '', text: '' });
+    const allValues = form.getFieldsValue(true);
+    
+    const baseName = (allValues.baseUsername || "").trim().toUpperCase();
+    const init = (allValues.initial || "").trim().toUpperCase();
+    const finalUsername = `${baseName} ${init}`;
+
+    const payload = {
+      username: finalUsername,
+      password: allValues.password,
+      email: allValues.email || `${baseName.toLowerCase()}@hostel.com`,
+      session_id: parseInt(allValues.session_id),
+      roll_number: allValues.roll_number || "",
+      college: allValues.college || "",
+      requires_bed: allValues.requires_bed || false
+    };
 
     try {
-      await wardenAPI.enrollStudent({
-        ...formData,
-        session_id: parseInt(formData.session_id)
-      });
-      
-      setMessage({ type: 'success', text: 'Student enrolled successfully!' });
-      setFormData({
-        username: '',
-        password: '',
-        session_id: ''
-      });
+      await wardenAPI.enrollStudent(payload);
+      message.success('Student record officially created and activated!');
+      form.resetFields();
+      setCurrentStep(0);
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to enroll student' 
-      });
+      message.error(error.response?.data?.message || 'Server rejected enrollment.');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleNext = async () => {
+    try {
+      // Validate current visible fields before moving forward
+      const fields = currentStep === 0 
+        ? ['baseUsername', 'initial', 'password'] 
+        : ['roll_number', 'college', 'session_id'];
+      
+      await form.validateFields(fields);
+      setCurrentStep(currentStep + 1);
+    } catch (e) {
+      message.warning("Required fields are missing.");
+    }
+  };
+
+  const handlePrev = () => setCurrentStep(currentStep - 1);
+
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Enroll Student</h1>
-        <p className="text-gray-600 mt-2">Add a new student to the hostel</p>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-md p-6 max-w-2xl">
-        {message.text && (
-          <div className={`mb-4 p-3 rounded-lg flex items-center ${
-            message.type === 'success' 
-              ? 'bg-green-100 border border-green-400 text-green-700' 
-              : 'bg-red-100 border border-red-400 text-red-700'
-          }`}>
-            {message.type === 'success' ? (
-              <CheckCircle size={20} className="mr-2" />
-            ) : (
-              <AlertCircle size={20} className="mr-2" />
-            )}
-            {message.text}
+    <ConfigProvider theme={{ token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-4 md:p-8 bg-slate-50 min-h-screen">
+        
+        <div className="flex items-center gap-4 mb-8">
+          <div className="p-3 bg-blue-600 rounded-2xl shadow-lg text-white">
+            <GraduationCap size={28} />
           </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Student Username *
-            </label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleChange}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter student username"
-                required
-              />
-            </div>
+            <Title level={2} style={{ margin: 0 }}>Enrollment Hub</Title>
+            <Text type="secondary">Digital Student Onboarding cycle</Text>
           </div>
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Password *
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter password"
-                required
-              />
-            </div>
-          </div>
+        <Row gutter={[24, 24]}>
+          <Col lg={16} xs={24}>
+            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden min-h-[550px]">
+              {sessionsLoading ? <FormSkeleton /> : (
+                <>
+                  <div className="px-8 pt-8">
+                    <Steps
+                      current={currentStep}
+                      items={[
+                        { title: 'Personal', icon: <User size={18}/> },
+                        { title: 'Academic', icon: <School size={18}/> },
+                        { title: 'Review', icon: <ShieldCheck size={18}/> }
+                      ]}
+                    />
+                  </div>
+                  
+                  <Divider className="my-8" />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Session *
-            </label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <select
-                name="session_id"
-                value={formData.session_id}
-                onChange={handleChange}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-                disabled={sessionsLoading}
-              >
-                <option value="">
-                  {sessionsLoading ? 'Loading sessions...' : 'Select Session'}
-                </option>
-                {sessions.map(session => (
-                  <option key={session.id} value={session.id}>
-                    {session.name}
-                  </option>
-                ))}
-              </select>
-              {sessionsLoading && (
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                </div>
+                  <Form 
+                    form={form} 
+                    layout="vertical" 
+                    onFinish={onFinish} 
+                    className="px-8 pb-8"
+                    preserve={true} // Critical: Keeps data when shifting between Steps
+                  >
+                    
+                    {/* STEP 0: PERSONAL */}
+                    <div className={currentStep === 0 ? "block animate-in fade-in duration-500" : "hidden"}>
+                      <Row gutter={16}>
+                        <Col span={18}>
+                          <Form.Item name="baseUsername" label={<Text strong>Full Name</Text>} rules={[{ required: true }]}>
+                            <Input prefix={<User size={16} className="text-slate-400"/>} placeholder="e.g. ARUN" className="h-12 rounded-xl" />
+                          </Form.Item>
+                        </Col>
+                        <Col span={6}>
+                          <Form.Item name="initial" label={<Text strong>Initial</Text>} rules={[{ required: true }]}>
+                            <Input placeholder="K" className="h-12 text-center uppercase font-bold rounded-xl" maxLength={1} />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                      <Form.Item name="email" label={<Text strong>Email Address</Text>} rules={[{ type: 'email' }]}>
+                        <Input prefix={<Mail size={16} className="text-slate-400"/>} placeholder="student@college.edu" className="h-12 rounded-xl" />
+                      </Form.Item>
+                      <Form.Item name="password" label={<Text strong>System Password</Text>} rules={[{ required: true, min: 6 }]}>
+                        <Input.Password prefix={<Lock size={16} className="text-slate-400"/>} placeholder="Minimum 6 characters" className="h-12 rounded-xl" />
+                      </Form.Item>
+                    </div>
+
+                    {/* STEP 1: ACADEMIC */}
+                    <div className={currentStep === 1 ? "block animate-in fade-in duration-500" : "hidden"}>
+                      <Form.Item name="roll_number" label={<Text strong>Roll Number / UID</Text>} rules={[{ required: true }]}>
+                        <Input prefix={<Hash size={16} className="text-slate-400"/>} placeholder="e.g. 2024CS101" className="h-12 rounded-xl" />
+                      </Form.Item>
+                      <Form.Item name="college" label={<Text strong>College / Campus</Text>} rules={[{ required: true }]}>
+                        <Select className="h-12 rounded-xl" placeholder="Select Affiliated College">
+                          <Option value="nec">National Engineering College</Option>
+                          <Option value="lapc">LAPC Campus</Option>
+                        </Select>
+                      </Form.Item>
+                      <Form.Item name="session_id" label={<Text strong>Academic Session</Text>} rules={[{ required: true }]}>
+                        <Select className="h-12 rounded-xl" placeholder="Link to Active Session">
+                          {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
+                        </Select>
+                      </Form.Item>
+                      <Form.Item name="requires_bed" valuePropName="checked" className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                        <Checkbox>
+                          <Text strong className="text-blue-700 ml-2 text-sm">Authorize Bed Allocation</Text>
+                          <Paragraph className="text-[11px] text-blue-500 m-0 ml-6 italic">Enables the student for immediate room assignment by the warden.</Paragraph>
+                        </Checkbox>
+                      </Form.Item>
+                    </div>
+
+                    {/* STEP 2: REVIEW (The Final Screen) */}
+                    {currentStep === 2 && (
+                      <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                        <div className="bg-white rounded-2xl border-2 border-blue-50 shadow-sm overflow-hidden">
+                          <div className="bg-blue-50 px-6 py-3 border-b border-blue-100">
+                            <Text strong className="text-blue-700 flex items-center gap-2"><ShieldCheck size={16}/> Final Verification</Text>
+                          </div>
+                          <div className="p-6">
+                            <Descriptions column={1} bordered size="small" className="bg-white">
+                              <Descriptions.Item label={<Text type="secondary" small>Legal Name</Text>}>
+                                <Text strong className="text-blue-900 uppercase">{form.getFieldValue('baseUsername')} {form.getFieldValue('initial')}</Text>
+                              </Descriptions.Item>
+                              <Descriptions.Item label={<Text type="secondary">Roll No</Text>}>
+                                {form.getFieldValue('roll_number')}
+                              </Descriptions.Item>
+                              <Descriptions.Item label={<Text type="secondary">Institution</Text>}>
+                                <span className="uppercase">{form.getFieldValue('college')}</span>
+                              </Descriptions.Item>
+                              <Descriptions.Item label={<Text type="secondary">Plan</Text>}>
+                                {form.getFieldValue('requires_bed') ? <Tag color="blue" className="rounded-full px-3">HOSTEL RESIDENT</Tag> : <Tag className="rounded-full px-3">DAY SCHOLAR</Tag>}
+                              </Descriptions.Item>
+                            </Descriptions>
+                          </div>
+                        </div>
+                        <div className="mt-6 flex items-center gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                          <AlertCircle size={20} className="text-amber-500" />
+                          <Text className="text-[11px] text-amber-800">Please confirm all data is correct. Clicking the button below will permanently sync this student to the central database.</Text>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* BUTTON CONTAINER */}
+                    <div className="mt-12 flex justify-between">
+                      {currentStep > 0 ? (
+                        <Button 
+                          type="text" 
+                          htmlType="button" // Important: Don't submit
+                          onClick={handlePrev} 
+                          size="large" 
+                          icon={<ArrowLeft size={18}/>} 
+                          className="h-14 px-8 rounded-xl hover:bg-slate-100"
+                        >
+                          Back
+                        </Button>
+                      ) : <div />}
+
+                      {currentStep < 2 ? (
+                        <Button 
+                          type="primary" 
+                          htmlType="button" // Important: Don't submit
+                          onClick={handleNext} 
+                          size="large" 
+                          className="h-14 px-12 rounded-2xl font-bold shadow-lg shadow-blue-100 flex items-center gap-2"
+                        >
+                          Next Step <ArrowRight size={18}/>
+                        </Button>
+                      ) : (
+                        <Button 
+                          type="primary" 
+                          htmlType="submit" // THIS IS THE ONLY SUBMIT BUTTON
+                          size="large" 
+                          loading={loading} 
+                          className="h-14 px-12 rounded-2xl font-bold bg-green-600 hover:bg-green-700 border-none shadow-lg shadow-green-100 flex items-center gap-2"
+                        >
+                          Confirm & Complete Enrollment <Send size={18}/>
+                        </Button>
+                      )}
+                    </div>
+                  </Form>
+                </>
               )}
-            </div>
-            {sessions.length === 0 && !sessionsLoading && (
-              <p className="mt-1 text-sm text-red-600">
-                No sessions available. Please contact admin to create sessions.
-              </p>
-            )}
-          </div>
+            </Card>
+          </Col>
 
-          <div className="flex gap-4">
-            <button
-              type="submit"
-              disabled={loading || sessions.length === 0}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Enrolling...' : 'Enroll Student'}
-            </button>
-            
-            <button
-              type="button"
-              onClick={() => setFormData({
-                username: '',
-                password: '',
-                session_id: ''
-              })}
-              className="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 transition-colors"
-            >
-              Reset
-            </button>
-          </div>
-        </form>
+          {/* Institutional Protocol Sidebar */}
+          <Col lg={8} xs={24}>
+            <div className="space-y-6">
+              <Card className="border-none shadow-sm rounded-[32px] bg-blue-600 text-white relative overflow-hidden">
+                <div className="relative z-10 p-2">
+                  <Title level={4} className="text-white mb-6 flex items-center gap-2"><Info size={20}/> Onboarding Protocol</Title>
+                  <Timeline 
+                    mode="left"
+                    items={[
+                      { children: <Text className="text-blue-50 text-xs">Verify Student Identity</Text>, color: 'white' },
+                      { children: <Text className="text-blue-50 text-xs">Map Academic Session</Text>, color: 'white' },
+                      { children: <Text className="text-blue-100 font-bold text-xs">Warden Final Review</Text>, color: '#10b981' },
+                    ]}
+                  />
+                </div>
+                <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-blue-400 rounded-full opacity-10" />
+              </Card>
+
+              <Card className="border-none shadow-sm rounded-[32px] p-2 bg-white border border-slate-100">
+                 <div className="p-4">
+                    <Title level={5} className="mb-2">Data Integrity</Title>
+                    <Paragraph className="text-xs text-slate-500 m-0 leading-relaxed">
+                       Once enrolled, students will receive an invitation to log in via their institutional email. Ensure the <strong>Roll Number</strong> is unique.
+                    </Paragraph>
+                 </div>
+              </Card>
+            </div>
+          </Col>
+        </Row>
       </div>
-    </div>
+    </ConfigProvider>
   );
 };
 

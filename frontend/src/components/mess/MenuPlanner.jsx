@@ -1,360 +1,340 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Calendar, Badge, Modal, Form, Select, Button, message, Space, Tooltip, Spin } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
-import api from '../../services/api';
+import {
+  Card, Calendar, Badge, Button, Modal, Form, Select, DatePicker,
+  message, InputNumber, Typography, Space, List, Tag, Popconfirm, Row, Col,
+  Tooltip, Spin, Divider, ConfigProvider, theme, Skeleton
+} from 'antd';
+// Lucide icons for consistency
+import {
+  CalendarDays, Plus, Eye, Trash2, CheckCircle2, 
+  ChevronRight, Clock, Utensils, Filter, RefreshCw
+} from 'lucide-react';
+import { messAPI } from '../../services/api';
+import { useStockContext } from '../../context/StockContext';
 import moment from 'moment';
 
 const { Option } = Select;
+const { Text, Title } = Typography;
 
 const MenuPlanner = () => {
-  const [form] = Form.useForm();
-  const [schedules, setSchedules] = useState({});
   const [menus, setMenus] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
-  const [modalType, setModalType] = useState('add'); // 'add', 'edit', 'view'
   const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedMeal, setSelectedMeal] = useState(null);
+  const [form] = Form.useForm();
+  const [confirmLoading, setConfirmLoading] = useState(false);
   const [selectedMenu, setSelectedMenu] = useState(null);
+  const [menuDetailsVisible, setMenuDetailsVisible] = useState(false);
+  const [menuScheduleDetailsVisible, setMenuScheduleDetailsVisible] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(moment());
+  const [dailySchedules, setDailySchedules] = useState({});
+  const [allSchedulesModalVisible, setAllSchedulesModalVisible] = useState(false);
+  const [schedulesForDate, setSchedulesForDate] = useState([]);
+
+  const { triggerStockRefresh } = useStockContext();
 
   useEffect(() => {
-    fetchSchedules();
-    fetchMenus();
-  }, []);
+    fetchInitialData();
+  }, [currentMonth]);
 
-  const fetchSchedules = async () => {
+  const fetchInitialData = async () => {
     setLoading(true);
     try {
-      const currentMonth = moment().format('YYYY-MM');
       const startDate = moment(currentMonth).startOf('month').format('YYYY-MM-DD');
       const endDate = moment(currentMonth).endOf('month').format('YYYY-MM-DD');
       
-      const response = await api.get(`/mess/menu-schedule?start_date=${startDate}&end_date=${endDate}`);
+      const [menuRes, scheduleRes] = await Promise.all([
+        messAPI.getMenus(),
+        messAPI.getMenuSchedule({ start_date: startDate, end_date: endDate })
+      ]);
+
+      setMenus(menuRes.data.data || []);
+      const scheduleData = scheduleRes.data.data || [];
       
-      // Group schedules by date
-      const groupedSchedules = {};
-      response.data.data.forEach(schedule => {
-        const date = schedule.scheduled_date;
-        if (!groupedSchedules[date]) {
-          groupedSchedules[date] = [];
-        }
-        groupedSchedules[date].push(schedule);
-      });
+      const grouped = scheduleData.reduce((acc, schedule) => {
+        const dateStr = moment(schedule.scheduled_date).format('YYYY-MM-DD');
+        if (!acc[dateStr]) acc[dateStr] = [];
+        acc[dateStr].push(schedule);
+        return acc;
+      }, {});
       
-      setSchedules(groupedSchedules);
+      setDailySchedules(grouped);
     } catch (error) {
-      console.error('Failed to fetch schedules:', error);
-      message.error('Failed to load menu schedules');
+      message.error('Failed to load planner data');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchMenus = async () => {
-    try {
-      const response = await api.get('/mess/menus');
-      setMenus(response.data.data);
-    } catch (error) {
-      console.error('Failed to fetch menus:', error);
-      message.error('Failed to load menus');
-    }
+  const getMealColor = (mealType) => {
+    const colors = { breakfast: '#3b82f6', lunch: '#10b981', dinner: '#8b5cf6', snacks: '#f59e0b' };
+    return colors[mealType] || '#3b82f6';
   };
 
-  const handleDateSelect = (date) => {
-    setSelectedDate(date);
-    setModalType('add');
-    form.resetFields();
-    setModalVisible(true);
-  };
-
-  const handleViewSchedule = (schedule) => {
-    setSelectedSchedule(schedule);
-    setModalType('view');
-    setModalVisible(true);
-  };
-
-  const handleEditSchedule = (schedule) => {
-    setSelectedSchedule(schedule);
-    setModalType('edit');
-    form.setFieldsValue({
-      menu_id: schedule.menu_id,
-      meal_time: schedule.meal_time
-    });
-    setModalVisible(true);
-  };
-
-  const handleDeleteSchedule = async (scheduleId) => {
-    Modal.confirm({
-      title: 'Delete Menu Schedule',
-      content: 'Are you sure you want to delete this menu schedule?',
-      onOk: async () => {
-        try {
-          await api.delete(`/mess/menu-schedule/${scheduleId}`);
-          message.success('Menu schedule deleted successfully');
-          fetchSchedules();
-        } catch (error) {
-          console.error('Failed to delete schedule:', error);
-          message.error('Failed to delete menu schedule');
-        }
-      }
-    });
-  };
-
-  const handleMenuChange = (menuId) => {
-    const menu = menus.find(m => m.id === menuId);
-    setSelectedMenu(menu);
-  };
-
-  const handleSubmit = async (values) => {
-    if (modalType === 'view') {
-      setModalVisible(false);
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const data = {
-        menu_id: values.menu_id,
-        meal_time: values.meal_time,
-        scheduled_date: modalType === 'add' ? 
-          selectedDate.format('YYYY-MM-DD') : 
-          selectedSchedule.scheduled_date
-      };
-
-      if (modalType === 'add') {
-        await api.post('/mess/menu-schedule', data);
-        message.success('Menu scheduled successfully');
-      } else {
-        await api.put(`/mess/menu-schedule/${selectedSchedule.id}`, data);
-        message.success('Menu schedule updated successfully');
-      }
-
-      setModalVisible(false);
-      fetchSchedules();
-    } catch (error) {
-      console.error('Failed to save schedule:', error);
-      message.error('Failed to save menu schedule');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleMonthChange = (date) => {
-    const startDate = date.startOf('month').format('YYYY-MM-DD');
-    const endDate = date.endOf('month').format('YYYY-MM-DD');
-    
-    setLoading(true);
-    api.get(`/mess/menu-schedule?start_date=${startDate}&end_date=${endDate}`)
-      .then(response => {
-        // Group schedules by date
-        const groupedSchedules = {};
-        response.data.data.forEach(schedule => {
-          const date = schedule.scheduled_date;
-          if (!groupedSchedules[date]) {
-            groupedSchedules[date] = [];
-          }
-          groupedSchedules[date].push(schedule);
-        });
-        
-        setSchedules(groupedSchedules);
-      })
-      .catch(error => {
-        console.error('Failed to fetch schedules:', error);
-        message.error('Failed to load menu schedules');
-      })
-      .finally(() => setLoading(false));
-  };
-
+  // --- Date Cell Rendering ---
   const dateCellRender = (date) => {
     const dateStr = date.format('YYYY-MM-DD');
-    const dateSchedules = schedules[dateStr] || [];
+    const schedules = dailySchedules[dateStr] || [];
     
     return (
-      <ul className="menu-schedule-list" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-        {dateSchedules.map(schedule => (
-          <li key={schedule.id} style={{ marginBottom: 3 }}>
-            <Badge 
-              color={
-                schedule.meal_time === 'breakfast' ? 'blue' :
-                schedule.meal_time === 'lunch' ? 'green' :
-                schedule.meal_time === 'dinner' ? 'purple' : 'orange'
-              } 
-              text={
-                <Tooltip title={schedule.Menu?.name || 'Unknown Menu'}>
-                  <a onClick={(e) => {
-                    e.preventDefault();
-                    handleViewSchedule(schedule);
-                  }}>
-                    {schedule.meal_time.charAt(0).toUpperCase() + schedule.meal_time.slice(1)}
-                  </a>
-                </Tooltip>
-              }
-            />
-          </li>
-        ))}
-      </ul>
+      <div className="flex flex-col h-full group">
+        <div className="flex-1 overflow-hidden">
+          {schedules.map(s => (
+            <div key={s.id} className="mb-1">
+              <Badge 
+                color={getMealColor(s.meal_time)} 
+                text={
+                  <span className="text-[10px] font-medium text-slate-500 uppercase">
+                    {s.meal_time.charAt(0)}: {s.Menu?.name}
+                  </span>
+                } 
+              />
+            </div>
+          ))}
+        </div>
+        
+        {/* ADDED: Action Button for every date */}
+        <div className="mt-auto pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button 
+            size="small" 
+            type="dashed" 
+            block
+            icon={<Plus size={12} />}
+            className="text-[10px] h-6 flex items-center justify-center border-blue-200 text-blue-600 bg-blue-50/50 hover:bg-blue-600 hover:text-white"
+            onClick={(e) => {
+                e.stopPropagation();
+                handleDateAction(date);
+            }}
+          >
+            Manage
+          </Button>
+        </div>
+      </div>
     );
   };
 
+  const handleDateAction = (date) => {
+    const dateStr = date.format('YYYY-MM-DD');
+    const existing = dailySchedules[dateStr] || [];
+    
+    if (existing.length > 0) {
+      setSchedulesForDate(existing);
+      setSelectedDate(date);
+      setAllSchedulesModalVisible(true);
+    } else {
+      openScheduleModal(date);
+    }
+  };
+
+  const openScheduleModal = (date) => {
+    setSelectedDate(date);
+    setModalVisible(true);
+    form.setFieldsValue({
+      scheduled_date: date,
+      meal_time: null,
+      menu_id: null,
+    });
+  };
+
+  const handleSubmit = async (values) => {
+    setConfirmLoading(true);
+    try {
+      const formattedValues = {
+        ...values,
+        scheduled_date: values.scheduled_date.format('YYYY-MM-DD'),
+      };
+      await messAPI.scheduleMenu(formattedValues);
+      message.success('Menu scheduled');
+      setModalVisible(false);
+      fetchInitialData();
+    } catch (error) {
+      message.error('Failed to schedule menu');
+    } finally {
+      setConfirmLoading(false);
+    }
+  };
+
   return (
-    <>
-      <Card title="Menu Planning Calendar" bordered={false}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '50px 0' }}>
-            <Spin size="large" />
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <CalendarDays className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Menu Planner</Title>
+              <Text type="secondary">Organize and track scheduled meals for {currentMonth.format('MMMM YYYY')}</Text>
+            </div>
           </div>
-        ) : (
-          <Calendar 
-            dateCellRender={dateCellRender}
-            onSelect={handleDateSelect}
-            onPanelChange={handleMonthChange}
-          />
-        )}
-      </Card>
-
-      <Modal
-        title={
-          modalType === 'add' ? 'Schedule Menu' :
-          modalType === 'edit' ? 'Edit Schedule' : 'View Menu Schedule'
-        }
-        visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        footer={modalType === 'view' ? [
-          <Button key="back" onClick={() => setModalVisible(false)}>
-            Close
-          </Button>
-        ] : null}
-      >
-        {modalType === 'view' ? (
-          <div>
-            {selectedSchedule?.Menu ? (
-              <>
-                <h3>{selectedSchedule.Menu.name}</h3>
-                <p><strong>Meal:</strong> {selectedSchedule.meal_time.charAt(0).toUpperCase() + selectedSchedule.meal_time.slice(1)}</p>
-                <p><strong>Date:</strong> {moment(selectedSchedule.scheduled_date).format('dddd, MMMM D, YYYY')}</p>
-                <p><strong>Status:</strong> {selectedSchedule.status.charAt(0).toUpperCase() + selectedSchedule.status.slice(1)}</p>
-                
-                <h4 style={{ marginTop: 16 }}>Menu Items:</h4>
-                {selectedSchedule.Menu.tbl_Menu_Items && selectedSchedule.Menu.tbl_Menu_Items.length > 0 ? (
-                  <ul>
-                    {selectedSchedule.Menu.tbl_Menu_Items.map(menuItem => (
-                      <li key={menuItem.id}>
-                        {menuItem.tbl_Item?.name} - {menuItem.quantity} {menuItem.unit}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>No items in this menu</p>
-                )}
-                
-                <Space style={{ marginTop: 16 }}>
-                  <Button 
-                    type="primary" 
-                    icon={<EditOutlined />}
-                    onClick={() => {
-                      setModalType('edit');
-                      form.setFieldsValue({
-                        menu_id: selectedSchedule.menu_id,
-                        meal_time: selectedSchedule.meal_time
-                      });
-                    }}
-                  >
-                    Edit
-                  </Button>
-                  <Button 
-                    danger 
-                    icon={<DeleteOutlined />}
-                    onClick={() => {
-                      setModalVisible(false);
-                      handleDeleteSchedule(selectedSchedule.id);
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </Space>
-              </>
-            ) : (
-              <p>Menu details not available</p>
-            )}
-          </div>
-        ) : (
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleSubmit}
-            initialValues={modalType === 'edit' ? {
-              menu_id: selectedSchedule?.menu_id,
-              meal_time: selectedSchedule?.meal_time
-            } : { meal_time: 'breakfast' }}
-          >
-            <Form.Item
-              name="menu_id"
-              label="Menu"
-              rules={[{ required: true, message: 'Please select a menu' }]}
+          <Space>
+            <Button icon={<RefreshCw size={16}/>} onClick={fetchInitialData} className="flex items-center gap-2">Refresh</Button>
+            <Button 
+                type="primary" 
+                size="large" 
+                icon={<Plus size={18}/>} 
+                className="flex items-center gap-2 shadow-lg shadow-blue-100"
+                onClick={() => openScheduleModal(moment())}
             >
-              <Select 
-                placeholder="Select menu"
-                onChange={handleMenuChange}
-                showSearch
-                optionFilterProp="children"
-              >
-                {menus.map(menu => (
-                  <Option key={menu.id} value={menu.id}>
-                    {menu.name} ({menu.meal_type})
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
+                Quick Schedule
+            </Button>
+          </Space>
+        </div>
 
-            <Form.Item
-              name="meal_time"
-              label="Meal Time"
-              rules={[{ required: true, message: 'Please select meal time' }]}
-            >
-              <Select placeholder="Select meal time">
+        {/* Calendar Card */}
+        <Card className="border-none shadow-sm rounded-2xl overflow-hidden" bodyStyle={{ padding: '24px' }}>
+          {loading ? (
+            <div className="p-20 text-center"><Skeleton active paragraph={{ rows: 10 }} /></div>
+          ) : (
+            <Calendar
+              dateCellRender={dateCellRender}
+              onPanelChange={(date) => setCurrentMonth(date)}
+              onSelect={(date) => {
+                  // Only trigger if clicking a date, but let the "Manage" button handle specific logic
+                  if(date.month() === currentMonth.month()) handleDateAction(date);
+              }}
+              mode="month"
+              className="custom-calendar"
+            />
+          )}
+        </Card>
+
+        {/* Modal: Add Menu */}
+        <Modal
+          title={<div className="flex items-center gap-2"><Plus size={18} className="text-blue-600"/> Schedule Meal</div>}
+          open={modalVisible}
+          onCancel={() => setModalVisible(false)}
+          onOk={() => form.submit()}
+          confirmLoading={confirmLoading}
+          className="rounded-2xl"
+        >
+          <Form form={form} layout="vertical" onFinish={handleSubmit} className="mt-4">
+            <Form.Item name="scheduled_date" label="Selected Date"><DatePicker className="w-full" disabled /></Form.Item>
+            <Form.Item name="meal_time" label="Meal Category" rules={[{ required: true }]}>
+              <Select placeholder="Select Time" onChange={(v) => setSelectedMeal(v)}>
                 <Option value="breakfast">Breakfast</Option>
                 <Option value="lunch">Lunch</Option>
                 <Option value="dinner">Dinner</Option>
                 <Option value="snacks">Snacks</Option>
               </Select>
             </Form.Item>
-
-            {selectedMenu && (
-              <div style={{ marginBottom: 16 }}>
-                <h4>Menu Items:</h4>
-                {selectedMenu.tbl_Menu_Items && selectedMenu.tbl_Menu_Items.length > 0 ? (
-                  <ul>
-                    {selectedMenu.tbl_Menu_Items.map(menuItem => (
-                      <li key={menuItem.id}>
-                        {menuItem.tbl_Item?.name} - {menuItem.quantity} {menuItem.unit}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>No items in this menu</p>
-                )}
-              </div>
-            )}
-
-            <Form.Item>
-              <Space>
-                <Button 
-                  type="primary" 
-                  htmlType="submit"
-                  loading={submitting}
-                >
-                  {modalType === 'add' ? 'Schedule' : 'Update'}
-                </Button>
-                <Button onClick={() => setModalVisible(false)}>
-                  Cancel
-                </Button>
-              </Space>
+            <Form.Item name="menu_id" label="Menu Template" rules={[{ required: true }]}>
+              <Select placeholder="Choose Menu" showSearch optionFilterProp="children">
+                {menus.filter(m => !selectedMeal || m.meal_type === selectedMeal).map(m => (
+                  <Option key={m.id} value={m.id}>{m.name}</Option>
+                ))}
+              </Select>
             </Form.Item>
           </Form>
-        )}
-      </Modal>
-    </>
+        </Modal>
+
+        {/* Modal: View All for Date */}
+        <Modal
+          title={`Daily Schedule: ${selectedDate?.format('DD MMM YYYY')}`}
+          open={allSchedulesModalVisible}
+          onCancel={() => setAllSchedulesModalVisible(false)}
+          footer={<Button onClick={() => openScheduleModal(selectedDate)} type="primary" icon={<Plus size={14}/>}>Add Another Meal</Button>}
+          width={700}
+        >
+          <List
+            className="mt-4"
+            dataSource={schedulesForDate}
+            renderItem={s => (
+              <List.Item
+                className="bg-slate-50 mb-3 p-4 rounded-xl border border-slate-100 flex flex-col items-start gap-3"
+                actions={[
+                  <Button icon={<Eye size={14}/>} onClick={() => { setSelectedSchedule(s); setMenuScheduleDetailsVisible(true); }}>Details</Button>,
+                  <Popconfirm title="Remove schedule?" onConfirm={() => messAPI.deleteMenuSchedule(s.id).then(fetchInitialData)}>
+                    <Button danger icon={<Trash2 size={14}/>} ghost />
+                  </Popconfirm>
+                ]}
+              >
+                <div className="flex items-center gap-3 w-full">
+                  <div className="w-2 h-10 rounded-full" style={{ backgroundColor: getMealColor(s.meal_time) }} />
+                  <div>
+                    <Text strong className="text-lg block">{s.Menu?.name}</Text>
+                    <Space split={<Divider type="vertical" />}>
+                      <Text className="text-xs uppercase font-bold" style={{ color: getMealColor(s.meal_time) }}>{s.meal_time}</Text>
+                      <Text type="secondary" size="small">Plates: {s.estimated_servings}</Text>
+                    </Space>
+                  </div>
+                </div>
+              </List.Item>
+            )}
+          />
+        </Modal>
+
+        {/* Modal: Schedule Detail (Precision Check) */}
+        <Modal
+          title="Scheduled Meal Analysis"
+          open={menuScheduleDetailsVisible}
+          onCancel={() => setMenuScheduleDetailsVisible(false)}
+          footer={null}
+          width={600}
+        >
+          {selectedSchedule && (
+            <div className="space-y-6">
+              <Row gutter={16}>
+                <Col span={12}>
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <Text className="text-slate-400 text-[10px] uppercase font-bold block mb-1">Total Budget</Text>
+                    <Text className="text-xl font-bold text-slate-800">₹{parseFloat(selectedSchedule.total_cost || 0).toFixed(2)}</Text>
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                    <Text className="text-blue-400 text-[10px] uppercase font-bold block mb-1">Cost Per Plate</Text>
+                    <Text className="text-xl font-bold text-blue-700">₹{parseFloat(selectedSchedule.cost_per_serving || 0).toFixed(2)}</Text>
+                  </div>
+                </Col>
+              </Row>
+
+              <div>
+                <Title level={5} className="flex items-center gap-2 mb-4"><Utensils size={18} className="text-blue-500"/> Menu Components</Title>
+                <List
+                  dataSource={selectedSchedule.Menu?.tbl_Menu_Items}
+                  renderItem={item => (
+                    <div className="flex justify-between items-center p-3 mb-2 bg-white border border-slate-100 rounded-xl">
+                      <Text strong>{item.tbl_Item?.name}</Text>
+                      <Text className="text-slate-500">{item.quantity} {item.unit}</Text>
+                    </div>
+                  )}
+                />
+              </div>
+
+              {selectedSchedule.status === 'scheduled' && (
+                <Button 
+                  type="primary" 
+                  block 
+                  size="large" 
+                  icon={<CheckCircle2 size={18}/>}
+                  className="bg-emerald-600 hover:bg-emerald-700 border-none h-12 flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
+                  onClick={() => {
+                    messAPI.serveMenu(selectedSchedule.id).then(() => {
+                      message.success('Meal marked as served');
+                      setMenuScheduleDetailsVisible(false);
+                      fetchInitialData();
+                      triggerStockRefresh();
+                    });
+                  }}
+                >
+                  Mark as Served & Record Consumption
+                </Button>
+              )}
+            </div>
+          )}
+        </Modal>
+      </div>
+
+      <style>{`
+        .custom-calendar .ant-picker-calendar-date { border-top: 2px solid #f1f5f9 !important; margin: 0 !important; padding: 4px !important; }
+        .custom-calendar .ant-picker-calendar-date-today { background: #eff6ff !important; border-top-color: #3b82f6 !important; }
+        .custom-calendar .ant-picker-cell-selected .ant-picker-calendar-date { background: #f8fafc !important; }
+      `}</style>
+    </ConfigProvider>
   );
 };
 

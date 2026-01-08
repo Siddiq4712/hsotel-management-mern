@@ -1,14 +1,31 @@
 // controllers/studentController.js
 const { 
-  User, HostelRoom, RoomType, MessBill, MessCharge,
-  Leave, Complaint, Transaction, Attendance, Token,
-  HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel
+  User, HostelRoom, RoomType, MessBill, MessCharge,DailyMessCharge,MenuSchedule,MessDailyExpense,ExpenseType,
+  Leave, Complaint, Transaction, Attendance, Token, Rebate,
+  HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel,HostelLayout,RoomRequest,
+  SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, sequelize,DailyConsumption,IncomeType,AdditionalIncome,StudentFee,
+   FeeType,DayReductionRequest,
 } = require('../models');
-const { Op } = require('sequelize');
+const { Op } = require('sequelize'); // <-- NEW LINE: Import 'sequelize' object
+const moment = require('moment'); 
+// Custom rounding function: <= 0.20 rounds down, > 0.20 rounds up
+function customRounding(amount) {
+  const num = parseFloat(amount);
+  if (isNaN(num)) return 0;
 
-//const { Op } = require('sequelize');
+  const integerPart = Math.floor(num);
+  const fractionalPart = num - integerPart;
+
+  if (fractionalPart <= 0.20) {
+    return integerPart;
+  } else {
+    return Math.ceil(num);
+  }
+}
 
 // PROFILE MANAGEMENT
+// controllers/studentController.js
+
 const getProfile = async (req, res) => {
   try {
     const student = await User.findByPk(req.user.id, {
@@ -16,7 +33,7 @@ const getProfile = async (req, res) => {
       include: [
         {
           model: RoomAllotment,
-          as: 'RoomAllotments',
+          as: 'tbl_RoomAllotments', 
           where: { is_active: true },
           required: false,
           include: [
@@ -33,7 +50,8 @@ const getProfile = async (req, res) => {
         {
           model: Hostel,
           as: 'Hostel',
-          attributes: ['id', 'name', 'address', 'contact_number']
+          // ADD 'annual_fee_amount' and 'show_fee_reminder' here:
+          attributes: ['id', 'name', 'address', 'contact_number', 'annual_fee_amount', 'show_fee_reminder']
         }
       ]
     });
@@ -41,10 +59,70 @@ const getProfile = async (req, res) => {
     res.json({ success: true, data: student });
   } catch (error) {
     console.error('Profile fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+// Updated getRoommates function in controllers/studentController.js
 
+const getRoommates = async (req, res) => {
+  try {
+    const studentId = req.user.id;
+
+    // First, get the student's current active room allotment
+    const studentAllotment = await RoomAllotment.findOne({
+      where: { 
+        student_id: studentId, 
+        is_active: true 
+      },
+      include: [
+        {
+          model: HostelRoom,
+          as: 'HostelRoom'
+        }
+      ]
+    });
+
+    if (!studentAllotment || !studentAllotment.HostelRoom) {
+      return res.json({ 
+        success: true, 
+        data: [] 
+      });
+    }
+
+    const roomId = studentAllotment.HostelRoom.id;
+
+    // Get all active allotments for this room
+    const roomAllotments = await RoomAllotment.findAll({
+      where: { 
+        room_id: roomId, 
+        is_active: true 
+      },
+      include: [
+        {
+          model: User,
+          as: 'AllotmentStudent',
+          attributes: ['id', 'username', 'email', 'profile_picture', 'roll_number']
+        }
+      ]
+    });
+
+    // Filter out the current user and extract student data
+    const roommates = roomAllotments
+      .filter(allotment => allotment.AllotmentStudent.id !== studentId)
+      .map(allotment => allotment.AllotmentStudent);
+
+    res.json({ 
+      success: true, 
+      data: roommates 
+    });
+  } catch (error) {
+    console.error('Error fetching roommates:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error: ' + error.message 
+    });
+  }
+};
 const updateProfile = async (req, res) => {
   try {
     const { username, email } = req.body;
@@ -105,37 +183,44 @@ const updateProfile = async (req, res) => {
 };
 
 // MESS BILLS MANAGEMENT
+// In studentController.js
 const getMessBills = async (req, res) => {
   try {
     const student_id = req.user.id;
-    const { status, year, month } = req.query;
+    const { status, month, year } = req.query;
 
     let whereClause = { student_id };
-    
+
     if (status && status !== 'all') {
       whereClause.status = status;
     }
-    
-    if (year) {
-      whereClause.year = year;
-    }
-    
+
     if (month) {
-      whereClause.month = month;
+      whereClause.month = parseInt(month);
+    }
+
+    if (year) {
+      whereClause.year = parseInt(year);
     }
 
     const bills = await MessBill.findAll({
       where: whereClause,
-      order: [['year', 'DESC'], ['month', 'DESC']]
+      order: [['year', 'DESC'], ['month', 'DESC']],
+      include: [
+        {
+          model: User,
+          as: 'MessBillStudent',
+          attributes: ['id', 'username'],
+        },
+      ],
     });
 
     res.json({ success: true, data: bills });
   } catch (error) {
     console.error('Mess bills fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-
 const getMessBillById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -663,7 +748,7 @@ const getTransactions = async (req, res) => {
     res.json({ success: true, data: transactions });
   } catch (error) {
     console.error('Transactions fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 
@@ -1150,7 +1235,653 @@ const getDashboardStats = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+const getAvailableSpecialFoodItems = async (req, res) => {
+  try {
+    const { category } = req.query;
+    let whereClause = { is_available: true };
+    if (category) {
+      whereClause.category = category;
+    }
 
+    const items = await SpecialFoodItem.findAll({
+      where: whereClause,
+      order: [['name', 'ASC']]
+    });
+    res.json({ success: true, data: items });
+  } catch (error) {
+    console.error('Error fetching special food items:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const getSpecialFoodItemCategories = async (req, res) => {
+  try {
+    const categories = await SpecialFoodItem.findAll({
+      attributes: [[sequelize.fn('DISTINCT', sequelize.col('category')), 'category']],
+      where: { is_available: true },
+      order: [['category', 'ASC']]
+    });
+    res.json({ success: true, data: categories.map(c => c.category) });
+  } catch (error) {
+    console.error('Error fetching special food item categories:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+// In studentController.js
+
+// In studentController.js - Modified getMyDailyMessCharges to include special food costs
+
+// Updated getMyDailyMessCharges in studentController.js to sum cost_per_serving from served menus
+
+// controllers/studentController.js
+
+// const {
+//   User, HostelRoom, RoomType, MessBill, MessCharge, DailyMessCharge, MenuSchedule, MessDailyExpense, ExpenseType,
+//   Leave, Complaint, Transaction, Attendance, Token, Enrollment, StudentFee,
+//   HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel,
+//   SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, sequelize,
+//   DailyConsumption, IncomeType, AdditionalIncome // ADDED for daily rate calculation
+const getMyDailyMessCharges = async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    const student_id = req.user.id;
+    const hostel_id = req.user.hostel_id;
+
+    if (!month || !year) {
+      return res.status(400).json({ success: false, message: 'Month and year are required.' });
+    }
+
+    const startDate = moment({ year, month: month - 1 }).startOf('month').toDate();
+    const endDate = moment().isSame(moment({ year, month: month - 1 }), 'month')
+      ? moment().endOf('day').toDate() // stop at today if current month
+      : moment({ year, month: month - 1 }).endOf('month').toDate();
+
+    console.log(`[Student Charges] Fetching charges for student ${student_id}, hostel ${hostel_id} for ${month}/${year}`);
+    console.log(`[Student Charges] Date range: ${moment(startDate).format('YYYY-MM-DD')} to ${moment(endDate).format('YYYY-MM-DD')}`);
+
+    // --- Step 1: Calculate the Hostel's Monthly Averaged Daily Rate ---
+    // This logic is largely taken from the messController's generateDailyRateReport.
+    // It is calculated once per month for the whole hostel.
+
+    // Get total Man-Days for the *entire hostel* for the given month
+    const hostelManDaysData = await Attendance.findAll({
+      attributes: [[sequelize.fn('SUM', sequelize.col('totalManDays')), 'manDays']],
+      where: {
+        hostel_id,
+        date: { [Op.between]: [startDate, endDate] }
+      },
+      group: ['hostel_id'], // Group by hostel_id to get a single sum
+      raw: true
+    });
+    const totalHostelManDays = hostelManDaysData[0] ? parseInt(hostelManDaysData[0].manDays) : 0;
+    console.log(`[Student Charges] Total Hostel Man-Days: ${totalHostelManDays}`);
+
+    // Get Gross Expenses (Food Ingredients + Other Mess Expenses)
+    const totalFoodIngredientCost = (await DailyConsumption.sum('total_cost', { where: { hostel_id, consumption_date: { [Op.between]: [startDate, endDate] } } })) || 0;
+    const totalOtherMessExpenses = (await MessDailyExpense.sum('amount', { where: { hostel_id, expense_date: { [Op.between]: [startDate, endDate] } } })) || 0;
+    const grandTotalGrossExpenses = totalFoodIngredientCost + totalOtherMessExpenses;
+    console.log(`[Student Charges] Grand Total Gross Expenses: ${grandTotalGrossExpenses.toFixed(2)}`);
+
+    // Get Deductions (Cash Token, Sister Concern, Special Orders pending (hostel-wide), Guest Income)
+    const cashTokenIncomeType = await IncomeType.findOne({ where: { name: 'Cash Token' } });
+    const cashTokenAmount = cashTokenIncomeType
+      ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: cashTokenIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0
+      : 0;
+
+    const sisterConcernIncomeType = await IncomeType.findOne({ where: { name: 'Sister Concern Bill' } });
+    const creditTokenAmount = sisterConcernIncomeType
+      ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: sisterConcernIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0
+      : 0;
+
+    // Sum of special food orders confirmed by hostel staff but *still pending payment* from any student
+    // This is counted as a deduction from gross mess expenses as it will be individually billed to students.
+    const studentSpecialOrdersPendingPaymentForHostel = (await FoodOrder.sum('total_amount', {
+        where: {
+            hostel_id,
+            status: 'confirmed',
+            payment_status: 'pending',
+            order_date: { [Op.between]: [startDate, endDate] }
+        }
+    })) || 0;
+
+    const studentGuestIncomeType = await IncomeType.findOne({ where: { name: 'Student Guest Income' } });
+    const studentGuestIncomeAmount = studentGuestIncomeType
+        ? (await AdditionalIncome.sum('amount', {
+            where: { hostel_id, income_type_id: studentGuestIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } }
+        })) || 0
+        : 0;
+
+    const totalDeductions = cashTokenAmount + creditTokenAmount + studentSpecialOrdersPendingPaymentForHostel + studentGuestIncomeAmount;
+    console.log(`[Student Charges] Total Deductions: ${totalDeductions.toFixed(2)}`);
+
+    const netMessCost = grandTotalGrossExpenses - totalDeductions;
+    const monthlyCalculatedDailyRate = totalHostelManDays > 0 ? netMessCost / totalHostelManDays : 0;
+    console.log(`[Student Charges] Monthly Calculated Daily Rate: ${monthlyCalculatedDailyRate.toFixed(2)}`);
+    // --- End of Hostel-Wide Daily Rate Calculation ---
+
+
+    // --- Step 2: Get Student's Specific Data for the Month ---
+
+    // Student's daily attendance records
+    const attendanceRecords = await Attendance.findAll({
+      where: {
+        student_id,
+        date: { [Op.between]: [startDate, endDate] }
+      },
+      attributes: ['date', 'status', 'totalManDays'], // totalManDays will be 1 for present/on-duty, 0 for absent
+      raw: true
+    });
+    const attendanceMap = new Map(attendanceRecords.map(att => [moment(att.date).format('YYYY-MM-DD'), { status: att.status, manDays: att.totalManDays }]));
+    
+    // Sum student's total Man-Days for the month
+    const studentTotalManDaysForMonth = attendanceRecords.reduce((sum, att) => sum + parseInt(att.totalManDays || 0), 0);
+    console.log(`[Student Charges] Student Total Man-Days for month: ${studentTotalManDaysForMonth}`);
+
+    // Student's special food costs (pending payment only)
+    const studentSpecialFoodOrdersData = await FoodOrder.findAll({
+      attributes: [
+        [sequelize.fn('DATE', sequelize.col('order_date')), 'date'],
+        [sequelize.fn('SUM', sequelize.col('total_amount')), 'total_special_food_cost']
+      ],
+      where: {
+        student_id,
+        hostel_id,
+        status: 'confirmed',
+        payment_status: 'pending', // Only pending payments are added to student's current bill
+        order_date: { [Op.between]: [startDate, endDate] }
+      },
+      group: [sequelize.fn('DATE', sequelize.col('order_date'))],
+      raw: true
+    });
+    const studentSpecialFoodOrderMap = new Map(studentSpecialFoodOrdersData.map(item => [moment(item.date).format('YYYY-MM-DD'), parseFloat(item.total_special_food_cost)]));
+    
+    // Sum student's total pending special food cost for the month
+    const totalMonthlySpecialFoodCost = studentSpecialFoodOrdersData.reduce((sum, item) => sum + parseFloat(item.total_special_food_cost || 0), 0);
+    console.log(`[Student Charges] Student Total Monthly Special Food Cost (pending): ${totalMonthlySpecialFoodCost.toFixed(2)}`);
+
+
+    // --- Step 3: Combine daily charges for the student ---
+    const dailyCharges = [];
+    let currentDate = moment(startDate);
+    const today = moment().startOf('day'); // Only calculate up to today, not future days
+    const endOfReportPeriod = moment(endDate).startOf('day'); // Ensure end date is also start of day for comparison
+
+    while (currentDate.isSameOrBefore(endOfReportPeriod) && currentDate.isSameOrBefore(today)) {
+      const dateStr = currentDate.format('YYYY-MM-DD');
+      const studentAttendance = attendanceMap.get(dateStr) || { status: 'A', manDays: 0 }; // Default to Absent if no record
+
+      // Student is charged base mess cost if present ('P') or on duty ('OD')
+      const isChargedDay = (studentAttendance.status === 'P' || studentAttendance.status === 'OD');
+
+      const baseMessCharge = isChargedDay ? parseFloat(monthlyCalculatedDailyRate) : 0;
+      const specialFoodCost = studentSpecialFoodOrderMap.get(dateStr) || 0; // Per day special food cost
+      const dailyTotalCharge = baseMessCharge + specialFoodCost;
+
+      dailyCharges.push({
+        id: dateStr, // Unique ID for the day
+        date: dateStr,
+        attendance_status: studentAttendance.status, // Use the actual attendance status (P, A, OD)
+        baseMessCharge: parseFloat(baseMessCharge.toFixed(2)),
+        specialFoodCost: parseFloat(specialFoodCost.toFixed(2)),
+        dailyTotalCharge: parseFloat(dailyTotalCharge.toFixed(2)),
+      });
+      currentDate.add(1, 'day');
+    }
+
+    // --- Step 4: Fetch other monthly flat fees for this student ---
+    const otherMonthlyFees = await StudentFee.findAll({
+      where: { student_id, hostel_id, month, year },
+      attributes: ['fee_type', 'amount', 'description'],
+      raw: true
+    });
+
+    const formattedFlatFees = [];
+    // Aggregate by fee_type if multiple entries for the same type (e.g., multiple staff-recorded special_food_charge entries)
+    const flatFeesMap = new Map();
+    otherMonthlyFees.forEach(fee => {
+      let key = fee.fee_type;
+      if (flatFeesMap.has(key)) {
+        flatFeesMap.get(key).amount += parseFloat(fee.amount);
+        if (fee.description && !flatFeesMap.get(key).description.includes(fee.description)) {
+          flatFeesMap.get(key).description += `; ${fee.description}`;
+        }
+      } else {
+        flatFeesMap.set(key, { ...fee, amount: parseFloat(fee.amount) });
+      }
+    });
+
+    flatFeesMap.forEach(fee => formattedFlatFees.push(fee));
+    console.log(`[Student Charges] Student Other Flat Fees:`, formattedFlatFees);
+
+
+    res.json({
+      success: true,
+      data: {
+        dailyCharges: dailyCharges, // Breakdown for the table
+        monthlySummary: {
+          monthlyCalculatedDailyRate: parseFloat(monthlyCalculatedDailyRate.toFixed(2)),
+          studentTotalManDaysForMonth: studentTotalManDaysForMonth,
+          totalMonthlySpecialFoodCost: parseFloat(totalMonthlySpecialFoodCost.toFixed(2)), // Sum of pending special food
+          flatFees: formattedFlatFees, // Array of other flat fees (e.g., newspaper, bed charge)
+        },
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching student daily mess charges:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const getMonthlyMessExpensesChartData = async (req, res) => {
+  try {
+    const student_id = req.user.id;
+    // Fetch data for the last 12 months (current month included)
+    const twelveMonthsAgo = moment().subtract(11, 'months').startOf('month');
+
+    const monthlyExpenses = await MessBill.findAll({
+      attributes: [
+        'year',
+        'month',
+        [sequelize.fn('SUM', sequelize.col('amount')), 'total_amount'],
+      ],
+      where: {
+        student_id,
+        [Op.or]: [
+          {
+            year: { [Op.gt]: twelveMonthsAgo.year() },
+          },
+          {
+            year: twelveMonthsAgo.year(),
+            month: { [Op.gte]: twelveMonthsAgo.month() + 1 }, // moment().month() is 0-indexed, DB month is 1-indexed
+          },
+        ],
+      },
+      group: ['year', 'month'],
+      order: [['year', 'ASC'], ['month', 'ASC']],
+      raw: true,
+    });
+
+    res.json({ success: true, data: monthlyExpenses });
+  } catch (error) {
+    console.error('Error fetching monthly mess expenses chart data:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const getMonthlyAttendanceChartData = async (req, res) => {
+  try {
+    const student_id = req.user.id;
+    // Fetch data for the last 12 months (current month included)
+    const twelveMonthsAgo = moment().subtract(11, 'months').startOf('month');
+
+    const monthlyAttendance = await Attendance.findAll({
+      attributes: [
+        [sequelize.fn('YEAR', sequelize.col('date')), 'year'],
+        [sequelize.fn('MONTH', sequelize.col('date')), 'month'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN status = 'P' THEN 1 ELSE 0 END")), 'present_days'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN status = 'A' THEN 1 ELSE 0 END")), 'absent_days'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN status = 'OD' THEN 1 ELSE 0 END")), 'on_duty_days'],
+        // Optionally, you could also count total days marked in the month if needed
+        // [sequelize.fn('COUNT', sequelize.col('id')), 'total_marked_days'],
+      ],
+      where: {
+        student_id,
+        date: {
+          [Op.gte]: twelveMonthsAgo.format('YYYY-MM-DD')
+        }
+      },
+      group: [sequelize.fn('YEAR', sequelize.col('date')), sequelize.fn('MONTH', sequelize.col('date'))],
+      order: [[sequelize.fn('YEAR', sequelize.col('date')), 'ASC'], [sequelize.fn('MONTH', sequelize.col('date')), 'ASC']],
+      raw: true,
+    });
+
+    res.json({ success: true, data: monthlyAttendance });
+  } catch (error) {
+    console.error('Error fetching monthly attendance chart data:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+/* ---------- shared helper ---------- */
+const ensureStudentHostel = (req) => {
+  const hostelId = req.user?.hostel_id;
+  if (!hostelId) throw new Error("Student is not linked to a hostel.");
+  return hostelId;
+};
+
+/* ---------- layout + booking ---------- */
+const getStudentHostelLayout = async (req, res) => {
+  try {
+    const hostel_id = ensureStudentHostel(req);
+    const layout = await HostelLayout.findOne({ where: { hostel_id } });
+    res.json({ success: true, data: layout });
+  } catch (error) {
+    console.error("Student layout fetch error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const getStudentRooms = async (req, res) => {
+  try {
+    const hostel_id = ensureStudentHostel(req);
+    const rooms = await HostelRoom.findAll({
+      where: { hostel_id, is_active: true },
+      include: [{ model: RoomType, as: 'RoomType' }], // Make sure this association exists
+      order: [["room_number", "ASC"]],
+    });
+    res.json({ success: true, data: rooms });
+  }catch (error) {
+    console.error("Student rooms fetch error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const getStudentRoomTypes = async (req, res) => {
+  try {
+    const hostel_id = ensureStudentHostel(req);
+    const types = await RoomType.findAll({
+      where: { hostel_id },
+      order: [["name", "ASC"]],
+    });
+    res.json({ success: true, data: types });
+  } catch (error) {
+    console.error("Student room types fetch error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const getStudentRoomOccupants = async (req, res) => {
+  try {
+    const hostel_id = ensureStudentHostel(req);
+    const { id } = req.params;
+
+    const room = await HostelRoom.findOne({
+      where: { id, hostel_id, is_active: true },
+      attributes: ["id", "room_number"],
+    });
+    if (!room) throw new Error("Room not found");
+
+    const allotments = await RoomAllotment.findAll({
+      where: { room_id: id, is_active: true },
+      include: [
+        {
+          model: User,
+          as: "AllotmentStudent",
+          attributes: ["id", "username", "email", "roll_number", "profile_picture"],
+        },
+      ],
+    });
+
+    const occupants = allotments.map((row) => ({
+      user_id: row.student_id,
+      username: row.AllotmentStudent.username,
+      name: row.AllotmentStudent.username,
+      email: row.AllotmentStudent.email,
+      roll_number: row.AllotmentStudent.roll_number,
+      profile_picture: row.AllotmentStudent.profile_picture,
+    }));
+
+    res.json({ success: true, data: occupants });
+  } catch (error) {
+    console.error("Student room occupants error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const getMyRoomRequests = async (req, res) => {
+  try {
+    const requests = await RoomRequest.findAll({
+      where: { student_id: req.user.id },
+      order: [["createdAt", "DESC"]],
+    });
+    res.json({ success: true, data: requests });
+  } catch (error) {
+    console.error("Room request list error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const requestRoomBooking = async (req, res) => {
+  try {
+    const hostel_id = ensureStudentHostel(req);
+    const { room_id } = req.body;
+    const student_id = req.user.id;
+
+    if (!room_id) {
+      return res.status(400).json({ success: false, message: "Room selection is required." });
+    }
+
+    // 1. Check if student already has an active room
+    const existingAllotment = await RoomAllotment.findOne({
+      where: { student_id, is_active: true }
+    });
+    if (existingAllotment) {
+      return res.status(400).json({ success: false, message: "You already have an active room allotment." });
+    }
+
+    // 2. Verify the room exists and belongs to this hostel
+    const room = await HostelRoom.findOne({
+      where: { id: room_id, hostel_id, is_active: true },
+      include: [{ model: RoomType }]
+    });
+
+    if (!room) {
+      return res.status(404).json({ success: false, message: "Room not found or unavailable." });
+    }
+
+    // 3. Check for existing PENDING request (don't allow duplicates)
+    const pendingRequest = await RoomRequest.findOne({
+      where: { 
+        student_id, 
+        status: 'pending' 
+      }
+    });
+
+    if (pendingRequest) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `You already have a pending request for Room ${pendingRequest.room_id === room.id ? 'this room' : 'another room'}.` 
+      });
+    }
+
+    // 4. Create the request
+    const request = await RoomRequest.create({
+      hostel_id,
+      student_id,
+      room_id,
+      status: "pending",
+      requested_at: new Date(),
+    });
+
+    res.status(201).json({ 
+      success: true, 
+      data: request, 
+      message: "Room request submitted successfully for Warden approval." 
+    });
+  } catch (error) {
+    console.error("Room request creation error:", error);
+    res.status(500).json({ success: false, message: "Server error: " + error.message });
+  }
+};
+const cancelRoomRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const request = await RoomRequest.findOne({
+      where: { id, student_id: req.user.id },
+    });
+
+    if (!request) throw new Error("Request not found.");
+    if (request.status !== "pending") throw new Error("Only pending requests can be cancelled.");
+
+    await request.update({ status: "cancelled", cancelled_at: new Date() });
+    res.json({ success: true, message: "Room request cancelled." });
+  } catch (error) {
+    console.error("Room request cancellation error:", error);
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+const applyDayReduction = async (req, res) => {
+  try {
+    const { from_date, to_date, reason } = req.body;
+    const student_id = req.user.id;
+    const hostel_id = req.user.hostel_id; // Assuming student's hostel_id is available in req.user
+
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Student is not assigned to a hostel.' });
+    }
+    if (!from_date || !to_date || !reason) {
+      return res.status(400).json({ success: false, message: 'From date, to date, and reason are required.' });
+    }
+
+    // Basic date validation
+    if (moment(from_date).isAfter(moment(to_date))) {
+      return res.status(400).json({ success: false, message: 'From date cannot be after to date.' });
+    }
+    // Cannot request reduction for past dates (can be adjusted based on policy)
+    if (moment(to_date).isBefore(moment(), 'day')) {
+      return res.status(400).json({ success: false, message: 'Cannot request day reduction for past dates.' });
+    }
+
+
+    // Check for existing pending or partially approved requests for the same student and overlapping dates
+    const existingRequest = await DayReductionRequest.findOne({
+      where: {
+        student_id,
+        // Requests that are still in review or awaiting warden's final decision
+        status: { [Op.in]: ['pending_admin', 'approved_by_admin'] },
+        [Op.or]: [
+          { from_date: { [Op.lte]: to_date }, to_date: { [Op.gte]: from_date } }
+        ]
+      }
+    });
+
+    if (existingRequest) {
+      return res.status(400).json({ success: false, message: 'You have a pending or partially approved day reduction request overlapping with these dates.' });
+    }
+
+    const newRequest = await DayReductionRequest.create({
+      student_id,
+      hostel_id,
+      from_date,
+      to_date,
+      reason,
+      status: 'pending_admin' // Initial status
+    });
+
+    res.status(201).json({ success: true, data: newRequest, message: 'Day reduction request submitted successfully for admin review.' });
+
+  } catch (error) {
+    console.error('Error applying for day reduction:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const getMyDayReductionRequests = async (req, res) => {
+  try {
+    const student_id = req.user.id;
+    const { status, from_date, to_date } = req.query;
+
+    let whereClause = { student_id };
+
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    }
+    if (from_date && to_date) {
+      // Filter requests that overlap with the given date range
+      whereClause[Op.and] = [
+        { from_date: { [Op.lte]: to_date } },
+        { to_date: { [Op.gte]: from_date } }
+      ];
+    }
+
+    const requests = await DayReductionRequest.findAll({
+      where: whereClause,
+      include: [
+        { model: User, as: 'AdminProcessor', attributes: ['id', 'username', 'email'], required: false },
+        { model: User, as: 'WardenProcessor', attributes: ['id', 'username', 'email'], required: false },
+        { model: Hostel, as: 'Hostel', attributes: ['id', 'name'], required: false }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({ success: true, data: requests });
+  } catch (error) {
+    console.error('Error fetching student day reduction requests:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+// Add these to studentController.js
+
+const applyRebate = async (req, res) => {
+  try {
+    const student_id = req.user.id;
+    const { rebate_type, from_date, to_date, reason } = req.body;
+
+    // Basic Validation
+    if (!rebate_type || !from_date || !to_date || !reason) {
+      return res.status(400).json({ success: false, message: 'All fields are required' });
+    }
+
+    // Check for overlapping pending/approved rebates to prevent double-claiming
+    const overlapping = await Rebate.findOne({
+      where: {
+        student_id,
+        status: ['pending', 'approved'],
+        [Op.or]: [
+          { from_date: { [Op.between]: [from_date, to_date] } },
+          { to_date: { [Op.between]: [from_date, to_date] } }
+        ]
+      }
+    });
+
+    if (overlapping) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'You already have an active or pending rebate for these dates.' 
+      });
+    }
+
+    // Note: The 'amount' is often calculated by the Warden during approval 
+    // based on daily rates, but we'll set it to 0.00 as a placeholder here.
+    const rebate = await Rebate.create({
+      student_id,
+      rebate_type,
+      from_date,
+      to_date,
+      reason,
+      amount: 0.00, // To be updated by warden during approval
+      status: 'pending'
+    });
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Rebate application submitted successfully', 
+      data: rebate 
+    });
+  } catch (error) {
+    console.error('Apply rebate error:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+const getMyRebates = async (req, res) => {
+  try {
+    const student_id = req.user.id;
+    const rebates = await Rebate.findAll({
+      where: { student_id },
+      include: [{
+        model: User,
+        as: 'RebateApprovedBy',
+        attributes: ['username']
+      }],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json({ success: true, data: rebates });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
 module.exports = {
   // Profile Management
   getProfile,
@@ -1195,5 +1926,23 @@ module.exports = {
   getTokenById,
   
   // Dashboard
-  getDashboardStats
+  getDashboardStats,
+  // Special Food Orders
+  getAvailableSpecialFoodItems,
+  getSpecialFoodItemCategories,
+  getMyDailyMessCharges,
+  getMonthlyMessExpensesChartData,
+  getMonthlyAttendanceChartData,
+  getRoommates,
+  getStudentHostelLayout,
+  getStudentRooms,
+  getStudentRoomTypes,
+  getStudentRoomOccupants,
+  getMyRoomRequests,
+  requestRoomBooking,
+  cancelRoomRequest,
+  applyDayReduction,       // <-- NEW EXPORT
+  getMyDayReductionRequests, // <-- NEW EXPORT
+  applyRebate,
+  getMyRebates
 };

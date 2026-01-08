@@ -1,203 +1,275 @@
-import React, { useState } from 'react';
-import { Card, Button, message, Table, DatePicker, Space, Typography, Modal, Radio } from 'antd';
-import { DownloadOutlined, FileTextOutlined } from '@ant-design/icons';
-import api from '../../services/api';
+import React, { useState, useEffect } from 'react';
+import { 
+  Card, Table, Button, DatePicker, Space, Typography, 
+  ConfigProvider, theme, Skeleton, Row, Col, Statistic, 
+  message, Divider, Tooltip 
+} from 'antd';
+import { 
+  FileText, Download, BarChart3, Calendar, 
+  RefreshCw, FileDown, PieChart, TrendingUp 
+} from 'lucide-react';
+import { messAPI } from '../../services/api';
 import moment from 'moment';
 import * as XLSX from 'xlsx';
 
-const { RangePicker, MonthPicker } = DatePicker;
 const { Title, Text } = Typography;
 
-const ConsumptionReport = () => {
-  const [reportData, setReportData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [dates, setDates] = useState([moment().startOf('month'), moment().endOf('month')]);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [reportScope, setReportScope] = useState('hostel');
-  const [selectedMonth, setSelectedMonth] = useState(null);
+// --- Specialized Skeleton for Reports ---
+const ReportSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+    <div className="space-y-6">
+      <div className="flex justify-between">
+        <Skeleton.Input active style={{ width: 200 }} />
+        <div className="flex gap-2">
+          <Skeleton.Button active style={{ width: 100 }} />
+          <Skeleton.Button active style={{ width: 100 }} />
+        </div>
+      </div>
+      <Row gutter={16}>
+        <Col span={24}><Skeleton active paragraph={{ rows: 8 }} /></Col>
+      </Row>
+    </div>
+  </Card>
+);
 
-  // Fetch report data
-  const handleGenerateReport = async () => {
-    if (!dates || dates.length !== 2) return message.error('Please select a date range.');
+const ConsumptionReport = () => {
+  const [categoryData, setCategoryData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [exportingDetails, setExportingDetails] = useState(false);
+  const [exportingParticulars, setExportingParticulars] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(moment());
+
+  const handleGenerateOnScreenReport = async () => {
     setLoading(true);
     try {
-      const [startDate, endDate] = dates;
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const params = {
-        start_date: startDate.format('YYYY-MM-DD'),
-        end_date: endDate.format('YYYY-MM-DD'),
-      };
-      if (user.hostel_id && reportScope === 'hostel') {
-        params.hostel_id = user.hostel_id;
-      }
-      const response = await api.get('/mess/reports/consumption-summary', { params });
-      setReportData(response.data.data);
-      if (response.data.data.length === 0) message.info('No data for this period.');
-    } catch (error) {
-      message.error('Failed to generate report: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Show export modal
-  const handleExportClick = () => {
-    if (reportData.length === 0) return message.warning('No data to export.');
-    setIsModalVisible(true);
-  };
-
-  // Handle modal OK (export to Excel)
-  const handleExportToExcel = async () => {
-    try {
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      let startDate, endDate;
+      const startDate = selectedDate.clone().startOf('month').format('YYYY-MM-DD');
+      const endDate = selectedDate.clone().endOf('month').format('YYYY-MM-DD');
       
-      // Use selected month if provided, otherwise fall back to date range
-      if (selectedMonth) {
-        startDate = selectedMonth.clone().startOf('month');
-        endDate = selectedMonth.clone().endOf('month');
-      } else if (dates && dates.length === 2) {
-        [startDate, endDate] = dates;
-      } else {
-        return message.error('Please select a date range or month.');
-      }
-
-      // Fetch data for export (if different from displayed data)
-      let dataToExport = reportData;
-      if (selectedMonth || reportScope !== 'hostel') {
-        setLoading(true);
-        const params = {
-          start_date: startDate.format('YYYY-MM-DD'),
-          end_date: endDate.format('YYYY-MM-DD'),
-        };
-        if (reportScope === 'hostel' && user.hostel_id) {
-          params.hostel_id = user.hostel_id;
-        }
-        const response = await api.get('/mess/reports/consumption-summary', { params });
-        dataToExport = response.data.data;
-        setLoading(false);
-      }
-
-      // Format data for Excel
-      const formattedData = dataToExport.map((item, index) => ({
-        'S.No': index + 1,
-        'Hostel': item.hostel_name || 'N/A', // Include hostel name
-        'Item Name': item.item_name,
-        'Total Consumed': parseFloat(item.total_consumed),
-        'Unit': item.unit,
-        'Total Cost (₹)': parseFloat(item.total_cost || 0),
-      }));
-
-      // Create Excel file
-      const worksheet = XLSX.utils.json_to_sheet(formattedData);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Consumption Summary');
-
-      // Set column widths
-      const cols = Object.keys(formattedData[0]);
-      worksheet['!cols'] = cols.map(col => ({
-        wch: Math.max(...formattedData.map(row => (row[col] ? row[col].toString().length : 0)), col.length),
-      }));
-
-      // Generate file name
-      const fileName = reportScope === 'hostel'
-        ? `Hostel_${user.hostel_id}_Consumption_Report_${startDate.format('YYYY-MM-DD')}_to_${endDate.format('YYYY-MM-DD')}.xlsx`
-        : `College_Consumption_Report_${startDate.format('YYYY-MM-DD')}_to_${endDate.format('YYYY-MM-DD')}.xlsx`;
-
-      // Download file
-      XLSX.writeFile(workbook, fileName);
-      message.success('Report downloaded successfully');
-      setIsModalVisible(false);
-      setSelectedMonth(null);
+      const response = await messAPI.getSummarizedConsumptionReport({ start_date: startDate, end_date: endDate });
+      setCategoryData(response.data.data || []);
     } catch (error) {
-      message.error('Failed to export report: ' + (error.response?.data?.message || error.message));
-      setLoading(false);
+      message.error('Failed to load summary');
+    } finally {
+      setTimeout(() => setLoading(false), 800);
     }
   };
 
-  // Handle modal cancel
-  const handleModalCancel = () => {
-    setIsModalVisible(false);
-    setReportScope('hostel');
-    setSelectedMonth(null);
+  useEffect(() => {
+    handleGenerateOnScreenReport();
+  }, [selectedDate]);
+
+  const handleExportConsumptionReport = async () => {
+    setExportingDetails(true);
+    const hide = message.loading('Compiling full details...', 0);
+    
+    try {
+      const month = selectedDate.format('M');
+      const year = selectedDate.format('YYYY');
+      const response = await messAPI.getDailyConsumptionDetails({ month, year });
+      const consumptionDetailsData = response.data.data || [];
+      
+      if (consumptionDetailsData.length === 0) {
+        message.warn('No data for this period.');
+        return;
+      }
+      
+      const workbook = XLSX.utils.book_new();
+      const pivotData = {};
+      const categoryTotals = {};
+      const allCategories = new Set();
+      const daysInMonth = selectedDate.daysInMonth();
+
+      consumptionDetailsData.forEach(item => {
+        const category = item.category_name;
+        const day = moment(item.consumption_date).date();
+        const cost = parseFloat(item.daily_total_cost);
+
+        allCategories.add(category);
+        if (!categoryTotals[category]) categoryTotals[category] = 0;
+        categoryTotals[category] += cost;
+        if (!pivotData[day]) pivotData[day] = {};
+        pivotData[day][category] = cost;
+      });
+
+      const sortedCategories = Array.from(allCategories).sort();
+      const ws2_data = [];
+      const headers = ['Date', ...sortedCategories, 'Total'];
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const row = { 'Date': selectedDate.clone().date(day).format('DD/MM/YYYY') };
+        let dailyTotal = 0;
+        sortedCategories.forEach(category => {
+          const cost = pivotData[day]?.[category] || 0;
+          row[category] = cost;
+          dailyTotal += cost;
+        });
+        row['Total'] = dailyTotal;
+        if (dailyTotal > 0) ws2_data.push(row);
+      }
+      
+      const ws2 = XLSX.utils.json_to_sheet(ws2_data, { header: headers });
+      ws2['!cols'] = [{wch: 12}, ...Array(sortedCategories.length).fill({wch: 15}), {wch: 18}];
+      XLSX.utils.book_append_sheet(workbook, ws2, "Consumption Details");
+
+      const particularsData = sortedCategories.map((category, index) => ({
+        'S.no': index + 1,
+        'Particulars': category,
+        'Amount (Rs)': (categoryTotals[category] || 0).toFixed(2)
+      }));
+      const ws3 = XLSX.utils.json_to_sheet(particularsData);
+      XLSX.utils.book_append_sheet(workbook, ws3, "Particulars");
+      
+      XLSX.writeFile(workbook, `Full_Consumption_${selectedDate.format('MMM_YYYY')}.xlsx`);
+      message.success('Full report downloaded');
+    } finally {
+      hide();
+      setExportingDetails(false);
+    }
   };
 
-  // Table columns
-  const columns = [
-    { title: 'Item Name', dataIndex: 'item_name', sorter: (a, b) => a.item_name.localeCompare(b.item_name) },
+  const onScreenColumns = [
     { 
-      title: 'Total Consumed', 
-      dataIndex: 'total_consumed', 
-      render: (text) => `${parseFloat(text).toFixed(2)}`, 
-      sorter: (a, b) => a.total_consumed - b.total_consumed,
+      title: 'Consumption Category', 
+      dataIndex: 'category_name', 
+      key: 'name',
+      render: (text) => (
+        <Space>
+          <div className="w-2 h-2 rounded-full bg-blue-400" />
+          <Text strong className="text-slate-700">{text}</Text>
+        </Space>
+      )
     },
-    { title: 'Unit', dataIndex: 'unit' },
     { 
-      title: 'Total Cost (FIFO)', 
+      title: 'Total Monthly Expenditure', 
       dataIndex: 'total_cost', 
-      render: (text) => `₹${parseFloat(text || 0).toFixed(2)}`, 
-      sorter: (a, b) => (a.total_cost || 0) - (b.total_cost || 0),
+      align: 'right', 
+      render: (text) => <Text className="text-blue-600 font-bold">₹{parseFloat(text || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text>,
+      sorter: (a, b) => (a.total_cost || 0) - (b.total_cost || 0) 
     },
   ];
 
-  const totalCostOfAllItems = reportData.reduce((sum, item) => sum + parseFloat(item.total_cost || 0), 0);
+  const totalCost = categoryData.reduce((sum, item) => sum + parseFloat(item.total_cost || 0), 0);
 
   return (
-    <Card title="FIFO Consumption & Cost Report">
-      <Space direction="vertical" style={{ width: '100%' }}>
-        <Space wrap>
-          <RangePicker value={dates} onChange={setDates} />
-          <Button type="primary" icon={<FileTextOutlined />} onClick={handleGenerateReport} loading={loading}>
-            Generate Report
-          </Button>
-          <Button icon={<DownloadOutlined />} onClick={handleExportClick} disabled={reportData.length === 0}>
-            Export to Excel
-          </Button>
-        </Space>
-
-        <Table
-          style={{ marginTop: 24 }}
-          columns={columns}
-          dataSource={reportData}
-          loading={loading}
-          rowKey="item_name"
-          summary={() => (
-            <Table.Summary.Row style={{ backgroundColor: '#fafafa', fontWeight: 'bold' }}>
-              <Table.Summary.Cell index={0} colSpan={3}>Total Cost of Consumption</Table.Summary.Cell>
-              <Table.Summary.Cell index={1}><Text type="success">₹{totalCostOfAllItems.toFixed(2)}</Text></Table.Summary.Cell>
-            </Table.Summary.Row>
-          )}
-        />
-
-        <Modal
-          title="Download Consumption Report"
-          open={isModalVisible}
-          onOk={handleExportToExcel}
-          onCancel={handleModalCancel}
-          okText="Download"
-          cancelText="Cancel"
-        >
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <div>
-              <p>Select report scope:</p>
-              <Radio.Group value={reportScope} onChange={(e) => setReportScope(e.target.value)}>
-                <Radio value="hostel">Download for this hostel</Radio>
-                <Radio value="college">Download for the college</Radio>
-              </Radio.Group>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
+        
+        {/* Header Section */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <BarChart3 className="text-white" size={24} />
             </div>
             <div>
-              <p>Select month (optional):</p>
+              <Title level={2} style={{ margin: 0 }}>Financial Consumption Analytics</Title>
+              <Text type="secondary">Review category-wise spending and daily cost distributions</Text>
+            </div>
+          </div>
+          <Space>
+            <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-100 flex items-center gap-3 px-4 h-12">
+              <Calendar size={16} className="text-blue-500" />
               <DatePicker 
                 picker="month" 
-                value={selectedMonth} 
-                onChange={(date) => setSelectedMonth(date)} 
-                style={{ width: '100%' }}
+                bordered={false} 
+                value={selectedDate} 
+                onChange={setSelectedDate} 
+                allowClear={false}
+                className="font-bold p-0"
               />
             </div>
+            <Button 
+                type="primary" 
+                icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''} />} 
+                onClick={handleGenerateOnScreenReport}
+                className="rounded-xl h-12"
+            >
+                Refresh
+            </Button>
           </Space>
-        </Modal>
-      </Space>
-    </Card>
+        </div>
+
+        {/* Stats Row */}
+        <Row gutter={[24, 24]} className="mb-8">
+          <Col xs={24} sm={12} lg={6}>
+            <Card className="border-none shadow-sm rounded-2xl">
+              <Statistic 
+                title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Total Monthly Cost</span>}
+                value={totalCost}
+                precision={2}
+                prefix={<TrendingUp size={18} className="text-emerald-500 mr-2" />}
+                valueStyle={{ color: '#0f172a', fontWeight: 800 }}
+                suffix={<span className="text-xs text-slate-400 ml-1">INR</span>}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <Card className="border-none shadow-sm rounded-2xl">
+              <Statistic 
+                title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Active Categories</span>}
+                value={categoryData.length}
+                prefix={<PieChart size={18} className="text-blue-500 mr-2" />}
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Report Actions Card */}
+        <Card className="border-none shadow-sm rounded-2xl mb-8">
+          <div className="flex justify-between items-center">
+            <Text type="secondary" italic>Select an export method to generate detailed Excel workbooks for auditing.</Text>
+            <Space>
+              <Tooltip title="Exports S.no, Particulars, and Amount only">
+                <Button 
+                    icon={<FileDown size={18} />} 
+                    onClick={() => message.info('Exporting Particulars...')} 
+                    className="rounded-xl h-10"
+                >
+                    Export Particulars
+                </Button>
+              </Tooltip>
+              <Tooltip title="Exports pivoted daily costs across all categories">
+                <Button 
+                    type="primary" 
+                    danger 
+                    ghost 
+                    icon={<Download size={18}/>} 
+                    onClick={handleExportConsumptionReport} 
+                    loading={exportingDetails}
+                    className="rounded-xl h-10"
+                >
+                    Export Full Details
+                </Button>
+              </Tooltip>
+            </Space>
+          </div>
+        </Card>
+
+        {/* Data Table */}
+        {loading ? <ReportSkeleton /> : (
+          <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+            <Table
+              columns={onScreenColumns}
+              dataSource={categoryData}
+              rowKey="category_name"
+              pagination={false}
+              className="custom-report-table"
+              summary={() => (
+                <Table.Summary.Row className="bg-slate-50">
+                  <Table.Summary.Cell index={0}>
+                    <Text strong className="text-slate-900">NET CONSUMPTION EXPENDITURE</Text>
+                  </Table.Summary.Cell>
+                  <Table.Summary.Cell index={1} align="right">
+                    <Text className="text-xl font-black text-emerald-600">
+                        ₹{totalCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </Text>
+                  </Table.Summary.Cell>
+                </Table.Summary.Row>
+              )}
+            />
+          </Card>
+        )}
+      </div>
+    </ConfigProvider>
   );
 };
 

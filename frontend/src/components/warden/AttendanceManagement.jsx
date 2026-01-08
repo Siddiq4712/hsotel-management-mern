@@ -1,689 +1,282 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  Card, Table, Tag, Button, Input, Select, DatePicker, 
+  Typography, Row, Col, Statistic, Space, Skeleton, 
+  Modal, Badge, Divider, Empty, message, ConfigProvider, theme 
+} from 'antd';
+import { 
+  Users, CheckCircle2, XCircle, Clock, Calendar, 
+  Search, RefreshCw, Filter, ArrowUpDown, ChevronLeft, ChevronRight,
+  ClipboardList, Save, Plus, Inbox
+} from 'lucide-react';
 import { wardenAPI } from '../../services/api';
-import { Calendar, Users, CheckCircle, XCircle, Clock, Plus } from 'lucide-react';
+import moment from 'moment';
 import axios from "axios";
+
+const { Title, Text } = Typography;
 const token = localStorage.getItem("token");
 
+// --- 1. Specialized Skeletons for Exact Field Sizes ---
+
+const AttendanceStatsSkeleton = () => (
+  <Row gutter={[16, 16]} className="mb-8">
+    {[...Array(4)].map((_, i) => (
+      <Col xs={24} sm={12} lg={6} key={i}>
+        <Card className="border-none shadow-sm rounded-2xl">
+          <Skeleton loading active avatar paragraph={{ rows: 1 }} />
+        </Card>
+      </Col>
+    ))}
+  </Row>
+);
+
+const AttendanceTableSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-[32px] overflow-hidden">
+    <div className="p-6 border-b border-slate-50 flex justify-between items-center">
+      <Skeleton.Input active style={{ width: 250 }} />
+      <div className="flex gap-2">
+        <Skeleton.Button active style={{ width: 100 }} />
+        <Skeleton.Button active style={{ width: 100 }} />
+      </div>
+    </div>
+    <div className="p-6">
+      {[...Array(6)].map((_, i) => (
+        <div key={i} className="flex items-center gap-4 py-4 border-b border-slate-50 last:border-0">
+          <Skeleton.Avatar active shape="circle" size="large" />
+          <div className="flex-1"><Skeleton active title={false} paragraph={{ rows: 1, width: '100%' }} /></div>
+          <Skeleton.Input active style={{ width: 100 }} />
+          <Skeleton.Button active style={{ width: 60 }} />
+        </div>
+      ))}
+    </div>
+  </Card>
+);
+
 const AttendanceManagement = () => {
+  // --- States ---
   const [students, setStudents] = useState([]);
   const [attendance, setAttendance] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(moment().format('YYYY-MM-DD'));
   const [loading, setLoading] = useState(true);
-  const [showMarkModal, setShowMarkModal] = useState(false);
   const [markingAttendance, setMarkingAttendance] = useState(false);
-  const [selectedStudents, setSelectedStudents] = useState({});
-  const [odDetails, setOdDetails] = useState({});
-  const [showOdDialog, setShowOdDialog] = useState(null); // Track which student's OD dialog is open
-  const [tempAttendance, setTempAttendance] = useState({}); // Temporary attendance state for each student
-  const [editAttendanceId, setEditAttendanceId] = useState(null); // Track attendance ID being edited
+  const [tempAttendance, setTempAttendance] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCollege, setSelectedCollege] = useState('All');
 
-  useEffect(() => {
-    fetchStudents();
-    fetchAttendance();
+  // Fetch Logic
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [stuRes, attRes] = await Promise.all([
+        wardenAPI.getStudents(),
+        wardenAPI.getAttendance({ date: selectedDate })
+      ]);
+      setStudents(stuRes.data.data || []);
+      setAttendance(attRes.data.data || []);
+    } catch (error) {
+      message.error('Protocol synchronization failed.');
+    } finally {
+      setTimeout(() => setLoading(false), 800);
+    }
   }, [selectedDate]);
 
-  const fetchStudents = async () => {
-    try {
-      const response = await wardenAPI.getStudents();
-      const allStudents = response.data.data || [];
-      const odAttendance = await wardenAPI.getAttendance({ date: selectedDate });
-      const odStudents = odAttendance.data.data
-        .filter(att => att.status === 'OD' && att.from_date <= selectedDate && att.to_date >= selectedDate)
-        .map(att => att.Student.id);
-      
-      const filteredStudents = allStudents.filter(student => !odStudents.includes(student.id));
-      setStudents(filteredStudents);
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      alert('Failed to fetch students. Please try again.');
-    }
-  };
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  const fetchAttendance = async () => {
-    try {
-      const response = await wardenAPI.getAttendance({ date: selectedDate });
-      setAttendance(response.data.data || []);
-    } catch (error) {
-      console.error('Error fetching attendance:', error);
-      alert('Failed to fetch attendance. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // --- Logic ---
+  const getAttendanceForStudent = (studentId) => attendance.find(att => att.Student?.id === studentId);
 
-  const handleMarkAttendance = async (studentId, status, reason, remarks, fromDate, toDate, attendanceId) => {
-  try {
-    // Format dates to YYYY-MM-DD
-    const formattedDate = selectedDate || new Date().toISOString().split('T')[0];
-    const formattedFromDate = fromDate ? (fromDate instanceof Date ? fromDate.toISOString().split('T')[0] : fromDate) : null;
-    const formattedToDate = toDate ? (toDate instanceof Date ? toDate.toISOString().split('T')[0] : toDate) : null;
-
-    // Validate inputs
-    if (!formattedDate || new Date(formattedDate).toString() === 'Invalid Date') {
-      throw new Error('Invalid date provided');
-    }
-    if (!studentId || !status) {
-      throw new Error('Student ID and status are required');
-    }
-    if (status === 'OD' && (!formattedFromDate || !formattedToDate)) {
-      throw new Error('From date and to date are required for OD status');
-    }
-
-    const response = await axios.post(
-      'http://localhost:5001/api/warden/attendance',
-      {
-        student_id: studentId,
-        date: formattedDate,
-        status,
-        reason,
-        remarks,
-        from_date: status === 'OD' ? formattedFromDate : null,
-        to_date: status === 'OD' ? formattedToDate : null
-      },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    console.log('Attendance updated:', response.data);
-    return true; // Indicate success
-  } catch (error) {
-    console.error('Error updating attendance:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
+  const filteredStudents = useMemo(() => {
+    return students.filter(s => {
+      const matchesCollege = selectedCollege === 'All' || s.college === selectedCollege;
+      const matchesSearch = s.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            (s.roll_number && s.roll_number.toLowerCase().includes(searchTerm.toLowerCase()));
+      return matchesCollege && matchesSearch;
     });
-    throw new Error(error.response?.data?.message || 'Failed to update attendance');
-  }
-};
+  }, [students, searchTerm, selectedCollege]);
 
-const handleSaveAll = async () => {
-  setMarkingAttendance(true);
-  try {
-    const attendancePromises = Object.entries(tempAttendance)
-      .filter(([_, data]) => data && data.status)
-      .map(([studentId, data]) =>
-        handleMarkAttendance(
-          parseInt(studentId),
-          data.status,
-          data.reason,
-          data.otherReason || data.remarks,
-          data.from_date,
-          data.to_date,
-          data.attendanceId
-        )
-      );
+  const handleStatusChange = (studentId, status) => {
+    setTempAttendance(prev => ({
+      ...prev,
+      [studentId]: { status }
+    }));
+  };
 
-    const results = await Promise.allSettled(attendancePromises);
-    const allSuccessful = results.every(result => result.status === 'fulfilled');
-    
-    if (allSuccessful) {
-      setTempAttendance({});
-      setShowOdDialog(null);
-      setEditAttendanceId(null);
-      await fetchAttendance();
-      await fetchStudents();
-      alert('Attendance saved successfully!');
-    } else {
-      const failedCount = results.filter(r => r.status === 'rejected').length;
-      alert(`Failed to save ${failedCount} attendance record(s). Please check and try again.`);
-    }
-  } catch (error) {
-    console.error('Error saving all attendance:', error);
-    alert('Error saving attendance: ' + (error.response?.data?.message || error.message));
-  } finally {
-    setMarkingAttendance(false);
-  }
-};  
-  const handleBulkMarkAttendance = async () => {
+  const handleSaveAll = async () => {
     setMarkingAttendance(true);
     try {
-      const attendanceData = Object.entries(selectedStudents)
-        .filter(([_, status]) => status)
-        .map(([studentId, status]) => {
-          let data = { student_id: parseInt(studentId), date: selectedDate, status };
-          if (status === 'OD') {
-            const odInfo = odDetails[studentId] || {};
-            if (!odInfo.from_date || !odInfo.to_date || !odInfo.reason) {
-              throw new Error(`Missing OD details for student ${studentId}`);
-            }
-            data = {
-              ...data,
-              from_date: odInfo.from_date,
-              to_date: odInfo.to_date,
-              reason: odInfo.reason,
-              remarks: odInfo.reason === 'Other' ? odInfo.otherReason : undefined
-            };
-          }
-          return data;
-        });
+      const changes = Object.entries(tempAttendance);
+      if (changes.length === 0) return;
 
-      await wardenAPI.bulkMarkAttendance({ date: selectedDate, attendanceData });
-      setShowMarkModal(false);
-      setSelectedStudents({});
-      setOdDetails({});
-      fetchAttendance();
-      fetchStudents();
-      alert('Bulk attendance marked successfully!');
-    } catch (error) {
-      console.error('Error marking bulk attendance:', error);
-      alert('Error marking bulk attendance: ' + (error.response?.data?.message || error.message));
+      const promises = changes.map(([studentId, data]) => 
+        axios.post('http://localhost:5001/api/warden/attendance', {
+          student_id: parseInt(studentId),
+          date: selectedDate,
+          status: data.status
+        }, { headers: { Authorization: `Bearer ${token}` } })
+      );
+
+      await Promise.all(promises);
+      message.success(`Journal updated for ${changes.length} student(s)`);
+      setTempAttendance({});
+      fetchData();
+    } catch (e) {
+      message.error('Failed to commit attendance ledger.');
     } finally {
       setMarkingAttendance(false);
     }
   };
 
-  const getAttendanceForStudent = (studentId) => {
-    return attendance.find(att => att.Student?.id === studentId);
+  const statusConfig = {
+    P: { color: 'success', label: 'Present', icon: <CheckCircle2 size={12} /> },
+    A: { color: 'error', label: 'Absent', icon: <XCircle size={12} /> },
+    OD: { color: 'processing', label: 'Institutional OD', icon: <Clock size={12} /> }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'P':
-        return <CheckCircle className="text-green-600" size={20} />;
-      case 'A':
-        return <XCircle className="text-red-600" size={20} />;
-      case 'OD':
-        return <Clock className="text-blue-600" size={20} />;
-      default:
-        return <XCircle className="text-gray-400" size={20} />;
-    }
-  };
+  const columns = [
+    {
+      title: 'Student Identity',
+      key: 'identity',
+      render: (_, r) => (
+        <Space gap={3}>
+          <div className="p-2 bg-blue-50 rounded-xl text-blue-600"><Users size={18} /></div>
+          <Space direction="vertical" size={0}>
+            <Text strong className="text-slate-700">{r.username}</Text>
+            <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+              Roll: {r.roll_number || 'UNSET'} • {r.college}
+            </Text>
+          </Space>
+        </Space>
+      )
+    },
+    {
+      title: 'Record Status',
+      key: 'status',
+      render: (_, r) => {
+        const studentAtt = getAttendanceForStudent(r.id);
+        const temp = tempAttendance[r.id];
+        const status = temp?.status || studentAtt?.status;
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'P':
-        return 'bg-green-100 text-green-800';
-      case 'A':
-        return 'bg-red-100 text-red-800';
-      case 'OD':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const handleEditAttendance = (studentId, attendance) => {
-    setShowOdDialog(studentId);
-    setEditAttendanceId(attendance.id);
-    setTempAttendance({
-      ...tempAttendance,
-      [studentId]: {
-        status: attendance.status,
-        from_date: attendance.from_date || '',
-        to_date: attendance.to_date || '',
-        reason: attendance.reason || '',
-        otherReason: attendance.remarks || '',
-        attendanceId: attendance.id
+        return status ? (
+          <Tag icon={statusConfig[status].icon} color={statusConfig[status].color} className="rounded-full border-none px-3 font-bold uppercase text-[9px]">
+            {statusConfig[status].label}
+          </Tag>
+        ) : <Text type="secondary" className="text-xs italic">Pending Marking</Text>;
       }
-    });
-  };
+    },
+    {
+      title: 'Quick Actions',
+      key: 'actions',
+      align: 'right',
+      render: (_, r) => {
+        const studentAtt = getAttendanceForStudent(r.id);
+        if (studentAtt) return <Button type="text" size="small" className="text-blue-600 font-bold text-[10px]">EDITED</Button>;
 
-  const attendanceStats = {
-    total: students.length,
-    present: attendance.filter(att => att.status === 'P').length,
-    absent: attendance.filter(att => att.status === 'A').length,
-    od: attendance.filter(att => att.status === 'OD').length,
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+        const current = tempAttendance[r.id]?.status;
+        return (
+          <div className="flex gap-2 justify-end">
+            <Button 
+              shape="circle" 
+              size="small" 
+              className={current === 'P' ? 'bg-emerald-500 text-white border-none' : 'text-emerald-500 border-emerald-100'} 
+              onClick={() => handleStatusChange(r.id, 'P')}
+            >P</Button>
+            <Button 
+              shape="circle" 
+              size="small" 
+              className={current === 'A' ? 'bg-rose-500 text-white border-none' : 'text-rose-500 border-rose-100'} 
+              onClick={() => handleStatusChange(r.id, 'A')}
+            >A</Button>
+          </div>
+        );
+      }
+    }
+  ];
 
   return (
-    <div>
-      <div className="mb-8 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Attendance Management</h1>
-          <p className="text-gray-600 mt-2">Track and manage student attendance</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            onClick={() => setShowMarkModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
-          >
-            <Plus size={20} className="mr-2" />
-            Mark Attendance
-          </button>
-        </div>
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <Users className="text-gray-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Total Students</p>
-              <p className="text-2xl font-bold text-gray-900">{attendanceStats.total}</p>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
+        
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <Calendar className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Attendance Ledger</Title>
+              <Text type="secondary">Institutional daily presence tracking and OD authorization</Text>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <CheckCircle className="text-green-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Present</p>
-              <p className="text-2xl font-bold text-green-900">{attendanceStats.present}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <XCircle className="text-red-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Absent</p>
-              <p className="text-2xl font-bold text-red-900">{attendanceStats.absent}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Attendance List */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center">
-            <Calendar className="text-gray-400 mr-2" size={20} />
-            <h2 className="text-lg font-medium text-gray-900">
-              Attendance for {new Date(selectedDate).toLocaleDateString()}
-            </h2>
+          <div className="flex items-center gap-3">
+             <DatePicker 
+               defaultValue={moment()} 
+               onChange={(date) => setSelectedDate(date ? date.format('YYYY-MM-DD') : moment().format('YYYY-MM-DD'))}
+               className="h-11 rounded-xl w-48 shadow-sm"
+             />
+             <Button icon={<RefreshCw size={16}/>} onClick={fetchData} className="rounded-xl h-11" />
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Student
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Reason
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {students.map((student) => {
-                const studentAttendance = getAttendanceForStudent(student.id);
-                const tempStatus = tempAttendance[student.id]?.status;
-                return (
-                  <tr key={student.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="bg-blue-100 p-2 rounded-full">
-                          <Users className="text-blue-600" size={16} />
-                        </div>
-                        <div className="ml-3">
-                          <div className="text-sm font-medium text-gray-900">
-                            {student.username}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {studentAttendance ? (
-                        <div className="flex items-center">
-                          {getStatusIcon(studentAttendance.status)}
-                          <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(studentAttendance.status)}`}>
-                            {studentAttendance.status === 'P' ? 'Present' : studentAttendance.status === 'A' ? 'Absent' : 'On Duty'}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">Not Marked</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {studentAttendance?.reason || '-'}
-                      {studentAttendance?.reason === 'Other' && studentAttendance?.remarks ? `: ${studentAttendance.remarks}` : ''}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      {!studentAttendance ? (
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => setTempAttendance({ ...tempAttendance, [student.id]: { status: 'P' } })}
-                            className={`w-8 h-8 rounded-full flex items-center justify-center ${tempStatus === 'P' ? 'bg-green-600 text-white' : 'bg-green-100 text-green-600'} hover:bg-green-700 hover:text-white transition-colors`}
-                            title="Present"
-                          >
-                            P
-                          </button>
-                          <button
-                            onClick={() => setTempAttendance({ ...tempAttendance, [student.id]: { status: 'A' } })}
-                            className={`w-8 h-8 rounded-full flex items-center justify-center ${tempStatus === 'A' ? 'bg-red-600 text-white' : 'bg-red-100 text-red-600'} hover:bg-red-700 hover:text-white transition-colors`}
-                            title="Absent"
-                          >
-                            A
-                          </button>
-                          <button
-                            onClick={() => {
-                              setShowOdDialog(student.id);
-                              setEditAttendanceId(null); // New attendance
-                            }}
-                            className={`w-8 h-8 rounded-full flex items-center justify-center ${tempStatus === 'OD' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'} hover:bg-blue-700 hover:text-white transition-colors`}
-                            title="On Duty"
-                          >
-                            OD
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleEditAttendance(student.id, studentAttendance)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          Edit
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+        {loading ? (
+          <>
+            <AttendanceStatsSkeleton />
+            <AttendanceTableSkeleton />
+          </>
+        ) : (
+          <>
+            {/* Statistics Row */}
+            <Row gutter={[24, 24]} className="mb-8">
+              {[
+                { label: 'Total Strength', val: students.length, icon: Users, color: 'text-blue-500' },
+                { label: 'Present Today', val: attendance.filter(a => a.status === 'P').length, icon: CheckCircle2, color: 'text-emerald-500' },
+                { label: 'Absentees', val: attendance.filter(a => a.status === 'A').length, icon: XCircle, color: 'text-rose-500' },
+                { label: 'Institutional OD', val: attendance.filter(a => a.status === 'OD').length, icon: Clock, color: 'text-amber-500' },
+              ].map((stat, i) => (
+                <Col xs={24} sm={12} lg={6} key={i}>
+                  <Card className="border-none shadow-sm rounded-2xl">
+                    <Statistic title={<span className="text-[10px] uppercase font-bold text-slate-400">{stat.label}</span>} value={stat.val} prefix={<stat.icon size={18} className={`${stat.color} mr-2`} />} valueStyle={{ fontWeight: 800 }} />
+                  </Card>
+                </Col>
+              ))}
+            </Row>
 
-      {/* Save All Button */}
-      {Object.keys(tempAttendance).length > 0 && (
-        <div className="mt-6 flex justify-end">
-          <button
-            onClick={handleSaveAll}
-            disabled={markingAttendance}
-            className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            {markingAttendance ? 'Saving...' : 'Save All'}
-          </button>
-        </div>
-      )}
+            {/* Filter Hub */}
+            <Card className="border-none shadow-sm rounded-2xl mb-6">
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 md:max-w-md focus-within:border-blue-300 transition-all">
+                  <Search size={18} className="text-slate-300" />
+                  <Input placeholder="Search Roll or Name..." bordered={false} className="w-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                </div>
+                <Select value={selectedCollege} onChange={setSelectedCollege} className="w-48 h-11" options={['All', ...new Set(students.map(s => s.college))].map(c => ({ label: c, value: c }))} />
+                <div className="ml-auto">
+                   {Object.keys(tempAttendance).length > 0 && (
+                     <Button type="primary" size="large" className="rounded-xl h-11 font-bold shadow-lg shadow-blue-100" icon={<Save size={16}/>} onClick={handleSaveAll} loading={markingAttendance}>
+                       Commit {Object.keys(tempAttendance).length} Records
+                     </Button>
+                   )}
+                </div>
+              </div>
+            </Card>
 
-      {/* OD/Edit Dialog Box */}
-      {showOdDialog && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
-              {editAttendanceId ? 'Edit Attendance' : 'On Duty Details'} for {students.find(s => s.id === showOdDialog)?.username}
-            </h3>
-            <div className="space-y-4">
-              {editAttendanceId && (
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => setTempAttendance({ ...tempAttendance, [showOdDialog]: { ...tempAttendance[showOdDialog], status: 'P', from_date: '', to_date: '', reason: '', otherReason: '', attendanceId: editAttendanceId } })}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center ${tempAttendance[showOdDialog]?.status === 'P' ? 'bg-green-600 text-white' : 'bg-green-100 text-green-600'} hover:bg-green-700 hover:text-white transition-colors`}
-                    title="Present"
-                  >
-                    P
-                  </button>
-                  <button
-                    onClick={() => setTempAttendance({ ...tempAttendance, [showOdDialog]: { ...tempAttendance[showOdDialog], status: 'A', from_date: '', to_date: '', reason: '', otherReason: '', attendanceId: editAttendanceId } })}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center ${tempAttendance[showOdDialog]?.status === 'A' ? 'bg-red-600 text-white' : 'bg-red-100 text-red-600'} hover:bg-red-700 hover:text-white transition-colors`}
-                    title="Absent"
-                  >
-                    A
-                  </button>
-                  <button
-                    onClick={() => setTempAttendance({ ...tempAttendance, [showOdDialog]: { ...tempAttendance[showOdDialog], status: 'OD', attendanceId: editAttendanceId } })}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center ${tempAttendance[showOdDialog]?.status === 'OD' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'} hover:bg-blue-700 hover:text-white transition-colors`}
-                    title="On Duty"
-                  >
-                    OD
-                  </button>
+            {/* Attendance Table */}
+            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+              {filteredStudents.length > 0 ? (
+                <Table 
+                  dataSource={filteredStudents} 
+                  columns={columns} 
+                  rowKey="id" 
+                  pagination={{ pageSize: 12, position: ['bottomCenter'] }} 
+                />
+              ) : (
+                <div className="py-24">
+                  <Empty image={<div className="bg-slate-50 p-8 rounded-full inline-block mb-4"><Inbox size={64} className="text-slate-200" /></div>} description="No institutional records matching the criteria." />
                 </div>
               )}
-              {(!editAttendanceId || tempAttendance[showOdDialog]?.status === 'OD') && (
-                <>
-                  <div>
-                    <label className="block text-sm text-gray-600">From Date</label>
-                    <input
-                      type="date"
-                      value={tempAttendance[showOdDialog]?.from_date || ''}
-                      onChange={(e) => setTempAttendance({
-                        ...tempAttendance,
-                        [showOdDialog]: { ...tempAttendance[showOdDialog], status: 'OD', from_date: e.target.value, attendanceId: editAttendanceId }
-                      })}
-                      className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-600">To Date</label>
-                    <input
-                      type="date"
-                      value={tempAttendance[showOdDialog]?.to_date || ''}
-                      onChange={(e) => setTempAttendance({
-                        ...tempAttendance,
-                        [showOdDialog]: { ...tempAttendance[showOdDialog], status: 'OD', to_date: e.target.value, attendanceId: editAttendanceId }
-                      })}
-                      className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-600">Reason</label>
-                    <select
-                      value={tempAttendance[showOdDialog]?.reason || ''}
-                      onChange={(e) => setTempAttendance({
-                        ...tempAttendance,
-                        [showOdDialog]: { ...tempAttendance[showOdDialog], status: 'OD', reason: e.target.value, attendanceId: editAttendanceId }
-                      })}
-                      className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Reason</option>
-                      <option value="NCC">NCC</option>
-                      <option value="NSS">NSS</option>
-                      <option value="Internship">Internship</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                  {tempAttendance[showOdDialog]?.reason === 'Other' && (
-                    <div>
-                      <label className="block text-sm text-gray-600">Specify Reason</label>
-                      <input
-                        type="text"
-                        value={tempAttendance[showOdDialog]?.otherReason || ''}
-                        onChange={(e) => setTempAttendance({
-                          ...tempAttendance,
-                          [showOdDialog]: { ...tempAttendance[showOdDialog], status: 'OD', otherReason: e.target.value, attendanceId: editAttendanceId }
-                        })}
-                        className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500"
-                        placeholder="Specify Other Reason"
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-            <div className="flex gap-3 mt-6 justify-end">
-              <button
-                onClick={() => {
-                  if (!editAttendanceId || tempAttendance[showOdDialog]?.status !== 'OD' || (tempAttendance[showOdDialog]?.from_date && tempAttendance[showOdDialog]?.to_date && tempAttendance[showOdDialog]?.reason)) {
-                    setShowOdDialog(null);
-                  } else {
-                    alert('Please provide from date, to date, and reason for OD status');
-                  }
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Confirm
-              </button>
-              <button
-                onClick={() => {
-                  setShowOdDialog(null);
-                  setTempAttendance({ ...tempAttendance, [showOdDialog]: undefined });
-                  setEditAttendanceId(null);
-                }}
-                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bulk Mark Attendance Modal */}
-      {showMarkModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-4/5 max-w-4xl shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Bulk Mark Attendance</h3>
-              
-              <div className="max-h-96 overflow-y-auto">
-                <table className="min-w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Student
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Present
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Absent
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        On Duty
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                        Details
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {students.filter(student => !getAttendanceForStudent(student.id)).map((student) => (
-                      <tr key={student.id}>
-                        <td className="px-4 py-2 text-sm text-gray-900">
-                          {student.username}
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="radio"
-                            name={`attendance-${student.id}`}
-                            value="P"
-                            checked={selectedStudents[student.id] === 'P'}
-                            onChange={(e) => setSelectedStudents({
-                              ...selectedStudents,
-                              [student.id]: e.target.value
-                            })}
-                            className="text-green-600"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="radio"
-                            name={`attendance-${student.id}`}
-                            value="A"
-                            checked={selectedStudents[student.id] === 'A'}
-                            onChange={(e) => setSelectedStudents({
-                              ...selectedStudents,
-                              [student.id]: e.target.value
-                            })}
-                            className="text-red-600"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="radio"
-                            name={`attendance-${student.id}`}
-                            value="OD"
-                            checked={selectedStudents[student.id] === 'OD'}
-                            onChange={(e) => setSelectedStudents({
-                              ...selectedStudents,
-                              [student.id]: e.target.value
-                            })}
-                            className="text-blue-600"
-                          />
-                        </td>
-                        <td className="px-4 py-2">
-                          {selectedStudents[student.id] === 'OD' && (
-                            <div className="space-y-2">
-                              <input
-                                type="date"
-                                value={odDetails[student.id]?.from_date || ''}
-                                onChange={(e) => setOdDetails({
-                                  ...odDetails,
-                                  [student.id]: { ...odDetails[student.id], from_date: e.target.value }
-                                })}
-                                className="w-full px-2 py-1 border rounded"
-                                placeholder="From Date"
-                              />
-                              <input
-                                type="date"
-                                value={odDetails[student.id]?.to_date || ''}
-                                onChange={(e) => setOdDetails({
-                                  ...odDetails,
-                                  [student.id]: { ...odDetails[student.id], to_date: e.target.value }
-                                })}
-                                className="w-full px-2 py-1 border rounded"
-                                placeholder="To Date"
-                              />
-                              <select
-                                value={odDetails[student.id]?.reason || ''}
-                                onChange={(e) => setOdDetails({
-                                  ...odDetails,
-                                  [student.id]: { ...odDetails[student.id], reason: e.target.value }
-                                })}
-                                className="w-full px-2 py-1 border rounded"
-                              >
-                                <option value="">Select Reason</option>
-                                <option value="NCC">NCC</option>
-                                <option value="NSS">NSS</option>
-                                <option value="Internship">Internship</option>
-                                <option value="Other">Other</option>
-                              </select>
-                              {odDetails[student.id]?.reason === 'Other' && (
-                                <input
-                                  type="text"
-                                  value={odDetails[student.id]?.otherReason || ''}
-                                  onChange={(e) => setOdDetails({
-                                    ...odDetails,
-                                    [student.id]: { ...odDetails[student.id], otherReason: e.target.value }
-                                  })}
-                                  className="w-full px-2 py-1 border rounded"
-                                  placeholder="Specify Other Reason"
-                                />
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex gap-3 pt-4 mt-4 border-t">
-                <button
-                  onClick={handleBulkMarkAttendance}
-                  disabled={markingAttendance || Object.keys(selectedStudents).length === 0}
-                  className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {markingAttendance ? 'Marking...' : 'Mark Attendance'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowMarkModal(false);
-                    setSelectedStudents({});
-                    setOdDetails({});
-                  }}
-                  className="bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+            </Card>
+          </>
+        )}
+      </div>
+    </ConfigProvider>
   );
 };
 

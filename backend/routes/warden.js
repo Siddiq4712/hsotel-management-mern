@@ -1,5 +1,4 @@
-// routes/wardenRoutes.js
-const express = require('express');
+// Make sure to update your imports at the top of the file:
 const {
   enrollStudent, getStudents, getAvailableRooms, allotRoom, getDashboardStats, getSessions,
   // Attendance Management
@@ -11,12 +10,22 @@ const {
   // Suspension Management
   createSuspension, getSuspensions, updateSuspension,
   // Holiday Management
-  createHoliday, getHolidays, updateHoliday, deleteHoliday,bulkMarkAttendance,
+  createHoliday, getHolidays, updateHoliday, deleteHoliday, bulkMarkAttendance,
   // Additional Collections
-  createAdditionalCollection, getAdditionalCollections,updateAttendance,
-  //bulkMarkAttendance, 
-  getRoomOccupants
+  createAdditionalCollection, getAdditionalCollections, updateAttendance,
+  // Add these new imports
+  generateMessBills, getMessBills, updateMessBillStatus,
+  // Other imports
+  getRoomOccupants,getMessBillSummary, bulkMonthEndMandays,
+  // Room Type Management for Warden
+  createRoomTypeWarden, updateRoomTypeWarden, deleteRoomTypeWarden, getRoomTypesWarden,
+  // Room Management for Warden
+  createRoomWarden, updateRoomWarden, deleteRoomWarden, getRoomsWarden,getLayout, saveLayout,getDayReductionRequestsForWarden,updateDayReductionRequestStatusByWarden,
+
+  getRoomRequestsWarden,decideRoomRequest, getRebates, updateRebateStatus
 } = require('../controllers/wardenController');
+const express = require('express'); 
+
 const { auth, authorize } = require('../middleware/auth');
 
 const router = express.Router();
@@ -26,11 +35,11 @@ router.use(authorize(['warden']));
 
 // Dashboard
 router.get('/dashboard-stats', getDashboardStats);
-router.get('/sessions', getSessions);
+router.get('/sessions',authorize(['warden','mess']),getSessions);
 
 // Student Management
-router.post('/students', enrollStudent);
-router.get('/students', getStudents);
+router.post('/students',authorize(['warden','mess']), enrollStudent);
+router.get('/students',authorize(['warden','mess']), getStudents);
 
 // Room Management
 router.get('/available-rooms', getAvailableRooms);
@@ -70,6 +79,39 @@ router.post('/additional-collections', createAdditionalCollection);
 router.get('/additional-collections', getAdditionalCollections);
 // router.post('/attendance/bulk', bulkMarkAttendance); // NEW - Bulk mark attendance
 
-// router.get('/rooms/:room_id/occupants', getRoomOccupants); // NEW - Get occupants of a specific room
+// Add these routes to your existing wardenRoutes.js
+// Mess Bills Management
+router.post('/mess-bills/generate', generateMessBills);
+router.get('/mess-bills', getMessBills);
+router.put('/mess-bills/:id/status', updateMessBillStatus);
+
+// Add this route to routes/wardenRoutes.js (inside the router, with auth and authorize middleware)
+
+router.get('/rooms/:id/occupants', getRoomOccupants);
+router.post('/attendance/bulks', bulkMonthEndMandays); // NEW - Bulk month-end mandays
+
+// Routes (add to your warden router file, e.g., routes/warden.js)
+
+router.post('/room-types',createRoomTypeWarden);
+router.get('/room-types',getRoomTypesWarden);
+router.put('/room-types/:id',updateRoomTypeWarden);
+router.delete('/room-types/:id',deleteRoomTypeWarden);
+
+router.post('/rooms',createRoomWarden);
+router.get('/rooms',getRoomsWarden);
+router.put('/rooms/:id',updateRoomWarden);
+router.delete('/rooms/:id',deleteRoomWarden);
+
+router.get('/layout', getLayout);
+router.post('/layout', saveLayout);
+
+router.get('/room-requests', getRoomRequestsWarden);
+router.put('/room-requests/:id', decideRoomRequest);
+
+router.get('/day-reduction-requests', getDayReductionRequestsForWarden);
+router.put('/day-reduction-requests/:id/status', updateDayReductionRequestStatusByWarden); 
+
+router.get('/rebates', getRebates);
+router.put('/rebates/:id/status', updateRebateStatus);
 
 module.exports = router;

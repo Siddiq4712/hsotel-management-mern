@@ -1,7 +1,60 @@
-// components/warden/ComplaintManagement.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  Card, Typography, Row, Col, Button, Space, 
+  Select, Divider, ConfigProvider, theme, Skeleton, Badge, 
+  Tag, Modal, Input, Empty, message, Tooltip 
+} from 'antd';
+import { 
+  MessageCircle, User, Calendar, AlertTriangle, CheckCircle2, 
+  Clock, XCircle, Filter, Search, RefreshCw, ClipboardList, 
+  ShieldAlert, Info, Inbox, Activity, Zap, ShieldCheck
+} from 'lucide-react';
 import { wardenAPI } from '../../services/api';
-import { MessageCircle, User, Calendar, AlertTriangle, CheckCircle, Clock, XCircle, Filter } from 'lucide-react';
+import moment from 'moment';
+
+const { Title, Text, Paragraph } = Typography;
+const { TextArea } = Input;
+const { Option } = Select;
+
+// --- 1. PREMIUM SKELETONS (Matched to final UI dimensions) ---
+
+const StatsSkeleton = () => (
+  <Row gutter={[20, 20]} className="mb-8">
+    {[...Array(5)].map((_, i) => (
+      <Col xs={24} sm={12} lg={4.8} key={i} style={{ flex: '0 0 20%', maxWidth: '20%' }}>
+        <Card className="border-none shadow-sm rounded-[32px] p-5 bg-white">
+          <div className="flex items-center gap-4">
+            <Skeleton.Button active style={{ width: 48, height: 48, borderRadius: 16 }} />
+            <div className="space-y-2 flex-1">
+              <Skeleton.Input active size="small" style={{ width: '60%', height: 12 }} />
+              <Skeleton.Input active size="small" style={{ width: '40%', height: 24 }} />
+            </div>
+          </div>
+        </Card>
+      </Col>
+    ))}
+  </Row>
+);
+
+const FilterSkeleton = () => (
+  <Card className="border-none shadow-sm rounded-2xl mb-6 bg-white">
+    <div className="flex gap-4 items-center p-1">
+      <Skeleton.Input active style={{ width: 180, height: 40, borderRadius: 12 }} />
+      <Skeleton.Input active style={{ width: 180, height: 40, borderRadius: 12 }} />
+      <Skeleton.Input active style={{ width: 140, height: 40, borderRadius: 12 }} />
+    </div>
+  </Card>
+);
+
+const ComplaintCardSkeleton = () => (
+  <div className="space-y-4">
+    {[...Array(3)].map((_, i) => (
+      <Card key={i} className="border-none shadow-sm rounded-[32px] p-6 bg-white">
+        <Skeleton active avatar={{ size: 'large', shape: 'circle' }} title={{ width: '40%' }} paragraph={{ rows: 3 }} />
+      </Card>
+    ))}
+  </div>
+);
 
 const ComplaintManagement = () => {
   const [complaints, setComplaints] = useState([]);
@@ -15,11 +68,7 @@ const ComplaintManagement = () => {
   const [newStatus, setNewStatus] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => {
-    fetchComplaints();
-  }, [filter, categoryFilter, priorityFilter]);
-
-  const fetchComplaints = async () => {
+  const fetchComplaints = useCallback(async () => {
     setLoading(true);
     try {
       const params = {};
@@ -30,417 +79,217 @@ const ComplaintManagement = () => {
       const response = await wardenAPI.getComplaints(params);
       setComplaints(response.data.data || []);
     } catch (error) {
-      console.error('Error fetching complaints:', error);
-      setComplaints([]);
+      message.error('Grievance database sync failed.');
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 800);
     }
-  };
+  }, [filter, categoryFilter, priorityFilter]);
 
-  const handleStatusUpdate = (complaint, status) => {
-    setSelectedComplaint(complaint);
-    setNewStatus(status);
-    setResolution('');
-    setShowModal(true);
-  };
+  useEffect(() => { fetchComplaints(); }, [fetchComplaints]);
 
   const confirmStatusUpdate = async () => {
     if (!selectedComplaint || !newStatus) return;
-
     setActionLoading(true);
     try {
       const updateData = { status: newStatus };
       if (newStatus === 'resolved' && resolution.trim()) {
         updateData.resolution = resolution.trim();
       }
-
       await wardenAPI.updateComplaint(selectedComplaint.id, updateData);
-      
-      // Refresh the list
-      await fetchComplaints();
+      message.success(`Ticket Status: ${newStatus.toUpperCase()}`);
       setShowModal(false);
-      setSelectedComplaint(null);
-      setNewStatus('');
-      setResolution('');
+      fetchComplaints();
     } catch (error) {
-      console.error('Error updating complaint:', error);
-      alert('Error updating complaint. Please try again.');
+      message.error('Execution protocol failed.');
     } finally {
       setActionLoading(false);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'resolved':
-        return 'bg-green-100 text-green-800';
-      case 'in_progress':
-        return 'bg-blue-100 text-blue-800';
-      case 'submitted':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'closed':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  const statusConfig = {
+    submitted: { color: 'warning', label: 'Submitted', icon: <AlertTriangle size={12} /> },
+    in_progress: { color: 'blue', label: 'Actioning', icon: <Clock size={12} /> },
+    resolved: { color: 'success', label: 'Resolved', icon: <CheckCircle2 size={12} /> },
+    closed: { color: 'default', label: 'Closed', icon: <XCircle size={12} /> }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'resolved':
-        return <CheckCircle className="text-green-600" size={16} />;
-      case 'in_progress':
-        return <Clock className="text-blue-600" size={16} />;
-      case 'submitted':
-        return <AlertTriangle className="text-yellow-600" size={16} />;
-      case 'closed':
-        return <XCircle className="text-gray-600" size={16} />;
-      default:
-        return <AlertTriangle className="text-gray-400" size={16} />;
-    }
+  const priorityMeta = {
+    urgent: { color: 'rose', bg: 'bg-rose-50', text: 'text-rose-600' },
+    high: { color: 'orange', bg: 'bg-orange-50', text: 'text-orange-600' },
+    medium: { color: 'amber', bg: 'bg-amber-50', text: 'text-amber-600' },
+    low: { color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-600' }
   };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'urgent':
-        return 'bg-red-50 text-red-700 border-red-200';
-      case 'high':
-        return 'bg-orange-50 text-orange-700 border-orange-200';
-      case 'medium':
-        return 'bg-yellow-50 text-yellow-700 border-yellow-200';
-      case 'low':
-        return 'bg-green-50 text-green-700 border-green-200';
-      default:
-        return 'bg-gray-50 text-gray-700 border-gray-200';
-    }
-  };
-
-  const getCategoryColor = (category) => {
-    switch (category) {
-      case 'room':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'mess':
-        return 'bg-green-50 text-green-700 border-green-200';
-      case 'facility':
-        return 'bg-purple-50 text-purple-700 border-purple-200';
-      case 'maintenance':
-        return 'bg-orange-50 text-orange-700 border-orange-200';
-      case 'discipline':
-        return 'bg-red-50 text-red-700 border-red-200';
-      default:
-        return 'bg-gray-50 text-gray-700 border-gray-200';
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   return (
-    <div>
-      <div className="mb-8 flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Complaint Management</h1>
-          <p className="text-gray-600 mt-2">Review and manage student complaints</p>
-        </div>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
         
-        <div className="flex flex-col space-y-2">
-          <div className="flex items-center space-x-2">
-            <Filter size={20} className="text-gray-400" />
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="all">All Status</option>
-              <option value="submitted">Submitted</option>
-              <option value="in_progress">In Progress</option>
-              <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
-            </select>
-          </div>
-          
-          <div className="flex space-x-2">
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
-            >
-              <option value="all">All Categories</option>
-              <option value="room">Room</option>
-              <option value="mess">Mess</option>
-              <option value="facility">Facility</option>
-              <option value="maintenance">Maintenance</option>
-              <option value="discipline">Discipline</option>
-              <option value="other">Other</option>
-            </select>
-            
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 text-sm"
-            >
-              <option value="all">All Priority</option>
-              <option value="urgent">Urgent</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <MessageCircle className="text-blue-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-blue-900">{complaints.length}</p>
+        {/* Institutional Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <MessageCircle className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Grievance Redressal</Title>
+              <Text type="secondary">Institutional oversight and resolution of student concerns</Text>
             </div>
           </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <AlertTriangle className="text-yellow-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Submitted</p>
-              <p className="text-2xl font-bold text-yellow-900">
-                {complaints.filter(c => c.status === 'submitted').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <Clock className="text-blue-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">In Progress</p>
-              <p className="text-2xl font-bold text-blue-900">
-                {complaints.filter(c => c.status === 'in_progress').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <CheckCircle className="text-green-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Resolved</p>
-              <p className="text-2xl font-bold text-green-900">
-                {complaints.filter(c => c.status === 'resolved').length}
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow-md p-4">
-          <div className="flex items-center">
-            <XCircle className="text-red-600" size={24} />
-            <div className="ml-3">
-              <p className="text-sm text-gray-600">Urgent</p>
-              <p className="text-2xl font-bold text-red-900">
-                {complaints.filter(c => c.priority === 'urgent').length}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <MessageCircle className="text-gray-400 mr-2" size={20} />
-              <h2 className="text-lg font-medium text-gray-900">Complaints</h2>
-            </div>
-            <span className="text-sm text-gray-500">
-              {complaints.length} complaints
-            </span>
-          </div>
+          <Button icon={<RefreshCw size={16}/>} onClick={fetchComplaints} className="rounded-xl h-11 px-6 font-bold shadow-sm">Sync Portal</Button>
         </div>
 
-        {complaints.length > 0 ? (
-          <div className="divide-y divide-gray-200">
-            {complaints.map((complaint) => (
-              <div key={complaint.id} className="p-6 hover:bg-gray-50">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-3">
-                      <div className="flex items-center">
-                        <User className="text-blue-600 mr-2" size={16} />
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {complaint.Student?.username || 'Unknown Student'}
-                        </h3>
+        {loading ? (
+          <>
+            <StatsSkeleton />
+            <FilterSkeleton />
+            <ComplaintCardSkeleton />
+          </>
+        ) : (
+          <>
+            {/* --- Glass-Glow Stat Cards --- */}
+            <Row gutter={[20, 20]} className="mb-8">
+              {[
+                { label: 'Total Volume', val: complaints.length, icon: Activity, bg: 'bg-indigo-50', color: 'text-indigo-600' },
+                { label: 'Unaddressed', val: complaints.filter(c => c.status === 'submitted').length, icon: AlertTriangle, bg: 'bg-amber-50', color: 'text-amber-600' },
+                { label: 'Ongoing Ops', val: complaints.filter(c => c.status === 'in_progress').length, icon: Clock, bg: 'bg-blue-50', color: 'text-blue-600' },
+                { label: 'Redressed', val: complaints.filter(c => c.status === 'resolved').length, icon: CheckCircle2, bg: 'bg-emerald-50', color: 'text-emerald-600' },
+                { label: 'Urgent Ops', val: complaints.filter(c => c.priority === 'urgent').length, icon: Zap, bg: 'bg-rose-50', color: 'text-rose-600' },
+              ].map((stat, i) => (
+                <Col xs={24} sm={12} lg={4.8} key={i} style={{ flex: '0 0 20%', maxWidth: '20%' }}>
+                  <Card className="border-none shadow-sm rounded-[32px] p-5 bg-white group hover:shadow-md transition-all duration-300">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-2xl ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform`}>
+                        <stat.icon size={22} />
                       </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getCategoryColor(complaint.category)}`}>
-                          {complaint.category?.charAt(0).toUpperCase() + complaint.category?.slice(1)}
-                        </span>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getPriorityColor(complaint.priority)}`}>
-                          {complaint.priority?.charAt(0).toUpperCase() + complaint.priority?.slice(1)}
-                        </span>
-                        <div className="flex items-center">
-                          {getStatusIcon(complaint.status)}
-                          <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(complaint.status)}`}>
-                            {complaint.status?.replace('_', ' ').charAt(0).toUpperCase() + complaint.status?.replace('_', ' ').slice(1)}
-                          </span>
-                        </div>
+                      <div className="flex flex-col">
+                        <Text className="text-[10px] uppercase font-black text-slate-400 tracking-widest leading-tight">{stat.label}</Text>
+                        <Text className="text-2xl font-black text-slate-800 leading-none mt-1">{stat.val}</Text>
                       </div>
                     </div>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
 
-                    <h4 className="text-lg font-medium text-gray-800 mb-2">
-                      {complaint.subject}
-                    </h4>
+            {/* Filter Hub */}
+            <Card className="border-none shadow-sm rounded-2xl mb-6">
+              <div className="flex flex-wrap gap-4 items-center">
+                <div className="flex items-center gap-3 bg-slate-50 p-1 px-3 rounded-xl border border-slate-100">
+                  <Filter size={16} className="text-slate-400" />
+                  <Select value={filter} onChange={setFilter} bordered={false} className="w-36 font-bold text-slate-600">
+                    <Option value="all">All Status</Option>
+                    <Option value="submitted">New Tickets</Option>
+                    <Option value="in_progress">Actioning</Option>
+                    <Option value="resolved">Resolved</Option>
+                  </Select>
+                </div>
+                <Select value={categoryFilter} onChange={setCategoryFilter} className="w-44 h-11" placeholder="Category">
+                  <Option value="all">All Categories</Option>
+                  <Option value="room">Room / Allotment</Option>
+                  <Option value="mess">Mess & Dining</Option>
+                  <Option value="maintenance">Maintenance</Option>
+                </Select>
+                <Select value={priorityFilter} onChange={setPriorityFilter} className="w-36 h-11" placeholder="Priority">
+                  <Option value="all">All Priority</Option>
+                  <Option value="urgent">Urgent Only</Option>
+                  <Option value="high">High Priority</Option>
+                </Select>
+              </div>
+            </Card>
 
-                    <div className="mb-4">
-                      <p className="text-gray-700 bg-gray-50 p-3 rounded-md">
-                        {complaint.description}
-                      </p>
-                    </div>
-
-                    {complaint.resolution && (
-                      <div className="mb-4">
-                        <p className="text-sm text-gray-600 mb-1">Resolution</p>
-                        <p className="text-gray-800 bg-green-50 p-3 rounded-md border-l-4 border-green-400">
-                          {complaint.resolution}
-                        </p>
+            {/* Complaints List */}
+            <div className="space-y-4">
+              {complaints.length > 0 ? complaints.map((c) => (
+                <Card key={c.id} className="border-none shadow-sm rounded-[32px] hover:shadow-md transition-all p-2 overflow-hidden">
+                  <div className="flex flex-col md:flex-row justify-between gap-8">
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-3 mb-5">
+                        <div className="p-2.5 bg-blue-50 rounded-2xl text-blue-600"><User size={20} /></div>
+                        <Space direction="vertical" size={0}>
+                           <Text strong className="text-slate-700 text-base">{c.Student?.username}</Text>
+                           <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ref ID: #TKT-{c.id} • {moment(c.createdAt).format('DD MMM, hh:mm A')}</Text>
+                        </Space>
+                        <Divider type="vertical" className="h-8 border-slate-200 mx-2" />
+                        <Tag bordered={false} color={statusConfig[c.status].color} icon={statusConfig[c.status].icon} className="rounded-full font-bold uppercase text-[9px] px-3 py-0.5">{statusConfig[c.status].label}</Tag>
+                        <Tag bordered={false} color={priorityMeta[c.priority].color} className="rounded-full font-bold uppercase text-[9px] px-3 py-0.5">Priority: {c.priority}</Tag>
                       </div>
-                    )}
 
-                    <div className="flex items-center justify-between text-sm text-gray-500">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center">
-                          <Calendar className="mr-1" size={16} />
-                          Submitted: {new Date(complaint.createdAt).toLocaleDateString()}
-                        </div>
-                        {complaint.resolved_date && (
-                          <div className="flex items-center">
-                            <CheckCircle className="mr-1" size={16} />
-                            Resolved: {new Date(complaint.resolved_date).toLocaleDateString()}
-                          </div>
-                        )}
-                      </div>
-                      {complaint.AssignedTo && (
-                        <div>
-                          Assigned to: {complaint.AssignedTo.username}
-                        </div>
+                      <Title level={4} className="m-0 mb-3 text-slate-800">{c.subject}</Title>
+                      <Paragraph className="text-slate-500 bg-slate-50/50 p-5 rounded-[24px] border border-slate-100 italic text-sm leading-relaxed">
+                        "{c.description}"
+                      </Paragraph>
+
+                      {c.resolution && (
+                         <div className="mt-5 p-5 rounded-[24px] bg-emerald-50/50 border border-emerald-100 flex gap-4">
+                           <div className="p-2 bg-white rounded-xl shadow-sm h-fit"><ShieldCheck className="text-emerald-500" size={18}/></div>
+                           <div>
+                             <Text strong className="text-[10px] uppercase text-emerald-600 block mb-1 tracking-widest">Official Resolution Audit</Text>
+                             <Text className="text-emerald-900 font-medium">{c.resolution}</Text>
+                           </div>
+                         </div>
                       )}
+                    </div>
+
+                    <div className="md:w-52 flex flex-col gap-2 justify-center border-l border-slate-50 pl-6">
+                       {c.status === 'submitted' && (
+                         <Button type="primary" block className="h-12 rounded-xl font-bold shadow-lg shadow-blue-100" onClick={() => { setSelectedComplaint(c); setNewStatus('in_progress'); setShowModal(true); }}>START ACTION</Button>
+                       )}
+                       {['submitted', 'in_progress'].includes(c.status) && (
+                         <Button className="h-12 rounded-xl font-bold border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors" onClick={() => { setSelectedComplaint(c); setNewStatus('resolved'); setShowModal(true); }}>MARK RESOLVED</Button>
+                       )}
+                       {!['resolved', 'closed'].includes(c.status) && (
+                         <Button type="text" danger className="h-10 rounded-xl font-bold mt-2" onClick={() => { setSelectedComplaint(c); setNewStatus('closed'); setShowModal(true); }}>CLOSE TICKET</Button>
+                       )}
                     </div>
                   </div>
-
-                  {complaint.status !== 'resolved' && complaint.status !== 'closed' && (
-                    <div className="flex flex-col space-y-2 ml-6">
-                      {complaint.status === 'submitted' && (
-                        <button
-                          onClick={() => handleStatusUpdate(complaint, 'in_progress')}
-                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 focus:ring-2 focus:ring-blue-500"
-                        >
-                          Start Working
-                        </button>
-                      )}
-                      
-                      <button
-                        onClick={() => handleStatusUpdate(complaint, 'resolved')}
-                        className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 focus:ring-2 focus:ring-green-500"
-                      >
-                        Mark Resolved
-                      </button>
-                      
-                      <button
-                        onClick={() => handleStatusUpdate(complaint, 'closed')}
-                        className="px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 focus:ring-2 focus:ring-gray-500"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  )}
+                </Card>
+              )) : (
+                <div className="py-24 flex flex-col items-center justify-center bg-white rounded-[40px] shadow-sm border border-slate-50">
+                  <Empty image={<div className="bg-slate-50 p-10 rounded-full mb-4"><Inbox size={80} className="text-slate-200" /></div>} description={<Text className="text-slate-400 font-medium block">No grievance logs found in this cycle.</Text>} />
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <MessageCircle className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No complaints found</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {filter === 'all' && categoryFilter === 'all' && priorityFilter === 'all'
-                ? 'Student complaints will appear here.'
-                : 'No complaints match your current filters.'
-              }
-            </p>
-          </div>
+              )}
+            </div>
+          </>
         )}
-      </div>
 
-      {/* Status Update Modal */}
-      {showModal && selectedComplaint && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                Update Complaint Status
-              </h3>
-              
-              <div className="mb-4 p-3 bg-gray-50 rounded-md">
-                <p className="text-sm text-gray-600">Student: <span className="font-medium">{selectedComplaint.Student?.username}</span></p>
-                <p className="text-sm text-gray-600">Subject: <span className="font-medium">{selectedComplaint.subject}</span></p>
-                <p className="text-sm text-gray-600">New Status: <span className="font-medium">
-                  {newStatus?.replace('_', ' ').charAt(0).toUpperCase() + newStatus?.replace('_', ' ').slice(1)}
-                </span></p>
+        {/* Action Protocol Modal */}
+        <Modal
+          title={<div className="flex items-center gap-2 text-blue-600"><ClipboardList size={20}/> Action Protocol</div>}
+          open={showModal}
+          onCancel={() => setShowModal(false)}
+          footer={[
+            <Button key="back" onClick={() => setShowModal(false)} className="rounded-xl h-11 px-8">Abort</Button>,
+            <Button key="submit" type="primary" loading={actionLoading} onClick={confirmStatusUpdate} className="rounded-xl h-11 px-10 font-bold shadow-lg shadow-blue-100">Update Ledger</Button>
+          ]}
+          className="rounded-[32px]"
+          width={550}
+        >
+          {selectedComplaint && (
+            <div className="mt-6 space-y-6">
+              <div className="p-5 bg-slate-50 rounded-[24px] border border-slate-100">
+                <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest block mb-1">Target Ticket</Text>
+                <Text strong className="text-lg block mb-2 leading-tight">{selectedComplaint.subject}</Text>
+                <Tag bordered={false} color="blue" className="rounded-full font-bold uppercase text-[9px] px-3">Protocol: {newStatus.replace('_', ' ')}</Tag>
               </div>
-              
+
               {newStatus === 'resolved' && (
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Resolution Details <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={resolution}
-                    onChange={(e) => setResolution(e.target.value)}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Describe how the complaint was resolved..."
-                    required
-                  />
+                <div className="space-y-2 px-1">
+                  <Text strong className="text-[11px] uppercase text-slate-400 block mb-2 tracking-widest">Resolution Narrative</Text>
+                  <TextArea rows={4} className="rounded-[20px] p-4 border-slate-200 focus:border-blue-400 transition-all" placeholder="Detail the measures taken to redress this grievance..." value={resolution} onChange={(e) => setResolution(e.target.value)} />
                 </div>
               )}
 
-              <div className="flex gap-3">
-                <button
-                  onClick={confirmStatusUpdate}
-                  disabled={actionLoading || (newStatus === 'resolved' && !resolution.trim())}
-                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {actionLoading ? 'Updating...' : 'Update Status'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowModal(false);
-                    setSelectedComplaint(null);
-                    setNewStatus('');
-                    setResolution('');
-                  }}
-                  disabled={actionLoading}
-                  className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
+              <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex gap-3">
+                <Info size={18} className="text-blue-500 shrink-0 mt-0.5" />
+                <Text className="text-[11px] text-blue-700 leading-tight font-medium">
+                  This update will be logged in the student's institutional profile and trigger a real-time notification.
+                </Text>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-    </div>
+          )}
+        </Modal>
+      </div>
+    </ConfigProvider>
   );
 };
 

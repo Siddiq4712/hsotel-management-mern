@@ -1,275 +1,346 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Calendar, Tooltip, Modal, Form, Select, Button, message, 
-  Row, Col, List, Tag, Spin, InputNumber, Divider, Typography, DatePicker
+import {
+  Card, Table, Button, Space, Tag, DatePicker, Select,
+  message, Popconfirm, Modal, List, Typography, Tooltip, Row, Col, Alert,
+  ConfigProvider, theme, Skeleton, Divider, Empty
 } from 'antd';
-import { CalendarOutlined, PlusOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
-import api from '../../services/api';
+// Lucide icons for consistency
+import { 
+  Search, Eye, Trash2, CheckCircle2, Calendar, 
+  Filter, Utensils, AlertTriangle, ChevronRight, Plus, X, ClipboardList, FileX
+} from 'lucide-react';
+import { messAPI } from '../../services/api';
 import moment from 'moment';
 
+const { RangePicker } = DatePicker;
 const { Option } = Select;
-const { confirm } = Modal;
-const { Title, Text } = Typography;
+const { Text, Title } = Typography;
+
+// --- Internal Reusable EmptyState Component ---
+const EmptyState = ({ icon: Icon, title, subtitle, actionText, onAction }) => (
+  <div className="flex flex-col items-center justify-center p-16 text-center bg-white rounded-[32px] border-2 border-dashed border-slate-100 my-4 animate-in fade-in zoom-in duration-500">
+    <div className="p-6 bg-slate-50 rounded-full mb-6">
+      <Icon size={48} className="text-slate-300" strokeWidth={1.5} />
+    </div>
+    <Title level={4} className="text-slate-800 mb-2">{title}</Title>
+    <Text className="text-slate-500 block mb-8 max-w-xs mx-auto">{subtitle}</Text>
+    {onAction && (
+      <Button 
+        type="primary" 
+        size="large" 
+        onClick={onAction} 
+        className="flex items-center gap-2 rounded-xl h-12 px-8 shadow-lg shadow-blue-100 font-semibold"
+      >
+        <Plus size={18} /> {actionText}
+      </Button>
+    )}
+  </div>
+);
 
 const MenuScheduleManagement = () => {
-  const [form] = Form.useForm();
-  const [schedules, setSchedules] = useState({});
-  const [menus, setMenus] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [schedules, setSchedules] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState([
+    moment().startOf('day'),
+    moment().add(7, 'days').endOf('day')
+  ]);
+  const [selectedMealType, setSelectedMealType] = useState('all');
+  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
-  const [currentMonth, setCurrentMonth] = useState(moment());
+  const [lowStockAlert, setLowStockAlert] = useState(null);
 
   useEffect(() => {
-    fetchSchedules(currentMonth);
-    fetchMenus();
-  }, [currentMonth]);
+    fetchSchedules();
+  }, []);
 
-  const fetchSchedules = async (date) => {
+  const fetchSchedules = async () => {
     setLoading(true);
     try {
-      const startDate = date.clone().startOf('month').format('YYYY-MM-DD');
-      const endDate = date.clone().endOf('month').format('YYYY-MM-DD');
+      const params = {};
+      if (dateRange && dateRange.length === 2) {
+        params.start_date = dateRange[0].format('YYYY-MM-DD');
+        params.end_date = dateRange[1].format('YYYY-MM-DD');
+      }
+      if (selectedMealType !== 'all') params.meal_time = selectedMealType;
       
-      const response = await api.get(`/mess/menu-schedule?start_date=${startDate}&end_date=${endDate}`);
-      
-      const groupedSchedules = {};
-      response.data.data.forEach(schedule => {
-        const dateKey = moment(schedule.scheduled_date).format('YYYY-MM-DD');
-        if (!groupedSchedules[dateKey]) {
-          groupedSchedules[dateKey] = [];
-        }
-        groupedSchedules[dateKey].push(schedule);
-      });
-      
-      setSchedules(groupedSchedules);
+      const response = await messAPI.getMenuSchedule(params);
+      setSchedules(response.data.data || []);
     } catch (error) {
-      message.error('Failed to load menu schedules');
+      message.error('Failed to fetch schedules');
     } finally {
-      setLoading(false);
+      // Artificial delay to ensure a smooth transition from Skeleton to Data/Empty state
+      setTimeout(() => setLoading(false), 1200);
     }
   };
 
-  const fetchMenus = async () => {
+  const handleDelete = async (id) => {
     try {
-      const response = await api.get('/mess/menus');
-      setMenus(response.data.data);
+      await messAPI.deleteMenuSchedule(id);
+      message.success('Schedule deleted successfully');
+      fetchSchedules();
     } catch (error) {
-      message.error('Failed to load menus');
+      message.error('Delete failed');
     }
   };
 
-  const handleDateSelect = (date) => {
-    setSelectedSchedule(null);
-    form.resetFields();
-    form.setFieldsValue({
-      scheduled_date: date,
-      meal_time: 'breakfast'
-    });
-    setModalVisible(true);
-  };
-
-  const handleEditSchedule = (schedule) => {
-    setSelectedSchedule(schedule);
-    form.setFieldsValue({
-      menu_id: schedule.menu_id,
-      meal_time: schedule.meal_time,
-      scheduled_date: moment(schedule.scheduled_date),
-      estimated_servings: schedule.estimated_servings,
-      status: schedule.status
-    });
-    setModalVisible(true);
-  };
-
-  const handleDeleteSchedule = (id) => {
-    confirm({
-      title: 'Delete Menu Schedule',
-      icon: <ExclamationCircleOutlined />,
-      content: 'Are you sure you want to delete this schedule?',
-      onOk: async () => {
-        try {
-          await api.delete(`/mess/menu-schedule/${id}`);
-          message.success('Schedule deleted successfully');
-          fetchSchedules(currentMonth);
-        } catch (error) {
-          message.error('Failed to delete schedule');
-        }
-      }
-    });
-  };
-
-  const handleSubmit = async (values) => {
+  const handleMarkAsServed = async (id) => {
     try {
-      const data = {
-        ...values,
-        scheduled_date: values.scheduled_date.format('YYYY-MM-DD')
-      };
-
-      if (selectedSchedule) {
-        await api.put(`/mess/menu-schedule/${selectedSchedule.id}`, data);
-        message.success('Schedule updated successfully');
-      } else {
-        await api.post('/mess/menu-schedule', data);
-        message.success('Menu scheduled successfully');
-      }
+      const response = await messAPI.serveMenu(id);
+      message.success('Menu marked as served. FIFO Stock deduction completed.');
       
-      setModalVisible(false);
-      fetchSchedules(currentMonth);
+      if (response.data.data?.lowStockItems?.length > 0) {
+        setLowStockAlert({
+          items: response.data.data.lowStockItems,
+          message: 'The following items have fallen below threshold after this deduction:'
+        });
+      }
+      fetchSchedules();
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Failed to save schedule';
-      message.error(errorMessage);
+      message.error(error.response?.data?.message || 'Failed to serve menu');
     }
   };
 
-  const handlePanelChange = (date) => {
-    setCurrentMonth(date);
+  const getMealColor = (mealType) => {
+    const colors = { breakfast: '#3b82f6', lunch: '#10b981', dinner: '#8b5cf6', snacks: '#f59e0b' };
+    return colors[mealType] || '#64748b';
   };
 
-  const dateCellRender = (date) => {
-    const dateStr = date.format('YYYY-MM-DD');
-    const dateSchedules = schedules[dateStr] || [];
-    
-    return (
-      <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-        {dateSchedules.map(schedule => (
-          <li key={schedule.id} style={{ marginBottom: 4 }}>
-            <Tooltip title={
-              <div>
-                <p><strong>Menu:</strong> {schedule.Menu?.name || 'N/A'}</p>
-                <p><strong>Status:</strong> {schedule.status}</p>
-                <p><strong>Servings:</strong> {schedule.estimated_servings}</p>
-                <p><strong>Cost/Person:</strong> ₹{parseFloat(schedule.cost_per_serving).toFixed(2)}</p>
-              </div>
-            }>
-              <Tag 
-                color={
-                  schedule.meal_time === 'breakfast' ? 'blue' :
-                  schedule.meal_time === 'lunch' ? 'green' :
-                  schedule.meal_time === 'dinner' ? 'purple' : 'orange'
-                }
-                style={{ cursor: 'pointer', width: '100%', textAlign: 'left' }}
-                onClick={(e) => { e.stopPropagation(); handleEditSchedule(schedule); }}
+  const columns = [
+    {
+      title: 'Date',
+      dataIndex: 'scheduled_date',
+      key: 'date',
+      render: (date) => moment(date).format('DD MMM YYYY'),
+    },
+    {
+      title: 'Meal Time',
+      dataIndex: 'meal_time',
+      key: 'meal_time',
+      render: (text) => (
+        <Tag bordered={false} style={{ background: `${getMealColor(text)}15`, color: getMealColor(text), fontWeight: 600 }} className="px-3 rounded-full">
+          {text.toUpperCase()}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Menu Template',
+      key: 'menu',
+      render: (_, record) => (
+        <Space>
+          <Text strong className="text-slate-700">{record.Menu?.name || 'Unknown'}</Text>
+          <Text type="secondary" className="text-xs">({record.Menu?.tbl_Menu_Items?.length || 0} items)</Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status) => {
+        const colors = { scheduled: 'processing', served: 'success', cancelled: 'error' };
+        return <Tag color={colors[status]} className="rounded-full px-3">{status.toUpperCase()}</Tag>;
+      },
+    },
+    {
+      title: 'Costing (₹)',
+      key: 'cost',
+      align: 'right',
+      render: (_, record) => (
+        <div className="text-right">
+          <Text strong className="block text-blue-600">₹{parseFloat(record.total_cost || 0).toFixed(2)}</Text>
+          <Text className="text-[10px] text-slate-400 uppercase">₹{parseFloat(record.cost_per_serving || 0).toFixed(2)} / plate</Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      align: 'right',
+      render: (_, record) => (
+        <Space>
+          <Button icon={<Eye size={14} />} onClick={() => { setSelectedSchedule(record); setDetailsModalVisible(true); }} className="rounded-lg" />
+          {record.status === 'scheduled' && (
+            <>
+              <Popconfirm 
+                title="Mark as Served?" 
+                description="This will deduct raw materials from inventory using FIFO."
+                onConfirm={() => handleMarkAsServed(record.id)}
               >
-                {schedule.meal_time.charAt(0).toUpperCase()} - ₹{parseFloat(schedule.cost_per_serving).toFixed(2)}
-              </Tag>
-            </Tooltip>
-          </li>
-        ))}
-      </ul>
-    );
-  };
+                <Button icon={<CheckCircle2 size={14} />} type="primary" className="bg-emerald-600 border-none rounded-lg" />
+              </Popconfirm>
+              <Popconfirm title="Delete schedule?" onConfirm={() => handleDelete(record.id)}>
+                <Button icon={<Trash2 size={14} />} danger ghost className="rounded-lg" />
+              </Popconfirm>
+            </>
+          )}
+        </Space>
+      )
+    }
+  ];
 
   return (
-    <Card 
-      title={<><CalendarOutlined style={{ marginRight: 8 }} />Menu Schedule Management</>}
-      variant="outlined"
-      extra={
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => handleDateSelect(moment())}>
-          Schedule Menu
-        </Button>
-      }
-    >
-      {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '50px 0' }}><Spin size="large" /></div>
-      ) : (
-        <Calendar 
-          cellRender={dateCellRender}
-          onSelect={handleDateSelect}
-          onPanelChange={handlePanelChange}
-        />
-      )}
-
-      <Modal
-        title={selectedSchedule ? "Edit Menu Schedule" : "Schedule New Menu"}
-        open={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        footer={null}
-        width={600}
-        destroyOnHidden
-      >
-        <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name="scheduled_date" label="Date" rules={[{ required: true }]}>
-                <DatePicker style={{ width: '100%' }} disabled={!!selectedSchedule} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="meal_time" label="Meal Time" rules={[{ required: true }]}>
-                <Select>
-                  <Option value="breakfast">Breakfast</Option>
-                  <Option value="lunch">Lunch</Option>
-                  <Option value="dinner">Dinner</Option>
-                  <Option value="snacks">Snacks</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
-          
-          <Form.Item name="menu_id" label="Menu" rules={[{ required: true }]}>
-            <Select placeholder="Select a menu" showSearch optionFilterProp="children">
-              {menus.map(menu => (
-                <Option key={menu.id} value={menu.id}>
-                  {menu.name} ({menu.meal_type})
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item 
-            name="estimated_servings" 
-            label="Estimated Servings" 
-            rules={[{ required: true, message: 'Please enter number of servings!' }]}
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
+        
+        {/* Header Section */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <ClipboardList className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Schedule Logs</Title>
+              <Text type="secondary">Track meal history and final inventory consumption</Text>
+            </div>
+          </div>
+          <Button 
+            type="primary" 
+            size="large" 
+            icon={<Plus size={18}/>} 
+            onClick={() => window.location.href='/mess/menu-planner'} 
+            className="flex items-center gap-2 shadow-lg shadow-blue-100 h-12 px-6"
           >
-            <InputNumber min={1} style={{ width: '100%' }} placeholder="e.g., 150" />
-          </Form.Item>
-          
-          {selectedSchedule && (
-            <Form.Item name="status" label="Status">
-              <Select>
-                <Option value="scheduled">Scheduled</Option>
-                <Option value="served">Served</Option>
-                <Option value="cancelled">Cancelled</Option>
-              </Select>
-            </Form.Item>
-          )}
+            Plan New Menu
+          </Button>
+        </div>
 
-          <Form.Item>
-            <Button type="primary" htmlType="submit">
-              {selectedSchedule ? "Update Schedule" : "Schedule Menu"}
-            </Button>
-            <Button onClick={() => setModalVisible(false)} style={{ marginLeft: 8 }}>Cancel</Button>
-            {selectedSchedule && (
-              <Button danger onClick={() => { setModalVisible(false); handleDeleteSchedule(selectedSchedule.id); }} style={{ marginLeft: 8 }}>
-                Delete
-              </Button>
-            )}
-          </Form.Item>
-        </Form>
-
-        {selectedSchedule && selectedSchedule.Menu && (
-          <>
-            <Divider />
-            <Title level={5}>Schedule Details</Title>
-            <p><Text strong>Menu:</Text> {selectedSchedule.Menu.name}</p>
-            <p><Text strong>Total Cost for {selectedSchedule.estimated_servings} servings:</Text> ₹{parseFloat(selectedSchedule.total_cost).toFixed(2)}</p>
-            <p><Text strong>Cost per Serving:</Text> ₹{parseFloat(selectedSchedule.cost_per_serving).toFixed(2)}</p>
-            <Title level={5}>Ingredients:</Title>
-            {selectedSchedule.Menu.tbl_Menu_Items?.length > 0 ? (
-              <List
-                size="small"
-                dataSource={selectedSchedule.Menu.tbl_Menu_Items}
-                renderItem={item => (
-                  <List.Item>
-                    {item.tbl_Item?.name} ({item.quantity} {item.unit})
-                  </List.Item>
-                )}
-              />
-            ) : <Text>No ingredients listed for this menu.</Text>}
-          </>
+        {/* Low Stock Alert */}
+        {lowStockAlert && (
+          <Alert
+            className="mb-6 rounded-2xl border-none shadow-sm animate-in fade-in slide-in-from-top-4"
+            message={<Text strong className="text-amber-800">{lowStockAlert.message}</Text>}
+            description={
+              <div className="flex flex-wrap gap-2 mt-2">
+                {lowStockAlert.items.map(item => (
+                  <Tag key={item.name} color="warning" className="rounded-lg border-amber-200">
+                    {item.name}: <span className="font-bold">{parseFloat(item.current_stock).toFixed(2)}</span> / {parseFloat(item.minimum_stock).toFixed(2)}
+                  </Tag>
+                ))}
+              </div>
+            }
+            type="warning"
+            showIcon
+            icon={<AlertTriangle className="text-amber-500" />}
+            closable
+            onClose={() => setLowStockAlert(null)}
+          />
         )}
-      </Modal>
-    </Card>
+
+        {/* Filters Card */}
+        <Card className="mb-6 border-none shadow-sm rounded-2xl">
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex items-center gap-3">
+              <Calendar size={18} className="text-slate-400" />
+              <RangePicker value={dateRange} onChange={setDateRange} className="rounded-lg" />
+            </div>
+            <div className="flex items-center gap-3">
+              <Filter size={18} className="text-slate-400" />
+              <Select
+                style={{ width: 160 }}
+                value={selectedMealType}
+                onChange={(v) => setSelectedMealType(v)}
+                className="rounded-lg"
+              >
+                <Option value="all">All Meals</Option>
+                <Option value="breakfast">Breakfast</Option>
+                <Option value="lunch">Lunch</Option>
+                <Option value="dinner">Dinner</Option>
+                <Option value="snacks">Snacks</Option>
+              </Select>
+            </div>
+            <Button type="primary" icon={<Search size={16}/>} onClick={fetchSchedules} className="rounded-lg px-8">
+              Filter Records
+            </Button>
+          </div>
+        </Card>
+
+        {/* --- MAIN CONTENT LOGIC --- */}
+        {loading ? (
+          <Card className="border-none shadow-sm rounded-[32px] p-8 bg-white">
+            <Skeleton active avatar paragraph={{ rows: 8 }} />
+          </Card>
+        ) : schedules.length === 0 ? (
+          <EmptyState 
+            icon={FileX}
+            title="No Meal Records"
+            subtitle="We couldn't find any meal schedules for this period. Try adjusting your filters or plan a meal template."
+            actionText="Go to Menu Planner"
+            onAction={() => window.location.href='/mess/menu-planner'}
+          />
+        ) : (
+          <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+            <Table
+              columns={columns}
+              dataSource={schedules}
+              rowKey="id"
+              pagination={{ pageSize: 10 }}
+              className="custom-table"
+            />
+          </Card>
+        )}
+
+        {/* Details Modal */}
+        <Modal
+          title={<div className="flex items-center gap-2"><Utensils size={18} className="text-blue-600" /> Meal Finalization</div>}
+          open={detailsModalVisible}
+          onCancel={() => setDetailsModalVisible(false)}
+          footer={<Button onClick={() => setDetailsModalVisible(false)} className="rounded-lg">Close</Button>}
+          width={650}
+          className="rounded-2xl"
+        >
+          {selectedSchedule && (
+            <div className="mt-4">
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <Text className="text-slate-400 text-[10px] uppercase font-bold block mb-1">Schedule Info</Text>
+                  <Text strong className="block text-slate-700">{moment(selectedSchedule.scheduled_date).format('DD MMM YYYY')}</Text>
+                  <Tag bordered={false} style={{ background: `${getMealColor(selectedSchedule.meal_time)}15`, color: getMealColor(selectedSchedule.meal_time) }} className="mt-2 uppercase font-bold text-[10px]">
+                    {selectedSchedule.meal_time}
+                  </Tag>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <Text className="text-slate-400 text-[10px] uppercase font-bold block mb-1">Financial Analysis</Text>
+                  <Text strong className="block text-slate-700">Total: ₹{parseFloat(selectedSchedule.total_cost || 0).toFixed(2)}</Text>
+                  <Text className="text-xs text-blue-600 font-medium">₹{parseFloat(selectedSchedule.cost_per_serving || 0).toFixed(2)} per plate</Text>
+                </div>
+              </div>
+
+              <Divider orientation="left" className="text-slate-400 text-[10px] uppercase tracking-widest">Recipe Ingredients</Divider>
+              <List
+                dataSource={selectedSchedule.Menu?.tbl_Menu_Items || []}
+                renderItem={item => (
+                  <div className="flex justify-between items-center p-3 mb-2 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-shadow">
+                    <div>
+                      <Text strong className="block text-slate-700">{item.tbl_Item?.name}</Text>
+                      <Text type="secondary" className="text-[11px]">Requirement per schedule</Text>
+                    </div>
+                    <Text strong className="text-blue-600 font-mono">{parseFloat(item.quantity || 0).toFixed(2)} {item.unit}</Text>
+                  </div>
+                )}
+                locale={{ emptyText: <Empty description="No components mapped" /> }}
+              />
+
+              {selectedSchedule.status === 'scheduled' && (
+                <div className="mt-8 p-5 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center justify-between">
+                  <div className="max-w-[60%]">
+                    <Text strong className="text-emerald-800 block">Deduct Stock & Close?</Text>
+                    <Text className="text-emerald-600 text-xs">Finalizing will deduct items from your store using FIFO logic for {selectedSchedule.estimated_servings} servings.</Text>
+                  </div>
+                  <Button 
+                    type="primary" 
+                    icon={<CheckCircle2 size={18} />} 
+                    className="bg-emerald-600 hover:bg-emerald-700 border-none shadow-lg shadow-emerald-200 h-11 px-6"
+                    onClick={() => { handleMarkAsServed(selectedSchedule.id); setDetailsModalVisible(false); }}
+                  >
+                    Confirm Service
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </Modal>
+      </div>
+    </ConfigProvider>
   );
 };
 

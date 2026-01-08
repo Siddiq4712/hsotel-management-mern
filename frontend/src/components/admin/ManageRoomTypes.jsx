@@ -1,376 +1,370 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  Card, Typography, Row, Col, Statistic, Button, Space, 
+  Divider, ConfigProvider, theme, Skeleton, Badge, 
+  Tag, Modal, Input, Empty, message, Form, InputNumber,
+  Table, Segmented, Tooltip
+} from 'antd';
+import { 
+  Bed, Plus, Users, AlertCircle, 
+  Edit3, Trash2, RefreshCw, LayoutGrid, Info, Inbox, 
+  Settings2, Activity, List, AlignJustify, Maximize, 
+  Square, Calendar, Hash, ClipboardList
+} from 'lucide-react';
 import { adminAPI } from '../../services/api';
-import { Bed, Plus, Users, CheckCircle, AlertCircle, Edit, Trash2 } from 'lucide-react';
+import moment from 'moment';
+
+const { Title, Text, Paragraph } = Typography;
+const { TextArea } = Input;
+
+// --- Specialized Skeletons ---
+const StatsSkeleton = () => (
+  <Row gutter={[20, 20]} className="mb-8">
+    {[...Array(3)].map((_, i) => (
+      <Col xs={24} md={8} key={i}>
+        <Card className="border-none shadow-sm rounded-[24px] p-5 bg-white">
+          <div className="flex items-center gap-4">
+            <Skeleton.Button active style={{ width: 44, height: 44, borderRadius: 12 }} />
+            <div className="space-y-2 flex-1">
+              <Skeleton.Input active size="small" style={{ width: '50%', height: 10 }} />
+              <Skeleton.Input active size="small" style={{ width: '30%', height: 20 }} />
+            </div>
+          </div>
+        </Card>
+      </Col>
+    ))}
+  </Row>
+);
 
 const ManageRoomTypes = () => {
+  const [form] = Form.useForm();
   const [roomTypes, setRoomTypes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingRoomType, setEditingRoomType] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    capacity: '',
-    description: ''
-  });
-  const [message, setMessage] = useState({ type: '', text: '' });
-  const [createLoading, setCreateLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [btnLoading, setBtnLoading] = useState(false);
+  
+  // View State: 'icons' | 'tiles' | 'list' | 'details' | 'content'
+  const [viewMode, setViewMode] = useState('tiles');
 
-  useEffect(() => {
-    fetchRoomTypes();
-  }, []);
-
-  const fetchRoomTypes = async () => {
+  const fetchRoomTypes = useCallback(async () => {
+    setLoading(true);
     try {
       const response = await adminAPI.getRoomTypes();
       setRoomTypes(response.data.data || []);
     } catch (error) {
-      console.error('Error fetching room types:', error);
-      // If endpoint doesn't exist, show empty array
-      setRoomTypes([]);
+      message.error('Registry sync failed.');
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 600);
     }
+  }, []);
+
+  useEffect(() => { fetchRoomTypes(); }, [fetchRoomTypes]);
+
+  // Derived Stats
+  const stats = useMemo(() => {
+    const capacities = roomTypes.map(r => r.capacity || 0);
+    return [
+      { label: 'Registry Size', val: roomTypes.length, icon: ClipboardList, bg: 'bg-indigo-50', color: 'text-indigo-500' },
+      { label: 'Max Occupancy', val: capacities.length > 0 ? Math.max(...capacities) : 0, icon: Users, bg: 'bg-blue-50', color: 'text-blue-500' },
+      { label: 'Global Configurations', val: new Set(roomTypes.map(r => r.name)).size, icon: Activity, bg: 'bg-emerald-50', color: 'text-emerald-500' },
+    ];
+  }, [roomTypes]);
+
+  const handleOpenModal = (record = null) => {
+    if (record) {
+      setEditingId(record.id);
+      form.setFieldsValue(record);
+    } else {
+      setEditingId(null);
+      form.resetFields();
+    }
+    setIsModalOpen(true);
   };
 
-  const handleCreateRoomType = async (e) => {
-    e.preventDefault();
-    setCreateLoading(true);
-    setMessage({ type: '', text: '' });
-
-    try {
-      await adminAPI.createRoomType({
-        ...formData,
-        capacity: parseInt(formData.capacity)
-      });
-      
-      setMessage({ type: 'success', text: 'Room type created successfully!' });
-      setFormData({ name: '', capacity: '', description: '' });
-      setShowCreateModal(false);
-      fetchRoomTypes();
-    } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to create room type' 
-      });
-    } finally {
-      setCreateLoading(false);
-    }
-  };
-
-  const handleEditRoomType = async (e) => {
-    e.preventDefault();
-    setCreateLoading(true);
-    setMessage({ type: '', text: '' });
-
-    try {
-      await adminAPI.updateRoomType(editingRoomType.id, {
-        ...formData,
-        capacity: parseInt(formData.capacity)
-      });
-      
-      setMessage({ type: 'success', text: 'Room type updated successfully!' });
-      setFormData({ name: '', capacity: '', description: '' });
-      setShowEditModal(false);
-      setEditingRoomType(null);
-      fetchRoomTypes();
-    } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to update room type' 
-      });
-    } finally {
-      setCreateLoading(false);
-    }
-  };
-
-  const handleDeleteRoomType = async (roomTypeId) => {
-    if (!window.confirm('Are you sure you want to delete this room type?')) {
-      return;
-    }
-
-    try {
-      await adminAPI.deleteRoomType(roomTypeId);
-      setMessage({ type: 'success', text: 'Room type deleted successfully!' });
-      fetchRoomTypes();
-    } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to delete room type' 
-      });
-    }
-  };
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
+  const handleDelete = (id) => {
+    Modal.confirm({
+      title: 'Void Room Type?',
+      icon: <AlertCircle className="text-rose-500 mr-2" strokeWidth={1.5} />,
+      content: 'This will remove the room configuration from the institutional registry.',
+      okText: 'Confirm Deletion',
+      okType: 'danger',
+      cancelText: 'Abort',
+      onOk: async () => {
+        try {
+          await adminAPI.deleteRoomType(id);
+          message.success('Entry purged.');
+          fetchRoomTypes();
+        } catch (e) { message.error('Dependency error occurred.'); }
+      }
     });
   };
 
-  const openEditModal = (roomType) => {
-    setEditingRoomType(roomType);
-    setFormData({
-      name: roomType.name,
-      capacity: roomType.capacity.toString(),
-      description: roomType.description || ''
-    });
-    setShowEditModal(true);
+  const handleFinish = async (values) => {
+    setBtnLoading(true);
+    try {
+      if (editingId) {
+        await adminAPI.updateRoomType(editingId, values);
+        message.success('Inventory updated.');
+      } else {
+        await adminAPI.createRoomType(values);
+        message.success('New template deployed.');
+      }
+      setIsModalOpen(false);
+      fetchRoomTypes();
+    } catch (error) {
+      message.error('Action failed.');
+    } finally {
+      setBtnLoading(false);
+    }
   };
 
-  const closeModals = () => {
-    setShowCreateModal(false);
-    setShowEditModal(false);
-    setEditingRoomType(null);
-    setFormData({ name: '', capacity: '', description: '' });
-    setMessage({ type: '', text: '' });
-  };
+  // --- VIEW RENDERERS ---
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  const renderIconsView = () => (
+    <Row gutter={[16, 16]}>
+      {roomTypes.map(type => (
+        <Col xs={12} sm={8} md={6} lg={4} key={type.id}>
+          <div className="group relative bg-white p-6 rounded-2xl border border-transparent hover:border-blue-200 hover:shadow-xl hover:shadow-blue-50 transition-all flex flex-col items-center text-center cursor-pointer" onClick={() => handleOpenModal(type)}>
+             <div className="p-4 bg-slate-50 rounded-2xl text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors mb-3">
+                <Bed size={40} strokeWidth={1.2} />
+             </div>
+             <Text strong className="block truncate w-full text-slate-700">{type.name}</Text>
+             <Text type="secondary" className="text-[10px] uppercase">Cap: {type.capacity}</Text>
+          </div>
+        </Col>
+      ))}
+    </Row>
+  );
+
+  const renderTilesView = () => (
+    <Row gutter={[20, 20]}>
+      {roomTypes.map(type => (
+        <Col xs={24} md={12} lg={8} key={type.id}>
+          <Card className="border-none shadow-sm rounded-2xl hover:shadow-md transition-all overflow-hidden border-l-4 border-l-blue-500">
+            <div className="flex justify-between items-start">
+              <Space align="start" size={12}>
+                <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                  <Bed size={20} />
+                </div>
+                <div>
+                  <Text strong className="text-base block leading-tight">{type.name}</Text>
+                  <Text type="secondary" className="text-[11px]">ID: #TPL-{type.id}</Text>
+                </div>
+              </Space>
+              <div className="flex gap-1">
+                <Button type="text" size="small" icon={<Edit3 size={14}/>} onClick={() => handleOpenModal(type)} />
+                <Button type="text" size="small" danger icon={<Trash2 size={14}/>} onClick={() => handleDelete(type.id)} />
+              </div>
+            </div>
+            <div className="mt-4 flex gap-4">
+              <div className="flex-1">
+                 <Text type="secondary" className="text-[10px] uppercase block mb-1">Capacity</Text>
+                 <Tag color="blue" className="rounded-md m-0">{type.capacity} Pax</Tag>
+              </div>
+              <div className="flex-[2]">
+                 <Text type="secondary" className="text-[10px] uppercase block mb-1">Description</Text>
+                 <Paragraph ellipsis={{ rows: 1 }} className="text-xs m-0 text-slate-500 font-light">{type.description || 'No notes.'}</Paragraph>
+              </div>
+            </div>
+          </Card>
+        </Col>
+      ))}
+    </Row>
+  );
+
+  const renderListView = () => (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      {roomTypes.map((type, idx) => (
+        <div key={type.id} className={`flex items-center justify-between p-4 hover:bg-blue-50/50 transition-colors ${idx !== roomTypes.length - 1 ? 'border-b border-slate-50' : ''}`}>
+           <Space size={16}>
+              <Bed size={18} className="text-slate-400" />
+              <Text strong className="min-w-[150px]">{type.name}</Text>
+              <Tag className="rounded-full border-none bg-slate-100 text-slate-600 px-3">{type.capacity} Persons</Tag>
+              <Text type="secondary" className="text-xs italic truncate max-w-md">{type.description}</Text>
+           </Space>
+           <Space>
+             <Button type="text" size="small" icon={<Edit3 size={16}/>} onClick={() => handleOpenModal(type)} />
+             <Button type="text" size="small" danger icon={<Trash2 size={16}/>} onClick={() => handleDelete(type.id)} />
+           </Space>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderDetailsView = () => (
+    <Table 
+      dataSource={roomTypes} 
+      rowKey="id"
+      className="bg-white rounded-2xl shadow-sm overflow-hidden"
+      pagination={false}
+      columns={[
+        { title: 'Template Name', dataIndex: 'name', render: (t) => <Text strong color="blue">{t}</Text> },
+        { title: 'Capacity', dataIndex: 'capacity', render: (c) => <Badge count={c} color="#3b82f6" overflowCount={10} /> },
+        { title: 'Description', dataIndex: 'description', ellipsis: true },
+        { title: 'Date Created', dataIndex: 'createdAt', render: (d) => moment(d).format('MMM DD, YYYY') },
+        { 
+          title: 'Actions', 
+          key: 'action', 
+          align: 'right',
+          render: (_, record) => (
+            <Space>
+              <Button type="link" size="small" onClick={() => handleOpenModal(record)}>Edit</Button>
+              <Button type="link" danger size="small" onClick={() => handleDelete(record.id)}>Void</Button>
+            </Space>
+          ) 
+        }
+      ]} 
+    />
+  );
+
+  const renderContentView = () => (
+    <div className="space-y-4">
+      {roomTypes.map(type => (
+        <Card key={type.id} className="border-none shadow-sm rounded-3xl overflow-hidden hover:shadow-md transition-shadow">
+          <Row gutter={24} align="middle">
+            <Col md={4} className="flex justify-center border-r border-slate-50">
+               <div className="p-8 bg-slate-50 rounded-full text-blue-500">
+                  <Bed size={48} strokeWidth={1} />
+               </div>
+            </Col>
+            <Col md={14}>
+               <Title level={4} className="mb-1">{type.name}</Title>
+               <Space className="mb-3 text-slate-400 text-xs uppercase tracking-widest">
+                  <Hash size={12}/> TPL-{type.id} <Divider type="vertical" /> <Users size={12}/> Capacity: {type.capacity}
+               </Space>
+               <Paragraph className="text-slate-500 m-0 leading-relaxed font-light italic">
+                 "{type.description || 'System standard room configuration with default institutional amenities.'}"
+               </Paragraph>
+            </Col>
+            <Col md={6} className="text-right">
+               <div className="flex flex-col gap-2 p-4">
+                 <Button type="primary" ghost icon={<Edit3 size={14}/>} className="rounded-xl" onClick={() => handleOpenModal(type)}>Modify Template</Button>
+                 <Button danger ghost icon={<Trash2 size={14}/>} className="rounded-xl" onClick={() => handleDelete(type.id)}>Delete Entry</Button>
+               </div>
+            </Col>
+          </Row>
+        </Card>
+      ))}
+    </div>
+  );
 
   return (
-    <div>
-      <div className="mb-8 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Manage Room Types</h1>
-          <p className="text-gray-600 mt-2">Create and manage different types of rooms</p>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 14 } }}>
+      <div className="p-8 bg-slate-50 min-h-screen">
+        
+        {/* Header Section */}
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-10">
+          <div className="flex items-center gap-5">
+            <div className="p-4 bg-blue-600 rounded-2xl shadow-xl shadow-blue-200 rotate-3 transition-transform">
+              <LayoutGrid className="text-white" size={28} strokeWidth={1.5} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0, fontWeight: 600, letterSpacing: '-0.02em' }}>Room Infrastructure</Title>
+              <Text type="secondary" className="font-light">Institutional room specifications and occupancy templates</Text>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-4 bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
+            <Segmented
+              value={viewMode}
+              onChange={setViewMode}
+              options={[
+                { label: <Tooltip title="Icons"><Square size={16} className="mt-1.5 mx-auto"/></Tooltip>, value: 'icons' },
+                { label: <Tooltip title="Tiles"><LayoutGrid size={16} className="mt-1.5 mx-auto"/></Tooltip>, value: 'tiles' },
+                { label: <Tooltip title="List"><AlignJustify size={16} className="mt-1.5 mx-auto"/></Tooltip>, value: 'list' },
+                { label: <Tooltip title="Details"><List size={16} className="mt-1.5 mx-auto"/></Tooltip>, value: 'details' },
+                { label: <Tooltip title="Content"><Maximize size={16} className="mt-1.5 mx-auto"/></Tooltip>, value: 'content' },
+              ]}
+              className="p-1 bg-slate-100 rounded-xl"
+            />
+            <Divider type="vertical" className="h-8" />
+            <Button icon={<RefreshCw size={16}/>} onClick={fetchRoomTypes} type="text" className="rounded-xl">Sync</Button>
+            <Button type="primary" icon={<Plus size={18}/>} onClick={() => handleOpenModal()} className="rounded-xl px-6 h-10 shadow-lg shadow-blue-100 border-none">Create Template</Button>
+          </div>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+
+        {loading ? (
+          <>
+            <StatsSkeleton />
+            <Skeleton active avatar paragraph={{ rows: 4 }} className="bg-white p-8 rounded-3xl" />
+          </>
+        ) : (
+          <div className="animate-in fade-in duration-700">
+            {/* Stats Cards Section */}
+            <Row gutter={[20, 20]} className="mb-8">
+              {stats.map((stat, i) => (
+                <Col xs={24} md={8} key={i}>
+                  <Card className="border-none shadow-sm rounded-[24px] p-5 bg-white hover:bg-slate-50/50 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center`}>
+                        <stat.icon size={20} strokeWidth={1.5} />
+                      </div>
+                      <div className="flex flex-col">
+                        <Text className="text-[11px] uppercase text-slate-400 tracking-wider" style={{ fontWeight: 400 }}>{stat.label}</Text>
+                        <Text className="text-2xl text-slate-700" style={{ fontWeight: 500, lineHeight: 1.2 }}>{stat.val}</Text>
+                      </div>
+                    </div>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+
+            {/* Main Content Area */}
+            {roomTypes.length === 0 ? (
+               <div className="py-24 flex flex-col items-center justify-center bg-white rounded-[32px] shadow-sm border border-slate-50">
+                 <Empty image={<Inbox size={64} className="text-slate-200 mb-4" />} description="Registry is currently empty." />
+               </div>
+            ) : (
+              <>
+                {viewMode === 'icons' && renderIconsView()}
+                {viewMode === 'tiles' && renderTilesView()}
+                {viewMode === 'list' && renderListView()}
+                {viewMode === 'details' && renderDetailsView()}
+                {viewMode === 'content' && renderContentView()}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Action Modal */}
+        <Modal
+          title={
+            <div className="flex items-center gap-3 py-2 border-b border-slate-50 w-full">
+              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Settings2 size={20}/></div>
+              <span className="font-semibold text-slate-700">{editingId ? 'Modify Template' : 'Register Template'}</span>
+            </div>
+          }
+          open={isModalOpen}
+          onCancel={() => setIsModalOpen(false)}
+          footer={null}
+          width={450}
+          centered
+          className="rounded-3xl overflow-hidden"
         >
-          <Plus size={20} className="mr-2" />
-          Create Room Type
-        </button>
+          <Form form={form} layout="vertical" onFinish={handleFinish} className="mt-6 px-2">
+            <Form.Item name="name" label={<Text strong className="text-[11px] text-slate-400 uppercase tracking-widest">Template Label</Text>} rules={[{ required: true }]}>
+              <Input placeholder="e.g., Executive Suite" className="h-12 bg-slate-50 border-none rounded-xl focus:bg-white transition-all" />
+            </Form.Item>
+            
+            <Form.Item name="capacity" label={<Text strong className="text-[11px] text-slate-400 uppercase tracking-widest">Pax Capacity</Text>} rules={[{ required: true }]}>
+              <InputNumber min={1} max={12} className="w-full h-12 bg-slate-50 border-none rounded-xl flex items-center" />
+            </Form.Item>
+
+            <Form.Item name="description" label={<Text strong className="text-[11px] text-slate-400 uppercase tracking-widest">Internal Remarks</Text>}>
+              <TextArea rows={4} placeholder="Specifications..." className="bg-slate-50 border-none rounded-xl focus:bg-white transition-all p-4" />
+            </Form.Item>
+
+            <div className="flex gap-3 mt-8">
+              <Button onClick={() => setIsModalOpen(false)} className="flex-1 h-12 rounded-xl font-medium border-slate-200">Cancel</Button>
+              <Button type="primary" block htmlType="submit" loading={btnLoading} className="flex-[2] h-12 rounded-xl font-semibold shadow-xl shadow-blue-100 border-none">
+                {editingId ? 'Update Template' : 'Deploy Template'}
+              </Button>
+            </div>
+          </Form>
+        </Modal>
       </div>
-
-      {message.text && (
-        <div className={`mb-4 p-3 rounded-lg flex items-center ${
-          message.type === 'success' 
-            ? 'bg-green-100 border border-green-400 text-green-700' 
-            : 'bg-red-100 border border-red-400 text-red-700'
-        }`}>
-          {message.type === 'success' ? (
-            <CheckCircle size={20} className="mr-2" />
-          ) : (
-            <AlertCircle size={20} className="mr-2" />
-          )}
-          {message.text}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {roomTypes.map((roomType) => (
-          <div key={roomType.id} className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <div className="bg-blue-100 p-3 rounded-lg">
-                  <Bed className="text-blue-600" size={24} />
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-lg font-semibold text-gray-900">{roomType.name}</h3>
-                </div>
-              </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => openEditModal(roomType)}
-                  className="text-blue-600 hover:text-blue-800 p-1"
-                >
-                  <Edit size={16} />
-                </button>
-                <button
-                  onClick={() => handleDeleteRoomType(roomType.id)}
-                  className="text-red-600 hover:text-red-800 p-1"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center text-sm text-gray-600">
-                <Users size={16} className="mr-2" />
-                Capacity: {roomType.capacity} persons
-              </div>
-
-              {roomType.description && (
-                <div className="text-sm text-gray-600">
-                  <p className="font-medium">Description:</p>
-                  <p className="mt-1">{roomType.description}</p>
-                </div>
-              )}
-
-              <div className="text-sm text-gray-500 pt-2 border-t border-gray-200">
-                Created: {new Date(roomType.createdAt).toLocaleDateString()}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {roomTypes.length === 0 && (
-        <div className="text-center py-12">
-          <Bed className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No room types</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Get started by creating your first room type.
-          </p>
-        </div>
-      )}
-
-      {/* Create Room Type Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Create Room Type</h3>
-              
-              <form onSubmit={handleCreateRoomType} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Room Type Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g., Single Room, Double Room"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Capacity *
-                  </label>
-                  <input
-                    type="number"
-                    name="capacity"
-                    value={formData.capacity}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Number of persons"
-                    min="1"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Optional description..."
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="submit"
-                    disabled={createLoading}
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  >
-                    {createLoading ? 'Creating...' : 'Create'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeModals}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Room Type Modal */}
-      {showEditModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-            <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Edit Room Type</h3>
-              
-              <form onSubmit={handleEditRoomType} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Room Type Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Capacity *
-                  </label>
-                  <input
-                    type="number"
-                    name="capacity"
-                    value={formData.capacity}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    min="1"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Description
-                  </label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="submit"
-                    disabled={createLoading}
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-                  >
-                    {createLoading ? 'Updating...' : 'Update'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeModals}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </ConfigProvider>
   );
 };
 

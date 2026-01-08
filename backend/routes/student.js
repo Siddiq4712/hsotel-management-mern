@@ -1,41 +1,68 @@
-// routes/studentRoutes.js - Complete version
-
+// In studentRoutes.js
 const express = require('express');
-const { 
-  // Profile Management
-  getProfile, updateProfile,
-  // Mess Bills Management
-  getMessBills, getMessBillById, getMyMessCharges,
-  // Leave Management - Complete CRUD
-  applyLeave, getMyLeaves, getLeaveById, updateLeave, deleteLeave,
-  
-  // Complaint Management - Complete CRUD
-  createComplaint, getMyComplaints, getComplaintById, updateComplaint, deleteComplaint,
-  
-  // Transaction History
-  getTransactions, getTransactionById,
-  
-  // Attendance
+const {
+  getProfile,
+  updateProfile,
+  getMessBills,
+  getMessBillById,
+  getMyMessCharges,
+  applyLeave,
+  getMyLeaves,
+  getLeaveById,
+  updateLeave,
+  deleteLeave,
+  createComplaint,
+  getMyComplaints,
+  getComplaintById,
+  updateComplaint,
+  deleteComplaint,
+  getTransactions,
+  getTransactionById,
   getMyAttendance,
-  
-  // Facility Usage - Complete CRUD
-  getFacilities, useFacility, getMyFacilityUsage, getFacilityUsageById, updateFacilityUsage, deleteFacilityUsage,
-  
-  // Meal Tokens
-  getMyTokens, getTokenById,
-  
-  // Dashboard
-  getDashboardStats
+  getFacilities,
+  useFacility,
+  getMyFacilityUsage,
+  getFacilityUsageById,
+  updateFacilityUsage,
+  deleteFacilityUsage,
+  getMyTokens,
+  getTokenById,
+  getDashboardStats,
+  getAvailableSpecialFoodItems,
+  getSpecialFoodItemCategories,
+  getMyDailyMessCharges,
+  getMonthlyMessExpensesChartData, // Add this
+  getMonthlyAttendanceChartData,   // Add this
+  getRoommates,
+  getStudentHostelLayout,
+  getStudentRooms,
+  getStudentRoomTypes,
+  getStudentRoomOccupants,
+  getMyRoomRequests,
+  requestRoomBooking,
+  cancelRoomRequest,
+  applyDayReduction,
+  getMyDayReductionRequests,
+  applyRebate,
+  getMyRebates
 } = require('../controllers/studentController');
-
+const {
+  createFoodOrder,
+  getFoodOrders,       // <-- The powerful function
+  getFoodOrderById,
+  cancelFoodOrder,
+} = require('../controllers/messController'); // <-- Point to messController
 const { auth, authorize } = require('../middleware/auth');
 
 const router = express.Router();
-
-// Apply authentication and authorization middleware
+const rateLimit = require('express-rate-limit');
 router.use(auth);
-router.use(authorize(['student']));
-
+router.use(authorize(['student','lapc']));
+const createOrderLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each user to 10 food order creations per window
+  message: 'Too many food order requests, please try again later.'
+});
 // Dashboard Statistics
 router.get('/dashboard-stats', getDashboardStats);
 
@@ -44,41 +71,69 @@ router.get('/profile', getProfile);
 router.put('/profile', updateProfile);
 
 // Mess Bills Management Routes
-router.get('/mess-bills', getMessBills);
+router.get('/mess-bills', getMessBills); // Already correctly defined
 router.get('/mess-bills/:id', getMessBillById);
-router.get('/mess-charges', getMyMessCharges);
 
-// Leave Management Routes - Complete CRUD
-router.post('/leave-requests', applyLeave);           // Create leave request
-router.get('/leave-requests', getMyLeaves);          // Get all my leaves with filters
-router.get('/leave-requests/:id', getLeaveById);     // Get specific leave by ID
-router.put('/leave-requests/:id', updateLeave);      // Update leave request (only pending)
-router.delete('/leave-requests/:id', deleteLeave);   // Delete leave request (only pending)
+// Leave Management Routes
+router.post('/leave-requests', applyLeave);
+router.get('/leave-requests', getMyLeaves);
+router.get('/leave-requests/:id', getLeaveById);
+router.put('/leave-requests/:id', updateLeave);
+router.delete('/leave-requests/:id', deleteLeave);
 
-// Complaint Management Routes - Complete CRUD
-router.post('/complaints', createComplaint);         // Create new complaint
-router.get('/complaints', getMyComplaints);          // Get all my complaints with filters
-router.get('/complaints/:id', getComplaintById);     // Get specific complaint by ID
-router.put('/complaints/:id', updateComplaint);      // Update complaint (only submitted status)
-router.delete('/complaints/:id', deleteComplaint);   // Delete complaint (only submitted status)
+// Complaint Management Routes
+router.post('/complaints', createComplaint);
+router.get('/complaints', getMyComplaints);
+router.get('/complaints/:id', getComplaintById);
+router.put('/complaints/:id', updateComplaint);
+router.delete('/complaints/:id', deleteComplaint);
 
 // Transaction History Routes
-router.get('/transactions', getTransactions);        // Get all transactions with filters
-router.get('/transactions/:id', getTransactionById); // Get specific transaction by ID
+router.get('/transactions', getTransactions);
+router.get('/transactions/:id', getTransactionById);
 
 // Attendance Routes
-router.get('/attendance', getMyAttendance);          // Get attendance history with filters
+router.get('/attendance', getMyAttendance);
 
-// Facility Usage Routes - Complete CRUD
-router.get('/facilities', getFacilities);                        // Get available facilities with filters
-router.post('/facility-usage', useFacility);                     // Record new facility usage
-router.get('/facility-usage', getMyFacilityUsage);               // Get all my facility usage with filters
-router.get('/facility-usage/:id', getFacilityUsageById);         // Get specific facility usage by ID
-router.put('/facility-usage/:id', updateFacilityUsage);          // Update facility usage (within 24 hours)
-router.delete('/facility-usage/:id', deleteFacilityUsage);       // Delete facility usage (within 24 hours)
+// Facility Usage Routes
+router.get('/facilities', getFacilities);
+router.post('/facility-usage', useFacility);
+router.get('/facility-usage', getMyFacilityUsage);
+router.get('/facility-usage/:id', getFacilityUsageById);
+router.put('/facility-usage/:id', updateFacilityUsage);
+router.delete('/facility-usage/:id', deleteFacilityUsage);
 
 // Meal Tokens Routes
-router.get('/tokens', getMyTokens);                  // Get all my tokens with filters
-router.get('/tokens/:id', getTokenById);             // Get specific token by ID
+router.get('/tokens', getMyTokens);
+router.get('/tokens/:id', getTokenById);
 
+
+// NEW: Special Food Items and Orders Routes for students/lapc
+router.get('/special-food-items',getAvailableSpecialFoodItems);
+router.get('/special-food-item-categories',getSpecialFoodItemCategories);
+
+// These routes now use the CENTRALIZED controller logic from messController
+router.post('/food-orders', createOrderLimiter, createFoodOrder);
+router.get('/food-orders', getFoodOrders); // <-- This now calls the correct function
+router.get('/food-orders/:id', getFoodOrderById);
+router.put('/food-orders/:id/cancel', cancelFoodOrder);
+// KEEP THIS LINE
+router.get('/daily-mess-charges', auth, getMyDailyMessCharges);
+router.get('/chart-data/mess-expenses', auth, authorize(['student', 'lapc']), getMonthlyMessExpensesChartData);
+router.get('/chart-data/attendance', auth, authorize(['student', 'lapc']), getMonthlyAttendanceChartData);
+
+router.get('/roommates', getRoommates);
+
+router.get('/hostel-layout', getStudentHostelLayout);
+router.get('/rooms', getStudentRooms);
+router.get('/room-types', getStudentRoomTypes);
+router.get('/rooms/:id/occupants', getStudentRoomOccupants);
+router.get('/room-requests', getMyRoomRequests);
+router.post('/room-requests', requestRoomBooking);
+router.delete('/room-requests/:id', cancelRoomRequest);
+router.post('/day-reduction-requests', applyDayReduction);
+router.get('/day-reduction-requests', getMyDayReductionRequests); // To allow students to view their own requests
+
+router.post('/rebates', applyRebate);
+router.get('/rebates', getMyRebates);
 module.exports = router;
