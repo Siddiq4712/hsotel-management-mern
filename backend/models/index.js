@@ -3371,7 +3371,20 @@ RoomRequest.belongsTo(Hostel, { foreignKey: "hostel_id" });
 User.hasMany(RoomRequest, { foreignKey: "student_id", as: "RoomRequests" });
 HostelRoom.hasMany(RoomRequest, { foreignKey: "room_id", as: "RoomRequests" });
 Hostel.hasMany(RoomRequest, { foreignKey: "hostel_id", as: "RoomRequests" });
-
+const DailyRateLog = sequelize.define('DailyRateLog', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: false },
+  month: { type: DataTypes.INTEGER, allowNull: false },
+  year: { type: DataTypes.INTEGER, allowNull: false },
+  gross_expenses: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+  total_deductions: { type: DataTypes.DECIMAL(12, 2), allowNull: false },
+  total_man_days: { type: DataTypes.INTEGER, allowNull: false },
+  daily_rate: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+  saved_by: { type: DataTypes.INTEGER }
+}, {
+  tableName: 'tbl_DailyRateLog',
+  indexes: [{ unique: true, fields: ['hostel_id', 'month', 'year'] }]
+});
 
 module.exports = {
   sequelize,
@@ -3452,5 +3465,6 @@ module.exports = {
   RestockPlan,
   DayReductionRequest,
   Recipe,
-  RecipeItem
+  RecipeItem,
+  DailyRateLog
 };

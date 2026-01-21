@@ -1,339 +1,366 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal, Image } from "react-native";
+import {
+  View, Text, ScrollView, ActivityIndicator, TouchableOpacity,
+  StyleSheet, Dimensions, Modal, Image, Alert
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { 
+  Bed, ShieldCheck, ShowerHead, Laptop, 
+  Layers, X, Home, Clock, AlertCircle, 
+  ChevronRight, Users, User as UserIcon 
+} from 'lucide-react-native';
 import { studentAPI } from "../../api/api";
-import { Home, Users, Bed, DoorOpen, XCircle } from 'lucide-react-native';
 import Header from '../../components/common/Header';
-import { indexToLetters, lettersToIndex, parseSlot, deriveSlotFromRoomNumber, generateGridShape } from '../../utils/layoutUtils';
-import RoomGridCell from '../../components/student/RoomGridCell';
 
-const EntranceLabel = ({ side }) => {
-  if (!side) return null;
-  const label = <Text className="font-bold text-xs text-red-600">ENTRANCE</Text>;
-  if (side === "t") return <View className="text-center mb-1">{label}</View>;
-  if (side === "b") return <View className="text-center mt-1">{label}</View>;
-  if (side === "l")
-    return (
-      <View className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full rotate-90">
-        {label}
-      </View>
-    );
-  if (side === "r")
-    return (
-      <View className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full -rotate-90">
-        {label}
-      </View>
-    );
-  return null;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+/* ---------- ARCHITECTURAL CONSTANTS ---------- */
+const ROOM_TYPES = {
+  STUDENT: { key: "STUDENT", name: "Student", icon: Bed },
+  WARDEN: { key: "WARDEN", name: "Warden", icon: ShieldCheck },
+  FACULTY_ROOM: { key: "FACULTY", name: "Faculty", icon: Laptop },
+  WASHROOM: { key: "UTILITY", name: "Utility", icon: ShowerHead },
+};
+
+/* ---------- DYNAMIC ARCHITECTURAL GRID GENERATOR ---------- */
+const generateArchitecturalGrid = (config) => {
+  const { building_type, top_rooms, bottom_rooms, left_rooms, right_rooms, orientation, open_side } = config;
+  const width = Math.max(top_rooms || 0, bottom_rooms || 0) + 2;
+  const height = Math.max(left_rooms || 0, right_rooms || 0) + 2;
+  const grid = Array(height).fill(0).map(() => Array(width).fill("EMPTY"));
+  
+  const setType = (r, c, type) => { if (grid[r] && grid[r][c] !== undefined) grid[r][c] = type; };
+  
+  const hasTop = building_type === 'square' || (building_type === 'u' && open_side !== 't') || (building_type === 'l' && orientation?.includes('t')) || building_type === 'single';
+  const hasBottom = building_type === 'square' || (building_type === 'u' && open_side !== 'b') || (building_type === 'l' && orientation?.includes('b'));
+  const hasLeft = building_type === 'square' || (building_type === 'u' && open_side !== 'l') || (building_type === 'l' && orientation?.includes('l'));
+  const hasRight = building_type === 'square' || (building_type === 'u' && open_side !== 'r') || (building_type === 'l' && orientation?.includes('r'));
+
+  setType(0, 0, "VOID"); setType(0, width - 1, "VOID");
+  setType(height - 1, 0, "VOID"); setType(height - 1, width - 1, "VOID");
+
+  if (hasTop) for (let i = 1; i <= top_rooms; i++) { setType(0, i, "ROOM"); setType(1, i, "WALK"); }
+  if (hasBottom) for (let i = 1; i <= bottom_rooms; i++) { setType(height - 1, i, "ROOM"); setType(height - 2, i, "WALK"); }
+  if (hasLeft) for (let j = 1; j <= left_rooms; j++) { setType(j, 0, "ROOM"); setType(j, 1, "WALK"); }
+  if (hasRight) for (let j = 1; j <= right_rooms; j++) { setType(j, width - 1, "ROOM"); setType(j, width - 2, "WALK"); }
+  
+  return grid;
 };
 
 const ViewRoomsScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
-  const [layout, setLayout] = useState(null);
-  const [grid, setGrid] = useState([]);
-  const [cellMap, setCellMap] = useState({});
+  const [layoutConfig, setLayoutConfig] = useState(null);
+  const [blueprintData, setBlueprintData] = useState({});
+  const [roomsLiveMap, setRoomsLiveMap] = useState({});
   const [myRequests, setMyRequests] = useState([]);
+  const [hasActiveAllotment, setHasActiveAllotment] = useState(false);
+  
   const [selectedRoom, setSelectedRoom] = useState(null);
+  const [occupants, setOccupants] = useState([]);
+  const [occupantsLoading, setOccupantsLoading] = useState(false);
   const [requestingRoomId, setRequestingRoomId] = useState(null);
-  const [error, setError] = useState(null);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
-
-      const [layoutRes, roomsRes, typesRes, requestsRes] = await Promise.all([
+      const [layoutRes, roomsRes, requestsRes, profileRes] = await Promise.all([
         studentAPI.getLayout(),
         studentAPI.getRooms(),
-        studentAPI.getRoomTypes(),
         studentAPI.getMyRoomRequests(),
+        studentAPI.getProfile(),
       ]);
 
-      const layoutData = layoutRes.data?.data;
-      if (!layoutData) {
-        setLayout(null);
-        setGrid([]);
-        setCellMap({});
-        setMyRequests([]);
-        return;
+      const config = layoutRes.data?.data;
+      if (config) {
+        setLayoutConfig(config);
+        if (config.layout_json) setBlueprintData(JSON.parse(config.layout_json));
       }
 
-      setLayout(layoutData);
-      setGrid(
-        generateGridShape({
-          buildingType: layoutData.building_type,
-          topRooms: layoutData.top_rooms ?? 0,
-          bottomRooms: layoutData.bottom_rooms ?? 0,
-          leftRooms: layoutData.left_rooms ?? 0,
-          rightRooms: layoutData.right_rooms ?? 0,
-          uOpenSide: layoutData.open_side,
-          lOrientation: layoutData.orientation,
-        }),
-      );
-
-      const rooms = roomsRes.data?.data || [];
-      const types = typesRes.data?.data || [];
-      const requests = requestsRes.data?.data || [];
-
-      const roomPromises = rooms.map(async (room) => {
-        const slot = room.layout_slot || deriveSlotFromRoomNumber(room.room_number, layoutData.floors);
-        if (!slot) return null;
-
-        const type = types.find((t) => t.id === room.room_type_id);
-        let occupants = [];
-        try {
-          const occRes = await studentAPI.getRoomOccupants(room.id);
-          occupants = occRes.data?.data || [];
-        } catch (occErr) {
-          console.warn("Failed to load occupants for room", room.id, occErr);
+      const liveRooms = roomsRes.data?.data || [];
+      const liveMap = {};
+      liveRooms.forEach(room => {
+        if (room.layout_slot) {
+          const parts = room.layout_slot.split('-');
+          // Normalize Floor-Row-Col to Row-Col for grid mapping
+          const slot = parts.length === 3 ? `${parts[1]}-${parts[2]}` : room.layout_slot;
+          liveMap[slot] = room;
         }
-
-        return {
-          slot,
-          data: {
-            room_id: room.id,
-            room_number: room.room_number,
-            name: type?.name || room.room_number || "Room",
-            capacity: type?.capacity || room.capacity || 1,
-            inactive: !room.is_active,
-            occupants,
-            description: type?.description || "",
-            floor: room.floor,
-            remaining: Math.max(0, (type?.capacity || room.capacity || 1) - occupants.length),
-            occupancy: occupants.length,
-          },
-        };
       });
-
-      const resolved = (await Promise.all(roomPromises)).filter(Boolean);
-      const mapping = resolved.reduce((acc, item) => {
-        acc[item.slot] = item.data;
-        return acc;
-      }, {});
-
-      setCellMap(mapping);
-      setMyRequests(requests);
+      setRoomsLiveMap(liveMap);
+      setMyRequests(requestsRes.data?.data || []);
+      setHasActiveAllotment(!!profileRes.data?.data?.tbl_RoomAllotments?.[0]);
     } catch (err) {
-      console.error("Failed to load layout for student:", err);
-      setError(err?.message || "Failed to load room layout. Please try again.");
+      console.error("Fetch Error:", err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const currentRequestForRoom = useCallback(
-    (roomId) => myRequests.find((req) => req.room_id === roomId && !["cancelled", "rejected"].includes(req.status)),
-    [myRequests],
-  );
+  const grid = useMemo(() => layoutConfig ? generateArchitecturalGrid(layoutConfig) : [], [layoutConfig]);
 
-  const handleRequestRoom = async (room) => {
-    if (!room || room.remaining <= 0) return;
-    if (currentRequestForRoom(room.room_id)) return;
-
-    setRequestingRoomId(room.room_id);
+  const handleRoomClick = async (room) => {
+    setSelectedRoom(room);
+    setOccupantsLoading(true);
     try {
-      await studentAPI.requestRoomBooking({ room_id: room.room_id });
-      await loadData();
-      Alert.alert("Success", "Room request submitted! You will receive an update once the warden reviews it.");
-      setSelectedRoom(null);
+      const res = await studentAPI.getRoomOccupants(room.id);
+      setOccupants(res.data?.data || []);
     } catch (err) {
-      console.error("Room request failed:", err);
-      Alert.alert("Error", err?.message || "Unable to request this room right now. Please try again.");
+      console.error(err);
+    } finally {
+      setOccupantsLoading(false);
+    }
+  };
+
+  const handleRequestRoom = async (roomId) => {
+    setRequestingRoomId(roomId);
+    try {
+      await studentAPI.requestRoom({ room_id: roomId, is_change_request: hasActiveAllotment });
+      Alert.alert("Success", "Room request submitted.");
+      setSelectedRoom(null);
+      loadData();
+    } catch (err) {
+      Alert.alert("Error", err.response?.data?.message || "Booking failed.");
     } finally {
       setRequestingRoomId(null);
     }
   };
 
-  const RoomLayoutDisplay = useMemo(() => {
-    if (!layout) return null;
-    return (
-      <View className="relative">
-        <EntranceLabel side={layout.entrance_side} />
-        {Array.from({ length: layout.floors }).map((_, floorIdx) => (
-          <View key={floorIdx} className="mb-10">
-            <View className="mb-3 flex-row items-center justify-between">
-              <Text className="text-lg font-semibold">Floor {layout.floors - floorIdx}</Text>
-            </View>
-
-            {grid.map((row, rowIdx) => (
-              <View key={`${floorIdx}-${rowIdx}`} className="flex-row">
-                {row.map((cell, colIdx) => {
-                  const slot = `${floorIdx}-${rowIdx}-${colIdx}`;
-                  const data = cellMap[slot];
-                  if (cell === "EMPTY") {
-                    return <View key={slot} className="w-20 h-20 m-1" />; // Placeholder for empty cells
-                  }
-                  return (
-                    <RoomGridCell
-                      key={slot}
-                      roomData={data}
-                      currentRequestForRoom={currentRequestForRoom}
-                      onPress={data ? () => setSelectedRoom({ ...data, slot }) : null}
-                    />
-                  );
-                })}
-              </View>
-            ))}
-          </View>
-        ))}
-      </View>
-    );
-  }, [layout, grid, cellMap, currentRequestForRoom]);
-
-  if (loading) {
-    return (
-      <View className="flex-1 justify-center items-center bg-gray-100">
-        <ActivityIndicator size="large" color="#4F46E5" />
-        <Text className="mt-4 text-lg text-gray-700">Loading rooms...</Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View className="flex-1 justify-center items-center p-4 bg-gray-100">
-        <View className="rounded border border-red-200 bg-red-50 p-6 text-center">
-          <Text className="text-sm text-red-600">{error}</Text>
-          <TouchableOpacity
-            onPress={loadData}
-            className="mt-3 rounded bg-red-600 px-4 py-2 shadow"
-          >
-            <Text className="text-white text-sm font-semibold">Retry</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  if (!layout) {
-    return (
-      <View className="flex-1 justify-center items-center p-6 bg-gray-100">
-        <Text className="text-sm text-gray-500">No layout has been published yet.</Text>
-      </View>
-    );
-  }
+  if (loading) return <View style={styles.center}><ActivityIndicator color="#1e3a8a" /><Text style={styles.syncText}>Syncing Blueprint...</Text></View>;
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <Header />
-      <ScrollView className="p-4">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">Browse Rooms & Book a Bed</Text>
-        <Text className="mt-1 text-gray-600 mb-6">
-          Tap a room to view occupants and send a booking request. Your request goes to the warden for approval.
-        </Text>
-
-        <View className="rounded border bg-white p-4 shadow-sm">
-          {RoomLayoutDisplay}
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        
+        {/* Header Section */}
+        <View style={styles.header}>
+            <View style={styles.headerTitleRow}>
+                <View style={styles.iconBox}><Layers size={20} color="#fff" /></View>
+                <View>
+                    <Text style={styles.title}>BLUEPRINT EXPLORER</Text>
+                    <Text style={styles.subtitle}>TAP ROOM TO INITIALIZE BOOKING</Text>
+                </View>
+            </View>
         </View>
 
-        {selectedRoom && (
-          <Modal
-            animationType="fade"
-            transparent={true}
-            visible={!!selectedRoom}
-            onRequestClose={() => setSelectedRoom(null)}
-          >
-            <View className="flex-1 justify-center items-center bg-black/40 p-4">
-              <View className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-                <View className="mb-4 flex-row items-start justify-between">
-                  <View>
-                    <Text className="text-xl font-semibold">{selectedRoom.name}</Text>
-                    <Text className="text-sm text-gray-500">Room number: {selectedRoom.room_number}</Text>
-                    {selectedRoom.description && (
-                      <Text className="mt-1 text-sm text-gray-600">{selectedRoom.description}</Text>
-                    )}
+        {/* Legend */}
+        <View style={styles.legendRow}>
+            <LegendItem icon={Bed} label="Available" color="#1e3a8a" />
+            <LegendItem icon={Clock} label="Requested" color="#16a34a" />
+            <LegendItem icon={AlertCircle} label="Full" color="#ea580c" />
+        </View>
+
+        {/* Blueprint Grid Area */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gridOuter}>
+           <View style={styles.gridContainer}>
+              <EntranceLabel side={layoutConfig?.entrance_side} pos="top" />
+              
+              <View style={styles.blueprintFrame}>
+                {grid.map((row, rIdx) => (
+                  <View key={`row-${rIdx}`} style={styles.row}>
+                    {row.map((type, cIdx) => (
+                      <BlueprintCell
+                        key={`${rIdx}-${cIdx}`}
+                        type={type}
+                        blueprint={blueprintData[`${rIdx}-${cIdx}`]}
+                        liveRoom={roomsLiveMap[`${rIdx}-${cIdx}`]}
+                        myRequests={myRequests}
+                        onPress={handleRoomClick}
+                      />
+                    ))}
                   </View>
-                  <TouchableOpacity onPress={() => setSelectedRoom(null)} className="p-1">
-                    <XCircle size={24} color="#6B7280" />
-                  </TouchableOpacity>
-                </View>
-
-                <View className="flex-row justify-between mb-4">
-                  <View className="rounded border border-gray-200 bg-gray-50 p-3 w-[48%]">
-                    <Text className="text-gray-500 text-sm">Capacity</Text>
-                    <Text className="text-lg font-semibold text-gray-800">{selectedRoom.capacity}</Text>
-                  </View>
-                  <View className="rounded border border-gray-200 bg-gray-50 p-3 w-[48%]">
-                    <Text className="text-gray-500 text-sm">Currently occupied</Text>
-                    <Text className="text-lg font-semibold text-gray-800">
-                      {selectedRoom.occupancy}/{selectedRoom.capacity}
-                    </Text>
-                  </View>
-                </View>
-
-                <View className="mt-4">
-                  <Text className="text-sm font-semibold text-gray-700 mb-2">Occupants</Text>
-                  <ScrollView className="max-h-40 rounded border border-gray-200 bg-gray-50 p-3">
-                    {selectedRoom.occupants.length === 0 ? (
-                      <Text className="text-gray-500 text-sm">No one has been allotted yet.</Text>
-                    ) : (
-                      <View className="space-y-2">
-                        {selectedRoom.occupants.map((occ) => (
-                          <View key={occ.user_id} className="rounded border border-gray-200 bg-white p-2 shadow-sm">
-                            <Text className="font-medium text-gray-800">{occ.name || occ.username}</Text>
-                            <Text className="text-xs text-gray-500">
-                              {occ.roll_number ? `Roll: ${occ.roll_number}` : "Roll number not available"}
-                            </Text>
-                            {occ.email && <Text className="text-xs text-gray-500">Email: {occ.email}</Text>}
-                            {occ.phone && <Text className="text-xs text-gray-500">Phone: {occ.phone}</Text>}
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </ScrollView>
-                </View>
-
-                <View className="mt-6 flex-row gap-3 justify-end">
-                  <TouchableOpacity
-                    onPress={() => setSelectedRoom(null)}
-                    className="rounded border border-gray-300 px-4 py-2"
-                  >
-                    <Text className="text-sm text-gray-700">Close</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => handleRequestRoom(selectedRoom)}
-                    disabled={
-                      selectedRoom.inactive ||
-                      selectedRoom.remaining <= 0 ||
-                      Boolean(currentRequestForRoom(selectedRoom.room_id)) ||
-                      requestingRoomId === selectedRoom.room_id
-                    }
-                    className={`rounded px-4 py-2 text-sm font-medium shadow flex-row items-center justify-center ${
-                      selectedRoom.inactive
-                        ? "bg-gray-400"
-                        : selectedRoom.remaining <= 0
-                        ? "bg-amber-500"
-                        : currentRequestForRoom(selectedRoom.room_id)
-                        ? "bg-blue-400"
-                        : "bg-blue-600 hover:bg-blue-700"
-                    }`}
-                  >
-                    {requestingRoomId === selectedRoom.room_id ? (
-                      <ActivityIndicator size="small" color="#fff" className="mr-2" />
-                    ) : (
-                      <Text className="text-white text-sm font-semibold">
-                        {selectedRoom.inactive
-                          ? "Unavailable"
-                          : selectedRoom.remaining <= 0
-                          ? "Room full"
-                          : currentRequestForRoom(selectedRoom.room_id)
-                          ? `Request ${currentRequestForRoom(selectedRoom.room_id).status}`
-                          : "Request this room"}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
+                ))}
               </View>
-            </View>
-          </Modal>
-        )}
+
+              <EntranceLabel side={layoutConfig?.entrance_side} pos="bottom" />
+           </View>
+        </ScrollView>
       </ScrollView>
-    </View>
+
+      {/* Interaction Modal */}
+      <RoomModal 
+        visible={!!selectedRoom}
+        room={selectedRoom}
+        occupants={occupants}
+        loading={occupantsLoading}
+        isRequesting={requestingRoomId === selectedRoom?.id}
+        hasRequested={myRequests.some(r => r.room_id === selectedRoom?.id && r.status !== 'cancelled')}
+        hasActiveAllotment={hasActiveAllotment}
+        onClose={() => setSelectedRoom(null)}
+        onConfirm={() => handleRequestRoom(selectedRoom.id)}
+      />
+    </SafeAreaView>
   );
 };
+
+/* ---------- SUB-COMPONENTS ---------- */
+
+const BlueprintCell = ({ type, blueprint, liveRoom, myRequests, onPress }) => {
+  if (type === "EMPTY") return <View style={styles.cell} />;
+  if (type === "VOID") return <View style={[styles.cell, styles.voidCell]}><X size={12} color="#cbd5e1" /></View>;
+  if (type === "WALK") return <View style={[styles.cell, styles.walkCell]} />;
+
+  const typeKey = blueprint?.typeKey || blueprint?.key;
+  const config = ROOM_TYPES[typeKey] || ROOM_TYPES.STUDENT;
+  const Icon = config.icon;
+
+  const isRequested = liveRoom && myRequests.some(r => r.room_id === liveRoom.id && r.status !== 'cancelled');
+  const capacity = liveRoom?.RoomType?.capacity || 0;
+  const isFull = liveRoom && liveRoom.occupancy_count >= capacity;
+
+  return (
+    <TouchableOpacity 
+      activeOpacity={0.7} 
+      disabled={!liveRoom}
+      onPress={() => onPress(liveRoom)}
+      style={[
+        styles.cell, 
+        styles.roomCell,
+        isRequested && styles.requestedCell,
+        isFull && styles.fullCell,
+        !liveRoom && styles.inactiveCell
+      ]}
+    >
+      <View style={styles.cellHeader}>
+        <Text style={[styles.cellNo, isRequested && { color: '#16a34a' }]}>{liveRoom?.room_number || '---'}</Text>
+        {isRequested && <Clock size={8} color="#16a34a" />}
+      </View>
+      <View style={styles.cellBody}>
+        <Icon size={16} color={isRequested ? "#16a34a" : isFull ? "#ea580c" : "#1e3a8a"} opacity={0.4} />
+        {liveRoom && <Text style={styles.occCount}>{liveRoom.occupancy_count}/{capacity}</Text>}
+      </View>
+      <View style={[styles.cellFooter, isRequested && { backgroundColor: '#16a34a' }, isFull && { backgroundColor: '#ea580c' }]}>
+        <Text style={styles.footerText}>{isRequested ? "REQD" : config.name.toUpperCase()}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+const RoomModal = ({ visible, room, occupants, loading, isRequesting, hasRequested, hasActiveAllotment, onClose, onConfirm }) => {
+  if (!room) return null;
+  const capacity = room.RoomType?.capacity || 1;
+  const isFull = room.occupancy_count >= capacity;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <View>
+                <Text style={styles.modalLabel}>INDEX</Text>
+                <Text style={styles.modalTitle}>{room.room_number}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose}><X color="#1e3a8a" size={24} /></TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.occupantList}>
+            <Text style={styles.sectionTitle}><Users size={12} color="#1e3a8a" /> OCCUPANTS</Text>
+            {loading ? <ActivityIndicator /> : occupants.length === 0 ? <Text style={styles.emptyText}>EMPTY ROOM</Text> : 
+              occupants.map(occ => (
+                <View key={occ.user_id} style={styles.occCard}>
+                  <View style={styles.occAvatar}>
+                    {occ.profile_picture ? <Image source={{uri: occ.profile_picture}} style={styles.fullImg} /> : <UserIcon size={14} color="#1e3a8a" />}
+                  </View>
+                  <View>
+                    <Text style={styles.occName}>{occ.username.toUpperCase()}</Text>
+                    <Text style={styles.occRoll}>ROLL: {occ.roll_number || 'N/A'}</Text>
+                  </View>
+                </View>
+              ))
+            }
+          </ScrollView>
+
+          <View style={styles.modalFooter}>
+             <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>CLASS</Text>
+                <Text style={styles.infoVal}>{room.RoomType?.name.toUpperCase()}</Text>
+             </View>
+             <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>BEDS AVAILABLE</Text>
+                <Text style={[styles.infoVal, { color: isFull ? '#ef4444' : '#16a34a' }]}>{capacity - room.occupancy_count} OF {capacity}</Text>
+             </View>
+
+             {hasRequested ? (
+               <View style={styles.statusBanner}><Text style={styles.statusText}>ACTIVE REQUEST</Text></View>
+             ) : isFull ? (
+               <View style={[styles.statusBanner, { backgroundColor: '#ea580c' }]}><Text style={styles.statusText}>ROOM FULL</Text></View>
+             ) : (
+               <TouchableOpacity style={styles.bookingBtn} onPress={onConfirm} disabled={isRequesting}>
+                 {isRequesting ? <ActivityIndicator color="#fff" /> : <><ChevronRight color="#fff" size={18} /><Text style={styles.bookingText}>{hasActiveAllotment ? 'REQUEST CHANGE' : 'INITIALIZE BOOKING'}</Text></>}
+               </TouchableOpacity>
+             )}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+const LegendItem = ({ icon: Icon, label, color }) => (
+  <View style={styles.legendItem}><Icon size={10} color={color} /><Text style={styles.legendText}>{label.toUpperCase()}</Text></View>
+);
+
+const EntranceLabel = ({ side, pos }) => {
+  const isMatch = (side === 't' && pos === 'top') || (side === 'b' && pos === 'bottom');
+  if (!isMatch) return null;
+  return <View style={styles.entranceLabel}><Text style={styles.entranceText}>ENTRANCE</Text></View>;
+};
+
+/* ---------- STYLES ---------- */
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#fcfdff' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  syncText: { marginTop: 10, fontSize: 10, fontWeight: '900', color: '#1e3a8a', letterSpacing: 2 },
+  header: { marginBottom: 20, borderBottomWidth: 2, borderBottomColor: '#1e3a8a', paddingBottom: 10 },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconBox: { backgroundColor: '#1e3a8a', padding: 8, borderRadius: 4 },
+  title: { fontSize: 18, fontWeight: '900', color: '#1e3a8a', fontStyle: 'italic' },
+  subtitle: { fontSize: 8, fontWeight: '800', color: '#3b82f6', letterSpacing: 1 },
+  legendRow: { flexDirection: 'row', gap: 15, marginBottom: 20 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendText: { fontSize: 8, fontWeight: '900', color: '#64748b' },
+  gridOuter: { marginHorizontal: -16 },
+  gridContainer: { paddingHorizontal: 40, alignItems: 'center' },
+  blueprintFrame: { borderWidth: 4, borderColor: '#1e3a8a', backgroundColor: '#fff' },
+  row: { flexDirection: 'row' },
+  cell: { width: 85, height: 105, borderWeight: 0.5, borderColor: '#f1f5f9' },
+  voidCell: { backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
+  walkCell: { backgroundColor: '#f1f5f9', borderStyle: 'dotted', borderWidth: 1, borderColor: '#cbd5e1' },
+  roomCell: { borderWeight: 1.5, borderColor: '#1e3a8a', padding: 4 },
+  requestedCell: { borderColor: '#16a34a', backgroundColor: '#f0fdf4' },
+  fullCell: { borderColor: '#ea580c', backgroundColor: '#fff7ed' },
+  inactiveCell: { opacity: 0.1 },
+  cellHeader: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 0.5, borderBottomColor: '#e2e8f0', paddingBottom: 2 },
+  cellNo: { fontSize: 8, fontWeight: '900', color: '#1e3a8a' },
+  cellBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  occCount: { fontSize: 7, fontWeight: '900', color: '#94a3b8', marginTop: 2 },
+  cellFooter: { backgroundColor: '#1e3a8a', paddingVertical: 2, marginHorizontal: -4, marginBottom: -4 },
+  footerText: { color: '#fff', fontSize: 7, fontWeight: '900', textAlign: 'center' },
+  entranceLabel: { backgroundColor: '#ea580c', paddingHorizontal: 30, paddingVertical: 6, marginVertical: 10 },
+  entranceText: { color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 4 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(30,58,138,0.7)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: '#fff', borderWidth: 4, borderColor: '#1e3a8a' },
+  modalHeader: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  modalLabel: { fontSize: 8, fontWeight: '800', color: '#3b82f6' },
+  modalTitle: { fontSize: 32, fontWeight: '900', color: '#1e3a8a' },
+  occupantList: { padding: 20, maxHeight: 300 },
+  sectionTitle: { fontSize: 10, fontWeight: '900', color: '#1e3a8a', marginBottom: 15 },
+  emptyText: { fontSize: 10, fontWeight: '800', color: '#cbd5e1' },
+  occCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, padding: 10, borderWidth: 1, borderColor: '#f1f5f9' },
+  occAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  fullImg: { width: '100%', height: '100%' },
+  occName: { fontSize: 11, fontWeight: '900', color: '#1e3a8a' },
+  occRoll: { fontSize: 8, fontWeight: '700', color: '#94a3b8' },
+  modalFooter: { padding: 20, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc', paddingBottom: 5 },
+  infoLabel: { fontSize: 9, fontWeight: '800', color: '#94a3b8' },
+  infoVal: { fontSize: 10, fontWeight: '900', color: '#1e3a8a' },
+  bookingBtn: { backgroundColor: '#1e3a8a', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  bookingText: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+  statusBanner: { padding: 16, backgroundColor: '#16a34a', alignItems: 'center' },
+  statusText: { color: '#fff', fontSize: 12, fontWeight: '900' }
+});
 
 export default ViewRoomsScreen;
