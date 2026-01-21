@@ -218,6 +218,8 @@ saveLayout: (data) => api.post('/warden/layout', data),
 
   getRebates: (params) => api.get('/warden/rebates', { params }),
   updateRebateStatus: (id, data) => api.put(`/warden/rebates/${id}/status`, data),
+
+   getLatestDailyRate: () => api.get('/mess/daily-rate/latest'), 
 };
 export const studentAPI = {
   // Profile
@@ -307,6 +309,8 @@ export const messAPI = {
   getItemCategories: (params) => api.get('/mess/item-categories', { params }), // params: { search }
   updateItemCategory: (id, data) => api.put(`/mess/item-categories/${id}`, data), // Expected data: { name, description }
   deleteItemCategory: (id) => api.delete(`/mess/item-categories/${id}`),
+
+    saveDailyRate: (data) => api.post('/mess/daily-rate/save', data),
 
   // Menu Item Management - Complete CRUD
   // Expected data: { items: [{ item_id, quantity, unit, preparation_notes }] }

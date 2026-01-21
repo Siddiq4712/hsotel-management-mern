@@ -4,7 +4,7 @@ const {
   MenuSchedule, UOM, ItemStock, DailyConsumption, MessBill,Session, CreditToken,Concern,Holiday,
   Store, ItemStore, InventoryTransaction, ConsumptionLog, IncomeType, AdditionalIncome, StudentFee,RestockPlan,
   InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem, MessDailyExpense, ExpenseType, SpecialConsumption, SpecialConsumptionItem,Newspaper,
-  Recipe,RecipeItem
+  Recipe,RecipeItem, DailyRateLog
 } = require('../models');
 const { Op } = require('sequelize');
 const sequelize = require('../config/database');
@@ -5317,6 +5317,123 @@ function convertNumberToWords(num) {
   return result;
 }
 // In messController.js
+const saveDailyRate = async (req, res) => {
+  const { month, year } = req.body;
+  const hostel_id = req.user.hostel_id;
+
+  try {
+    if (!month || !year) return res.status(400).json({ success: false, message: "Month/Year required" });
+
+    const startDate = moment({ year, month: month - 1 }).startOf('month').toDate();
+    const endDate = moment({ year, month: month - 1 }).endOf('month').toDate();
+
+    // 1. Calculate Total Man-Days
+    const totalManDays = (await Attendance.sum('totalManDays', {
+      where: { hostel_id, date: { [Op.between]: [startDate, endDate] } }
+    })) || 0;
+
+    if (totalManDays === 0) throw new Error("Cannot save rate: Total Man-Days is zero.");
+
+    // 2. Calculate Gross Expenses (Consumption + Other Mess Expenses)
+    const totalConsumptionCost = (await DailyConsumption.sum('total_cost', {
+      where: { hostel_id, consumption_date: { [Op.between]: [startDate, endDate] } }
+    })) || 0;
+
+    const totalOtherExpenses = (await MessDailyExpense.sum('amount', {
+      where: { hostel_id, expense_date: { [Op.between]: [startDate, endDate] } }
+    })) || 0;
+
+    const subTotal = parseFloat(totalConsumptionCost) + parseFloat(totalOtherExpenses);
+
+    // 3. Calculate Deductions (THIS MUST MATCH YOUR generateDailyRateReport EXACTLY)
+    
+    // A. Cash Token
+    const cashTokenIncomeType = await IncomeType.findOne({ where: { name: 'Cash Token' } });
+    const cashTokenAmount = cashTokenIncomeType
+      ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: cashTokenIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0
+      : 0;
+
+    // B. Sister Concern Bill
+    const sisterConcernIncomeType = await IncomeType.findOne({ where: { name: 'Sister Concern Bill' } });
+    const creditTokenAmount = sisterConcernIncomeType
+      ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: sisterConcernIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0
+      : 0;
+
+    // C. Special Food Orders (Pending Payment)
+    const specialOrdersAmount = (await FoodOrder.sum('total_amount', {
+      where: { hostel_id, status: 'confirmed', payment_status: 'pending', order_date: { [Op.between]: [startDate, endDate] } }
+    })) || 0;
+
+    // D. Guest Income
+    const guestIncomeType = await IncomeType.findOne({ where: { name: 'Student Guest Income' } });
+    const guestIncomeAmount = guestIncomeType
+      ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: guestIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0
+      : 0;
+
+    const totalDeductions = parseFloat(cashTokenAmount) + parseFloat(creditTokenAmount) + parseFloat(specialOrdersAmount) + parseFloat(guestIncomeAmount);
+
+    // 4. Final Math
+    const totalExpenses = subTotal - totalDeductions;
+    const dailyRate = totalExpenses / totalManDays;
+
+    // 5. Upsert into tbl_DailyRateLog
+    const [record, created] = await DailyRateLog.findOrCreate({
+      where: { hostel_id, month, year },
+      defaults: {
+        gross_expenses: subTotal,
+        total_deductions: totalDeductions,
+        total_man_days: totalManDays,
+        daily_rate: dailyRate,
+        saved_by: req.user.id
+      }
+    });
+
+    if (!created) {
+      await record.update({
+        gross_expenses: subTotal,
+        total_deductions: totalDeductions,
+        total_man_days: totalManDays,
+        daily_rate: dailyRate,
+        saved_by: req.user.id
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Financial record synced and saved', 
+      debug: { subTotal, totalDeductions, dailyRate } 
+    });
+
+  } catch (error) {
+    console.error("Save Daily Rate Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+// controllers/messController.js
+
+const getLatestDailyRate = async (req, res) => {
+  try {
+    const hostel_id = req.user.hostel_id;
+
+    // Find the most recent entry from the DailyRateLog table
+    const latestRate = await DailyRateLog.findOne({
+      where: { hostel_id },
+      order: [
+        ['year', 'DESC'],
+        ['month', 'DESC']
+      ]
+    });
+
+    // If no record exists yet (new system), return success:true but data:null
+    res.json({ 
+      success: true, 
+      data: latestRate || null 
+    });
+  } catch (error) {
+    console.error('Error fetching latest daily rate:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
 
 // In messController.js
 const exportUnitRateCalculation = async (req, res) => {
@@ -6973,5 +7090,7 @@ module.exports = {
   createRecipe,
   getRecipes,
   updateRecipe,
-  deleteRecipe
+  deleteRecipe,
+  saveDailyRate,
+  getLatestDailyRate,
 };

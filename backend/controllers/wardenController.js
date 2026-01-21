@@ -3,7 +3,7 @@ const { Op } = require('sequelize');
 const moment = require('moment');
 const { 
   sequelize, User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,MessFeesAllot,
-  Attendance, Leave, Complaint, Suspension, Holiday,Fee, MessBill,Hostel,RoomRequest,DayReductionRequest, Rebate
+  Attendance, Leave, Complaint, Suspension, Holiday,Fee, MessBill,Hostel,RoomRequest,DayReductionRequest, Rebate, DailyRateLog
   // Note: Models not used in this controller have been removed from this import for clarity
 } = require('../models');
 
@@ -2630,67 +2630,79 @@ const updateDayReductionRequestStatusByWarden = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-// const moment = require('moment');
-
 const getRebates = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     const { status } = req.query;
+    
     let whereClause = {};
     if (status && status !== 'all') whereClause.status = status;
+
     const rebates = await Rebate.findAll({
       where: whereClause,
-      include: [
-        {
-          model: User,
-          as: 'RebateStudent',
-          where: { hostel_id },
-          attributes: ['id', 'username', 'roll_number']
-        }
-      ],
+      include: [{
+        model: User,
+        as: 'RebateStudent',
+        where: { hostel_id },
+        attributes: ['id', 'username', 'roll_number']
+      }],
       order: [['createdAt', 'DESC']]
     });
-    // We use a regular loop to handle async lookups
+
     const processedRebates = [];
-   
+
     for (const rebate of rebates) {
-      const start = moment(rebate.from_date);
-      const end = moment(rebate.to_date);
-      const daysInMonth = start.daysInMonth();
-     
-      // Look for the finalized rate
-      const allotment = await MessFeesAllot.findOne({
-        where: {
-          month: start.month() + 1,
-          year: start.year()
+      const start = moment(rebate.from_date).startOf('day');
+      const end = moment(rebate.to_date).startOf('day');
+      
+      let totalCalculatedAmount = 0;
+      let monthlySplit = []; // This will hold the split-up
+      let current = moment(start);
+
+      while (current.isSameOrBefore(end)) {
+        const month = current.month() + 1;
+        const year = current.year();
+
+        // 1. Fetch audited rate from the log table we created earlier
+        const rateLog = await DailyRateLog.findOne({
+          where: { hostel_id, month, year }
+        });
+
+        // 2. Set rate (Audited or fallback 0)
+        const dailyRate = rateLog ? parseFloat(rateLog.daily_rate) : 0;
+        totalCalculatedAmount += dailyRate;
+
+        // 3. Update the monthly split-up array
+        const monthKey = current.format('MMMM YYYY');
+        let monthEntry = monthlySplit.find(m => m.label === monthKey);
+
+        if (monthEntry) {
+          monthEntry.daysCount += 1;
+          monthEntry.subTotal += dailyRate;
+        } else {
+          monthlySplit.push({ 
+            label: monthKey, 
+            daysCount: 1, 
+            ratePerDay: dailyRate.toFixed(2), // The "Amount per day" for this month
+            subTotal: dailyRate,
+            isAudited: !!rateLog 
+          });
         }
-      });
-      let applicableRate = 0;
-      let isFinalized = false;
-      if (allotment && allotment.individual_share) {
-        // Safe division
-        applicableRate = parseFloat(allotment.individual_share) / (daysInMonth || 30);
-        isFinalized = true;
-      } else {
-        // Fallback to Hostel base rate
-        const hostel = await Hostel.findByPk(hostel_id);
-        applicableRate = parseFloat(hostel ? hostel.daily_mess_rate : 0) || 0;
-        isFinalized = false;
+        current.add(1, 'day');
       }
-      const diffDays = end.diff(start, 'days') + 1;
+
       processedRebates.push({
         ...rebate.toJSON(),
         calculationDetail: {
-          rate: applicableRate.toFixed(2),
-          days: diffDays,
-          estimatedTotal: (applicableRate * diffDays).toFixed(2),
-          isFinalized
+          total: totalCalculatedAmount.toFixed(2),
+          totalDays: moment(end).diff(start, 'days') + 1,
+          monthlySplit // The detailed split sent to frontend
         }
       });
     }
+
     res.json({ success: true, data: processedRebates });
   } catch (error) {
-    console.error("REBATE FETCH ERROR:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -2723,6 +2735,17 @@ const updateRebateStatus = async (req, res) => {
 
   } catch (error) {
     console.error("Update Rebate Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+const getLatestDailyRate = async (req, res) => {
+  try {
+    const latest = await DailyRateLog.findOne({
+      where: { hostel_id: req.user.hostel_id },
+      order: [['year', 'DESC'], ['month', 'DESC']]
+    });
+    res.json({ success: true, data: latest });
+  } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -2792,5 +2815,7 @@ getDayReductionRequestsForWarden,       // <-- NEW EXPORT
 updateDayReductionRequestStatusByWarden, // <-- NEW EXPORT
 
 getRebates,
-updateRebateStatus
+updateRebateStatus,
+
+getLatestDailyRate
 };
