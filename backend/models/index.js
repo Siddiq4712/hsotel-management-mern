@@ -3418,6 +3418,7 @@ InventoryBatch.hasMany(ConsumptionLog, { foreignKey: 'batch_id', as: 'Consumptio
 DailyConsumption.belongsTo(Item, { foreignKey: 'item_id'});
 DailyConsumption.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy' });
 DailyConsumption.belongsTo(UOM, { foreignKey: 'unit', as: 'UOM' });
+<<<<<<< HEAD
 // Ensure ItemStock is linked
 ItemStock.belongsTo(Item, { foreignKey: 'item_id'});
 ItemStock.belongsTo(Hostel, { foreignKey: 'hostel_id'});
@@ -3427,6 +3428,14 @@ GPSAttendance.belongsTo(User, { foreignKey: 'user_id' });
 // Hostel model
 Hostel.hasMany(GPSAttendance, { foreignKey: 'hostel_id' });
 GPSAttendance.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+=======
+
+// Ensure ItemStock is linked
+ItemStock.belongsTo(Item, { foreignKey: 'item_id'});
+ItemStock.belongsTo(Hostel, { foreignKey: 'hostel_id'});
+
+
+>>>>>>> 07e366b0cc7bd2cfefe77436bb7a497c07bba16d
 // Add associations for MessDailyExpense
 MessDailyExpense.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 MessDailyExpense.belongsTo(ExpenseType, { foreignKey: 'expense_type_id', as: 'ExpenseType' });

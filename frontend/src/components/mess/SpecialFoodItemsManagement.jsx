@@ -40,7 +40,7 @@ const SpecialFoodItemsManagement = () => {
     } catch (error) {
       message.error('Failed to fetch items');
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 800);
     }
   };
 
