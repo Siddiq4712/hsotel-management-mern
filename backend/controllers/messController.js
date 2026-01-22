@@ -2577,7 +2577,7 @@ const removeItemStoreMapping = async (req, res) => {
 // SPECIAL FOOD ITEMS MANAGEMENT
 const createSpecialFoodItem = async (req, res) => {
   try {
-    const { name, description, price, preparation_time_minutes, category, image_url } = req.body;
+    const { name, description, price, preparation_time_minutes, category, image_url, expiry_time } = req.body;
 
     if (!name || !price || !category) {
       return res.status(400).json({
@@ -2593,6 +2593,7 @@ const createSpecialFoodItem = async (req, res) => {
       preparation_time_minutes,
       category,
       image_url,
+      expiry_time,
       is_available: true
     });
 
@@ -2659,7 +2660,7 @@ const getSpecialFoodItemById = async (req, res) => {
 const updateSpecialFoodItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, price, preparation_time_minutes, category, image_url, is_available } = req.body;
+    const { name, description, price, preparation_time_minutes, category, image_url, is_available, expiry_time } = req.body;
 
     const foodItem = await SpecialFoodItem.findByPk(id);
     if (!foodItem) {
@@ -2676,6 +2677,7 @@ const updateSpecialFoodItem = async (req, res) => {
       preparation_time_minutes,
       category,
       image_url,
+      expiry_time,
       is_available
     });
 
