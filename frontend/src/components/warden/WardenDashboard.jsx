@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
-  Card, Typography, Row, Col, Statistic, Button, Space, 
-  Divider, ConfigProvider, theme, Skeleton, Badge, Progress, Tooltip, Tag 
+  Card, Typography, Row, Col, Statistic, Button, 
+  ConfigProvider, theme, Skeleton, Space, Tag 
 } from 'antd';
 import { 
-  Users, Bed, BedDouble, CheckCircle2, TrendingUp, AlertTriangle, 
-  Calendar, BarChart3, ArrowUpRight, FileText, Clock, 
-  CheckSquare, LayoutDashboard, RefreshCw, UserPlus, Home, MessageSquare
+  Users, BedDouble, Calendar, MessageSquare, 
+  RefreshCw, UserPlus, Home, CheckSquare, 
+  Activity, AlertCircle, Clock, ChevronRight,HelpCircle
 } from 'lucide-react';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import {
@@ -26,7 +25,7 @@ ChartJS.register(
 const { Title, Text } = Typography;
 
 const WardenDashboard = ({ setCurrentView }) => {
-  const { user } = useAuth();
+  const { user } = useAuth(); // Access user data for the greeting
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
 
@@ -36,7 +35,7 @@ const WardenDashboard = ({ setCurrentView }) => {
       const response = await wardenAPI.getDashboardStats();
       setStats(response.data.data);
     } catch (error) {
-      console.error('Institutional Stats Error:', error);
+      console.error('Stats Error:', error);
     } finally {
       setTimeout(() => setLoading(false), 800);
     }
@@ -44,119 +43,162 @@ const WardenDashboard = ({ setCurrentView }) => {
 
   useEffect(() => { fetchDashboardStats(); }, [fetchDashboardStats]);
 
-  if (loading || !stats) return <div className="p-8"><Skeleton active paragraph={{ rows: 20 }} /></div>;
+  if (loading || !stats) return <div className="p-10"><Skeleton active paragraph={{ rows: 15 }} /></div>;
 
   const handleAction = (view) => setCurrentView ? setCurrentView(view) : null;
 
-  // --- CHART CONFIGURATIONS ---
-  const commonOptions = {
+  // Optimized Chart Options for larger display
+  const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }
+    plugins: {
+      legend: { position: 'bottom', labels: { padding: 20, font: { size: 12, weight: '600' }, usePointStyle: true } },
+      tooltip: { padding: 12, backgroundColor: '#1e293b' }
+    },
+    scales: {
+      y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+      x: { grid: { display: false } }
+    }
   };
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+    <ConfigProvider theme={{ 
+      token: { colorPrimary: '#2563eb', borderRadius: 24, fontFamily: 'Inter, sans-serif' } 
+    }}>
+      <div className="p-6 lg:p-10 bg-[#f8fafc] min-h-screen">
         
-        {/* Header Section */}
-        <div className="flex justify-between items-center">
+        {/* --- HEADER SECTION --- */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
           <div>
-            <Title level={2} style={{ margin: 0 }}>Warden Dashboard</Title>
-            <Text type="secondary">Hostel Administration & Oversight • Academic Year 2024-25</Text>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <Text className="text-slate-500 font-bold uppercase tracking-widest text-[11px]">System Live</Text>
+            </div>
+            <Title level={1} style={{ margin: 0, fontWeight: 800, fontSize: '2.25rem' }}>
+              Welcome back, <span className="text-blue-600">{user?.username || 'Warden'}</span>
+            </Title>
+            <Text className="text-slate-500 text-lg">Academic Year 2024-25 • Management Overview</Text>
           </div>
-          <Button icon={<RefreshCw size={16}/>} onClick={fetchDashboardStats} className="rounded-xl h-11 px-6 font-bold">Sync Data</Button>
+          <Button 
+            size="large" 
+            icon={<RefreshCw size={18} />} 
+            onClick={fetchDashboardStats} 
+            className="flex items-center gap-2 h-12 px-6 shadow-sm border-slate-200 font-semibold rounded-xl hover:text-blue-600"
+          >
+            Sync Data
+          </Button>
         </div>
 
-        {/* 1. Primary Metrics Grid */}
-        <Row gutter={[24, 24]}>
+        {/* --- 1. PRIMARY METRICS GRID --- */}
+        <Row gutter={[24, 24]} className="mb-10">
           {[
-            { label: 'Total Enrolment', val: stats.totalStudents, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-            { label: 'Occupied Beds', val: stats.occupiedBeds, icon: BedDouble, color: 'text-orange-600', bg: 'bg-orange-50' },
-            { label: 'Pending Leaves', val: stats.pendingLeaves, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
-            { label: 'Open Complaints', val: stats.pendingComplaints, icon: MessageSquare, color: 'text-rose-600', bg: 'bg-rose-50' },
+            { label: 'Total Enrolment', val: stats.totalStudents, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', sub: 'Active Students' },
+            { label: 'Occupied Beds', val: stats.occupiedBeds, icon: BedDouble, color: 'text-indigo-600', bg: 'bg-indigo-50', sub: `${stats.availableBeds} remaining` },
+            { label: 'Pending Leaves', val: stats.pendingLeaves, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', sub: 'Requires Review' },
+            { label: 'Open Complaints', val: stats.pendingComplaints, icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50', sub: 'Awaiting Action' },
           ].map((card, i) => (
             <Col xs={24} sm={12} lg={6} key={i}>
-              <Card className="border-none shadow-sm rounded-[32px]">
-                <Statistic 
-                  title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{card.label}</span>} 
-                  value={card.val} 
-                  prefix={<div className={`p-2 rounded-xl ${card.bg} ${card.color} mr-3`}><card.icon size={20} /></div>}
-                  valueStyle={{ fontWeight: 900 }}
-                />
+              <Card className="border-none shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex justify-between items-start">
+                  <div className={`p-4 rounded-2xl ${card.bg} ${card.color}`}>
+                    <card.icon size={28} />
+                  </div>
+                  <div className="text-right">
+                    <Text className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">{card.label}</Text>
+                    <Title level={2} style={{ margin: 0, fontWeight: 800 }}>{card.val}</Title>
+                    <Text className="text-[12px] font-medium text-slate-500">{card.sub}</Text>
+                  </div>
+                </div>
               </Card>
             </Col>
           ))}
         </Row>
 
-        <Row gutter={[24, 24]}>
-          {/* 2. Quick Actions & Trends */}
-          <Col lg={16} xs={24} className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: 'Enrolment', icon: UserPlus, color: 'text-blue-600', bg: 'bg-blue-50', view: 'enroll-student' },
-                { label: 'Allotment', icon: Home, color: 'text-emerald-600', bg: 'bg-emerald-50', view: 'room-allotment' },
-                { label: 'Attendance', icon: CheckSquare, color: 'text-purple-600', bg: 'bg-purple-50', view: 'attendance' },
-                { label: 'Leave Auth', icon: Calendar, color: 'text-orange-600', bg: 'bg-orange-50', view: 'leave-requests' },
-              ].map((act, i) => (
-                <button key={i} onClick={() => handleAction(act.view)} className="bg-white p-6 rounded-[32px] shadow-sm flex flex-col items-center gap-3 hover:scale-105 transition-transform border-none">
-                   <div className={`p-4 rounded-2xl ${act.bg} ${act.color}`}><act.icon size={24} /></div>
-                   <Text strong className="text-slate-600 text-[11px] uppercase">{act.label}</Text>
-                </button>
-              ))}
+        <Row gutter={[32, 32]}>
+          {/* --- LEFT COLUMN: Actions & Major Trends --- */}
+          <Col lg={16} xs={24} className="space-y-8">
+            
+            {/* QUICK ACTIONS TOOLBELT */}
+            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+              <div className="flex justify-between items-center mb-6">
+                <Title level={4} style={{ margin: 0 }} className="flex items-center gap-2">
+                  <Activity size={22} className="text-blue-600" /> Management Toolkit
+                </Title>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                {[
+                  { label: 'Student Enrolment', icon: UserPlus, color: 'bg-blue-600', view: 'enroll-student' },
+                  { label: 'Room Allotment', icon: Home, color: 'bg-emerald-600', view: 'room-allotment' },
+                  { label: 'Attendance Log', icon: CheckSquare, color: 'bg-purple-600', view: 'attendance' },
+                  { label: 'Leave Gateway', icon: Calendar, color: 'bg-orange-600', view: 'leave-requests' },
+                ].map((act, i) => (
+                  <button 
+                    key={i} 
+                    onClick={() => handleAction(act.view)} 
+                    className="group flex flex-col items-center gap-3 p-4 rounded-2xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100"
+                  >
+                    <div className={`${act.color} text-white p-4 rounded-2xl group-hover:scale-110 transition-transform shadow-lg shadow-blue-100`}>
+                      <act.icon size={26} />
+                    </div>
+                    <Text strong className="text-slate-700 text-xs">{act.label}</Text>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Attendance Trend Line Chart */}
-            <Card className="border-none shadow-sm rounded-[32px]" title={<Text strong>Institutional Attendance Trend (%)</Text>}>
-              <div className="h-72">
+            {/* ATTENDANCE TREND LINE CHART */}
+            <Card className="border-none shadow-sm rounded-[2.5rem]" title={<span className="font-bold text-lg">Institutional Attendance Pulse (%)</span>}>
+              <div className="h-80 px-2">
                 <Line 
-                  options={commonOptions}
+                  options={chartOptions}
                   data={{
                     labels: ['Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
                     datasets: [{
-                      label: 'Present %',
+                      label: 'Presence Rate',
                       data: [95, 92, 98, 91, 94],
                       borderColor: '#2563eb',
-                      backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                      backgroundColor: 'rgba(37, 99, 235, 0.08)',
                       fill: true,
-                      tension: 0.4
+                      tension: 0.4,
+                      pointRadius: 6,
+                      pointBackgroundColor: '#fff',
+                      pointBorderWidth: 3
                     }]
                   }}
                 />
               </div>
             </Card>
 
+            {/* TWO-COLUMN STATUS BARS */}
             <Row gutter={24}>
-              {/* Complaint Status Bar Chart */}
               <Col span={12}>
-                <Card className="border-none shadow-sm rounded-[32px]" title={<Text strong>Complaint Resolution Status</Text>}>
+                <Card className="border-none shadow-sm rounded-[2rem]" title={<span className="font-bold">Incident Resolutions</span>}>
                   <div className="h-64">
                     <Bar 
-                      options={commonOptions}
+                      options={chartOptions}
                       data={{
-                        labels: ['Submitted', 'Actioned', 'Resolved', 'Closed'],
+                        labels: ['New', 'Actioned', 'Solved', 'Closed'],
                         datasets: [{
                           data: [stats.complaintStatus.submitted, stats.complaintStatus.in_progress, stats.complaintStatus.resolved, stats.complaintStatus.closed],
-                          backgroundColor: ['#60a5fa', '#facc15', '#22c55e', '#94a3b8'],
-                          borderRadius: 8
+                          backgroundColor: ['#60a5fa', '#fbbf24', '#22c55e', '#94a3b8'],
+                          borderRadius: 12
                         }]
                       }}
                     />
                   </div>
                 </Card>
               </Col>
-              {/* Leave Requests Bar Chart */}
               <Col span={12}>
-                <Card className="border-none shadow-sm rounded-[32px]" title={<Text strong>Leave Approval Lifecycle</Text>}>
+                <Card className="border-none shadow-sm rounded-[2rem]" title={<span className="font-bold">Leave Lifecycle</span>}>
                   <div className="h-64">
                     <Bar 
-                      options={commonOptions}
+                      options={chartOptions}
                       data={{
                         labels: ['Pending', 'Approved', 'Rejected'],
                         datasets: [{
                           data: [stats.leaveStatus.pending, stats.leaveStatus.approved, stats.leaveStatus.rejected],
                           backgroundColor: ['#f59e0b', '#10b981', '#ef4444'],
-                          borderRadius: 8
+                          borderRadius: 12
                         }]
                       }}
                     />
@@ -166,33 +208,47 @@ const WardenDashboard = ({ setCurrentView }) => {
             </Row>
           </Col>
 
-          {/* 3. Distribution & Pulse */}
-          <Col lg={8} xs={24} className="space-y-6">
-            {/* Bed Occupancy Doughnut */}
-            <Card className="border-none shadow-sm rounded-[32px]" title={<Text strong>Bed Inventory Distribution</Text>}>
-              <div className="h-60">
+          {/* --- RIGHT COLUMN: Distribution & Real-time Stats --- */}
+          <Col lg={8} xs={24} className="space-y-8">
+            
+            {/* BED INVENTORY DOUGHNUT */}
+            <Card className="border-none shadow-sm rounded-[2.5rem] text-center" title={<span className="font-bold">Bed Inventory Distribution</span>}>
+              <div className="h-64 relative">
                 <Doughnut 
-                  options={commonOptions}
+                  options={{ ...chartOptions, cutout: '78%' }}
                   data={{
                     labels: ['Occupied', 'Available'],
                     datasets: [{
                       data: [stats.occupiedBeds, stats.availableBeds],
                       backgroundColor: ['#2563eb', '#f1f5f9'],
-                      borderWidth: 0
+                      borderWidth: 0,
                     }]
                   }}
                 />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                    <Title level={2} style={{ margin: 0, fontWeight: 800 }}>
+                        {Math.round((stats.occupiedBeds / (stats.occupiedBeds + stats.availableBeds)) * 100)}%
+                    </Title>
+                    <Text type="secondary" className="font-bold text-[10px] uppercase tracking-tighter">Utilization</Text>
+                </div>
               </div>
-              <div className="text-center mt-4">
-                <Text type="secondary" className="text-[11px] uppercase font-bold tracking-widest">Efficiency: {Math.round((stats.occupiedBeds / stats.totalCapacity) * 100)}%</Text>
+              <div className="mt-4 pt-4 border-t border-slate-50 flex justify-around">
+                <div>
+                    <Text className="block text-blue-600 font-bold text-lg">{stats.occupiedBeds}</Text>
+                    <Text className="text-slate-400 text-xs font-medium uppercase">Filled</Text>
+                </div>
+                <div>
+                    <Text className="block text-slate-600 font-bold text-lg">{stats.availableBeds}</Text>
+                    <Text className="text-slate-400 text-xs font-medium uppercase">Empty</Text>
+                </div>
               </div>
             </Card>
 
-            {/* Today's Attendance Doughnut */}
-            <Card className="border-none shadow-sm rounded-[32px]" title={<Text strong>Today's Attendance Pulse</Text>}>
-              <div className="h-60">
+            {/* DAILY ATTENDANCE PULSE */}
+            <Card className="border-none shadow-sm rounded-[2.5rem]" title={<span className="font-bold">Today's Attendance</span>}>
+              <div className="h-60 px-4">
                 <Doughnut 
-                  options={commonOptions}
+                  options={chartOptions}
                   data={{
                     labels: ['Present', 'Absent', 'On-Duty'],
                     datasets: [{
@@ -203,25 +259,37 @@ const WardenDashboard = ({ setCurrentView }) => {
                   }}
                 />
               </div>
-            </Card>
-
-            {/* Complaint Trend Bar Chart */}
-            <Card className="border-none shadow-sm rounded-[32px]" title={<Text strong>Monthly Incident Volume</Text>}>
-              <div className="h-48">
-                <Bar 
-                  options={commonOptions}
-                  data={{
-                    labels: ['Oct', 'Nov', 'Dec'],
-                    datasets: [{
-                      label: 'Total Incidents',
-                      data: [12, 8, 15],
-                      backgroundColor: '#f97316',
-                      borderRadius: 4
-                    }]
-                  }}
-                />
+              <div className="mt-8 space-y-3">
+                 <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl hover:bg-slate-100 transition-colors cursor-default">
+                    <Space>
+                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                        <Text strong className="text-slate-600">Present Students</Text>
+                    </Space>
+                    <Tag color="green" className="border-none font-bold rounded-lg px-3">{stats.attendanceStatus.P}</Tag>
+                 </div>
+                 <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl hover:bg-slate-100 transition-colors cursor-default">
+                    <Space>
+                        <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                        <Text strong className="text-slate-600">Unaccounted For</Text>
+                    </Space>
+                    <Tag color="red" className="border-none font-bold rounded-lg px-3">{stats.attendanceStatus.A}</Tag>
+                 </div>
               </div>
             </Card>
+
+            {/* ANNOUNCEMENT / HELP CARD */}
+            <div className="bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-indigo-100 relative overflow-hidden group">
+               <div className="relative z-10">
+                 <Title level={4} style={{ color: 'white', margin: 0 }}>Need Assistance?</Title>
+                 <Text className="text-indigo-100 block mt-2 mb-6">Access the administrative guide or contact IT support for portal help.</Text>
+                 <Button ghost className="rounded-xl border-indigo-300 text-white font-bold h-11 px-6 group-hover:bg-white group-hover:text-indigo-600 transition-all">
+                    Open Docs <ChevronRight size={16} className="inline ml-1" />
+                 </Button>
+               </div>
+               <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform">
+                  <HelpCircle size={120} color="white" />
+               </div>
+            </div>
           </Col>
         </Row>
       </div>
