@@ -82,7 +82,7 @@ const RoomAllotment = () => {
       );
       setAvailableRooms(roomData);
     } catch (error) {
-      message.error('Institutional data sync failed.');
+      message.error('Failed to load hostel data.');
     } finally {
       setTimeout(() => setDataLoading(false), 800);
     }
@@ -104,7 +104,7 @@ const RoomAllotment = () => {
     setSelectedStudentIds(prev => {
       if (prev.includes(id)) return prev.filter(i => i !== id);
       if (selectedRoom && prev.length >= selectedRoom.spacesLeft) {
-        message.warning(`Room threshold reached (${selectedRoom.spacesLeft} spaces)`);
+        message.warning(`Room is full (${selectedRoom.spacesLeft} spaces left)`);
         return prev;
       }
       return [...prev, id];
@@ -117,13 +117,13 @@ const RoomAllotment = () => {
       await Promise.all(selectedStudentIds.map(sid => 
         wardenAPI.allotRoom({ student_id: sid, room_id: selectedRoomId })
       ));
-      message.success(`${selectedStudentIds.length} profiles updated in room registry.`);
+      message.success(`${selectedStudentIds.length} students successfully assigned to the room.`);
       setSelectedRoomId(null);
       setSelectedStudentIds([]);
       setConfirmModalVisible(false);
       fetchData();
     } catch (error) {
-      message.error('Execution protocol failed.');
+      message.error('Failed to save the allotment.');
     } finally {
       setLoading(false);
     }
@@ -151,11 +151,11 @@ const RoomAllotment = () => {
               <Building className="text-white" size={24} />
             </div>
             <div>
-              <Title level={2} style={{ margin: 0 }}>Inventory Hub: Room Allotment</Title>
-              <Text type="secondary">Execute batch student assignments to available room inventory</Text>
+              <Title level={2} style={{ margin: 0 }}>Room Allotment Board</Title>
+              <Text type="secondary">Assign students to available hostel rooms</Text>
             </div>
           </div>
-          <Button icon={<RefreshCw size={16}/>} onClick={fetchData} className="rounded-xl h-11 px-6 font-bold shadow-sm">Sync Inventory</Button>
+          <Button icon={<RefreshCw size={16}/>} onClick={fetchData} className="rounded-xl h-11 px-6 font-bold shadow-sm">Refresh List</Button>
         </div>
 
         <Row gutter={[24, 24]}>
@@ -164,13 +164,13 @@ const RoomAllotment = () => {
             <Card className="border-none shadow-sm rounded-[32px] p-4">
               <div className="flex items-center gap-4 mb-8">
                 <div className="p-3 bg-slate-100 rounded-xl"><UserPlus className="text-slate-600" size={20}/></div>
-                <Title level={4} style={{ margin: 0 }}>Step 1: Selection Logic</Title>
+                <Title level={4} style={{ margin: 0 }}>Step 1: Room Selection</Title>
               </div>
 
               <div className="space-y-8">
                 {/* Room Selector Dropdown */}
                 <div className="space-y-2">
-                  <Text strong className="text-[11px] uppercase tracking-widest text-slate-400">Target Inventory Unit</Text>
+                  <Text strong className="text-[11px] uppercase tracking-widest text-slate-400">Select Target Room</Text>
                   <Select
                     placeholder="Select room to begin assignment..."
                     className="w-full h-14"
@@ -196,7 +196,7 @@ const RoomAllotment = () => {
                     <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
                       <Row gutter={24} align="middle">
                         <Col span={14}>
-                          <Text type="secondary" className="text-[10px] uppercase font-bold block mb-3">Live Occupancy Monitor</Text>
+                          <Text type="secondary" className="text-[10px] uppercase font-bold block mb-3">Room Capacity Status</Text>
                           <Progress 
                             percent={Math.round((selectedRoom.current_occupants / selectedRoom.RoomType.capacity) * 100)} 
                             strokeColor={{ '0%': '#3b82f6', '100%': '#2563eb' }}
@@ -268,10 +268,10 @@ const RoomAllotment = () => {
           {/* Institutional Sidebar */}
           <Col lg={8} xs={24} className="space-y-6">
             {/* Quick Status Sidebar */}
-            <Card className="border-none shadow-sm rounded-[32px]" title={<Space><Users2 size={18} className="text-orange-500"/> <Text strong>Pending Registry</Text></Space>}>
+            <Card className="border-none shadow-sm rounded-[32px]" title={<Space><Users2 size={18} className="text-orange-500"/> <Text strong>Waiting List</Text></Space>}>
               <div className="flex flex-col gap-3">
                 <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100">
-                   <Statistic title={<span className="text-orange-700 font-bold text-[10px] uppercase">Unassigned Members</span>} value={students.length} valueStyle={{ color: '#c2410c', fontWeight: 900 }} />
+                   <Statistic title={<span className="text-orange-700 font-bold text-[10px] uppercase">Students Without Rooms</span>} value={students.length} valueStyle={{ color: '#c2410c', fontWeight: 900 }} />
                 </div>
                 <Divider className="my-2 border-slate-50" />
                 <div className="max-h-[300px] overflow-y-auto space-y-2">
@@ -289,14 +289,14 @@ const RoomAllotment = () => {
             {/* Protocol Card */}
             <Card className="border-none shadow-sm rounded-[32px] bg-slate-900 text-white relative overflow-hidden">
                <div className="relative z-10">
-                  <Title level={5} className="text-white mb-4 flex items-center gap-2"><ShieldCheck size={18} className="text-blue-400"/> Protocol Compliance</Title>
+                  <Title level={5} className="text-white mb-4 flex items-center gap-2"><ShieldCheck size={18} className="text-blue-400"/> Important Notes</Title>
                   <Paragraph className="text-slate-400 text-[11px] leading-relaxed">
-                    Room allotment creates a permanent record in the institutional ledger. This action will trigger:
+                    Allotting a room updates the official hostel records. This action will:
                   </Paragraph>
                   <ul className="text-[10px] space-y-2 text-slate-300 pl-4 list-disc">
-                    <li>Registry entry for Academic Year 2024-25</li>
-                    <li>Automatic monthly mess reconciliation</li>
-                    <li>Profile status update to "Resident"</li>
+                    <li>Update the Student Register for 2024-25</li>
+                    <li>Start monthly mess bill calculations</li>
+                    <li>Mark student as a "Hosteller" in the system</li>
                   </ul>
                </div>
                <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-blue-500 rounded-full opacity-10" />
@@ -306,12 +306,12 @@ const RoomAllotment = () => {
 
         {/* Audit Confirmation Modal */}
         <Modal
-          title={<div className="flex items-center gap-2 text-blue-600"><Building size={20}/> Institutional Allotment Review</div>}
+          title={<div className="flex items-center gap-2 text-blue-600"><Building size={20}/> Confirm Room Allotment</div>}
           open={confirmModalVisible}
           onCancel={() => setConfirmModalVisible(false)}
           footer={[
-            <Button key="back" onClick={() => setConfirmModalVisible(false)} className="rounded-xl h-11 px-8">Abort</Button>,
-            <Button key="submit" type="primary" loading={loading} onClick={confirmAllotment} className="rounded-xl h-11 px-12 font-bold shadow-lg shadow-blue-100">Execute Protocol</Button>
+            <Button key="back" onClick={() => setConfirmModalVisible(false)} className="rounded-xl h-11 px-8">Cancel</Button>,
+            <Button key="submit" type="primary" loading={loading} onClick={confirmAllotment} className="rounded-xl h-11 px-12 font-bold shadow-lg shadow-blue-100">Confirm & Save</Button>
           ]}
           width={600}
           className="rounded-[32px]"
@@ -319,14 +319,14 @@ const RoomAllotment = () => {
           <div className="mt-6 space-y-6">
             <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 flex justify-between items-center">
                <div>
-                 <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest">Inventory Target</Text>
+                 <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest">Selected Room</Text>
                  <Title level={3} style={{ margin: 0 }}>Room {selectedRoom?.room_number}</Title>
                  <Text type="secondary" className="text-xs">{selectedRoom?.RoomType?.name}</Text>
                </div>
                <Badge count={`${selectedStudentIds.length} Students`} style={{ backgroundColor: '#2563eb' }} className="h-fit font-bold" />
             </div>
 
-            <Divider orientation="left" plain><Text className="text-[10px] uppercase font-bold text-slate-400">Batch Members</Text></Divider>
+            <Divider orientation="left" plain><Text className="text-[10px] uppercase font-bold text-slate-400">Selected Students</Text></Divider>
 
             <div className="grid grid-cols-2 gap-3 max-h-[200px] overflow-y-auto">
               {selectedStudentIds.map(id => {
@@ -342,7 +342,7 @@ const RoomAllotment = () => {
 
             <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 flex gap-3">
               <AlertCircle className="text-orange-500 shrink-0 mt-1" size={18} />
-              <Text className="text-[11px] text-orange-800 italic leading-tight">Note: This action updates system-wide residency records and cannot be undone via this module.</Text>
+              <Text className="text-[11px] text-orange-800 italic leading-tight">Note: This action updates official student records and will affect their room status immediately.</Text>
             </div>
           </div>
         </Modal>

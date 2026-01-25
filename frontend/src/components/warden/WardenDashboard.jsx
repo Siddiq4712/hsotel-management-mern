@@ -35,7 +35,7 @@ const WardenDashboard = ({ setCurrentView }) => {
       const response = await wardenAPI.getDashboardStats();
       setStats(response.data.data);
     } catch (error) {
-      console.error('Stats Error:', error);
+      console.error('Dashboard Stats Error:', error);
     } finally {
       setTimeout(() => setLoading(false), 800);
     }
@@ -70,85 +70,74 @@ const WardenDashboard = ({ setCurrentView }) => {
         {/* --- HEADER SECTION --- */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <Text className="text-slate-500 font-bold uppercase tracking-widest text-[11px]">System Live</Text>
-            </div>
-            <Title level={1} style={{ margin: 0, fontWeight: 800, fontSize: '2.25rem' }}>
-              Welcome back, <span className="text-blue-600">{user?.username || 'Warden'}</span>
-            </Title>
-            <Text className="text-slate-500 text-lg">Academic Year 2024-25 • Management Overview</Text>
+            <Title level={2} style={{ margin: 0 }}>Hostel Overview</Title>
+            <Text type="secondary">Hostel Records & Management • Academic Year 2024-25</Text>
           </div>
           <Button 
-            size="large" 
-            icon={<RefreshCw size={18} />} 
+            icon={<RefreshCw size={16}/>} 
             onClick={fetchDashboardStats} 
-            className="flex items-center gap-2 h-12 px-6 shadow-sm border-slate-200 font-semibold rounded-xl hover:text-blue-600"
+            className="rounded-xl h-11 px-6 font-bold"
           >
-            Sync Data
+            Refresh Records
           </Button>
         </div>
 
         {/* --- 1. PRIMARY METRICS GRID --- */}
         <Row gutter={[24, 24]} className="mb-10">
           {[
-            { label: 'Total Enrolment', val: stats.totalStudents, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', sub: 'Active Students' },
-            { label: 'Occupied Beds', val: stats.occupiedBeds, icon: BedDouble, color: 'text-indigo-600', bg: 'bg-indigo-50', sub: `${stats.availableBeds} remaining` },
-            { label: 'Pending Leaves', val: stats.pendingLeaves, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', sub: 'Requires Review' },
-            { label: 'Open Complaints', val: stats.pendingComplaints, icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50', sub: 'Awaiting Action' },
+            { label: 'Total Students', val: stats.totalStudents, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'Occupied Beds', val: stats.occupiedBeds, icon: BedDouble, color: 'text-orange-600', bg: 'bg-orange-50' },
+            { label: 'Pending Leaves', val: stats.pendingLeaves, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+            { label: 'New Complaints', val: stats.pendingComplaints, icon: MessageSquare, color: 'text-rose-600', bg: 'bg-rose-50' },
           ].map((card, i) => (
             <Col xs={24} sm={12} lg={6} key={i}>
-              <Card className="border-none shadow-sm hover:shadow-md transition-all duration-300">
-                <div className="flex justify-between items-start">
-                  <div className={`p-4 rounded-2xl ${card.bg} ${card.color}`}>
-                    <card.icon size={28} />
-                  </div>
-                  <div className="text-right">
-                    <Text className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">{card.label}</Text>
-                    <Title level={2} style={{ margin: 0, fontWeight: 800 }}>{card.val}</Title>
-                    <Text className="text-[12px] font-medium text-slate-500">{card.sub}</Text>
-                  </div>
-                </div>
+              <Card className="border-none shadow-sm rounded-[32px]">
+                <Statistic 
+                  title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{card.label}</span>} 
+                  value={card.val} 
+                  prefix={
+                    <div className={`p-2 rounded-xl ${card.bg} ${card.color} mr-3`}>
+                      <card.icon size={20} />
+                    </div>
+                  }
+                  valueStyle={{ fontWeight: 900 }}
+                />
               </Card>
             </Col>
           ))}
         </Row>
 
-        <Row gutter={[32, 32]}>
-          {/* --- LEFT COLUMN: Actions & Major Trends --- */}
-          <Col lg={16} xs={24} className="space-y-8">
-            
-            {/* QUICK ACTIONS TOOLBELT */}
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-              <div className="flex justify-between items-center mb-6">
-                <Title level={4} style={{ margin: 0 }} className="flex items-center gap-2">
-                  <Activity size={22} className="text-blue-600" /> Management Toolkit
-                </Title>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {[
-                  { label: 'Student Enrolment', icon: UserPlus, color: 'bg-blue-600', view: 'enroll-student' },
-                  { label: 'Room Allotment', icon: Home, color: 'bg-emerald-600', view: 'room-allotment' },
-                  { label: 'Attendance Log', icon: CheckSquare, color: 'bg-purple-600', view: 'attendance' },
-                  { label: 'Leave Gateway', icon: Calendar, color: 'bg-orange-600', view: 'leave-requests' },
-                ].map((act, i) => (
-                  <button 
-                    key={i} 
-                    onClick={() => handleAction(act.view)} 
-                    className="group flex flex-col items-center gap-3 p-4 rounded-2xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100"
-                  >
-                    <div className={`${act.color} text-white p-4 rounded-2xl group-hover:scale-110 transition-transform shadow-lg shadow-blue-100`}>
-                      <act.icon size={26} />
-                    </div>
-                    <Text strong className="text-slate-700 text-xs">{act.label}</Text>
-                  </button>
-                ))}
-              </div>
+        <Row gutter={[24, 24]}>
+          {/* 2. Quick Actions & Trends */}
+          <Col lg={16} xs={24} className="space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Admission', icon: UserPlus, color: 'text-blue-600', bg: 'bg-blue-50', view: 'enroll-student' },
+                { label: 'Room Allotment', icon: Home, color: 'text-emerald-600', bg: 'bg-emerald-50', view: 'room-allotment' },
+                { label: 'Attendance', icon: CheckSquare, color: 'text-purple-600', bg: 'bg-purple-50', view: 'attendance' },
+                { label: 'Leave Approval', icon: Calendar, color: 'text-orange-600', bg: 'bg-orange-50', view: 'leave-requests' },
+              ].map((act, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleAction(act.view)}
+                  className="bg-white p-6 rounded-[32px] shadow-sm flex flex-col items-center gap-3 hover:scale-105 transition-transform border-none"
+                >
+                   <div className={`p-4 rounded-2xl ${act.bg} ${act.color}`}>
+                     <act.icon size={24} />
+                   </div>
+                   <Text strong className="text-slate-600 text-[11px] uppercase">
+                     {act.label}
+                   </Text>
+                </button>
+              ))}
             </div>
 
-            {/* ATTENDANCE TREND LINE CHART */}
-            <Card className="border-none shadow-sm rounded-[2.5rem]" title={<span className="font-bold text-lg">Institutional Attendance Pulse (%)</span>}>
-              <div className="h-80 px-2">
+            {/* Attendance Trend Line Chart */}
+            <Card 
+              className="border-none shadow-sm rounded-[32px]" 
+              title={<Text strong>Hostel Attendance Trend</Text>}
+            >
+              <div className="h-72">
                 <Line 
                   options={chartOptions}
                   data={{
@@ -172,31 +161,48 @@ const WardenDashboard = ({ setCurrentView }) => {
             {/* TWO-COLUMN STATUS BARS */}
             <Row gutter={24}>
               <Col span={12}>
-                <Card className="border-none shadow-sm rounded-[2rem]" title={<span className="font-bold">Incident Resolutions</span>}>
+                <Card 
+                  className="border-none shadow-sm rounded-[32px]" 
+                  title={<Text strong>Complaint Progress</Text>}
+                >
                   <div className="h-64">
                     <Bar 
                       options={chartOptions}
                       data={{
                         labels: ['New', 'Actioned', 'Solved', 'Closed'],
                         datasets: [{
-                          data: [stats.complaintStatus.submitted, stats.complaintStatus.in_progress, stats.complaintStatus.resolved, stats.complaintStatus.closed],
-                          backgroundColor: ['#60a5fa', '#fbbf24', '#22c55e', '#94a3b8'],
-                          borderRadius: 12
+                          data: [
+                            stats.complaintStatus.submitted, 
+                            stats.complaintStatus.in_progress, 
+                            stats.complaintStatus.resolved, 
+                            stats.complaintStatus.closed
+                          ],
+                          backgroundColor: ['#60a5fa', '#facc15', '#22c55e', '#94a3b8'],
+                          borderRadius: 8
                         }]
                       }}
                     />
                   </div>
                 </Card>
               </Col>
+
+              {/* Leave Requests Bar Chart */}
               <Col span={12}>
-                <Card className="border-none shadow-sm rounded-[2rem]" title={<span className="font-bold">Leave Lifecycle</span>}>
+                <Card 
+                  className="border-none shadow-sm rounded-[32px]" 
+                  title={<Text strong>Leave Requests Status</Text>}
+                >
                   <div className="h-64">
                     <Bar 
                       options={chartOptions}
                       data={{
                         labels: ['Pending', 'Approved', 'Rejected'],
                         datasets: [{
-                          data: [stats.leaveStatus.pending, stats.leaveStatus.approved, stats.leaveStatus.rejected],
+                          data: [
+                            stats.leaveStatus.pending, 
+                            stats.leaveStatus.approved, 
+                            stats.leaveStatus.rejected
+                          ],
                           backgroundColor: ['#f59e0b', '#10b981', '#ef4444'],
                           borderRadius: 12
                         }]
@@ -208,12 +214,14 @@ const WardenDashboard = ({ setCurrentView }) => {
             </Row>
           </Col>
 
-          {/* --- RIGHT COLUMN: Distribution & Real-time Stats --- */}
-          <Col lg={8} xs={24} className="space-y-8">
-            
-            {/* BED INVENTORY DOUGHNUT */}
-            <Card className="border-none shadow-sm rounded-[2.5rem] text-center" title={<span className="font-bold">Bed Inventory Distribution</span>}>
-              <div className="h-64 relative">
+          {/* 3. Distribution & Pulse */}
+          <Col lg={8} xs={24} className="space-y-6">
+            {/* Bed Availability */}
+            <Card 
+              className="border-none shadow-sm rounded-[32px]" 
+              title={<Text strong>Bed Availability Status</Text>}
+            >
+              <div className="h-60">
                 <Doughnut 
                   options={{ ...chartOptions, cutout: '78%' }}
                   data={{
@@ -232,48 +240,55 @@ const WardenDashboard = ({ setCurrentView }) => {
                     <Text type="secondary" className="font-bold text-[10px] uppercase tracking-tighter">Utilization</Text>
                 </div>
               </div>
-              <div className="mt-4 pt-4 border-t border-slate-50 flex justify-around">
-                <div>
-                    <Text className="block text-blue-600 font-bold text-lg">{stats.occupiedBeds}</Text>
-                    <Text className="text-slate-400 text-xs font-medium uppercase">Filled</Text>
-                </div>
-                <div>
-                    <Text className="block text-slate-600 font-bold text-lg">{stats.availableBeds}</Text>
-                    <Text className="text-slate-400 text-xs font-medium uppercase">Empty</Text>
-                </div>
+              <div className="text-center mt-4">
+                <Text type="secondary" className="text-[11px] uppercase font-bold tracking-widest">
+                  Occupancy: {Math.round((stats.occupiedBeds / stats.totalCapacity) * 100)}%
+                </Text>
               </div>
             </Card>
 
-            {/* DAILY ATTENDANCE PULSE */}
-            <Card className="border-none shadow-sm rounded-[2.5rem]" title={<span className="font-bold">Today's Attendance</span>}>
-              <div className="h-60 px-4">
+            {/* Today's Attendance Summary */}
+            <Card 
+              className="border-none shadow-sm rounded-[32px]" 
+              title={<Text strong>Today's Attendance Summary</Text>}
+            >
+              <div className="h-60">
                 <Doughnut 
                   options={chartOptions}
                   data={{
                     labels: ['Present', 'Absent', 'On-Duty'],
                     datasets: [{
-                      data: [stats.attendanceStatus.P, stats.attendanceStatus.A, stats.attendanceStatus.OD],
+                      data: [
+                        stats.attendanceStatus.P, 
+                        stats.attendanceStatus.A, 
+                        stats.attendanceStatus.OD
+                      ],
                       backgroundColor: ['#10b981', '#f43f5e', '#facc15'],
                       borderWidth: 0
                     }]
                   }}
                 />
               </div>
-              <div className="mt-8 space-y-3">
-                 <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl hover:bg-slate-100 transition-colors cursor-default">
-                    <Space>
-                        <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                        <Text strong className="text-slate-600">Present Students</Text>
-                    </Space>
-                    <Tag color="green" className="border-none font-bold rounded-lg px-3">{stats.attendanceStatus.P}</Tag>
-                 </div>
-                 <div className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl hover:bg-slate-100 transition-colors cursor-default">
-                    <Space>
-                        <div className="w-2 h-2 rounded-full bg-rose-500"></div>
-                        <Text strong className="text-slate-600">Unaccounted For</Text>
-                    </Space>
-                    <Tag color="red" className="border-none font-bold rounded-lg px-3">{stats.attendanceStatus.A}</Tag>
-                 </div>
+            </Card>
+
+            {/* Monthly Complaints Total */}
+            <Card 
+              className="border-none shadow-sm rounded-[32px]" 
+              title={<Text strong>Monthly Complaints Total</Text>}
+            >
+              <div className="h-48">
+                <Bar 
+                  options={commonOptions}
+                  data={{
+                    labels: ['Oct', 'Nov', 'Dec'],
+                    datasets: [{
+                      label: 'Total Complaints',
+                      data: [12, 8, 15],
+                      backgroundColor: '#f97316',
+                      borderRadius: 4
+                    }]
+                  }}
+                />
               </div>
             </Card>
 
