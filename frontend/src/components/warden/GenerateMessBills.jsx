@@ -63,7 +63,6 @@ const GenerateMessBills = () => {
       });
       
       message.success('Mess bills generated successfully');
-      // Refresh the bills list
       fetchMessBills(month, year);
       form.resetFields();
       
@@ -80,7 +79,6 @@ const GenerateMessBills = () => {
       await wardenAPI.updateMessBillStatus(id, { status });
       message.success(`Bill status updated to ${status}`);
       
-      // Refresh the list
       if (currentMonth) {
         fetchMessBills(currentMonth.month() + 1, currentMonth.year());
       }
@@ -92,19 +90,19 @@ const GenerateMessBills = () => {
 
   const columns = [
     {
-      title: 'Student',
+      title: 'Student Name',
       dataIndex: 'MessBillStudent',
       key: 'student',
       render: (student) => <span>{student?.username}</span>
     },
     {
-      title: 'Amount',
+      title: 'Total Fee',
       dataIndex: 'amount',
       key: 'amount',
       render: (amount) => `₹${parseFloat(amount).toFixed(2)}`
     },
     {
-      title: 'Due Date',
+      title: 'Last Date',
       dataIndex: 'due_date',
       key: 'due_date',
       render: (date) => moment(date).format('DD/MM/YYYY')
@@ -115,14 +113,15 @@ const GenerateMessBills = () => {
       key: 'status',
       render: (status) => {
         let color = 'blue';
-        if (status === 'pending') color = 'gold';
-        if (status === 'paid') color = 'green';
-        if (status === 'overdue') color = 'red';
-        return <Tag color={color}>{status.toUpperCase()}</Tag>;
+        let label = status.toUpperCase();
+        if (status === 'pending') { color = 'gold'; label = 'UNPAID'; }
+        if (status === 'paid') { color = 'green'; label = 'PAID'; }
+        if (status === 'overdue') { color = 'red'; label = 'DUE LAPSED'; }
+        return <Tag color={color}>{label}</Tag>;
       }
     },
     {
-      title: 'Actions',
+      title: 'Payment Action',
       key: 'actions',
       render: (_, record) => (
         <Space>
@@ -132,16 +131,7 @@ const GenerateMessBills = () => {
               size="small" 
               onClick={() => handleStatusChange(record.id, 'paid')}
             >
-              Mark Paid
-            </Button>
-          )}
-          {record.status === 'pending' && (
-            <Button 
-              danger 
-              size="small" 
-              onClick={() => handleStatusChange(record.id, 'overdue')}
-            >
-              Mark Overdue
+              Mark as Paid
             </Button>
           )}
         </Space>
@@ -151,11 +141,13 @@ const GenerateMessBills = () => {
 
   return (
     <div>
-      <Title level={2}>Mess Bill Management</Title>
+      {/* Updated Title */}
+      <Title level={2}>Monthly Mess Fees</Title>
       
       <Row gutter={16}>
+        {/* Generate Bills */}
         <Col xs={24} lg={8}>
-          <Card title="Generate Mess Bills">
+          <Card title="Create Monthly Bills">
             <Form
               form={form}
               layout="vertical"
@@ -174,67 +166,40 @@ const GenerateMessBills = () => {
               
               <Form.Item
                 name="amount_per_day"
-                label="Amount Per Day (₹)"
-                rules={[{ required: true, message: 'Please enter amount' }]}
+                label="Daily Mess Rate (₹)"
+                rules={[{ required: true, message: 'Please enter the daily rate' }]}
               >
                 <InputNumber
                   min={1}
-                  step={1}
                   style={{ width: '100%' }}
-                  placeholder="Enter daily amount"
+                  placeholder="e.g. 150"
                 />
               </Form.Item>
               
               <Form.Item>
                 <Button type="primary" htmlType="submit" loading={loading} block>
-                  Generate Bills
+                  Generate Bills for Month
                 </Button>
               </Form.Item>
             </Form>
           </Card>
         </Col>
         
+        {/* Collection Report */}
         <Col xs={24} lg={16}>
-          <Card title="Summary">
+          <Card title="Collection Report">
             <Row gutter={16}>
               <Col span={8}>
-                <Statistic 
-                  title="Total Bills" 
-                  value={summary.totalBills} 
-                  suffix={<Text type="secondary">bills</Text>} 
-                />
-                <Statistic 
-                  title="Total Amount" 
-                  value={summary.totalAmount} 
-                  precision={2}
-                  prefix="₹" 
-                />
+                <Statistic title="Total Students" value={summary.totalBills} />
+                <Statistic title="Total Expected" value={summary.totalAmount} prefix="₹" />
               </Col>
               <Col span={8}>
-                <Statistic 
-                  title="Pending Bills" 
-                  value={summary.pendingBills} 
-                  suffix={<Text type="secondary">bills</Text>}
-                />
-                <Statistic 
-                  title="Pending Amount" 
-                  value={summary.pendingAmount} 
-                  precision={2}
-                  prefix="₹" 
-                />
+                <Statistic title="Unpaid Students" value={summary.pendingBills} />
+                <Statistic title="Unpaid Amount" value={summary.pendingAmount} prefix="₹" />
               </Col>
               <Col span={8}>
-                <Statistic 
-                  title="Paid Bills" 
-                  value={summary.paidBills} 
-                  suffix={<Text type="secondary">bills</Text>}
-                />
-                <Statistic 
-                  title="Paid Amount" 
-                  value={summary.paidAmount} 
-                  precision={2}
-                  prefix="₹" 
-                />
+                <Statistic title="Paid Students" value={summary.paidBills} />
+                <Statistic title="Amount Collected" value={summary.paidAmount} prefix="₹" />
               </Col>
             </Row>
           </Card>
@@ -243,6 +208,7 @@ const GenerateMessBills = () => {
 
       <Divider />
       
+      {/* Mess Bills Table */}
       <Card title="Mess Bills">
         <Space style={{ marginBottom: 16 }}>
           <DatePicker 
@@ -253,18 +219,12 @@ const GenerateMessBills = () => {
         </Space>
         
         <Table
-        columns={columns}
-        dataSource={reportData}
-        rowKey="studentId"
-        loading={loading}
-        scroll={{ x: 1500 }}
-        pagination={{
-          pageSize: 10, // Sets the default page size
-          showSizeChanger: true,
-          pageSizeOptions: ['10', '50', '100'],
-          showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
-        }}
-      />
+          columns={columns}
+          dataSource={messBills}
+          rowKey="id"
+          loading={billsLoading}
+          pagination={{ pageSize: 10 }}
+        />
       </Card>
     </div>
   );

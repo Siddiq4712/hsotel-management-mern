@@ -89,7 +89,7 @@ const ManageStudents = () => {
 
   const columns = [
     {
-      title: 'Student Identity',
+      title: 'Student Name',
       key: 'identity',
       render: (_, r) => (
         <Space gap={3}>
@@ -106,7 +106,7 @@ const ManageStudents = () => {
       )
     },
     {
-      title: 'Residential Status',
+      title: 'Room Status',
       key: 'room',
       render: (_, r) => {
         const allotment = r.tbl_RoomAllotments?.find(a => a.is_active);
@@ -123,7 +123,7 @@ const ManageStudents = () => {
       }
     },
     {
-      title: 'Academic Session',
+      title: 'Batch',
       dataIndex: 'session',
       render: (s) => <Text className="text-slate-500 font-medium">{s || 'N/A'}</Text>
     },
@@ -137,7 +137,7 @@ const ManageStudents = () => {
           className="rounded-lg border-none shadow-sm bg-slate-50 hover:bg-blue-50 transition-colors"
           onClick={() => handleViewDetails(r)}
         >
-          Details
+          View Profile
         </Button>
       )
     }
@@ -156,14 +156,14 @@ const ManageStudents = () => {
               <Users className="text-white" size={24} />
             </div>
             <div>
-              <Title level={2} style={{ margin: 0 }}>Enrollment Directory</Title>
-              <Text type="secondary">Institutional database of all active student members</Text>
+              <Title level={2} style={{ margin: 0 }}>Student Register</Title>
+              <Text type="secondary">List of all students currently registered in the hostel</Text>
             </div>
           </div>
           <div className="bg-white p-3 px-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
              <Badge status="processing" color="#2563eb" />
              <Text strong className="text-[11px] uppercase tracking-wider text-slate-500">
-               {filteredStudents.length} Active Records
+               {filteredStudents.length} Students Total
              </Text>
           </div>
         </div>
@@ -181,7 +181,11 @@ const ManageStudents = () => {
                 onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
-            <Button icon={<RefreshCw size={16}/>} onClick={fetchStudents} className="rounded-xl h-12 w-12 flex items-center justify-center border-slate-200" />
+            <Button 
+              icon={<RefreshCw size={16}/>} 
+              onClick={fetchStudents} 
+              className="rounded-xl h-12 w-12 flex items-center justify-center border-slate-200" 
+            />
           </div>
         </Card>
 
@@ -215,12 +219,20 @@ const ManageStudents = () => {
           )}
         </Card>
 
-        {/* Audit Modal */}
+        {/* Student Profile Modal */}
         <Modal
-          title={<div className="flex items-center gap-2 text-blue-600"><UserCircle size={20}/> Student Dossier</div>}
+          title={<div className="flex items-center gap-2 text-blue-600"><UserCircle size={20}/> Student Profile</div>}
           open={viewModalVisible}
           onCancel={() => setViewModalVisible(false)}
-          footer={<Button type="primary" onClick={() => setViewModalVisible(false)} className="rounded-xl h-11 px-8">Close Dossier</Button>}
+          footer={
+            <Button 
+              type="primary" 
+              onClick={() => setViewModalVisible(false)} 
+              className="rounded-xl h-11 px-8"
+            >
+              Close Profile
+            </Button>
+          }
           width={700}
           className="rounded-[32px]"
         >
@@ -242,28 +254,50 @@ const ManageStudents = () => {
               </div>
 
               <Descriptions bordered column={2} className="rounded-2xl overflow-hidden shadow-sm border-slate-100">
-                <Descriptions.Item label={<Space><Hash size={14}/> Student ID</Space>}>{selectedStudent.id}</Descriptions.Item>
-                <Descriptions.Item label={<Space><BookOpen size={14}/> Session</Space>}>{selectedStudent.session || 'N/A'}</Descriptions.Item>
-                <Descriptions.Item label={<Space><MapPin size={14}/> Assignment</Space>} span={2}>
+                <Descriptions.Item label={<Space><Hash size={14}/> Student ID</Space>}>
+                  {selectedStudent.id}
+                </Descriptions.Item>
+                <Descriptions.Item label={<Space><BookOpen size={14}/> Batch</Space>}>
+                  {selectedStudent.session || 'N/A'}
+                </Descriptions.Item>
+                <Descriptions.Item label={<Space><MapPin size={14}/> Room Assignment</Space>} span={2}>
                   {(() => {
                     const room = selectedStudent.tbl_RoomAllotments?.find(a => a.is_active)?.HostelRoom;
-                    return room ? `Room ${room.room_number} (${room.tbl_RoomType?.name || 'Standard'})` : 'Not Assigned to Room';
+                    return room 
+                      ? `Room ${room.room_number} (${room.tbl_RoomType?.name || 'Standard'})` 
+                      : 'Not Assigned to a Room';
                   })()}
                 </Descriptions.Item>
               </Descriptions>
 
               <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
-                <Text strong className="text-[10px] uppercase text-slate-400 block mb-4 tracking-widest">Shared Occupants (Roommates)</Text>
-                {roommatesLoading ? <Skeleton active paragraph={{ rows: 2 }} /> : roommates.length > 0 ? (
+                <Text strong className="text-[10px] uppercase text-slate-400 block mb-4 tracking-widest">
+                  Current Roommates
+                </Text>
+                {roommatesLoading ? (
+                  <Skeleton active paragraph={{ rows: 2 }} />
+                ) : roommates.length > 0 ? (
                   <div className="space-y-3">
                     {roommates.map(mate => (
-                      <div key={mate.id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-100">
-                        <Space><User size={14} className="text-blue-500"/><Text strong className="text-slate-600">{mate.username}</Text></Space>
-                        <Text className="text-[10px] text-slate-400 font-bold uppercase">{mate.roll_number}</Text>
+                      <div 
+                        key={mate.id} 
+                        className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-100"
+                      >
+                        <Space>
+                          <User size={14} className="text-blue-500"/>
+                          <Text strong className="text-slate-600">{mate.username}</Text>
+                        </Space>
+                        <Text className="text-[10px] text-slate-400 font-bold uppercase">
+                          {mate.roll_number}
+                        </Text>
                       </div>
                     ))}
                   </div>
-                ) : <Text className="text-slate-400 italic text-sm">No other institutional roommates assigned.</Text>}
+                ) : (
+                  <Text className="text-slate-400 italic text-sm">
+                    No other roommates assigned to this room.
+                  </Text>
+                )}
               </div>
             </div>
           )}
