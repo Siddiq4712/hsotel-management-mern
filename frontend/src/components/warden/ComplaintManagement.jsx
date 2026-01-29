@@ -96,20 +96,20 @@ const ComplaintManagement = () => {
         updateData.resolution = resolution.trim();
       }
       await wardenAPI.updateComplaint(selectedComplaint.id, updateData);
-      message.success(`Ticket Status: ${newStatus.toUpperCase()}`);
+      message.success(`Status updated to: ${newStatus.replace('_', ' ')}`);
       setShowModal(false);
       fetchComplaints();
     } catch (error) {
-      message.error('Execution protocol failed.');
+      message.error('Failed to update status.');
     } finally {
       setActionLoading(false);
     }
   };
 
   const statusConfig = {
-    submitted: { color: 'warning', label: 'Submitted', icon: <AlertTriangle size={12} /> },
-    in_progress: { color: 'blue', label: 'Actioning', icon: <Clock size={12} /> },
-    resolved: { color: 'success', label: 'Resolved', icon: <CheckCircle2 size={12} /> },
+    submitted: { color: 'warning', label: 'New', icon: <AlertTriangle size={12} /> },
+    in_progress: { color: 'blue', label: 'Processing', icon: <Clock size={12} /> },
+    resolved: { color: 'success', label: 'Solved', icon: <CheckCircle2 size={12} /> },
     closed: { color: 'default', label: 'Closed', icon: <XCircle size={12} /> }
   };
 
@@ -131,11 +131,11 @@ const ComplaintManagement = () => {
               <MessageCircle className="text-white" size={24} />
             </div>
             <div>
-              <Title level={2} style={{ margin: 0 }}>Grievance Redressal</Title>
-              <Text type="secondary">Institutional oversight and resolution of student concerns</Text>
+              <Title level={2} style={{ margin: 0 }}>Student Complaints</Title>
+              <Text type="secondary">Manage and resolve hostel issues and maintenance requests</Text>
             </div>
           </div>
-          <Button icon={<RefreshCw size={16}/>} onClick={fetchComplaints} className="rounded-xl h-11 px-6 font-bold shadow-sm">Sync Portal</Button>
+          <Button icon={<RefreshCw size={16}/>} onClick={fetchComplaints} className="rounded-xl h-11 px-6 font-bold shadow-sm">Refresh List</Button>
         </div>
 
         {loading ? (
@@ -149,11 +149,11 @@ const ComplaintManagement = () => {
             {/* --- Glass-Glow Stat Cards --- */}
             <Row gutter={[20, 20]} className="mb-8">
               {[
-                { label: 'Total Volume', val: complaints.length, icon: Activity, bg: 'bg-indigo-50', color: 'text-indigo-600' },
-                { label: 'Unaddressed', val: complaints.filter(c => c.status === 'submitted').length, icon: AlertTriangle, bg: 'bg-amber-50', color: 'text-amber-600' },
-                { label: 'Ongoing Ops', val: complaints.filter(c => c.status === 'in_progress').length, icon: Clock, bg: 'bg-blue-50', color: 'text-blue-600' },
-                { label: 'Redressed', val: complaints.filter(c => c.status === 'resolved').length, icon: CheckCircle2, bg: 'bg-emerald-50', color: 'text-emerald-600' },
-                { label: 'Urgent Ops', val: complaints.filter(c => c.priority === 'urgent').length, icon: Zap, bg: 'bg-rose-50', color: 'text-rose-600' },
+                { label: 'Total Received', val: complaints.length, icon: Activity, bg: 'bg-indigo-50', color: 'text-indigo-600' },
+                { label: 'Pending', val: complaints.filter(c => c.status === 'submitted').length, icon: AlertTriangle, bg: 'bg-amber-50', color: 'text-amber-600' },
+                { label: 'In Progress', val: complaints.filter(c => c.status === 'in_progress').length, icon: Clock, bg: 'bg-blue-50', color: 'text-blue-600' },
+                { label: 'Solved', val: complaints.filter(c => c.status === 'resolved').length, icon: CheckCircle2, bg: 'bg-emerald-50', color: 'text-emerald-600' },
+                { label: 'Urgent', val: complaints.filter(c => c.priority === 'urgent').length, icon: Zap, bg: 'bg-rose-50', color: 'text-rose-600' },
               ].map((stat, i) => (
                 <Col xs={24} sm={12} lg={4.8} key={i} style={{ flex: '0 0 20%', maxWidth: '20%' }}>
                   <Card className="border-none shadow-sm rounded-[32px] p-5 bg-white group hover:shadow-md transition-all duration-300">
@@ -177,10 +177,10 @@ const ComplaintManagement = () => {
                 <div className="flex items-center gap-3 bg-slate-50 p-1 px-3 rounded-xl border border-slate-100">
                   <Filter size={16} className="text-slate-400" />
                   <Select value={filter} onChange={setFilter} bordered={false} className="w-36 font-bold text-slate-600">
-                    <Option value="all">All Status</Option>
-                    <Option value="submitted">New Tickets</Option>
-                    <Option value="in_progress">Actioning</Option>
-                    <Option value="resolved">Resolved</Option>
+                    <Option value="all">All Complaints</Option>
+                    <Option value="submitted">New</Option>
+                    <Option value="in_progress">In Progress</Option>
+                    <Option value="resolved">Solved</Option>
                   </Select>
                 </div>
                 <Select value={categoryFilter} onChange={setCategoryFilter} className="w-44 h-11" placeholder="Category">
@@ -207,7 +207,7 @@ const ComplaintManagement = () => {
                         <div className="p-2.5 bg-blue-50 rounded-2xl text-blue-600"><User size={20} /></div>
                         <Space direction="vertical" size={0}>
                            <Text strong className="text-slate-700 text-base">{c.Student?.username}</Text>
-                           <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ref ID: #TKT-{c.id} • {moment(c.createdAt).format('DD MMM, hh:mm A')}</Text>
+                           <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ref ID: #CMP-{c.id} • {moment(c.createdAt).format('DD MMM, hh:mm A')}</Text>
                         </Space>
                         <Divider type="vertical" className="h-8 border-slate-200 mx-2" />
                         <Tag bordered={false} color={statusConfig[c.status].color} icon={statusConfig[c.status].icon} className="rounded-full font-bold uppercase text-[9px] px-3 py-0.5">{statusConfig[c.status].label}</Tag>
@@ -223,7 +223,7 @@ const ComplaintManagement = () => {
                          <div className="mt-5 p-5 rounded-[24px] bg-emerald-50/50 border border-emerald-100 flex gap-4">
                            <div className="p-2 bg-white rounded-xl shadow-sm h-fit"><ShieldCheck className="text-emerald-500" size={18}/></div>
                            <div>
-                             <Text strong className="text-[10px] uppercase text-emerald-600 block mb-1 tracking-widest">Official Resolution Audit</Text>
+                             <Text strong className="text-[10px] uppercase text-emerald-600 block mb-1 tracking-widest">Resolution Summary</Text>
                              <Text className="text-emerald-900 font-medium">{c.resolution}</Text>
                            </div>
                          </div>
@@ -232,20 +232,20 @@ const ComplaintManagement = () => {
 
                     <div className="md:w-52 flex flex-col gap-2 justify-center border-l border-slate-50 pl-6">
                        {c.status === 'submitted' && (
-                         <Button type="primary" block className="h-12 rounded-xl font-bold shadow-lg shadow-blue-100" onClick={() => { setSelectedComplaint(c); setNewStatus('in_progress'); setShowModal(true); }}>START ACTION</Button>
+                         <Button type="primary" block className="h-12 rounded-xl font-bold shadow-lg shadow-blue-100" onClick={() => { setSelectedComplaint(c); setNewStatus('in_progress'); setShowModal(true); }}>START WORK</Button>
                        )}
                        {['submitted', 'in_progress'].includes(c.status) && (
-                         <Button className="h-12 rounded-xl font-bold border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors" onClick={() => { setSelectedComplaint(c); setNewStatus('resolved'); setShowModal(true); }}>MARK RESOLVED</Button>
+                         <Button className="h-12 rounded-xl font-bold border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors" onClick={() => { setSelectedComplaint(c); setNewStatus('resolved'); setShowModal(true); }}>MARK AS SOLVED</Button>
                        )}
                        {!['resolved', 'closed'].includes(c.status) && (
-                         <Button type="text" danger className="h-10 rounded-xl font-bold mt-2" onClick={() => { setSelectedComplaint(c); setNewStatus('closed'); setShowModal(true); }}>CLOSE TICKET</Button>
+                         <Button type="text" danger className="h-10 rounded-xl font-bold mt-2" onClick={() => { setSelectedComplaint(c); setNewStatus('closed'); setShowModal(true); }}>CLOSE COMPLAINT</Button>
                        )}
                     </div>
                   </div>
                 </Card>
               )) : (
                 <div className="py-24 flex flex-col items-center justify-center bg-white rounded-[40px] shadow-sm border border-slate-50">
-                  <Empty image={<div className="bg-slate-50 p-10 rounded-full mb-4"><Inbox size={80} className="text-slate-200" /></div>} description={<Text className="text-slate-400 font-medium block">No grievance logs found in this cycle.</Text>} />
+                  <Empty image={<div className="bg-slate-50 p-10 rounded-full mb-4"><Inbox size={80} className="text-slate-200" /></div>} description={<Text className="text-slate-400 font-medium block">No complaints found.</Text>} />
                 </div>
               )}
             </div>
@@ -254,12 +254,12 @@ const ComplaintManagement = () => {
 
         {/* Action Protocol Modal */}
         <Modal
-          title={<div className="flex items-center gap-2 text-blue-600"><ClipboardList size={20}/> Action Protocol</div>}
+          title={<div className="flex items-center gap-2 text-blue-600"><ClipboardList size={20}/> Update Status</div>}
           open={showModal}
           onCancel={() => setShowModal(false)}
           footer={[
-            <Button key="back" onClick={() => setShowModal(false)} className="rounded-xl h-11 px-8">Abort</Button>,
-            <Button key="submit" type="primary" loading={actionLoading} onClick={confirmStatusUpdate} className="rounded-xl h-11 px-10 font-bold shadow-lg shadow-blue-100">Update Ledger</Button>
+            <Button key="back" onClick={() => setShowModal(false)} className="rounded-xl h-11 px-8">Cancel</Button>,
+            <Button key="submit" type="primary" loading={actionLoading} onClick={confirmStatusUpdate} className="rounded-xl h-11 px-10 font-bold shadow-lg shadow-blue-100">Save Changes</Button>
           ]}
           className="rounded-[32px]"
           width={550}
@@ -267,22 +267,22 @@ const ComplaintManagement = () => {
           {selectedComplaint && (
             <div className="mt-6 space-y-6">
               <div className="p-5 bg-slate-50 rounded-[24px] border border-slate-100">
-                <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest block mb-1">Target Ticket</Text>
+                <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest block mb-1">Complaint Topic</Text>
                 <Text strong className="text-lg block mb-2 leading-tight">{selectedComplaint.subject}</Text>
-                <Tag bordered={false} color="blue" className="rounded-full font-bold uppercase text-[9px] px-3">Protocol: {newStatus.replace('_', ' ')}</Tag>
+                <Tag bordered={false} color="blue" className="rounded-full font-bold uppercase text-[9px] px-3">Action: {newStatus.replace('_', ' ')}</Tag>
               </div>
 
               {newStatus === 'resolved' && (
                 <div className="space-y-2 px-1">
-                  <Text strong className="text-[11px] uppercase text-slate-400 block mb-2 tracking-widest">Resolution Narrative</Text>
-                  <TextArea rows={4} className="rounded-[20px] p-4 border-slate-200 focus:border-blue-400 transition-all" placeholder="Detail the measures taken to redress this grievance..." value={resolution} onChange={(e) => setResolution(e.target.value)} />
+                  <Text strong className="text-[11px] uppercase text-slate-400 block mb-2 tracking-widest">Resolution Summary</Text>
+                  <TextArea rows={4} className="rounded-[20px] p-4 border-slate-200" placeholder="Explain how this issue was fixed..." value={resolution} onChange={(e) => setResolution(e.target.value)} />
                 </div>
               )}
 
               <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex gap-3">
                 <Info size={18} className="text-blue-500 shrink-0 mt-0.5" />
                 <Text className="text-[11px] text-blue-700 leading-tight font-medium">
-                  This update will be logged in the student's institutional profile and trigger a real-time notification.
+                  This update will be logged in the student's profile and notify them immediately.
                 </Text>
               </div>
             </div>

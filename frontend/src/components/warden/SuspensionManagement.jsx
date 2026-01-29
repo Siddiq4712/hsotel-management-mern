@@ -83,7 +83,7 @@ const SuspensionManagement = () => {
       setSuspensions(suspRes.data.data || []);
       setStudents(stuRes.data.data || []);
     } catch (error) {
-      message.error('Institutional disciplinary sync failed.');
+      message.error('Failed to load discipline records.');
     } finally {
       // Intentional delay to ensure smooth shimmer effect
       setTimeout(() => setLoading(false), 800);
@@ -107,7 +107,7 @@ const SuspensionManagement = () => {
 
   const columns = [
     {
-      title: 'Student Identity',
+      title: 'Student Name',
       key: 'identity',
       render: (_, r) => (
         <Space gap={3}>
@@ -122,19 +122,19 @@ const SuspensionManagement = () => {
       )
     },
     {
-      title: 'Action Status',
+      title: 'Current Status',
       dataIndex: 'status',
       render: (s) => (
         <Tag icon={statusConfig[s]?.icon} color={statusConfig[s]?.color} className="rounded-full border-none px-3 font-bold uppercase text-[9px]">
-          {statusConfig[s]?.label || s}
+          {s === 'completed' ? 'Finished' : statusConfig[s]?.label || s}
         </Tag>
       )
     },
     {
-      title: 'Total Impact',
+      title: 'Duration',
       key: 'period',
       render: (_, r) => {
-        const diff = r.end_date ? moment(r.end_date).diff(moment(r.start_date), 'days') : '∞';
+        const diff = r.end_date ? moment(r.end_date).diff(moment(r.start_date), 'days') : 'TBD';
         return <Text strong className="text-slate-500">{diff} Days</Text>;
       }
     },
@@ -150,7 +150,7 @@ const SuspensionManagement = () => {
     setCreateLoading(true);
     try {
       await wardenAPI.createSuspension(values);
-      message.success('Suspension order issued successfully.');
+      message.success('Suspension recorded successfully.');
       setShowCreateModal(false);
       form.resetFields();
       fetchData();
@@ -172,11 +172,11 @@ const SuspensionManagement = () => {
               <ShieldAlert className="text-white" size={24} />
             </div>
             <div>
-              <Title level={2} style={{ margin: 0 }}>Suspension Ledger</Title>
-              <Text type="secondary">Institutional disciplinary oversight and protocol management</Text>
+              <Title level={2} style={{ margin: 0 }}>Suspension Records</Title>
+              <Text type="secondary">Manage student disciplinary actions and suspension periods</Text>
             </div>
           </div>
-          <Button type="primary" icon={<Plus size={18}/>} onClick={() => setShowCreateModal(true)} className="h-12 rounded-xl px-6 font-bold bg-rose-600 border-none shadow-lg">Issue Order</Button>
+          <Button type="primary" icon={<Plus size={18}/>} onClick={() => setShowCreateModal(true)} className="h-12 rounded-xl px-6 font-bold bg-rose-600 border-none shadow-lg">Add Suspension</Button>
         </div>
 
         {loading ? (
@@ -190,10 +190,10 @@ const SuspensionManagement = () => {
             {/* Real Stat Cards */}
             <Row gutter={[24, 24]} className="mb-8">
               {[
-                { label: 'Cumulative Records', val: suspensions.length, icon: Gavel, color: 'text-slate-400' },
-                { label: 'Active Suspension', val: suspensions.filter(s => s.status === 'active').length, icon: UserX, color: 'text-rose-500' },
-                { label: 'Concluded Actions', val: suspensions.filter(s => s.status === 'completed').length, icon: CheckCircle2, color: 'text-emerald-500' },
-                { label: 'Protocol Holds', val: 0, icon: Clock, color: 'text-amber-500' },
+                { label: 'Total Cases', val: suspensions.length, icon: Gavel, color: 'text-slate-400' },
+                { label: 'Currently Suspended', val: suspensions.filter(s => s.status === 'active').length, icon: UserX, color: 'text-rose-500' },
+                { label: 'Suspensions Finished', val: suspensions.filter(s => s.status === 'completed').length, icon: CheckCircle2, color: 'text-emerald-500' },
+                { label: 'Pending Review', val: 0, icon: Clock, color: 'text-amber-500' },
               ].map((stat, i) => (
                 <Col xs={24} sm={12} lg={6} key={i}>
                   <Card className="border-none shadow-sm rounded-[32px]">
@@ -225,7 +225,7 @@ const SuspensionManagement = () => {
                 />
               ) : (
                 <div className="py-24 flex flex-col items-center justify-center bg-white">
-                  <Empty image={<div className="bg-slate-50 p-8 rounded-full mb-4"><Inbox size={64} className="text-slate-200" /></div>} description={<Text className="text-slate-400 block">No disciplinary logs found.</Text>} />
+                  <Empty image={<div className="bg-slate-50 p-8 rounded-full mb-4"><Inbox size={64} className="text-slate-200" /></div>} description={<Text className="text-slate-400 block">No disciplinary records found.</Text>} />
                 </div>
               )}
             </Card>
@@ -234,7 +234,7 @@ const SuspensionManagement = () => {
 
         {/* Create Suspension Modal */}
         <Modal
-          title={<Title level={5} className="mb-0">Issue Suspension Order</Title>}
+          title={<Title level={5} className="mb-0">Add Student Suspension</Title>}
           open={showCreateModal}
           onCancel={() => {
             setShowCreateModal(false);
@@ -261,34 +261,34 @@ const SuspensionManagement = () => {
 
             <Form.Item
               name="reason"
-              label="Reason for Suspension"
+              label="Reason for Action"
               rules={[{ required: true, message: 'Please enter the reason' }]}
             >
-              <TextArea rows={3} placeholder="Describe the violation or infraction..." />
+              <TextArea rows={3} placeholder="Explain the behavior or incident..." />
             </Form.Item>
 
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item
                   name="start_date"
-                  label="Start Date"
+                  label="Suspension From"
                   rules={[{ required: true, message: 'Please select start date' }]}
                 >
-                  <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="Select start date" />
+                  <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="Select date" />
                 </Form.Item>
               </Col>
               <Col span={12}>
                 <Form.Item
                   name="end_date"
-                  label="End Date (Optional)"
+                  label="Suspension To (Optional)"
                 >
-                  <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="Select end date" />
+                  <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="Select date" />
                 </Form.Item>
               </Col>
             </Row>
 
-            <Form.Item name="remarks" label="Additional Remarks">
-              <TextArea rows={2} placeholder="Any further notes or conditions..." />
+            <Form.Item name="remarks" label="Warden's Notes">
+              <TextArea rows={2} placeholder="Any other notes regarding this case..." />
             </Form.Item>
 
             <Divider />
@@ -301,7 +301,7 @@ const SuspensionManagement = () => {
                 Cancel
               </Button>
               <Button type="primary" htmlType="submit" loading={createLoading} className="bg-rose-600">
-                Issue Order
+                Save Suspension
               </Button>
             </div>
           </Form>

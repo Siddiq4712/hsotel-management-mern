@@ -112,7 +112,7 @@ export default function HostelBlueprintDesigner() {
         right_rooms: Number(config.right_rooms),
         orientation: config.building_type === 'l' ? config.orientation : null,
         open_side: config.building_type === 'u' ? config.open_side : null,
-        layout_json: JSON.stringify(cellData) // This is the dynamic room positions
+        layout_json: JSON.stringify(cellData)
       };
 
       console.log("DEBUG: Final Prepared Payload:", payload);
@@ -154,7 +154,7 @@ export default function HostelBlueprintDesigner() {
     setCellData(prev => ({
       ...prev,
       [slot]: { 
-        typeKey: item.typeKey, // Store the string key (e.g., "STUDENT")
+        typeKey: item.typeKey,
         room_number: `R-${1100 + Math.floor(Math.random() * 99)}` 
       }
     }));
@@ -169,8 +169,8 @@ export default function HostelBlueprintDesigner() {
           <div className="flex items-center gap-4">
             <div className="p-2 bg-blue-900 text-white rounded-sm shadow-xl"><Layers size={24} /></div>
             <div>
-              <h1 className="text-2xl font-black uppercase tracking-tighter text-blue-900 italic">Blueprint Studio Pro</h1>
-              <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Warden Control Panel | tbl_HostelLayout</p>
+              <h1 className="text-2xl font-black uppercase tracking-tighter text-blue-900 italic">Hostel Layout Designer</h1>
+              <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Warden Control Panel | Hostel Block Plan</p>
             </div>
           </div>
           <button 
@@ -179,7 +179,7 @@ export default function HostelBlueprintDesigner() {
             className="bg-blue-900 text-white px-10 py-3 rounded-sm font-bold text-[10px] uppercase shadow-2xl flex items-center gap-2 hover:bg-black disabled:opacity-50 transition-all"
           >
             {loading ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-            {loading ? "Committing..." : "Commit Blueprint"}
+            {loading ? "Saving..." : "Save Layout"}
           </button>
         </header>
 
@@ -190,11 +190,11 @@ export default function HostelBlueprintDesigner() {
             
             <section className="bg-white p-5 border border-blue-100 shadow-sm rounded-lg">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-900 mb-5 border-b pb-2 flex items-center gap-2">
-                <Home size={14} /> Building Structure
+                <Home size={14} /> Block Structure
               </h3>
               <div className="space-y-4">
                 <div>
-                  <label className="text-[8px] font-black text-slate-400 uppercase">Shape Type</label>
+                  <label className="text-[8px] font-black text-slate-400 uppercase">Building Shape</label>
                   <select className="w-full border-2 border-slate-50 p-2 text-xs font-bold uppercase outline-none focus:border-blue-900" value={config.building_type} onChange={e => setConfig({...config, building_type: e.target.value})}>
                     <option value="single">Single (Linear)</option>
                     <option value="l">L-Shaped</option>
@@ -203,19 +203,10 @@ export default function HostelBlueprintDesigner() {
                   </select>
                 </div>
 
-                {config.building_type === 'u' && (
-                  <div>
-                    <label className="text-[8px] font-black text-slate-400 uppercase">Open Side</label>
-                    <select className="w-full border-2 border-slate-50 p-2 text-xs font-bold uppercase outline-none" value={config.open_side} onChange={e => setConfig({...config, open_side: e.target.value})}>
-                      <option value="t">Top</option><option value="b">Bottom</option><option value="l">Left</option><option value="r">Right</option>
-                    </select>
-                  </div>
-                )}
-
                 <div className="grid grid-cols-2 gap-4 border-t pt-4">
                   {['top', 'bottom', 'left', 'right'].map(side => (
                     <div key={side}>
-                      <label className="text-[8px] font-black text-slate-400 uppercase">{side} Unit Count</label>
+                      <label className="text-[8px] font-black text-slate-400 uppercase">{side} Room Count</label>
                       <input type="number" value={config[`${side}_rooms`]} onChange={e => setConfig({...config, [`${side}_rooms`]: Number(e.target.value)})} className="w-full border-2 border-slate-50 p-2 text-xs font-bold outline-none focus:border-blue-900" />
                     </div>
                   ))}
@@ -225,7 +216,7 @@ export default function HostelBlueprintDesigner() {
 
             <section className="bg-slate-900 p-6 shadow-2xl rounded-lg">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-300 mb-5 flex items-center gap-2">
-                <MoveRight size={14} /> Room Modules
+                <MoveRight size={14} /> Room Types
               </h3>
               <div className="space-y-2">
                 {Object.entries(ROOM_TYPES).map(([key, room]) => (
@@ -296,12 +287,12 @@ export default function HostelBlueprintDesigner() {
       {activeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-blue-900/30 backdrop-blur-sm">
           <div className="bg-white w-72 border-[3px] border-blue-900 p-8 shadow-2xl">
-            <h2 className="text-[10px] font-black uppercase border-b border-slate-100 pb-3 mb-6 tracking-widest text-blue-900">Module: {activeModal.d.room_number}</h2>
+            <h2 className="text-[10px] font-black uppercase border-b border-slate-100 pb-3 mb-6 tracking-widest text-blue-900">Room: {activeModal.d.room_number}</h2>
             <button 
               onClick={() => { setCellData(prev => (({ [activeModal.s]: _, ...rest }) => rest)(prev)); setActiveModal(null); }}
               className="w-full bg-red-600 text-white py-3 text-[10px] font-black uppercase shadow-lg flex items-center justify-center gap-2 hover:bg-red-700"
             >
-              <Trash2 size={14} /> Remove Room
+              <Trash2 size={14} /> Delete Room
             </button>
             <button onClick={() => setActiveModal(null)} className="w-full mt-4 text-slate-400 text-[9px] font-bold uppercase hover:text-blue-900">Cancel</button>
           </div>
@@ -354,12 +345,9 @@ function GridCell({ type, slotId, data, entranceSide, onDrop, onSetEntrance, onE
     );
   }
 
-  // --- FIX START ---
-  // Look up the icon and name from our constant based on the saved typeKey
   const roomConfig = data ? ROOM_TYPES[data.typeKey] : null;
   const IconComponent = roomConfig ? roomConfig.icon : null;
   const roomName = roomConfig ? roomConfig.name : "Modular Slot";
-  // --- FIX END ---
 
   return (
     <div ref={drop} onClick={() => data && onEdit(slotId, data)} className={`w-full h-full p-1 cursor-pointer transition-transform ${isOver ? 'scale-95' : ''}`}>
@@ -368,7 +356,6 @@ function GridCell({ type, slotId, data, entranceSide, onDrop, onSetEntrance, onE
           <>
             <div className="px-1 border-b border-blue-50 text-[8px] font-serif font-bold text-blue-900 py-0.5">{data.room_number}</div>
             <div className="flex-1 flex items-center justify-center opacity-30">
-              {/* Render the component safely */}
               <IconComponent size={20} className="text-blue-900" /> 
             </div>
             <div className="bg-blue-900 text-white text-[7px] font-serif font-black uppercase text-center py-1 truncate px-1">
@@ -377,7 +364,7 @@ function GridCell({ type, slotId, data, entranceSide, onDrop, onSetEntrance, onE
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-blue-100 text-[6px] font-serif font-bold uppercase tracking-widest text-center px-1">
-            {data ? "Unknown Type" : "Modular Slot"}
+            {data ? "Unknown Type" : "Empty Room Slot"}
           </div>
         )}
       </div>
