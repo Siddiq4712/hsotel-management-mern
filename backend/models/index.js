@@ -109,7 +109,75 @@ const Hostel = sequelize.define('Hostel', {
   tableName: 'tbl_Hostel',
   timestamps: true
 });
+const GPSAttendance = sequelize.define('GPSAttendance', {
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
 
+  user_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Users', key: 'id' }
+  },
+
+  hostel_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: { model: 'tbl_Hostel', key: 'id' }
+  },
+
+  attendance_date: {
+    type: DataTypes.DATEONLY,
+    allowNull: false
+  },
+
+  session: {
+    type: DataTypes.ENUM('MORNING', 'EVENING', 'NIGHT'),
+    allowNull: false
+  },
+
+  latitude: {
+    type: DataTypes.DOUBLE,
+    allowNull: false
+  },
+
+  longitude: {
+    type: DataTypes.DOUBLE,
+    allowNull: false
+  },
+
+  distance: {
+    type: DataTypes.DOUBLE,
+    allowNull: false
+  },
+
+  status: {
+    type: DataTypes.ENUM('P', 'A'),
+    defaultValue: 'P'
+  },
+
+  device_id: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+
+  marked_at: {
+    type: DataTypes.DATE,
+    defaultValue: DataTypes.NOW
+  }
+
+}, {
+  tableName: 'tbl_GPS_Attendance',
+  timestamps: true,
+  indexes: [
+    {
+      unique: true,
+      fields: ['user_id', 'attendance_date', 'session']
+    }
+  ]
+});
 const RoomType = sequelize.define('RoomType', {
   id: {
     type: DataTypes.INTEGER,
@@ -2390,6 +2458,11 @@ const InventoryTransaction = sequelize.define('InventoryTransaction', {
   image_url: {
     type: DataTypes.STRING,
     allowNull: true
+  },
+  expiry_time: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Optional expiry time for ordering deadline'
   }
 }, {
   tableName: 'tbl_SpecialFoodItem',
@@ -3345,12 +3418,24 @@ InventoryBatch.hasMany(ConsumptionLog, { foreignKey: 'batch_id', as: 'Consumptio
 DailyConsumption.belongsTo(Item, { foreignKey: 'item_id'});
 DailyConsumption.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy' });
 DailyConsumption.belongsTo(UOM, { foreignKey: 'unit', as: 'UOM' });
+<<<<<<< HEAD
+// Ensure ItemStock is linked
+ItemStock.belongsTo(Item, { foreignKey: 'item_id'});
+ItemStock.belongsTo(Hostel, { foreignKey: 'hostel_id'});
+// User model
+User.hasMany(GPSAttendance, { foreignKey: 'user_id' });
+GPSAttendance.belongsTo(User, { foreignKey: 'user_id' });
+// Hostel model
+Hostel.hasMany(GPSAttendance, { foreignKey: 'hostel_id' });
+GPSAttendance.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+=======
 
 // Ensure ItemStock is linked
 ItemStock.belongsTo(Item, { foreignKey: 'item_id'});
 ItemStock.belongsTo(Hostel, { foreignKey: 'hostel_id'});
 
 
+>>>>>>> 07e366b0cc7bd2cfefe77436bb7a497c07bba16d
 // Add associations for MessDailyExpense
 MessDailyExpense.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 MessDailyExpense.belongsTo(ExpenseType, { foreignKey: 'expense_type_id', as: 'ExpenseType' });
@@ -3400,6 +3485,7 @@ module.exports = {
   UOM,
   Item,
   MessBill,
+  GPSAttendance,
   // Facility Management
   HostelFacilityType,
   HostelFacility,
