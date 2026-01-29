@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Card, Typography, Row, Col, Statistic, Button, Space, 
-  Divider, ConfigProvider, theme, Skeleton, Badge, 
+  Divider, Skeleton, Badge, 
   Tag, Modal, Input, Empty, message, Form, InputNumber,
   Table, Segmented, Tooltip
 } from 'antd';
@@ -36,7 +36,8 @@ const StatsSkeleton = () => (
   </Row>
 );
 
-const ManageRoomTypes = () => {
+// ✅ Added isTabbed prop
+const ManageRoomTypes = ({ isTabbed }) => {
   const [form] = Form.useForm();
   const [roomTypes, setRoomTypes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +45,6 @@ const ManageRoomTypes = () => {
   const [editingId, setEditingId] = useState(null);
   const [btnLoading, setBtnLoading] = useState(false);
   
-  // View State: 'icons' | 'tiles' | 'list' | 'details' | 'content'
   const [viewMode, setViewMode] = useState('tiles');
 
   const fetchRoomTypes = useCallback(async () => {
@@ -61,7 +61,6 @@ const ManageRoomTypes = () => {
 
   useEffect(() => { fetchRoomTypes(); }, [fetchRoomTypes]);
 
-  // Derived Stats
   const stats = useMemo(() => {
     const capacities = roomTypes.map(r => r.capacity || 0);
     return [
@@ -120,7 +119,6 @@ const ManageRoomTypes = () => {
   };
 
   // --- VIEW RENDERERS ---
-
   const renderIconsView = () => (
     <Row gutter={[16, 16]}>
       {roomTypes.map(type => (
@@ -250,10 +248,11 @@ const ManageRoomTypes = () => {
   );
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 14 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
-        
-        {/* Header Section */}
+    // ✅ Conditional padding based on tab usage
+    <div className={isTabbed ? "p-4" : "p-8 bg-slate-50 min-h-screen"}>
+
+      {/* ✅ Hide header when inside tab */}
+      {!isTabbed && (
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-10">
           <div className="flex items-center gap-5">
             <div className="p-4 bg-blue-600 rounded-2xl shadow-xl shadow-blue-200 rotate-3 transition-transform">
@@ -283,88 +282,87 @@ const ManageRoomTypes = () => {
             <Button type="primary" icon={<Plus size={18}/>} onClick={() => handleOpenModal()} className="rounded-xl px-6 h-10 shadow-lg shadow-blue-100 border-none">Create Template</Button>
           </div>
         </div>
+      )}
 
-        {loading ? (
-          <>
-            <StatsSkeleton />
-            <Skeleton active avatar paragraph={{ rows: 4 }} className="bg-white p-8 rounded-3xl" />
-          </>
-        ) : (
-          <div className="animate-in fade-in duration-700">
-            {/* Stats Cards Section */}
-            <Row gutter={[20, 20]} className="mb-8">
-              {stats.map((stat, i) => (
-                <Col xs={24} md={8} key={i}>
-                  <Card className="border-none shadow-sm rounded-[24px] p-5 bg-white hover:bg-slate-50/50 transition-all">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center`}>
-                        <stat.icon size={20} strokeWidth={1.5} />
-                      </div>
-                      <div className="flex flex-col">
-                        <Text className="text-[11px] uppercase text-slate-400 tracking-wider" style={{ fontWeight: 400 }}>{stat.label}</Text>
-                        <Text className="text-2xl text-slate-700" style={{ fontWeight: 500, lineHeight: 1.2 }}>{stat.val}</Text>
-                      </div>
+      {loading ? (
+        <>
+          <StatsSkeleton />
+          <Skeleton active avatar paragraph={{ rows: 4 }} className="bg-white p-8 rounded-3xl" />
+        </>
+      ) : (
+        <div className="animate-in fade-in duration-700">
+          <Row gutter={[20, 20]} className="mb-8">
+            {stats.map((stat, i) => (
+              <Col xs={24} md={8} key={i}>
+                <Card className="border-none shadow-sm rounded-[24px] p-5 bg-white hover:bg-slate-50/50 transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center`}>
+                      <stat.icon size={20} strokeWidth={1.5} />
                     </div>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
+                    <div className="flex flex-col">
+                      <Text className="text-[11px] uppercase text-slate-400 tracking-wider">{stat.label}</Text>
+                      <Text className="text-2xl text-slate-700">{stat.val}</Text>
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+            ))}
+          </Row>
 
-            {/* Main Content Area */}
-            {roomTypes.length === 0 ? (
-               <div className="py-24 flex flex-col items-center justify-center bg-white rounded-[32px] shadow-sm border border-slate-50">
-                 <Empty image={<Inbox size={64} className="text-slate-200 mb-4" />} description="Registry is currently empty." />
-               </div>
-            ) : (
-              <>
-                {viewMode === 'icons' && renderIconsView()}
-                {viewMode === 'tiles' && renderTilesView()}
-                {viewMode === 'list' && renderListView()}
-                {viewMode === 'details' && renderDetailsView()}
-                {viewMode === 'content' && renderContentView()}
-              </>
-            )}
+          {roomTypes.length === 0 ? (
+            <div className="py-24 flex flex-col items-center justify-center bg-white rounded-[32px] shadow-sm border border-slate-50">
+              <Empty image={<Inbox size={64} className="text-slate-200 mb-4" />} description="Registry is currently empty." />
+            </div>
+          ) : (
+            <>
+              {viewMode === 'icons' && renderIconsView()}
+              {viewMode === 'tiles' && renderTilesView()}
+              {viewMode === 'list' && renderListView()}
+              {viewMode === 'details' && renderDetailsView()}
+              {viewMode === 'content' && renderContentView()}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Modal remains unchanged */}
+      <Modal
+        title={
+          <div className="flex items-center gap-3 py-2 border-b border-slate-50 w-full">
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Settings2 size={20}/></div>
+            <span className="font-semibold text-slate-700">{editingId ? 'Modify Template' : 'Register Template'}</span>
           </div>
-        )}
+        }
+        open={isModalOpen}
+        onCancel={() => setIsModalOpen(false)}
+        footer={null}
+        width={450}
+        centered
+        className="rounded-3xl overflow-hidden"
+      >
+        <Form form={form} layout="vertical" onFinish={handleFinish} className="mt-6 px-2">
+          <Form.Item name="name" label={<Text strong className="text-[11px] text-slate-400 uppercase tracking-widest">Template Label</Text>} rules={[{ required: true }]}>
+            <Input placeholder="e.g., Executive Suite" className="h-12 bg-slate-50 border-none rounded-xl focus:bg-white transition-all" />
+          </Form.Item>
+          
+          <Form.Item name="capacity" label={<Text strong className="text-[11px] text-slate-400 uppercase tracking-widest">Pax Capacity</Text>} rules={[{ required: true }]}>
+            <InputNumber min={1} max={12} className="w-full h-12 bg-slate-50 border-none rounded-xl flex items-center" />
+          </Form.Item>
 
-        {/* Action Modal */}
-        <Modal
-          title={
-            <div className="flex items-center gap-3 py-2 border-b border-slate-50 w-full">
-              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Settings2 size={20}/></div>
-              <span className="font-semibold text-slate-700">{editingId ? 'Modify Template' : 'Register Template'}</span>
-            </div>
-          }
-          open={isModalOpen}
-          onCancel={() => setIsModalOpen(false)}
-          footer={null}
-          width={450}
-          centered
-          className="rounded-3xl overflow-hidden"
-        >
-          <Form form={form} layout="vertical" onFinish={handleFinish} className="mt-6 px-2">
-            <Form.Item name="name" label={<Text strong className="text-[11px] text-slate-400 uppercase tracking-widest">Template Label</Text>} rules={[{ required: true }]}>
-              <Input placeholder="e.g., Executive Suite" className="h-12 bg-slate-50 border-none rounded-xl focus:bg-white transition-all" />
-            </Form.Item>
-            
-            <Form.Item name="capacity" label={<Text strong className="text-[11px] text-slate-400 uppercase tracking-widest">Pax Capacity</Text>} rules={[{ required: true }]}>
-              <InputNumber min={1} max={12} className="w-full h-12 bg-slate-50 border-none rounded-xl flex items-center" />
-            </Form.Item>
+          <Form.Item name="description" label={<Text strong className="text-[11px] text-slate-400 uppercase tracking-widest">Internal Remarks</Text>}>
+            <TextArea rows={4} placeholder="Specifications..." className="bg-slate-50 border-none rounded-xl focus:bg-white transition-all p-4" />
+          </Form.Item>
 
-            <Form.Item name="description" label={<Text strong className="text-[11px] text-slate-400 uppercase tracking-widest">Internal Remarks</Text>}>
-              <TextArea rows={4} placeholder="Specifications..." className="bg-slate-50 border-none rounded-xl focus:bg-white transition-all p-4" />
-            </Form.Item>
+          <div className="flex gap-3 mt-8">
+            <Button onClick={() => setIsModalOpen(false)} className="flex-1 h-12 rounded-xl font-medium border-slate-200">Cancel</Button>
+            <Button type="primary" block htmlType="submit" loading={btnLoading} className="flex-[2] h-12 rounded-xl font-semibold shadow-xl shadow-blue-100 border-none">
+              {editingId ? 'Update Template' : 'Deploy Template'}
+            </Button>
+          </div>
+        </Form>
+      </Modal>
 
-            <div className="flex gap-3 mt-8">
-              <Button onClick={() => setIsModalOpen(false)} className="flex-1 h-12 rounded-xl font-medium border-slate-200">Cancel</Button>
-              <Button type="primary" block htmlType="submit" loading={btnLoading} className="flex-[2] h-12 rounded-xl font-semibold shadow-xl shadow-blue-100 border-none">
-                {editingId ? 'Update Template' : 'Deploy Template'}
-              </Button>
-            </div>
-          </Form>
-        </Modal>
-      </div>
-    </ConfigProvider>
+    </div>
   );
 };
 

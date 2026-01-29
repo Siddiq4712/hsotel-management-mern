@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Card, Typography, Row, Col, Button, Space, 
-  Divider, ConfigProvider, theme, Skeleton, Badge, 
+  Divider, Skeleton, Badge, 
   Tag, Modal, Input, Empty, message, Form, InputNumber,
   Table, Segmented, Tooltip, Select
 } from 'antd';
@@ -35,7 +35,8 @@ const StatsSkeleton = () => (
   </Row>
 );
 
-const ManageRooms = () => {
+// ✅ Added isTabbed prop
+const ManageRooms = ({ isTabbed }) => {
   const [form] = Form.useForm();
   const [rooms, setRooms] = useState([]);
   const [hostels, setHostels] = useState([]);
@@ -129,7 +130,6 @@ const ManageRooms = () => {
   };
 
   // --- VIEW RENDERERS ---
-
   const renderIconsView = () => (
     <Row gutter={[16, 16]}>
       {rooms.map(room => (
@@ -270,10 +270,11 @@ const ManageRooms = () => {
   );
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 14 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
-        
-        {/* Header Section */}
+    // ✅ Conditional padding depending on tab usage
+    <div className={isTabbed ? "p-4" : "p-8 bg-slate-50 min-h-screen"}>
+
+      {/* ✅ Hide header when inside tab */}
+      {!isTabbed && (
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-10">
           <div className="flex items-center gap-5">
             <div className="p-4 bg-blue-600 rounded-2xl shadow-xl shadow-blue-200 rotate-3 transition-transform">
@@ -303,51 +304,50 @@ const ManageRooms = () => {
             <Button type="primary" icon={<Plus size={18}/>} onClick={() => handleOpenModal()} className="rounded-xl px-6 h-10 shadow-lg shadow-blue-100 border-none">Create Room</Button>
           </div>
         </div>
+      )}
 
-        {loading ? (
-          <>
-            <StatsSkeleton />
-            <Skeleton active avatar paragraph={{ rows: 4 }} className="bg-white p-8 rounded-3xl" />
-          </>
-        ) : (
-          <div className="animate-in fade-in duration-700">
-            {/* Stats Cards */}
-            <Row gutter={[20, 20]} className="mb-8">
-              {stats.map((stat, i) => (
-                <Col xs={24} md={8} key={i}>
-                  <Card className="border-none shadow-sm rounded-[24px] p-5 bg-white hover:bg-slate-50/50 transition-all">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center`}>
-                        <stat.icon size={20} strokeWidth={1.5} />
-                      </div>
-                      <div className="flex flex-col">
-                        <Text className="text-[11px] uppercase text-slate-400 tracking-wider" style={{ fontWeight: 400 }}>{stat.label}</Text>
-                        <Text className="text-2xl text-slate-700" style={{ fontWeight: 500, lineHeight: 1.2 }}>{stat.val}</Text>
-                      </div>
+      {loading ? (
+        <>
+          <StatsSkeleton />
+          <Skeleton active avatar paragraph={{ rows: 4 }} className="bg-white p-8 rounded-3xl" />
+        </>
+      ) : (
+        <div className="animate-in fade-in duration-700">
+          <Row gutter={[20, 20]} className="mb-8">
+            {stats.map((stat, i) => (
+              <Col xs={24} md={8} key={i}>
+                <Card className="border-none shadow-sm rounded-[24px] p-5 bg-white hover:bg-slate-50/50 transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center`}>
+                      <stat.icon size={20} strokeWidth={1.5} />
                     </div>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
+                    <div className="flex flex-col">
+                      <Text className="text-[11px] uppercase text-slate-400 tracking-wider">{stat.label}</Text>
+                      <Text className="text-2xl text-slate-700">{stat.val}</Text>
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+            ))}
+          </Row>
 
-            {rooms.length === 0 ? (
-               <div className="py-24 flex flex-col items-center justify-center bg-white rounded-[32px] shadow-sm border border-slate-50">
-                 <Empty image={<Inbox size={64} className="text-slate-200 mb-4" />} description="Registry is currently empty." />
-               </div>
-            ) : (
-              <>
-                {viewMode === 'icons' && renderIconsView()}
-                {viewMode === 'tiles' && renderTilesView()}
-                {viewMode === 'list' && renderListView()}
-                {viewMode === 'details' && renderDetailsView()}
-                {viewMode === 'content' && renderContentView()}
-              </>
-            )}
-          </div>
-        )}
+          {rooms.length === 0 ? (
+            <div className="py-24 flex flex-col items-center justify-center bg-white rounded-[32px] shadow-sm border border-slate-50">
+              <Empty image={<Inbox size={64} className="text-slate-200 mb-4" />} description="Registry is currently empty." />
+            </div>
+          ) : (
+            <>
+              {viewMode === 'icons' && renderIconsView()}
+              {viewMode === 'tiles' && renderTilesView()}
+              {viewMode === 'list' && renderListView()}
+              {viewMode === 'details' && renderDetailsView()}
+              {viewMode === 'content' && renderContentView()}
+            </>
+          )}
+        </div>
+      )}
 
-        {/* Action Modal */}
-        <Modal
+      <Modal
           title={
             <div className="flex items-center gap-3 py-2 border-b border-slate-50 w-full">
               <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Settings2 size={20}/></div>
@@ -407,8 +407,8 @@ const ManageRooms = () => {
             </div>
           </Form>
         </Modal>
-      </div>
-    </ConfigProvider>
+
+    </div>
   );
 };
 
