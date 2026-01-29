@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
-  Card, Typography, Row, Col, Statistic, Button, Space, 
-  Divider, ConfigProvider, theme, Skeleton, Badge, Progress, Tooltip, Tag 
+  Card, Typography, Row, Col, Statistic, Button, 
+  ConfigProvider, theme, Skeleton, Space, Tag 
 } from 'antd';
 import { 
-  Users, Bed, BedDouble, CheckCircle2, TrendingUp, AlertTriangle, 
-  Calendar, BarChart3, ArrowUpRight, FileText, Clock, 
-  CheckSquare, LayoutDashboard, RefreshCw, UserPlus, Home, MessageSquare
+  Users, BedDouble, Calendar, MessageSquare, 
+  RefreshCw, UserPlus, Home, CheckSquare, 
+  Activity, AlertCircle, Clock, ChevronRight,HelpCircle
 } from 'lucide-react';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import {
@@ -26,7 +25,7 @@ ChartJS.register(
 const { Title, Text } = Typography;
 
 const WardenDashboard = ({ setCurrentView }) => {
-  const { user } = useAuth();
+  const { user } = useAuth(); // Access user data for the greeting
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
 
@@ -44,23 +43,32 @@ const WardenDashboard = ({ setCurrentView }) => {
 
   useEffect(() => { fetchDashboardStats(); }, [fetchDashboardStats]);
 
-  if (loading || !stats) return <div className="p-8"><Skeleton active paragraph={{ rows: 20 }} /></div>;
+  if (loading || !stats) return <div className="p-10"><Skeleton active paragraph={{ rows: 15 }} /></div>;
 
   const handleAction = (view) => setCurrentView ? setCurrentView(view) : null;
 
-  // --- CHART CONFIGURATIONS ---
-  const commonOptions = {
+  // Optimized Chart Options for larger display
+  const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } }
+    plugins: {
+      legend: { position: 'bottom', labels: { padding: 20, font: { size: 12, weight: '600' }, usePointStyle: true } },
+      tooltip: { padding: 12, backgroundColor: '#1e293b' }
+    },
+    scales: {
+      y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+      x: { grid: { display: false } }
+    }
   };
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+    <ConfigProvider theme={{ 
+      token: { colorPrimary: '#2563eb', borderRadius: 24, fontFamily: 'Inter, sans-serif' } 
+    }}>
+      <div className="p-6 lg:p-10 bg-[#f8fafc] min-h-screen">
         
-        {/* Header Section */}
-        <div className="flex justify-between items-center">
+        {/* --- HEADER SECTION --- */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
           <div>
             <Title level={2} style={{ margin: 0 }}>Hostel Overview</Title>
             <Text type="secondary">Hostel Records & Management • Academic Year 2024-25</Text>
@@ -74,8 +82,8 @@ const WardenDashboard = ({ setCurrentView }) => {
           </Button>
         </div>
 
-        {/* 1. Primary Metrics Grid */}
-        <Row gutter={[24, 24]}>
+        {/* --- 1. PRIMARY METRICS GRID --- */}
+        <Row gutter={[24, 24]} className="mb-10">
           {[
             { label: 'Total Students', val: stats.totalStudents, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
             { label: 'Occupied Beds', val: stats.occupiedBeds, icon: BedDouble, color: 'text-orange-600', bg: 'bg-orange-50' },
@@ -131,24 +139,27 @@ const WardenDashboard = ({ setCurrentView }) => {
             >
               <div className="h-72">
                 <Line 
-                  options={commonOptions}
+                  options={chartOptions}
                   data={{
                     labels: ['Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
                     datasets: [{
-                      label: 'Present %',
+                      label: 'Presence Rate',
                       data: [95, 92, 98, 91, 94],
                       borderColor: '#2563eb',
-                      backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                      backgroundColor: 'rgba(37, 99, 235, 0.08)',
                       fill: true,
-                      tension: 0.4
+                      tension: 0.4,
+                      pointRadius: 6,
+                      pointBackgroundColor: '#fff',
+                      pointBorderWidth: 3
                     }]
                   }}
                 />
               </div>
             </Card>
 
+            {/* TWO-COLUMN STATUS BARS */}
             <Row gutter={24}>
-              {/* Complaint Status Bar Chart */}
               <Col span={12}>
                 <Card 
                   className="border-none shadow-sm rounded-[32px]" 
@@ -156,9 +167,9 @@ const WardenDashboard = ({ setCurrentView }) => {
                 >
                   <div className="h-64">
                     <Bar 
-                      options={commonOptions}
+                      options={chartOptions}
                       data={{
-                        labels: ['Submitted', 'Actioned', 'Resolved', 'Closed'],
+                        labels: ['New', 'Actioned', 'Solved', 'Closed'],
                         datasets: [{
                           data: [
                             stats.complaintStatus.submitted, 
@@ -183,7 +194,7 @@ const WardenDashboard = ({ setCurrentView }) => {
                 >
                   <div className="h-64">
                     <Bar 
-                      options={commonOptions}
+                      options={chartOptions}
                       data={{
                         labels: ['Pending', 'Approved', 'Rejected'],
                         datasets: [{
@@ -193,7 +204,7 @@ const WardenDashboard = ({ setCurrentView }) => {
                             stats.leaveStatus.rejected
                           ],
                           backgroundColor: ['#f59e0b', '#10b981', '#ef4444'],
-                          borderRadius: 8
+                          borderRadius: 12
                         }]
                       }}
                     />
@@ -212,16 +223,22 @@ const WardenDashboard = ({ setCurrentView }) => {
             >
               <div className="h-60">
                 <Doughnut 
-                  options={commonOptions}
+                  options={{ ...chartOptions, cutout: '78%' }}
                   data={{
                     labels: ['Occupied', 'Available'],
                     datasets: [{
                       data: [stats.occupiedBeds, stats.availableBeds],
                       backgroundColor: ['#2563eb', '#f1f5f9'],
-                      borderWidth: 0
+                      borderWidth: 0,
                     }]
                   }}
                 />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                    <Title level={2} style={{ margin: 0, fontWeight: 800 }}>
+                        {Math.round((stats.occupiedBeds / (stats.occupiedBeds + stats.availableBeds)) * 100)}%
+                    </Title>
+                    <Text type="secondary" className="font-bold text-[10px] uppercase tracking-tighter">Utilization</Text>
+                </div>
               </div>
               <div className="text-center mt-4">
                 <Text type="secondary" className="text-[11px] uppercase font-bold tracking-widest">
@@ -237,7 +254,7 @@ const WardenDashboard = ({ setCurrentView }) => {
             >
               <div className="h-60">
                 <Doughnut 
-                  options={commonOptions}
+                  options={chartOptions}
                   data={{
                     labels: ['Present', 'Absent', 'On-Duty'],
                     datasets: [{
@@ -274,6 +291,20 @@ const WardenDashboard = ({ setCurrentView }) => {
                 />
               </div>
             </Card>
+
+            {/* ANNOUNCEMENT / HELP CARD */}
+            <div className="bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-indigo-100 relative overflow-hidden group">
+               <div className="relative z-10">
+                 <Title level={4} style={{ color: 'white', margin: 0 }}>Need Assistance?</Title>
+                 <Text className="text-indigo-100 block mt-2 mb-6">Access the administrative guide or contact IT support for portal help.</Text>
+                 <Button ghost className="rounded-xl border-indigo-300 text-white font-bold h-11 px-6 group-hover:bg-white group-hover:text-indigo-600 transition-all">
+                    Open Docs <ChevronRight size={16} className="inline ml-1" />
+                 </Button>
+               </div>
+               <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform">
+                  <HelpCircle size={120} color="white" />
+               </div>
+            </div>
           </Col>
         </Row>
       </div>
