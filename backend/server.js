@@ -13,6 +13,7 @@ const adminRoutes = require('./routes/admin');
 const wardenRoutes = require('./routes/warden');
 const studentRoutes = require('./routes/student');
 const messRoutes = require('./routes/mess');
+const { verifyEmailConnection } = require('./utils/emailUtils');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 
 const app = express();

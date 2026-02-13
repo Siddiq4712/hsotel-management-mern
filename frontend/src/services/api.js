@@ -402,6 +402,8 @@ export const messAPI = {
   updateExpenseType: (id, data) => api.put(`/mess/expenses-types/${id}`, data),
   deleteExpenseType: (id) => api.delete(`/mess/expenses-types/${id}`),
 
+  bulkDeleteStudentFees: (ids) => api.delete('/mess/student-fees/bulk', { data: { ids } }),
+  
   recordAdhocConsumption: (data) => api.post('/mess/special-consumption', data),
   getAdhocConsumptions: (params) => api.get('/mess/special-consumption', { params }),
   getAdhocConsumptionById: (id) => api.get(`/mess/special-consumption/${id}`),

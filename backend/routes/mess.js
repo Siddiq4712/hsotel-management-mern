@@ -153,6 +153,9 @@ const {
   updateRecipe,
   deleteRecipe,
 
+  deleteStudentFee,
+  bulkDeleteStudentFees,
+
   getLatestDailyRate
 } = require('../controllers/messController');
 const { auth, authorize } = require('../middleware/auth');
@@ -321,6 +324,10 @@ router.put('/expenses-types/:id', authorize(['mess', 'admin']), updateExpenseTyp
 router.delete('/expenses-types/:id', authorize(['mess', 'admin']), deleteExpenseType);
 
 router.get('/items/:id/fifo-price', authorize(['mess', 'admin']), getItemFIFOPrice);
+
+// Ensure these routes are defined in your backend router
+router.delete('/student-fees/bulk', authorize(['mess', 'admin']), bulkDeleteStudentFees); // Bulk delete
+router.delete('/student-fees/:id', authorize(['mess', 'admin']), deleteStudentFee);       // Individual delete
 
 router.post('/special-consumption', authorize(['mess', 'admin']), createSpecialConsumption);
 router.get('/special-consumption', authorize(['mess', 'admin']), getSpecialConsumptions);

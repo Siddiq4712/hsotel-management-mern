@@ -167,24 +167,13 @@ const StudentDashboard = ({ setCurrentView }) => {
         <div className="flex justify-between items-center">
           <div>
             <Title level={2} style={{ margin: 0 }}>Dashboard</Title>
-            <Text type="secondary">Welcome back, {profile?.username} • {profile?.roll_number}</Text>
+            <Text type="secondary">Welcome back, {profile?.username}👋</Text>
           </div>
           <Button icon={<RefreshCw size={16}/>} onClick={() => fetchDashboardData()} className="rounded-xl h-11">Refresh</Button>
         </div>
 
         {/* --- FEE REMINDER ALERT --- */}
-        {profile?.Hostel?.show_fee_reminder == 1 && (
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="bg-orange-600 rounded-[32px] p-6 shadow-lg shadow-orange-100 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="p-4 bg-white/20 rounded-2xl"><AlertTriangle className="text-white" size={28} /></div>
-              <div>
-                <Title level={4} style={{ color: 'white', margin: 0 }}>Hostel Management Fee Pending</Title>
-                <Text style={{ color: 'rgba(255,255,255,0.8)' }}>Final amount due: <span className="font-bold text-white text-lg">₹{profile.Hostel.annual_fee_amount}</span></Text>
-              </div>
-            </div>
-            <Button size="large" className="rounded-2xl h-14 px-8 font-bold border-none shadow-xl" onClick={() => setCurrentView('mess-bills')}>Pay Now</Button>
-          </motion.div>
-        )}
+        
 
         {/* Top Stats Grid */}
         <Row gutter={[24, 24]}>
