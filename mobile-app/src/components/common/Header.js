@@ -22,43 +22,39 @@ const Header = () => {
         <Image
           source={{ uri: user.profile_picture }}
           onError={() => setImageError(true)}
-          style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: '#e2e8f0' }}
+          className="w-10 h-10 rounded-full border border-gray-300"
         />
       );
     }
     return (
-      <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#3b82f6', alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
-          {user?.username?.[0]?.toUpperCase() || '?'}
-        </Text>
+      <View className="w-10 h-10 rounded-full bg-blue-500 items-center justify-center">
+        <Text className="text-white text-base font-bold">{initials}</Text>
       </View>
     );
   };
 
   return (
-    <View style={{ 
-      backgroundColor: 'white', 
-      borderBottomWidth: 1, 
-      borderBottomColor: '#f1f5f9',
-      paddingTop: insets.top, // This handles the notch/camera area
-      paddingHorizontal: 12,
-      paddingBottom: 8,
-    }}>
-      <View style={{ height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        
-        {/* Left Side */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={{ fontSize: 14, fontWeight: '700', color: '#1e293b' }}>HMS</Text>
-          <View style={{ backgroundColor: '#eff6ff', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 12 }}>
-            <Text style={{ fontSize: 9, fontWeight: '700', color: '#1d4ed8' }}>{user?.role?.toUpperCase()}</Text>
-          </View>
-        </View>
+    <View className="bg-white border-b border-gray-200 h-16 flex-row items-center px-4 justify-between">
+      
+      {/* Left: App name + Role */}
+      <View className="flex-row items-center space-x-3">
+        <Text className="text-lg font-semibold text-gray-800">HMS</Text>
+        <Text className="text-xs md:text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
+          {user?.role?.toUpperCase()}
+        </Text>
+      </View>
 
-        {/* Right Side */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ fontSize: 12, fontWeight: '600', color: '#334155' }} numberOfLines={1}>
-              {user?.username}
+      {/* Right: Avatar + Username + Hostel + Logout */}
+      <View className="flex-row items-center space-x-3 max-w-[70%]">
+        {renderAvatar()}
+
+        <View className="max-w-[55%]">
+          <Text className="text-base md:text-lg text-gray-700 font-medium" numberOfLines={1}>
+            {user?.username}
+          </Text>
+          {user?.hostel && (
+            <Text className="text-xs md:text-sm text-gray-500" numberOfLines={1}>
+              @{user.hostel.name}
             </Text>
             {user?.hostel && (
               <Text style={{ fontSize: 9, color: '#64748b' }} numberOfLines={1}>
@@ -69,13 +65,12 @@ const Header = () => {
           
           {renderAvatar()}
 
-          <TouchableOpacity
-            onPress={handleLogout}
-            style={{ padding: 6, backgroundColor: '#fee2e2', borderRadius: 8 }}
-          >
-            <LogOut size={14} color="#dc2626" />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          onPress={handleLogout}
+          className="p-3 bg-red-600 rounded-md"
+        >
+          <LogOut size={18} color="white" />
+        </TouchableOpacity>
       </View>
     </View>
   );

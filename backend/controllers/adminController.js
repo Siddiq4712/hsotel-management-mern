@@ -330,21 +330,25 @@ const deleteUser = async (req, res) => {
 };
 
 // ROOM TYPE MANAGEMENT - Complete CRUD
+// adminController.js
+
 const createRoomType = async (req, res) => {
   try {
-    const { name, capacity, description } = req.body;
+    // Add hostel_id to destructuring
+    const { name, capacity, description, hostel_id } = req.body;
 
-    if (!name || !capacity) {
+    if (!name || !capacity || !hostel_id) {
       return res.status(400).json({
         success: false,
-        message: 'Name and capacity are required'
+        message: 'Name, capacity, and hostel selection are required'
       });
     }
 
     const roomType = await RoomType.create({
       name,
       capacity,
-      description
+      description,
+      hostel_id // Pass hostel_id here
     });
 
     res.status(201).json({
@@ -354,10 +358,33 @@ const createRoomType = async (req, res) => {
     });
   } catch (error) {
     console.error('Room type creation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 
+const updateRoomType = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, capacity, description, hostel_id } = req.body; // Add hostel_id here
+
+    const roomType = await RoomType.findByPk(id);
+    if (!roomType) {
+      return res.status(404).json({ success: false, message: 'Room type not found' });
+    }
+
+    await roomType.update({
+      name,
+      capacity,
+      description,
+      hostel_id // Update hostel_id here
+    });
+
+    res.json({ success: true, data: roomType, message: 'Room type updated successfully' });
+  } catch (error) {
+    console.error('Room type update error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
 const getRoomTypes = async (req, res) => {
   try {
     const { search } = req.query;
@@ -380,35 +407,6 @@ const getRoomTypes = async (req, res) => {
   }
 };
 
-const updateRoomType = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, capacity, description } = req.body;
-
-    const roomType = await RoomType.findByPk(id);
-    if (!roomType) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room type not found'
-      });
-    }
-
-    await roomType.update({
-      name,
-      capacity,
-      description
-    });
-
-    res.json({
-      success: true,
-      data: roomType,
-      message: 'Room type updated successfully'
-    });
-  } catch (error) {
-    console.error('Room type update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
 
 const deleteRoomType = async (req, res) => {
   try {

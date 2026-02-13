@@ -54,6 +54,7 @@ import ViewRooms from './components/student/ViewRooms';
 import StudentRebates from './components/student/StudentRebates';
 import StudentMessHistory from './components/student/StudentMessHistory';
 import ApplyDayReduction from './components/student/ApplyDayReduction';
+import StudentFeeTabs from './components/student/StudentFeeTabs';
 
 // Mess Components
 import MessDashboard from './components/mess/MessDashboard';
@@ -87,6 +88,7 @@ import BedFeeManagement from './components/mess/BedFeeManagement';
 import PurchaseOrder from './components/mess/PurchaseOrder';
 import RecipeManagement from './components/mess/RecipeManagement';
 import RecordStudentSpecialMeal from './components/mess/RecordStudentSpecialMeal';
+import MyHostelFee from './components/student/MyHostelFee';
 
 // Lazy load CreateRoom
 const LazyCreateRoom = React.lazy(() => import('./components/warden/CreateRoom'));
@@ -219,6 +221,11 @@ const DashboardRouter = () => {
             return <TransactionHistory />;
           case 'mess-charges':
             return <MyMessCharges />;
+          case 'hostel-fees':
+            return <MyHostelFee />;
+          // Inside case 'student' / 'lapc'
+          case 'hfee':
+            return <StudentFeeTabs />;
           case 'food-order':
             return <FoodOrderForm />;
           case 'my-food-orders':
