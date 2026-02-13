@@ -76,7 +76,7 @@ const sendConsumptionNotificationToAdmin = async (data) => {
     lowStockItems = [],
   } = data;
 
-  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || 'siddiqabubacker148@gmail.com';
+  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || '2312060@nec.edu.in';
 
   // Format items table for email
   const itemsTableRows = items
