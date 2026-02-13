@@ -11,6 +11,7 @@ const sequelize = require('../config/database');
 const moment = require('moment');
 const { getMonthDateRange } = require('../utils/dateUtils'); // Assuming dateUtils is in ../utils
 // const { getSessions } = require('./wardenController');
+const { sendConsumptionNotificationToAdmin } = require('../utils/emailUtils');
 
 // Custom rounding function: <= 0.20 rounds down, > 0.20 rounds up
 function customRounding(amount) {
@@ -3846,19 +3847,15 @@ const createSpecialConsumption = async (req, res) => {
       unit: item.unit_id,
       consumption_date,
       meal_type: 'snacks', // Use a generic meal_type
-      // No need for recorded_by here, we pass it directly to the logic function
     }));
 
-    // --- FIX #1: Pass user_id and get the created records directly ---
+    // Record the consumption using existing logic
     const { lowStockItems, createdDailyConsumptions } = await _recordBulkConsumptionLogic(
       consumptionsForLogic,
       hostel_id,
-      user_id, // Pass the user_id
+      user_id,
       transaction
     );
-
-    // --- FIX #2: No need for the extra DB query anymore ---
-    // REMOVED: const createdDailyConsumptions = await DailyConsumption.findAll(...)
 
     if (!createdDailyConsumptions || createdDailyConsumptions.length === 0) {
       throw new Error("Failed to record any item consumptions in the database.");
@@ -3890,9 +3887,63 @@ const createSpecialConsumption = async (req, res) => {
 
     await transaction.commit();
 
+    // ============ EMAIL NOTIFICATION TO ADMIN ============
+    // Fetch additional data for email after transaction commits
+    try {
+      // Get hostel name
+      const hostel = await Hostel.findByPk(hostel_id, { attributes: ['name'] });
+      
+      // Get user (mess staff) name
+      const messUser = await User.findByPk(user_id, { attributes: ['username', 'email'] });
+      
+      // Get item details for email
+      const itemIds = createdDailyConsumptions.map(dc => dc.item_id);
+      const itemDetails = await Item.findAll({
+        where: { id: { [Op.in]: itemIds } },
+        include: [{ model: UOM, as: 'UOM', attributes: ['abbreviation'] }],
+        attributes: ['id', 'name']
+      });
+      
+      const itemMap = new Map(itemDetails.map(item => [item.id, item]));
+      
+      // Prepare items data for email
+      const emailItems = createdDailyConsumptions.map(dc => {
+        const itemInfo = itemMap.get(dc.item_id);
+        return {
+          item_name: itemInfo ? itemInfo.name : `Item #${dc.item_id}`,
+          quantity_consumed: dc.quantity_consumed,
+          unit: itemInfo && itemInfo.UOM ? itemInfo.UOM.abbreviation : 'unit',
+          cost: dc.total_cost
+        };
+      });
+
+      // Send email notification to admin
+      const emailResult = await sendConsumptionNotificationToAdmin({
+        eventName: name,
+        consumptionDate: moment(consumption_date).format('DD MMM YYYY'),
+        description: description || '',
+        items: emailItems,
+        totalCost: totalCost,
+        recordedBy: messUser ? messUser.username : 'Mess Staff',
+        hostelName: hostel ? hostel.name : 'Hostel',
+        lowStockItems: lowStockItems || []
+      });
+
+      if (emailResult.success) {
+        console.log(`[SpecialConsumption] ✅ Admin notification email sent successfully for "${name}"`);
+      } else {
+        console.warn(`[SpecialConsumption] ⚠️ Failed to send admin notification email: ${emailResult.error}`);
+      }
+
+    } catch (emailError) {
+      // Don't fail the main operation if email fails - just log the error
+      console.error('[SpecialConsumption] ❌ Error sending email notification:', emailError.message);
+    }
+    // ============ END EMAIL NOTIFICATION ============
+
     res.status(201).json({
       success: true,
-      message: 'Special consumption recorded successfully.',
+      message: 'Special consumption recorded successfully. Admin has been notified via email.',
       data: {
         ...specialConsumption.toJSON(),
         lowStockItems,
