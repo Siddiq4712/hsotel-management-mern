@@ -65,7 +65,7 @@ const createDefaultAdmin = async () => {
 const PORT = process.env.PORT || 5000;
 
 // TEMPORARILY use force: true to recreate all tables
-sequelize.sync({ force: true }).then(() => {
+sequelize.sync({ force: false }).then(() => {
   console.log('Database synced - All tables recreated');
   createDefaultAdmin();
   

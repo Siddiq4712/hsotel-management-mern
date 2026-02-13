@@ -106,7 +106,9 @@ const MENU_STRUCTURE = {
       title: 'Finance & Mess',
       items: [
         { id: 'transactions', label: 'Transactions', icon: CreditCard },
-        { id: 'mess-charges', label: 'Mess Charges', icon: DollarSign },
+        { id: 'hfee', label: 'Fees', icon: DollarSign }, 
+        // { id: 'mess-charges', label: 'Mess Charges', icon: DollarSign },
+        // { id: 'hostel-fees', label: 'Hostel Fees', icon: Building },
       ]
     },
     {
