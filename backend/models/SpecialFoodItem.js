@@ -34,6 +34,11 @@ const SpecialFoodItem = sequelize.define('SpecialFoodItem', {
   image_url: {
     type: DataTypes.STRING,
     allowNull: true
+  },
+  expiry_time: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Optional expiry time for ordering deadline'
   }
 }, {
   tableName: 'tbl_SpecialFoodItem',
