@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { 
   Card, Table, Button, Tag, Space, message, Modal, 
   Form, Input, Select, InputNumber, Typography, Tabs,
-  Drawer, Divider, List, ConfigProvider, theme
+  Drawer, Divider, List, ConfigProvider, theme, DatePicker
 } from 'antd';
 import { Row, Col, Empty } from "antd";
+import dayjs from 'dayjs';
 
 // Lucide icons for consistency
 import { 
@@ -30,6 +31,10 @@ const EnhancedMenuManagement = () => {
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [selectedMealType, setSelectedMealType] = useState('all');
   const [searchText, setSearchText] = useState('');
+  const [applyModalVisible, setApplyModalVisible] = useState(false);
+  const [applyForm] = Form.useForm();
+  const [selectingMenu, setSelectingMenu] = useState(null);
+  const [applyLoading, setApplyLoading] = useState(false);
 
   const mealTypes = [
     { value: 'breakfast', label: 'Breakfast', color: 'blue', bg: '#eff6ff', text: '#2563eb' },
@@ -112,6 +117,35 @@ const EnhancedMenuManagement = () => {
     });
   };
 
+  const handleApplyClick = (menu) => {
+    setSelectingMenu(menu);
+    applyForm.resetFields();
+    setApplyModalVisible(true);
+  };
+
+  const handleApplySubmit = async (values) => {
+    setApplyLoading(true);
+    try {
+      const selectedDays = values.days || [];
+      const startDate = values.startDate.format('YYYY-MM-DD');
+      const endDate = values.endDate.format('YYYY-MM-DD');
+
+      await messAPI.applyMenuDateRange(selectingMenu.id, {
+        start_date: startDate,
+        end_date: endDate,
+        days: selectedDays
+      });
+
+      message.success('Menu applied to selected days successfully');
+      setApplyModalVisible(false);
+      fetchMenus();
+    } catch (error) {
+      message.error(error.response?.data?.message || 'Failed to apply menu');
+    } finally {
+      setApplyLoading(false);
+    }
+  };
+
   const columns = [
     {
       title: 'Menu Name',
@@ -156,6 +190,7 @@ const EnhancedMenuManagement = () => {
         <Space>
           <Button icon={<Eye size={14}/>} onClick={() => handleViewMenu(record)} className="flex items-center gap-2">View</Button>
           <Button icon={<Edit2 size={14}/>} onClick={() => { setEditingMenu(record); form.setFieldsValue(record); setModalVisible(true); }} className="flex items-center gap-2">Edit</Button>
+          <Button type="primary" onClick={() => handleApplyClick(record)} className="flex items-center gap-2 bg-green-600">Apply</Button>
           <Button danger icon={<Trash2 size={14}/>} onClick={() => handleDelete(record.id)} className="flex items-center gap-2" />
         </Space>
       ),
@@ -325,6 +360,90 @@ const EnhancedMenuManagement = () => {
             </div>
           )}
         </Drawer>
+
+        {/* Apply Menu to Specific Days Modal */}
+        <Modal
+          title={<span className="flex items-center gap-2"><Calendar size={18}/> Apply Menu to Specific Days</span>}
+          open={applyModalVisible}
+          onCancel={() => setApplyModalVisible(false)}
+          footer={null}
+          width={550}
+          className="rounded-2xl"
+        >
+          <Form form={applyForm} layout="vertical" onFinish={handleApplySubmit} className="mt-6">
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item 
+                  name="startDate" 
+                  label="Start Date" 
+                  rules={[{ required: true, message: 'Please select a start date' }]}
+                >
+                  <DatePicker 
+                    style={{ width: '100%' }}
+                    placeholder="Select start date"
+                    format="YYYY-MM-DD"
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item 
+                  name="endDate" 
+                  label="End Date" 
+                  rules={[{ required: true, message: 'Please select an end date' }]}
+                >
+                  <DatePicker 
+                    style={{ width: '100%' }}
+                    placeholder="Select end date"
+                    format="YYYY-MM-DD"
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Form.Item 
+              name="days" 
+              label="Select Days to Apply Menu" 
+              rules={[{ required: true, message: 'Please select at least one day' }]}
+            >
+              <Select
+                mode="multiple"
+                placeholder="Select days (e.g., Monday, Tuesday)"
+                options={[
+                  { label: 'Monday', value: 'Monday' },
+                  { label: 'Tuesday', value: 'Tuesday' },
+                  { label: 'Wednesday', value: 'Wednesday' },
+                  { label: 'Thursday', value: 'Thursday' },
+                  { label: 'Friday', value: 'Friday' },
+                  { label: 'Saturday', value: 'Saturday' },
+                  { label: 'Sunday', value: 'Sunday' }
+                ]}
+              />
+            </Form.Item>
+
+            <div className="bg-blue-50 p-3 rounded-lg mb-4 text-sm text-blue-700">
+              <strong>Example:</strong> If you select Monday-Friday from Jan 15 to Feb 15, the menu will apply to all Mondays-Fridays within that date range.
+            </div>
+
+            <Row gutter={16} className="mt-8">
+              <Col span={12}>
+                <Button block onClick={() => setApplyModalVisible(false)}>
+                  Cancel
+                </Button>
+              </Col>
+              <Col span={12}>
+                <Button 
+                  type="primary" 
+                  block 
+                  htmlType="submit" 
+                  loading={applyLoading}
+                  className="flex items-center justify-center gap-2"
+                >
+                  Apply
+                </Button>
+              </Col>
+            </Row>
+          </Form>
+        </Modal>
       </div>
     </ConfigProvider>
   );

@@ -3,10 +3,11 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
-const session = require('express-session'); // <-- Add this
-const passport = require('./config/passport'); // <-- Add this
+const session = require('express-session');
+const passport = require('./config/passport');
 
 const { sequelize, User } = require('./models');
+
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const wardenRoutes = require('./routes/warden');
@@ -16,23 +17,32 @@ const attendanceRoutes = require('./routes/attendanceRoutes');
 
 const app = express();
 
-// Middleware
+/* =======================
+   MIDDLEWARE
+======================= */
 app.use(cors());
 app.use(express.json());
 
-// ----- SESSION & PASSPORT CONFIG -----
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-session-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: false } // Set to true in production with HTTPS
-}));
+/* =======================
+   SESSION & PASSPORT
+======================= */
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'your-session-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: false // true only if HTTPS
+    }
+  })
+);
 
 app.use(passport.initialize());
 app.use(passport.session());
-// ------------------------------------
 
-// Routes
+/* =======================
+   ROUTES
+======================= */
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/warden', wardenRoutes);
@@ -40,38 +50,46 @@ app.use('/api/student', studentRoutes);
 app.use('/api/mess', messRoutes);
 app.use('/api/attendance', attendanceRoutes);
 
-// Create default admin user
+/* =======================
+   CREATE DEFAULT ADMIN
+======================= */
 const createDefaultAdmin = async () => {
   try {
     const adminExists = await User.findOne({ where: { role: 'admin' } });
+
     if (!adminExists) {
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash('admin123', salt);
-      
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+
       await User.create({
         username: 'admin',
-        email: 'admin@example.com', // Add required email field
+        email: 'admin@example.com',
         password: hashedPassword,
-        role: 'admin'
+        role: 'admin',
+        is_active: true
       });
-      console.log('Default admin user created: admin/admin123');
+
+      console.log('✅ Default admin created (admin / admin123)');
     }
   } catch (error) {
-    console.error('Error creating default admin:', error);
+    console.error('❌ Admin creation error:', error);
   }
 };
 
-// Database sync and server start
+/* =======================
+   DATABASE SYNC (SAFE)
+======================= */
 const PORT = process.env.PORT || 5000;
 
-// TEMPORARILY use force: true to recreate all tables
-sequelize.sync({ force: true }).then(() => {
-  console.log('Database synced - All tables recreated');
-  createDefaultAdmin();
-  
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+sequelize
+  .sync() // 🔥 SAFE: DOES NOT DROP DATA
+  .then(async () => {
+    console.log('✅ Database synced safely');
+    await createDefaultAdmin();
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('❌ Database sync failed:', err);
   });
-}).catch(err => {
-  console.error('Unable to sync database:', err);
-});
