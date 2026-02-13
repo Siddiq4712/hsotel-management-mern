@@ -100,10 +100,10 @@ const RoomRequests = () => {
   };
 
   const statusConfig = {
-    pending: { color: "warning", icon: <Clock size={12} />, label: "Pending Review" },
-    approved: { color: "success", icon: <CheckCircle2 size={12} />, label: "Allotted" },
+    pending: { color: "warning", icon: <Clock size={12} />, label: "Pending" },
+    approved: { color: "success", icon: <CheckCircle2 size={12} />, label: "Approved" },
     rejected: { color: "error", icon: <XCircle size={12} />, label: "Rejected" },
-    cancelled: { color: "default", icon: <XCircle size={12} />, label: "Voided" },
+    cancelled: { color: "default", icon: <XCircle size={12} />, label: "Cancelled" },
   };
 
   const columns = [
@@ -116,14 +116,14 @@ const RoomRequests = () => {
            <Space direction="vertical" size={0}>
               <Text strong className="text-slate-700">{record.Student?.username}</Text>
               <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                Roll: {record.Student?.roll_number || "UNSET"}
+                Roll No: {record.Student?.roll_number || "UNSET"}
               </Text>
            </Space>
         </Space>
       ),
     },
     {
-      title: "Requested Inventory",
+      title: "Requested Room",
       key: "room",
       render: (_, record) => (
         <Space direction="vertical" size={0}>
@@ -132,13 +132,13 @@ const RoomRequests = () => {
             <Text strong>Room {record.Room?.room_number}</Text>
           </div>
           <Text className="text-xs text-slate-400">
-            {record.Room?.RoomType?.name} • {record.Room?.occupancy_count}/{record.Room?.RoomType?.capacity} Occupied
+            {record.Room?.RoomType?.name} • {record.Room?.occupancy_count}/{record.Room?.RoomType?.capacity} Occupants
           </Text>
         </Space>
       ),
     },
     {
-      title: "Workflow",
+      title: "Progress",
       key: "status",
       render: (_, record) => (
         <Space direction="vertical" size={4}>
@@ -156,7 +156,7 @@ const RoomRequests = () => {
       ),
     },
     {
-      title: "Control",
+      title: "Action",
       key: "action",
       align: "right",
       render: (_, record) => (
@@ -171,15 +171,15 @@ const RoomRequests = () => {
                 setDialogOpen(true);
               }}
             >
-              PROCESS
+              REVIEW
             </Button>
           ) : record.remarks ? (
-            <Tooltip title="View Audit Remarks">
+            <Tooltip title="View Warden Remarks">
               <Button 
                 icon={<MessageSquare size={14} />} 
                 className="rounded-lg border-none bg-slate-50"
                 onClick={() => Modal.info({
-                  title: 'Audit Remarks',
+                  title: 'Warden Remarks',
                   content: record.remarks,
                   className: 'rounded-3xl'
                 })}
@@ -202,8 +202,8 @@ const RoomRequests = () => {
               <ClipboardList className="text-white" size={24} />
             </div>
             <div>
-              <Title level={2} style={{ margin: 0 }}>Allocation Ledger</Title>
-              <Text type="secondary">Authorize and audit institutional room booking protocols</Text>
+              <Title level={2} style={{ margin: 0 }}>Room Requests List</Title>
+              <Text type="secondary">Review and approve student room applications</Text>
             </div>
           </div>
           {!loading && (
@@ -227,9 +227,9 @@ const RoomRequests = () => {
             {/* Quick Metrics */}
             <Row gutter={[24, 24]} className="mb-8">
               {[
-                { label: 'Pending Audit', val: requests.filter(r => r.status === 'pending').length, icon: Clock, color: 'text-amber-500' },
-                { label: 'Allotted', val: requests.filter(r => r.status === 'approved').length, icon: CheckCircle2, color: 'text-emerald-500' },
-                { label: 'Declined', val: requests.filter(r => r.status === 'rejected').length, icon: XCircle, color: 'text-rose-500' },
+                { label: 'New Requests', val: requests.filter(r => r.status === 'pending').length, icon: Clock, color: 'text-amber-500' },
+                { label: 'Approved', val: requests.filter(r => r.status === 'approved').length, icon: CheckCircle2, color: 'text-emerald-500' },
+                { label: 'Rejected', val: requests.filter(r => r.status === 'rejected').length, icon: XCircle, color: 'text-rose-500' },
               ].map((stat, i) => (
                 <Col xs={24} md={8} key={i}>
                   <Card className="border-none shadow-sm rounded-2xl">
@@ -292,11 +292,11 @@ const RoomRequests = () => {
 
         {/* Authorization Modal */}
         <Modal
-          title={<div className="flex items-center gap-2 text-blue-600"><ClipboardList size={20}/> Authorization Protocol</div>}
+          title={<div className="flex items-center gap-2 text-blue-600"><ClipboardList size={20}/> Review Request</div>}
           open={dialogOpen}
           onCancel={() => setDialogOpen(false)}
           footer={[
-            <Button key="back" onClick={() => setDialogOpen(false)} className="rounded-xl h-11 px-6">Abort</Button>,
+            <Button key="back" onClick={() => setDialogOpen(false)} className="rounded-xl h-11 px-6">Cancel</Button>,
             <Button 
               key="submit" 
               type="primary" 
@@ -304,7 +304,7 @@ const RoomRequests = () => {
               onClick={handleDecisionSubmit}
               className="rounded-xl h-11 px-8 font-bold shadow-lg shadow-blue-100"
             >
-              Authorize Decision
+              Confirm Decision
             </Button>
           ]}
           width={600}
@@ -313,26 +313,26 @@ const RoomRequests = () => {
           {selectedRequest && (
             <div className="mt-6 space-y-6">
               <Descriptions bordered column={1} className="bg-slate-50/50 rounded-2xl overflow-hidden">
-                <Descriptions.Item label="Applicant Name">{selectedRequest.Student?.username}</Descriptions.Item>
-                <Descriptions.Item label="Target Inventory">Room {selectedRequest.Room?.room_number} ({selectedRequest.Room?.RoomType?.name})</Descriptions.Item>
+                <Descriptions.Item label="Student Name">{selectedRequest.Student?.username}</Descriptions.Item>
+                <Descriptions.Item label="Room Requested">Room {selectedRequest.Room?.room_number} ({selectedRequest.Room?.RoomType?.name})</Descriptions.Item>
               </Descriptions>
 
               <div className="space-y-4">
                 <div>
-                  <Text strong className="text-[11px] uppercase text-slate-400 block mb-2 tracking-widest">Protocol Decision</Text>
+                  <Text strong className="text-[11px] uppercase text-slate-400 block mb-2 tracking-widest">Warden Decision</Text>
                   <Select className="w-full h-12" value={decision} onChange={setDecision}>
-                    <Select.Option value="approved">Execute Room Allotment</Select.Option>
-                    <Select.Option value="rejected">Reject Submission</Select.Option>
-                    <Select.Option value="cancelled">Void Request</Select.Option>
+                    <Select.Option value="approved">Approve & Allot Room</Select.Option>
+                    <Select.Option value="rejected">Reject Request</Select.Option>
+                    <Select.Option value="cancelled">Cancel Request</Select.Option>
                   </Select>
                 </div>
 
                 <div>
-                  <Text strong className="text-[11px] uppercase text-slate-400 block mb-2 tracking-widest">Audit Remarks</Text>
+                  <Text strong className="text-[11px] uppercase text-slate-400 block mb-2 tracking-widest">Comments / Remarks</Text>
                   <TextArea 
                     rows={4} 
                     className="rounded-2xl p-4 border-slate-200" 
-                    placeholder="Provide justification for this decision..." 
+                    placeholder="Add your comments here..." 
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
                   />

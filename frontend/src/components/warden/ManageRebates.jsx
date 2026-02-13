@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Card, Table, Button, Tag, Space, Typography, 
-  Input, Select, Popconfirm, Tooltip, message, Divider, Modal, ConfigProvider, theme 
+  Input, Select, Popconfirm, message, Divider, Modal, ConfigProvider, theme, List, Badge 
 } from 'antd';
 import { 
-  Percent, Search, CheckCircle2, XCircle, 
-  User, RefreshCw, Clock, ArrowRight, Wallet
+  Percent, Search, XCircle, User, RefreshCw, ArrowRight, Calculator, Calendar, Info 
 } from 'lucide-react';
 import { wardenAPI } from '../../services/api';
 import moment from 'moment';
@@ -19,11 +18,8 @@ const ManageRebates = () => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('pending');
   const [searchTerm, setSearchTerm] = useState('');
-
-  // Manual Approval Modal States
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [selectedRebate, setSelectedRebate] = useState(null);
-  const [manualAmount, setManualAmount] = useState('');
 
   const fetchRebates = useCallback(async () => {
     setLoading(true);
@@ -31,7 +27,7 @@ const ManageRebates = () => {
       const response = await wardenAPI.getRebates({ status: statusFilter });
       setRebates(response.data.data || []);
     } catch (error) {
-      messageApi.error('Sync Error: ' + (error.response?.data?.message || error.message));
+      messageApi.error('Fetch Error: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -39,105 +35,71 @@ const ManageRebates = () => {
 
   useEffect(() => { fetchRebates(); }, [fetchRebates]);
 
-  const openApproveModal = (record) => {
-    setSelectedRebate(record);
-    // Pre-fill with the estimate (even if it is 0, Warden can overwrite)
-    setManualAmount(record.calculationDetail?.estimatedTotal || '0');
-    setIsApproveModalOpen(true);
-  };
-
-  const handleApproveSubmit = async () => {
-    if (!manualAmount || parseFloat(manualAmount) < 0) {
-      return messageApi.error("Please enter a valid amount");
-    }
-
+  const handleApprove = async () => {
     try {
       await wardenAPI.updateRebateStatus(selectedRebate.id, { 
         status: 'approved', 
-        amount: manualAmount 
+        amount: selectedRebate.calculationDetail.total 
       });
-      messageApi.success(`Rebate approved for ₹${manualAmount}`);
+      messageApi.success(`Approved ₹${selectedRebate.calculationDetail.total}`);
       setIsApproveModalOpen(false);
       fetchRebates();
-    } catch (error) {
-      messageApi.error(error.message);
-    }
+    } catch (error) { messageApi.error(error.message); }
   };
-
-  const handleReject = async (id) => {
-    try {
-      await wardenAPI.updateRebateStatus(id, { status: 'rejected' });
-      messageApi.success(`Application rejected`);
-      fetchRebates();
-    } catch (error) {
-      messageApi.error(error.message);
-    }
-  };
-
-  const filteredData = rebates.filter(item => 
-    item.RebateStudent?.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (item.RebateStudent?.roll_number && item.RebateStudent.roll_number.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
 
   const columns = [
     {
-      title: 'Student Identity',
+      title: 'Student Details',
       key: 'student',
       render: (_, r) => (
         <Space>
-          <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
-            <User size={18} />
-          </div>
+          <div className="p-2 bg-blue-50 rounded-xl text-blue-600"><User size={18} /></div>
           <div className="flex flex-col">
             <Text strong className="text-slate-700">{r.RebateStudent?.username}</Text>
-            <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-              ID: {r.RebateStudent?.roll_number || 'N/A'}
-            </Text>
+            <Text className="text-[10px] text-slate-400 font-bold uppercase">Roll: {r.RebateStudent?.roll_number}</Text>
           </div>
         </Space>
       )
     },
     {
-      title: 'Suggested Rate',
-      key: 'rate',
+      title: 'Monthly Calculation Details',
+      key: 'split',
       render: (_, r) => (
-        <Space direction="vertical" size={0}>
-          <div className="flex items-center gap-1">
-            <Text className="text-slate-500 font-medium">₹{r.calculationDetail?.rate || '0.00'}</Text>
-            {r.calculationDetail?.isFinalized ? (
-              <CheckCircle2 size={12} className="text-green-500" />
-            ) : (
-              <Clock size={12} className="text-amber-500" />
-            )}
-          </div>
-          <Text className="text-[9px] text-slate-400 uppercase font-bold">Suggested</Text>
-        </Space>
-      )
-    },
-    {
-      title: 'System Estimate',
-      key: 'calc',
-      render: (_, r) => (
-        <div className="bg-slate-50 p-2 px-3 rounded-xl border border-slate-100 inline-block">
-          <div className="flex items-center gap-2">
-            <Text className="text-[10px] text-slate-400 font-bold">{r.calculationDetail?.days} DAYS</Text>
-            <ArrowRight size={10} className="text-slate-300" />
-            <Text strong className="text-slate-500">₹{r.calculationDetail?.estimatedTotal || '0.00'}</Text>
-          </div>
+        <div className="flex flex-col gap-1">
+          {r.calculationDetail?.monthlySplit.map((m, idx) => (
+            <div key={idx} className="flex items-center gap-2 bg-white border border-slate-100 p-1 px-2 rounded-lg shadow-sm">
+              <Text className="text-[10px] font-bold text-blue-600 min-w-[80px] uppercase">{m.label}</Text>
+              <ArrowRight size={10} className="text-slate-300" />
+              <Text className="text-[10px] text-slate-500">{m.daysCount} days</Text>
+              <Text className="text-[10px] text-slate-400">@</Text>
+              <Text className="text-[10px] font-bold text-slate-600">₹{m.ratePerDay}/day</Text>
+              <div className="ml-auto">
+                <Text strong className="text-[10px] text-slate-700 font-black">₹{m.subTotal.toFixed(2)}</Text>
+              </div>
+            </div>
+          ))}
         </div>
       )
     },
     {
-      title: 'Status / Amount',
+      title: 'Total Rebate',
+      key: 'total',
+      align: 'center',
+      render: (_, r) => (
+        <div className="flex flex-col items-center justify-center bg-emerald-50 border border-emerald-100 p-2 rounded-2xl min-w-[100px]">
+           <Text className="text-[9px] text-emerald-600 font-black uppercase tracking-tighter">Calculated Total</Text>
+           <Text className="text-lg font-black text-emerald-700 leading-none">₹{r.calculationDetail?.total}</Text>
+        </div>
+      )
+    },
+    {
+      title: 'Status',
       dataIndex: 'status',
       render: (status, r) => (
-        <Space direction="vertical" size={0}>
-          <Tag color={status === 'approved' ? 'green' : status === 'rejected' ? 'red' : 'gold'} 
-               className="rounded-full border-none px-3 font-bold uppercase text-[9px]">
-            {status}
-          </Tag>
-          {status === 'approved' && <Text strong className="text-[11px] text-blue-600">₹{r.amount}</Text>}
-        </Space>
+        <Tag color={status === 'approved' ? 'green' : status === 'rejected' ? 'red' : 'gold'} 
+             className="rounded-full border-none px-3 font-bold uppercase text-[9px]">
+          {status} {status === 'approved' && `(₹${r.amount})`}
+        </Tag>
       )
     },
     {
@@ -148,12 +110,15 @@ const ManageRebates = () => {
         <Space>
           <Button 
             type="primary" 
-            onClick={() => openApproveModal(r)}
-            className="rounded-lg bg-blue-600 border-none shadow-md shadow-blue-100 font-bold"
+            onClick={() => { setSelectedRebate(r); setIsApproveModalOpen(true); }} 
+            className="rounded-lg bg-blue-600 font-bold border-none shadow-md"
           >
-            Approve
+            Review
           </Button>
-          <Popconfirm title="Reject Application?" onConfirm={() => handleReject(r.id)} okType="danger">
+          <Popconfirm 
+            title="Reject?" 
+            onConfirm={() => wardenAPI.updateRebateStatus(r.id, { status: 'rejected' }).then(fetchRebates)}
+          >
             <Button type="text" danger icon={<XCircle size={18}/>} />
           </Popconfirm>
         </Space>
@@ -165,112 +130,139 @@ const ManageRebates = () => {
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
       {contextHolder}
       <div className="p-8 bg-slate-50 min-h-screen space-y-6">
+        
+        {/* Header Section */}
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
-              <Percent className="text-white" size={24} />
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100 text-white">
+              <Percent size={24} />
             </div>
             <div>
-              <Title level={2} style={{ margin: 0 }}>Rebate Review Board</Title>
-              <Text type="secondary">Review applications and specify manual credit amounts</Text>
+              <Title level={2} style={{ margin: 0 }}>Mess Rebate Approval</Title>
+              <Text type="secondary">Review and approve mess fee deductions based on student absence</Text>
             </div>
           </div>
-          <Button icon={<RefreshCw size={16}/>} onClick={fetchRebates} className="rounded-xl h-11" />
+          <Button icon={<RefreshCw size={16}/>} onClick={fetchRebates} className="h-11 rounded-xl shadow-sm bg-white" />
         </div>
 
-        <Card className="border-none shadow-sm rounded-2xl">
-          <div className="flex flex-wrap gap-4 items-center justify-between">
-            <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 md:max-w-md">
-              <Search size={18} className="text-slate-300" />
-              <Input 
-                placeholder="Search by student..." 
-                bordered={false} 
-                className="font-medium"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <Select value={statusFilter} onChange={setStatusFilter} className="w-44" variant="filled">
-              <Option value="all">All Records</Option>
-              <Option value="pending">Pending</Option>
-              <Option value="approved">Approved</Option>
-              <Option value="rejected">Rejected</Option>
-            </Select>
-          </div>
-        </Card>
-
+        {/* Table Card */}
         <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+          {/* Table Card Header Section */}
+          <div className="p-6 bg-white border-b border-slate-50 flex justify-between items-center">
+            <Text strong className="text-slate-400 text-[10px] uppercase tracking-widest">
+              Pending Rebate Requests
+            </Text>
+            <div className="flex gap-2 bg-slate-100 p-1 rounded-xl">
+              <Select 
+                value={statusFilter} 
+                onChange={setStatusFilter} 
+                bordered={false} 
+                className="w-32 font-bold text-slate-600"
+              >
+                <Option value="pending">Pending</Option>
+                <Option value="approved">Approved</Option>
+                <Option value="rejected">Rejected</Option>
+                <Option value="all">View All</Option>
+              </Select>
+            </div>
+          </div>
+
           <Table 
             columns={columns} 
-            dataSource={filteredData} 
-            loading={loading}
-            rowKey="id"
-            pagination={{ pageSize: 8 }}
-            expandable={{
-              expandedRowRender: record => (
-                <div className="p-6 bg-slate-50 rounded-2xl m-2 border border-slate-100">
-                  <Text strong className="text-[10px] uppercase text-blue-500 block mb-2 tracking-widest">Reason / Notes</Text>
-                  <Text className="text-slate-600 italic">"{record.reason}"</Text>
-                  <Divider className="my-4" />
-                  <div className="flex gap-12">
-                     <div>
-                       <Text className="text-[10px] uppercase font-bold text-slate-400 block">Absence Start</Text>
-                       <Text strong>{moment(record.from_date).format('DD MMM, YYYY')}</Text>
-                     </div>
-                     <div>
-                       <Text className="text-[10px] uppercase font-bold text-slate-400 block">Absence End</Text>
-                       <Text strong>{moment(record.to_date).format('DD MMM, YYYY')}</Text>
-                     </div>
-                  </div>
-                </div>
-              )
-            }}
+            dataSource={rebates} 
+            loading={loading} 
+            rowKey="id" 
           />
         </Card>
 
-        {/* Manual Approval Modal */}
+        {/* Verification Modal */}
         <Modal
-          title={<div className="flex items-center gap-2"><Wallet size={20} className="text-blue-600"/> Specify Approval Amount</div>}
+          title={<div className="flex items-center gap-2"><Calculator size={20} className="text-blue-600"/> Rebate Verification</div>}
           open={isApproveModalOpen}
           onCancel={() => setIsApproveModalOpen(false)}
-          onOk={handleApproveSubmit}
-          okText="Confirm Approval"
+          onOk={handleApprove}
+          okText="Confirm & Approve Rebate"
           centered
           className="rounded-[32px]"
-          okButtonProps={{ className: 'h-11 rounded-xl bg-blue-600 font-bold' }}
-          cancelButtonProps={{ className: 'h-11 rounded-xl' }}
+          width={550}
         >
           {selectedRebate && (
-            <div className="mt-4 space-y-4">
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                <div className="flex justify-between mb-2">
-                  <Text type="secondary">Student:</Text>
-                  <Text strong>{selectedRebate.RebateStudent?.username}</Text>
-                </div>
-                <div className="flex justify-between mb-2">
-                  <Text type="secondary">Days of Absence:</Text>
-                  <Text strong>{selectedRebate.calculationDetail?.days} Days</Text>
-                </div>
-                <div className="flex justify-between">
-                  <Text type="secondary">System Suggested:</Text>
-                  <Text strong className="text-slate-400">₹{selectedRebate.calculationDetail?.estimatedTotal}</Text>
-                </div>
+            <div className="mt-4 space-y-6">
+              {/* Main Total Card */}
+              <div className="bg-slate-900 p-8 rounded-[32px] text-white relative overflow-hidden shadow-2xl">
+                 <div className="relative z-10">
+                   <Text className="text-slate-400 uppercase text-[10px] font-black tracking-widest mb-2 block">
+                     Total Rebate Amount
+                   </Text>
+                   <div className="flex items-baseline gap-2">
+                      <span className="text-2xl text-emerald-400 font-bold">₹</span>
+                      <span className="text-6xl font-black">
+                        {selectedRebate.calculationDetail?.total}
+                      </span>
+                   </div>
+                   <Divider className="border-slate-700 my-4" />
+                   <div className="flex gap-6">
+                      <div>
+                        <Text className="text-slate-500 text-[9px] font-bold block uppercase">Student Name</Text>
+                        <Text className="text-white text-xs font-bold uppercase">
+                          {selectedRebate.RebateStudent?.username}
+                        </Text>
+                      </div>
+                      <div>
+                        <Text className="text-slate-500 text-[9px] font-bold block uppercase">Total Days</Text>
+                        <Text className="text-white text-xs font-bold uppercase">
+                          {selectedRebate.calculationDetail?.totalDays} Days
+                        </Text>
+                      </div>
+                   </div>
+                 </div>
+                 <div className="absolute -bottom-10 -right-10 opacity-10">
+                   <Landmark size={180}/>
+                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Text strong className="text-slate-600">Enter Final Approved Amount (₹)</Text>
-                <Input 
-                  size="large"
-                  type="number"
-                  prefix={<span className="text-slate-400">₹</span>}
-                  value={manualAmount}
-                  onChange={(e) => setManualAmount(e.target.value)}
-                  className="rounded-xl h-12 font-bold text-lg text-blue-600"
-                  placeholder="0.00"
-                  autoFocus
-                />
-                <Text className="text-[11px] text-amber-500 block">
-                  * This amount will be credited to the student's next mess bill.
+              {/* Monthly Detail Section */}
+              <div className="space-y-3">
+                <Text strong className="text-slate-500 uppercase text-[10px] tracking-widest flex items-center gap-2">
+                    <Calendar size={14}/> Month-wise Details
+                </Text>
+                {selectedRebate.calculationDetail?.monthlySplit.map((item, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all hover:border-blue-200 shadow-sm"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Text className="block text-sm font-black text-slate-800 uppercase">
+                          {item.label}
+                        </Text>
+                        {!item.isAudited && (
+                          <Badge 
+                            status="warning" 
+                            text={<span className="text-[8px] font-bold text-amber-600 uppercase">Tentative Rate</span>} 
+                          />
+                        )}
+                      </div>
+                      <Text type="secondary" className="text-xs font-medium">
+                        {item.daysCount} Days Absence × ₹{item.ratePerDay} 
+                        <span className="text-[10px] opacity-50"> (Daily Rate)</span>
+                      </Text>
+                    </div>
+                    <div className="text-right">
+                      <Text strong className="block text-blue-600 text-lg">
+                        ₹{item.subTotal.toFixed(2)}
+                      </Text>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Alert Note */}
+              <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex gap-3">
+                <Info className="text-blue-500 shrink-0" size={18} />
+                <Text className="text-blue-700 text-[11px] leading-relaxed">
+                  These rates are automatically calculated from the <strong>Mess Rate Records</strong>. 
+                  Approving this will deduct this amount from the student's next mess bill.
                 </Text>
               </div>
             </div>
@@ -280,5 +272,24 @@ const ManageRebates = () => {
     </ConfigProvider>
   );
 };
+
+// Helper Icon for background
+const Landmark = ({ size }) => (
+  <svg 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke="currentColor" 
+    strokeWidth="2" 
+    strokeLinecap="round" 
+    strokeLinejoin="round"
+  >
+    <line x1="3" y1="21" x2="21" y2="21"></line>
+    <line x1="9" y1="8" x2="9" y2="17"></line>
+    <line x1="15" y1="8" x2="15" y2="17"></line>
+    <path d="M4 11V3a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v8"></path>
+  </svg>
+);
 
 export default ManageRebates;

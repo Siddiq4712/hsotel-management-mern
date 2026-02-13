@@ -128,7 +128,7 @@ const {
   getConcerns,
   updateConcern,
   deleteConcern,
-
+  saveDailyRate,
   getIncomeEntries,
   createIncomeEntry,
   getMonthlyExpensesChartData, // Add this
@@ -151,7 +151,9 @@ const {
   createRecipe,
   getRecipes,
   updateRecipe,
-  deleteRecipe
+  deleteRecipe,
+
+  getLatestDailyRate
 } = require('../controllers/messController');
 const { auth, authorize } = require('../middleware/auth');
 
@@ -217,7 +219,7 @@ router.use(auth);
 
 // Dashboard (accessible to mess, warden, admin)
 router.get('/dashboard-stats', authorize(['mess', 'warden', 'admin']), getMessDashboardStats);
-
+router.get('/daily-rate/latest', authorize(['mess', 'warden', 'admin']), getLatestDailyRate);
 router.get('/chart-data/monthly-expenses', authorize(['mess', 'admin']), getMonthlyExpensesChartData);
 router.get('/chart-data/item-stock', authorize(['mess', 'admin']), getItemStockChartData);
 
@@ -271,6 +273,7 @@ router.get('/consumption', authorize(['mess', 'warden', 'admin']), getDailyConsu
 router.post('/inventory-purchase', authorize(['mess', 'admin']), recordInventoryPurchase);
 router.get('/inventory-transactions', authorize(['mess', 'warden', 'admin']), getInventoryTransactions);
 
+router.post('/daily-rate/save', authorize(['mess', 'admin']), saveDailyRate);
 // Store Management - Complete CRUD
 router.post('/stores', authorize(['mess', 'admin']), validateStore, createStore);
 router.get('/stores', authorize(['mess', 'warden', 'admin']), getStores);

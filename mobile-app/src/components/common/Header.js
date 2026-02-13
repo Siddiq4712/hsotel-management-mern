@@ -2,20 +2,18 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Image, Alert } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { LogOut } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Header = () => {
   const { user, logout } = useAuth();
   const [imageError, setImageError] = useState(false);
+  const insets = useSafeAreaInsets();
 
-  const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to log out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Yes', onPress: logout },
-      ]
-    );
+  const handleLogout = () => {
+    Alert.alert('Logout', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Yes', onPress: logout },
+    ]);
   };
 
   const renderAvatar = () => {
@@ -28,8 +26,6 @@ const Header = () => {
         />
       );
     }
-
-    const initials = user?.username?.[0]?.toUpperCase() || '?';
     return (
       <View className="w-10 h-10 rounded-full bg-blue-500 items-center justify-center">
         <Text className="text-white text-base font-bold">{initials}</Text>
@@ -60,8 +56,14 @@ const Header = () => {
             <Text className="text-xs md:text-sm text-gray-500" numberOfLines={1}>
               @{user.hostel.name}
             </Text>
-          )}
-        </View>
+            {user?.hostel && (
+              <Text style={{ fontSize: 9, color: '#64748b' }} numberOfLines={1}>
+                @{user.hostel.name}
+              </Text>
+            )}
+          </View>
+          
+          {renderAvatar()}
 
         <TouchableOpacity
           onPress={handleLogout}

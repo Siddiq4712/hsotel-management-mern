@@ -74,7 +74,7 @@ const AttendanceManagement = () => {
       setStudents(stuRes.data.data || []);
       setAttendance(attRes.data.data || []);
     } catch (error) {
-      message.error('Protocol synchronization failed.');
+      message.error('Failed to load student records.');
     } finally {
       setTimeout(() => setLoading(false), 800);
     }
@@ -116,11 +116,11 @@ const AttendanceManagement = () => {
       );
 
       await Promise.all(promises);
-      message.success(`Journal updated for ${changes.length} student(s)`);
+      message.success(`Attendance updated for ${changes.length} student(s)`);
       setTempAttendance({});
       fetchData();
     } catch (e) {
-      message.error('Failed to commit attendance ledger.');
+      message.error('Failed to save attendance.');
     } finally {
       setMarkingAttendance(false);
     }
@@ -129,12 +129,12 @@ const AttendanceManagement = () => {
   const statusConfig = {
     P: { color: 'success', label: 'Present', icon: <CheckCircle2 size={12} /> },
     A: { color: 'error', label: 'Absent', icon: <XCircle size={12} /> },
-    OD: { color: 'processing', label: 'Institutional OD', icon: <Clock size={12} /> }
+    OD: { color: 'processing', label: 'College OD', icon: <Clock size={12} /> }
   };
 
   const columns = [
     {
-      title: 'Student Identity',
+      title: 'Student Details',
       key: 'identity',
       render: (_, r) => (
         <Space gap={3}>
@@ -149,7 +149,7 @@ const AttendanceManagement = () => {
       )
     },
     {
-      title: 'Record Status',
+      title: 'Attendance Status',
       key: 'status',
       render: (_, r) => {
         const studentAtt = getAttendanceForStudent(r.id);
@@ -160,16 +160,16 @@ const AttendanceManagement = () => {
           <Tag icon={statusConfig[status].icon} color={statusConfig[status].color} className="rounded-full border-none px-3 font-bold uppercase text-[9px]">
             {statusConfig[status].label}
           </Tag>
-        ) : <Text type="secondary" className="text-xs italic">Pending Marking</Text>;
+        ) : <Text type="secondary" className="text-xs italic">Not Marked Yet</Text>;
       }
     },
     {
-      title: 'Quick Actions',
+      title: 'Mark Attendance',
       key: 'actions',
       align: 'right',
       render: (_, r) => {
         const studentAtt = getAttendanceForStudent(r.id);
-        if (studentAtt) return <Button type="text" size="small" className="text-blue-600 font-bold text-[10px]">EDITED</Button>;
+        if (studentAtt) return <Button type="text" size="small" className="text-blue-600 font-bold text-[10px]">MARKED</Button>;
 
         const current = tempAttendance[r.id]?.status;
         return (
@@ -203,8 +203,8 @@ const AttendanceManagement = () => {
               <Calendar className="text-white" size={24} />
             </div>
             <div>
-              <Title level={2} style={{ margin: 0 }}>Attendance Ledger</Title>
-              <Text type="secondary">Institutional daily presence tracking and OD authorization</Text>
+              <Title level={2} style={{ margin: 0 }}>Daily Attendance</Title>
+              <Text type="secondary">Manage daily student presence and college OD records</Text>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -227,10 +227,10 @@ const AttendanceManagement = () => {
             {/* Statistics Row */}
             <Row gutter={[24, 24]} className="mb-8">
               {[
-                { label: 'Total Strength', val: students.length, icon: Users, color: 'text-blue-500' },
+                { label: 'Total Students', val: students.length, icon: Users, color: 'text-blue-500' },
                 { label: 'Present Today', val: attendance.filter(a => a.status === 'P').length, icon: CheckCircle2, color: 'text-emerald-500' },
                 { label: 'Absentees', val: attendance.filter(a => a.status === 'A').length, icon: XCircle, color: 'text-rose-500' },
-                { label: 'Institutional OD', val: attendance.filter(a => a.status === 'OD').length, icon: Clock, color: 'text-amber-500' },
+                { label: 'On Duty (OD)', val: attendance.filter(a => a.status === 'OD').length, icon: Clock, color: 'text-amber-500' },
               ].map((stat, i) => (
                 <Col xs={24} sm={12} lg={6} key={i}>
                   <Card className="border-none shadow-sm rounded-2xl">
@@ -250,8 +250,15 @@ const AttendanceManagement = () => {
                 <Select value={selectedCollege} onChange={setSelectedCollege} className="w-48 h-11" options={['All', ...new Set(students.map(s => s.college))].map(c => ({ label: c, value: c }))} />
                 <div className="ml-auto">
                    {Object.keys(tempAttendance).length > 0 && (
-                     <Button type="primary" size="large" className="rounded-xl h-11 font-bold shadow-lg shadow-blue-100" icon={<Save size={16}/>} onClick={handleSaveAll} loading={markingAttendance}>
-                       Commit {Object.keys(tempAttendance).length} Records
+                     <Button 
+                       type="primary" 
+                       size="large" 
+                       className="rounded-xl h-11 font-bold shadow-lg shadow-blue-100" 
+                       icon={<Save size={16}/>} 
+                       onClick={handleSaveAll} 
+                       loading={markingAttendance}
+                     >
+                       Save {Object.keys(tempAttendance).length} Entries 
                      </Button>
                    )}
                 </div>
@@ -269,7 +276,10 @@ const AttendanceManagement = () => {
                 />
               ) : (
                 <div className="py-24">
-                  <Empty image={<div className="bg-slate-50 p-8 rounded-full inline-block mb-4"><Inbox size={64} className="text-slate-200" /></div>} description="No institutional records matching the criteria." />
+                  <Empty 
+                    image={<div className="bg-slate-50 p-8 rounded-full inline-block mb-4"><Inbox size={64} className="text-slate-200" /></div>} 
+                    description="No students found matching the search." 
+                  />
                 </div>
               )}
             </Card>

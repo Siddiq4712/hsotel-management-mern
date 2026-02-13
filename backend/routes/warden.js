@@ -16,7 +16,7 @@ const {
   // Add these new imports
   generateMessBills, getMessBills, updateMessBillStatus,
   // Other imports
-  getRoomOccupants,getMessBillSummary, bulkMonthEndMandays,
+  getRoomOccupants,getMessBillSummary, bulkMonthEndMandays,getLatestDailyRate,
   // Room Type Management for Warden
   createRoomTypeWarden, updateRoomTypeWarden, deleteRoomTypeWarden, getRoomTypesWarden,
   // Room Management for Warden
@@ -73,7 +73,7 @@ router.post('/holidays', createHoliday);
 router.get('/holidays', getHolidays);
 router.put('/holidays/:id', updateHoliday);
 router.delete('/holidays/:id', deleteHoliday);
-
+router.get('/daily-rate/latest', auth, getLatestDailyRate);
 // Additional Collections
 router.post('/additional-collections', createAdditionalCollection);
 router.get('/additional-collections', getAdditionalCollections);

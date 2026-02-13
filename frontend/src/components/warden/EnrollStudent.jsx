@@ -48,7 +48,7 @@ const EnrollStudent = () => {
       const response = await wardenAPI.getSessions();
       setSessions(response.data.data || []);
     } catch (error) {
-      message.error('Failed to sync academic sessions.');
+      message.error('Failed to load academic years.');
     } finally {
       setTimeout(() => setSessionsLoading(false), 800);
     }
@@ -75,11 +75,11 @@ const EnrollStudent = () => {
 
     try {
       await wardenAPI.enrollStudent(payload);
-      message.success('Student record officially created and activated!');
+      message.success('Student successfully registered!');
       form.resetFields();
       setCurrentStep(0);
     } catch (error) {
-      message.error(error.response?.data?.message || 'Server rejected enrollment.');
+      message.error(error.response?.data?.message || 'Registration failed.');
     } finally {
       setLoading(false);
     }
@@ -87,7 +87,6 @@ const EnrollStudent = () => {
 
   const handleNext = async () => {
     try {
-      // Validate current visible fields before moving forward
       const fields = currentStep === 0 
         ? ['baseUsername', 'initial', 'password'] 
         : ['roll_number', 'college', 'session_id'];
@@ -95,7 +94,7 @@ const EnrollStudent = () => {
       await form.validateFields(fields);
       setCurrentStep(currentStep + 1);
     } catch (e) {
-      message.warning("Required fields are missing.");
+      message.warning("Please fill in all required information.");
     }
   };
 
@@ -110,8 +109,8 @@ const EnrollStudent = () => {
             <GraduationCap size={28} />
           </div>
           <div>
-            <Title level={2} style={{ margin: 0 }}>Enrollment Hub</Title>
-            <Text type="secondary">Digital Student Onboarding cycle</Text>
+            <Title level={2} style={{ margin: 0 }}>Student Admission</Title>
+            <Text type="secondary">Registering new students to the hostel records</Text>
           </div>
         </div>
 
@@ -124,9 +123,9 @@ const EnrollStudent = () => {
                     <Steps
                       current={currentStep}
                       items={[
-                        { title: 'Personal', icon: <User size={18}/> },
-                        { title: 'Academic', icon: <School size={18}/> },
-                        { title: 'Review', icon: <ShieldCheck size={18}/> }
+                        { title: 'Student Info', icon: <User size={18}/> },
+                        { title: 'College Info', icon: <School size={18}/> },
+                        { title: 'Final Check', icon: <ShieldCheck size={18}/> }
                       ]}
                     />
                   </div>
@@ -138,15 +137,15 @@ const EnrollStudent = () => {
                     layout="vertical" 
                     onFinish={onFinish} 
                     className="px-8 pb-8"
-                    preserve={true} // Critical: Keeps data when shifting between Steps
+                    preserve={true}
                   >
                     
                     {/* STEP 0: PERSONAL */}
                     <div className={currentStep === 0 ? "block animate-in fade-in duration-500" : "hidden"}>
                       <Row gutter={16}>
                         <Col span={18}>
-                          <Form.Item name="baseUsername" label={<Text strong>Full Name</Text>} rules={[{ required: true }]}>
-                            <Input prefix={<User size={16} className="text-slate-400"/>} placeholder="e.g. ARUN" className="h-12 rounded-xl" />
+                          <Form.Item name="baseUsername" label={<Text strong>Student Name</Text>} rules={[{ required: true }]}>
+                            <Input prefix={<User size={16} className="text-slate-400"/>} placeholder="Full Name (without initial)" className="h-12 rounded-xl" />
                           </Form.Item>
                         </Col>
                         <Col span={6}>
@@ -158,8 +157,8 @@ const EnrollStudent = () => {
                       <Form.Item name="email" label={<Text strong>Email Address</Text>} rules={[{ type: 'email' }]}>
                         <Input prefix={<Mail size={16} className="text-slate-400"/>} placeholder="student@college.edu" className="h-12 rounded-xl" />
                       </Form.Item>
-                      <Form.Item name="password" label={<Text strong>System Password</Text>} rules={[{ required: true, min: 6 }]}>
-                        <Input.Password prefix={<Lock size={16} className="text-slate-400"/>} placeholder="Minimum 6 characters" className="h-12 rounded-xl" />
+                      <Form.Item name="password" label={<Text strong>Login Password</Text>} rules={[{ required: true, min: 6 }]}>
+                        <Input.Password prefix={<Lock size={16} className="text-slate-400"/>} placeholder="Create a password" className="h-12 rounded-xl" />
                       </Form.Item>
                     </div>
 
@@ -174,20 +173,20 @@ const EnrollStudent = () => {
                           <Option value="lapc">LAPC Campus</Option>
                         </Select>
                       </Form.Item>
-                      <Form.Item name="session_id" label={<Text strong>Academic Session</Text>} rules={[{ required: true }]}>
-                        <Select className="h-12 rounded-xl" placeholder="Link to Active Session">
+                      <Form.Item name="session_id" label={<Text strong>Academic Year / Batch</Text>} rules={[{ required: true }]}>
+                        <Select className="h-12 rounded-xl" placeholder="Select Admission Year">
                           {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
                         </Select>
                       </Form.Item>
                       <Form.Item name="requires_bed" valuePropName="checked" className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
                         <Checkbox>
-                          <Text strong className="text-blue-700 ml-2 text-sm">Authorize Bed Allocation</Text>
-                          <Paragraph className="text-[11px] text-blue-500 m-0 ml-6 italic">Enables the student for immediate room assignment by the warden.</Paragraph>
+                          <Text strong className="text-blue-700 ml-2 text-sm">Allocate Room/Bed</Text>
+                          <Paragraph className="text-[11px] text-blue-500 m-0 ml-6 italic">Enable this if the student will be staying in the hostel.</Paragraph>
                         </Checkbox>
                       </Form.Item>
                     </div>
 
-                    {/* STEP 2: REVIEW (The Final Screen) */}
+                    {/* STEP 2: REVIEW */}
                     {currentStep === 2 && (
                       <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <div className="bg-white rounded-2xl border-2 border-blue-50 shadow-sm overflow-hidden">
@@ -196,7 +195,7 @@ const EnrollStudent = () => {
                           </div>
                           <div className="p-6">
                             <Descriptions column={1} bordered size="small" className="bg-white">
-                              <Descriptions.Item label={<Text type="secondary" small>Legal Name</Text>}>
+                              <Descriptions.Item label={<Text type="secondary" small>Student Name</Text>}>
                                 <Text strong className="text-blue-900 uppercase">{form.getFieldValue('baseUsername')} {form.getFieldValue('initial')}</Text>
                               </Descriptions.Item>
                               <Descriptions.Item label={<Text type="secondary">Roll No</Text>}>
@@ -205,15 +204,19 @@ const EnrollStudent = () => {
                               <Descriptions.Item label={<Text type="secondary">Institution</Text>}>
                                 <span className="uppercase">{form.getFieldValue('college')}</span>
                               </Descriptions.Item>
-                              <Descriptions.Item label={<Text type="secondary">Plan</Text>}>
-                                {form.getFieldValue('requires_bed') ? <Tag color="blue" className="rounded-full px-3">HOSTEL RESIDENT</Tag> : <Tag className="rounded-full px-3">DAY SCHOLAR</Tag>}
+                              <Descriptions.Item label={<Text type="secondary">Admission Type</Text>}>
+                                {form.getFieldValue('requires_bed') 
+                                  ? <Tag color="blue" className="rounded-full px-3">HOSTELLER</Tag> 
+                                  : <Tag className="rounded-full px-3">DAY SCHOLAR</Tag>}
                               </Descriptions.Item>
                             </Descriptions>
                           </div>
                         </div>
                         <div className="mt-6 flex items-center gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-100">
                           <AlertCircle size={20} className="text-amber-500" />
-                          <Text className="text-[11px] text-amber-800">Please confirm all data is correct. Clicking the button below will permanently sync this student to the central database.</Text>
+                          <Text className="text-[11px] text-amber-800">
+                            Please confirm all details are correct. Clicking the button below will save this student to the hostel records.
+                          </Text>
                         </div>
                       </div>
                     )}
@@ -223,7 +226,7 @@ const EnrollStudent = () => {
                       {currentStep > 0 ? (
                         <Button 
                           type="text" 
-                          htmlType="button" // Important: Don't submit
+                          htmlType="button"
                           onClick={handlePrev} 
                           size="large" 
                           icon={<ArrowLeft size={18}/>} 
@@ -236,7 +239,7 @@ const EnrollStudent = () => {
                       {currentStep < 2 ? (
                         <Button 
                           type="primary" 
-                          htmlType="button" // Important: Don't submit
+                          htmlType="button"
                           onClick={handleNext} 
                           size="large" 
                           className="h-14 px-12 rounded-2xl font-bold shadow-lg shadow-blue-100 flex items-center gap-2"
@@ -246,12 +249,12 @@ const EnrollStudent = () => {
                       ) : (
                         <Button 
                           type="primary" 
-                          htmlType="submit" // THIS IS THE ONLY SUBMIT BUTTON
+                          htmlType="submit" 
                           size="large" 
                           loading={loading} 
                           className="h-14 px-12 rounded-2xl font-bold bg-green-600 hover:bg-green-700 border-none shadow-lg shadow-green-100 flex items-center gap-2"
                         >
-                          Confirm & Complete Enrollment <Send size={18}/>
+                          Register Student <Send size={18}/>
                         </Button>
                       )}
                     </div>
@@ -261,18 +264,18 @@ const EnrollStudent = () => {
             </Card>
           </Col>
 
-          {/* Institutional Protocol Sidebar */}
+          {/* Admission Steps Sidebar */}
           <Col lg={8} xs={24}>
             <div className="space-y-6">
               <Card className="border-none shadow-sm rounded-[32px] bg-blue-600 text-white relative overflow-hidden">
                 <div className="relative z-10 p-2">
-                  <Title level={4} className="text-white mb-6 flex items-center gap-2"><Info size={20}/> Onboarding Protocol</Title>
+                  <Title level={4} className="text-white mb-6 flex items-center gap-2"><Info size={20}/> Admission Steps</Title>
                   <Timeline 
                     mode="left"
                     items={[
-                      { children: <Text className="text-blue-50 text-xs">Verify Student Identity</Text>, color: 'white' },
-                      { children: <Text className="text-blue-50 text-xs">Map Academic Session</Text>, color: 'white' },
-                      { children: <Text className="text-blue-100 font-bold text-xs">Warden Final Review</Text>, color: '#10b981' },
+                      { children: <Text className="text-blue-50 text-xs">Enter Student Details</Text>, color: 'white' },
+                      { children: <Text className="text-blue-50 text-xs">Assign Year/Batch</Text>, color: 'white' },
+                      { children: <Text className="text-blue-100 font-bold text-xs">Warden Verification</Text>, color: '#10b981' },
                     ]}
                   />
                 </div>
@@ -281,9 +284,9 @@ const EnrollStudent = () => {
 
               <Card className="border-none shadow-sm rounded-[32px] p-2 bg-white border border-slate-100">
                  <div className="p-4">
-                    <Title level={5} className="mb-2">Data Integrity</Title>
+                    <Title level={5} className="mb-2">Important Note</Title>
                     <Paragraph className="text-xs text-slate-500 m-0 leading-relaxed">
-                       Once enrolled, students will receive an invitation to log in via their institutional email. Ensure the <strong>Roll Number</strong> is unique.
+                       After registration, students can log in using their email and the password you set. Make sure the <strong>Roll Number</strong> is entered correctly as it cannot be changed easily later.
                     </Paragraph>
                  </div>
               </Card>
