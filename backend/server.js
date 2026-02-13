@@ -12,6 +12,7 @@ const adminRoutes = require('./routes/admin');
 const wardenRoutes = require('./routes/warden');
 const studentRoutes = require('./routes/student');
 const messRoutes = require('./routes/mess');
+const { verifyEmailConnection } = require('./utils/emailUtils');
 
 const app = express();
 
@@ -66,6 +67,14 @@ const PORT = process.env.PORT || 5000;
 sequelize.sync().then(() => {
   console.log('Database synced - All tables recreated');
   createDefaultAdmin();
+
+  verifyEmailConnection().then(isConnected => {
+  if (isConnected) {
+    console.log('✅ Email service is ready');
+  } else {
+    console.warn('⚠️ Email service is not configured properly. Notifications may not work.');
+  }
+});
   
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

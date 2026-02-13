@@ -86,36 +86,51 @@ const RecordAdhocConsumption = () => {
     }));
   };
 
-  const onFinish = async (values) => {
-    const itemsToConsume = Object.entries(consumptionQuantities)
-      .filter(([, qty]) => qty > 0)
-      .map(([id, qty]) => ({
-        item_id: parseInt(id),
-        quantity_consumed: qty,
-        unit_id: items.find(i => i.id === parseInt(id))?.unit_id
-      }));
+  // In the onFinish function, after the successful API call:
+const onFinish = async (values) => {
+  const itemsToConsume = Object.entries(consumptionQuantities)
+    .filter(([, qty]) => qty > 0)
+    .map(([id, qty]) => ({
+      item_id: parseInt(id),
+      quantity_consumed: qty,
+      unit_id: items.find(i => i.id === parseInt(id))?.unit_id
+    }));
 
-    if (itemsToConsume.length === 0) {
-      return message.warning('Please enter a quantity for at least one item.');
-    }
+  if (itemsToConsume.length === 0) {
+    return message.warning('Please enter a quantity for at least one item.');
+  }
 
-    setSubmitting(true);
-    try {
-      await messAPI.recordAdhocConsumption({
-        ...values,
-        consumption_date: values.consumption_date.format('YYYY-MM-DD'),
-        items: itemsToConsume,
-      });
-      message.success('Consumption recorded successfully');
-      form.resetFields();
-      setConsumptionQuantities({});
-      fetchData(); // Refresh stock levels
-    } catch (error) {
-      message.error(error.response?.data?.message || 'Submission failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  setSubmitting(true);
+  try {
+    const response = await messAPI.recordAdhocConsumption({
+      ...values,
+      consumption_date: values.consumption_date.format('YYYY-MM-DD'),
+      items: itemsToConsume,
+    });
+    
+    // Enhanced success message
+    message.success({
+      content: (
+        <span>
+          <strong>Consumption recorded successfully!</strong>
+          <br />
+          <span style={{ fontSize: '12px', color: '#666' }}>
+            Admin has been notified via email.
+          </span>
+        </span>
+      ),
+      duration: 5,
+    });
+    
+    form.resetFields();
+    setConsumptionQuantities({});
+    fetchData(); // Refresh stock levels
+  } catch (error) {
+    message.error(error.response?.data?.message || 'Submission failed');
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const columns = [
     {
