@@ -12,6 +12,7 @@ const adminRoutes = require('./routes/admin');
 const wardenRoutes = require('./routes/warden');
 const studentRoutes = require('./routes/student');
 const messRoutes = require('./routes/mess');
+const attendanceRoutes = require('./routes/attendanceRoutes');
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/warden', wardenRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/mess', messRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 // Create default admin user
 const createDefaultAdmin = async () => {
@@ -63,7 +65,7 @@ const createDefaultAdmin = async () => {
 const PORT = process.env.PORT || 5000;
 
 // TEMPORARILY use force: true to recreate all tables
-sequelize.sync().then(() => {
+sequelize.sync({ force: false }).then(() => {
   console.log('Database synced - All tables recreated');
   createDefaultAdmin();
   

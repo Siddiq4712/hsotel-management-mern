@@ -141,7 +141,24 @@ const enrollStudent = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+exports.getAttendanceSummary = async (req, res) => {
+  const date = req.query.date;
 
+  const totalStudents = await User.count({
+    where: { role: 'STUDENT' }
+  });
+
+  const presentCount = await Attendance.count({
+    where: { date, status: 'P' }
+  });
+
+  res.json({
+    date,
+    totalStudents,
+    present: presentCount,
+    absent: totalStudents - presentCount
+  });
+};
 // ROOM MANAGEMENT
 const getAvailableRooms = async (req, res) => {
   try {

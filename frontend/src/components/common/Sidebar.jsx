@@ -16,8 +16,10 @@ const MENU_STRUCTURE = {
       items: [
         { id: 'hostels', label: 'Manage Hostels', icon: Building },
         { id: 'create-hostel', label: 'Create Hostel', icon: Building },
-        { id: 'room-types', label: 'Room Types', icon: Bed },
-        { id: 'rooms', label: 'Manage Rooms', icon: Bed },
+
+        // ✅ UPDATED: Single room management entry
+        { id: 'room-management', label: 'Manage Rooms', icon: Bed },
+
         { id: 'days-reduc', label: 'Day Reductions', icon: FileText },
       ]
     },
@@ -50,6 +52,7 @@ const MENU_STRUCTURE = {
       ]
     }
   ],
+
   warden: [
     { title: 'Main', items: [{ id: 'dashboard', label: 'Dashboard', icon: Home }] },
     {
@@ -77,10 +80,11 @@ const MENU_STRUCTURE = {
         { id: 'warden-day-red', label: 'Day Reduction List', icon: FileText },
         { id: 'complaints', label: 'Complaints', icon: MessageCircle },
         { id: 'holidays', label: 'Holidays', icon: CalendarDays },
-        { id: 'rebate', label: 'Rebates', icon: CreditCard},
+        { id: 'rebate', label: 'Rebates', icon: CreditCard },
       ]
     }
   ],
+
   student: [
     { title: 'Main', items: [{ id: 'dashboard', label: 'Dashboard', icon: Home }, { id: 'profile', label: 'My Profile', icon: Users }] },
     {
@@ -88,7 +92,7 @@ const MENU_STRUCTURE = {
       items: [
         { id: 'my-leaves', label: 'My Leaves', icon: FileText },
         { id: 'my-complaints', label: 'My Complaints', icon: AlertCircle },
-        { id: 'my-rebates', label: 'My Rebates', icon: CreditCard},
+        { id: 'my-rebates', label: 'My Rebates', icon: CreditCard },
         { id: 'day-reduction', label: 'Apply Day Reduction', icon: FileText },
       ]
     },
@@ -102,7 +106,9 @@ const MENU_STRUCTURE = {
       title: 'Finance & Mess',
       items: [
         { id: 'transactions', label: 'Transactions', icon: CreditCard },
-        { id: 'mess-charges', label: 'Mess Charges', icon: DollarSign },
+        { id: 'hfee', label: 'Fees', icon: DollarSign }, 
+        // { id: 'mess-charges', label: 'Mess Charges', icon: DollarSign },
+        // { id: 'hostel-fees', label: 'Hostel Fees', icon: Building },
       ]
     },
     {
@@ -113,6 +119,7 @@ const MENU_STRUCTURE = {
       ]
     }
   ],
+
   mess: [
     { title: 'Main', items: [{ id: 'dashboard', label: 'Dashboard', icon: Home }] },
     {
@@ -181,7 +188,7 @@ const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen, isCollapsed, 
     if (!searchQuery) return roleMenu;
     return roleMenu.map(section => ({
       ...section,
-      items: section.items.filter(item => 
+      items: section.items.filter(item =>
         item.label.toLowerCase().includes(searchQuery.toLowerCase())
       )
     })).filter(section => section.items.length > 0);
@@ -227,7 +234,6 @@ const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen, isCollapsed, 
         <nav className="flex-1 overflow-y-auto custom-scrollbar overflow-x-hidden py-4">
           {filteredMenu.map((section, idx) => (
             <div key={idx} className="mb-6">
-              {/* Section Title: Center a small dash when collapsed */}
               <div className="px-6 mb-2 flex items-center h-4">
                 {isCollapsed ? (
                   <div className="w-8 h-[1px] bg-slate-700 mx-auto" />
@@ -253,26 +259,22 @@ const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen, isCollapsed, 
                           : 'hover:bg-slate-800 hover:text-white'
                       }`}
                     >
-                      {/* ICON WRAPPER: Fixed width ensures the icon is ALWAYS centered in the 80px (20rem) rail */}
                       <div className="min-w-[56px] flex items-center justify-center shrink-0">
                         <Icon size={22} className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'} transition-colors`} />
                       </div>
                       
-                      {/* LABEL: Hidden via opacity and width to allow icons to center */}
                       <span className={`text-[14px] font-medium whitespace-nowrap transition-all duration-300 ${
                         isCollapsed ? 'opacity-0 translate-x-10 w-0' : 'opacity-100 translate-x-0 w-auto'
                       }`}>
                         {item.label}
                       </span>
 
-                      {/* Tooltip for Collapsed State */}
                       {isCollapsed && (
                         <div className="fixed left-20 px-3 py-2 bg-slate-800 text-white text-xs font-semibold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all border border-slate-700 shadow-2xl z-[70] whitespace-nowrap">
                           {item.label}
                         </div>
                       )}
 
-                      {/* Active Indicator Line for Collapsed State */}
                       {isActive && isCollapsed && (
                         <div className="absolute left-0 w-1 h-6 bg-white rounded-r-full" />
                       )}
@@ -288,7 +290,7 @@ const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen, isCollapsed, 
         <div className="p-3 border-t border-slate-800 bg-slate-900/80">
           <button 
             onClick={logout}
-            className={`w-full flex items-center h-12 rounded-xl transition-all text-rose-400 hover:bg-rose-500/10 group overflow-hidden`}
+            className="w-full flex items-center h-12 rounded-xl transition-all text-rose-400 hover:bg-rose-500/10 group overflow-hidden"
           >
             <div className="min-w-[56px] flex items-center justify-center shrink-0">
               <LogOut size={20} />
