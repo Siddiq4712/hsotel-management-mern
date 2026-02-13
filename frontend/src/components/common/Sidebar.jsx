@@ -14,7 +14,7 @@ const MENU_STRUCTURE = {
     {
       title: 'Hostel Management',
       items: [
-        { id: 'hostels', label: 'Manage Hostels', icon: Building },
+        //{ id: 'hostels', label: 'Manage Hostels', icon: Building },
         { id: 'create-hostel', label: 'Create Hostel', icon: Building },
 
         // ✅ UPDATED: Single room management entry

@@ -414,6 +414,145 @@ const deleteMenu = async (req, res) => {
   }
 };
 
+// APPLY MENU DATE RANGE - Creates menu schedules for specific days over multiple weeks
+const applyMenuDateRange = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { id } = req.params;
+    const { start_date, end_date, days } = req.body;
+    const hostel_id = req.user.hostel_id;
+
+    // Validation
+    if (!start_date || !end_date || !days) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Start date, end date, and days are required'
+      });
+    }
+
+    if (!Array.isArray(days) || days.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Please select at least one day'
+      });
+    }
+
+    // Check if menu exists
+    const menu = await Menu.findOne({
+      where: { id, hostel_id }
+    }, { transaction });
+
+    if (!menu) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Menu not found'
+      });
+    }
+
+    // Parse dates
+    const start = moment(start_date);
+    const end = moment(end_date);
+    
+    if (!start.isValid() || !end.isValid()) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Use YYYY-MM-DD'
+      });
+    }
+
+    if (end.isBefore(start)) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'End date must be after or equal to start date'
+      });
+    }
+
+    // Map menu meal_type to valid meal_time values
+    const mealTypeMap = {
+      'breakfast': 'breakfast',
+      'lunch': 'lunch',
+      'dinner': 'dinner',
+      'snacks': 'snacks'
+    };
+
+    const mealTime = mealTypeMap[menu.meal_type] || 'lunch'; // Default to lunch if not found
+
+    // Create schedule entries for each occurrence of selected days between start and end dates
+    const schedules = [];
+    const dayMap = {
+      'Monday': 1,
+      'Tuesday': 2,
+      'Wednesday': 3,
+      'Thursday': 4,
+      'Friday': 5,
+      'Saturday': 6,
+      'Sunday': 0
+    };
+
+    // Iterate through each selected day
+    for (const dayName of days) {
+      const dayNumber = dayMap[dayName];
+      let current = start.clone();
+
+      // Find the first occurrence of this day from start_date onwards
+      while (current.day() !== dayNumber) {
+        current.add(1, 'day');
+      }
+
+      // Generate all occurrences of this day until end_date
+      while (current.isSameOrBefore(end)) {
+        schedules.push({
+          menu_id: id,
+          hostel_id: hostel_id,
+          scheduled_date: current.toDate(),
+          meal_time: mealTime,
+          estimated_servings: menu.estimated_servings,
+          status: 'scheduled',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        current.add(1, 'week'); // Move to next week for the same day
+      }
+    }
+
+    // Remove duplicates if any
+    const uniqueSchedules = schedules.filter((item, index, arr) => 
+      index === arr.findIndex(t => 
+        t.scheduled_date.getTime() === item.scheduled_date.getTime() && 
+        t.menu_id === item.menu_id
+      )
+    );
+
+    // Bulk create schedule entries
+    if (uniqueSchedules.length > 0) {
+      await MenuSchedule.bulkCreate(uniqueSchedules, { transaction });
+    }
+
+    await transaction.commit();
+
+    res.status(201).json({
+      success: true,
+      data: {
+        menu_id: id,
+        start_date: start_date,
+        end_date: end_date,
+        days: days,
+        total_schedules_created: uniqueSchedules.length
+      },
+      message: `Menu applied for ${uniqueSchedules.length} day(s) successfully`
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Apply menu date range error:', error);
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
 // Optional: New endpoint to recalculate menu cost with FIFO (call this after updating items if needed)
 const recalculateMenuCostWithFIFO = async (req, res) => {
   try {
@@ -590,26 +729,35 @@ const getItems = async (req, res) => {
     });
 
     // Get the latest stock entry for each item
+       // ... (Your previous code fetching 'items' goes here) ...
+
     const itemIds = items.map(item => item.id);
 
-    // Query to get the latest stock for each item
-    const latestStocks = await sequelize.query(`
-      WITH RankedStocks AS (
-        SELECT 
-          id, item_id, current_stock, minimum_stock, last_purchase_date,
-          ROW_NUMBER() OVER (PARTITION BY item_id ORDER BY updatedAt DESC) as rn
-        FROM tbl_ItemStock
-        WHERE hostel_id = :hostel_id AND item_id IN (:itemIds)
-      )
-      SELECT * FROM RankedStocks WHERE rn = 1
-    `, {
-      replacements: { hostel_id, itemIds },
-      type: sequelize.QueryTypes.SELECT,
-      raw: true
-    });
+    // Initialize latestStocks as an empty array
+    let latestStocks = [];
+
+    // FIX: Only run the SQL query if we actually have item IDs
+    if (itemIds.length > 0) {
+      latestStocks = await sequelize.query(`
+        WITH RankedStocks AS (
+          SELECT 
+            id, item_id, current_stock, minimum_stock, last_purchase_date,
+            ROW_NUMBER() OVER (PARTITION BY item_id ORDER BY updatedAt DESC) as rn
+          FROM tbl_ItemStock
+          WHERE hostel_id = :hostel_id AND item_id IN (:itemIds)
+        )
+        SELECT * FROM RankedStocks WHERE rn = 1
+      `, {
+        replacements: { hostel_id, itemIds },
+        type: sequelize.QueryTypes.SELECT,
+        raw: true
+      });
+    }
 
     // Create a map for quick lookup of stock data
     const stockMap = {};
+    
+    // This loop simply won't run if latestStocks is empty, preventing errors
     latestStocks.forEach(stock => {
       stockMap[stock.item_id] = {
         current_stock: parseFloat(stock.current_stock),
@@ -621,6 +769,7 @@ const getItems = async (req, res) => {
     // Format the response with the latest stock data
     const formattedItems = items.map(item => {
       const itemJSON = item.toJSON();
+      // If stockMap is empty, it correctly defaults to 0
       const stockData = stockMap[item.id] || { current_stock: 0, minimum_stock: 0, last_purchase_date: null };
 
       return {
@@ -670,7 +819,6 @@ const getItemById = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-
 const updateItem = async (req, res) => {
   try {
     const { id } = req.params;
@@ -7081,6 +7229,7 @@ module.exports = {
   getMenuById,
   updateMenu,
   deleteMenu,
+  applyMenuDateRange,
   createItem,
   getItems,
   getItemById,
