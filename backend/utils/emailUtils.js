@@ -76,7 +76,7 @@ const sendConsumptionNotificationToAdmin = async (data) => {
     lowStockItems = [],
   } = data;
 
-  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || '2312060@nec.edu.in';
+  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || '2312057@nec.edu.in';
 
   // Format items table for email
   const itemsTableRows = items
@@ -137,7 +137,7 @@ const sendConsumptionNotificationToAdmin = async (data) => {
         <!-- Header -->
         <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 32px; border-radius: 16px 16px 0 0; text-align: center;">
           <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 600;">
-            🍽️ Special Consumption Recorded
+            🍽️ Extra Consumption Recorded
           </h1>
           <p style="margin: 8px 0 0 0; color: #bfdbfe; font-size: 14px;">
             Hostel Management System Notification
@@ -265,7 +265,7 @@ This is an automated notification from the Hostel Management System.
 
   return sendEmail({
     to: adminEmail,
-    subject: `🍽️ Special Consumption Recorded: ${eventName} - ₹${parseFloat(totalCost).toFixed(2)}`,
+    subject: `🍽️ Extra Consumption Recorded: ${eventName} - ₹${parseFloat(totalCost).toFixed(2)}`,
     html: htmlContent,
     text: plainText,
   });

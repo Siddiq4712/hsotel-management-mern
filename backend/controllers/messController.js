@@ -4772,7 +4772,7 @@ const getStudentFees = async (req, res) => {
                 { model: User, as: 'IssuedBy', attributes: ['id', 'username'] }
             ],
             order: [['createdAt', 'DESC']],
-            limit: 100
+            // limit: 100
         });
 
         res.json({ success: true, data: fees });
@@ -5121,7 +5121,52 @@ const getDailyConsumptionDetails = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
+// Add these to messController.js
 
+// 1. Delete a single fee record
+const deleteStudentFee = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { hostel_id } = req.user;
+
+    const result = await StudentFee.destroy({ 
+      where: { id, hostel_id } 
+    });
+
+    if (result === 0) {
+      return res.status(404).json({ success: false, message: 'Fee record not found.' });
+    }
+    res.json({ success: true, message: 'Fee record deleted successfully.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
+
+// 2. Bulk Delete (Undo Batch) - Much more efficient
+const bulkDeleteStudentFees = async (req, res) => {
+  try {
+    const { ids } = req.body; // Array of IDs from the frontend
+    const { hostel_id } = req.user;
+
+    if (!ids || !Array.isArray(ids)) {
+      return res.status(400).json({ success: false, message: 'Invalid IDs provided.' });
+    }
+
+    const result = await StudentFee.destroy({
+      where: {
+        id: { [Op.in]: ids },
+        hostel_id
+      }
+    });
+
+    res.json({ 
+      success: true, 
+      message: `Successfully reverted ${result} records.` 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+  }
+};
 
 const exportStockToExcel = async (req, res) => {
   try {
@@ -7146,4 +7191,6 @@ module.exports = {
   deleteRecipe,
   saveDailyRate,
   getLatestDailyRate,
+  deleteStudentFee,
+  bulkDeleteStudentFees
 };
