@@ -270,7 +270,7 @@ const DashboardRouter = () => {
           case 'uoms':
             return <UOMManagement />;
           case 'purchase-by-store':
-            return <PurchaseByStore />;
+            return <PurchaseByStore setCurrentView={setCurrentView} />;
           case 'food-orders-dashboard':
             return <MessOrderDashboard />;
           case 'record-consumption':

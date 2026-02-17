@@ -1,9 +1,9 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js'
 
 // User model for authentication
 // In your User model definition, add this field:
-const User = sequelize.define('User', {
+export const User = sequelize.define('User', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -60,7 +60,7 @@ const User = sequelize.define('User', {
 });
 
 // Hostel Management Models
-const Hostel = sequelize.define('Hostel', {
+export const Hostel = sequelize.define('Hostel', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -109,7 +109,7 @@ const Hostel = sequelize.define('Hostel', {
   tableName: 'tbl_Hostel',
   timestamps: true
 });
-const GPSAttendance = sequelize.define('GPSAttendance', {
+export const GPSAttendance = sequelize.define('GPSAttendance', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -178,7 +178,7 @@ const GPSAttendance = sequelize.define('GPSAttendance', {
     }
   ]
 });
-const RoomType = sequelize.define('RoomType', {
+export const RoomType = sequelize.define('RoomType', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -209,7 +209,7 @@ const RoomType = sequelize.define('RoomType', {
   timestamps: true
 });
 
-const HostelRoom = sequelize.define('HostelRoom', {
+export const HostelRoom = sequelize.define('HostelRoom', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -264,7 +264,7 @@ const HostelRoom = sequelize.define('HostelRoom', {
   timestamps: true
 });
 
-const Session = sequelize.define('Session', {
+export const Session = sequelize.define('Session', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -292,7 +292,7 @@ const Session = sequelize.define('Session', {
 });
 
 // In your Enrollment model
-const Enrollment = sequelize.define('Enrollment', {
+export const Enrollment = sequelize.define('Enrollment', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -351,7 +351,7 @@ const Enrollment = sequelize.define('Enrollment', {
 });
 
 
-const RoomAllotment = sequelize.define('RoomAllotment', {
+export const RoomAllotment = sequelize.define('RoomAllotment', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -392,7 +392,7 @@ const RoomAllotment = sequelize.define('RoomAllotment', {
 });
 
 // Mess Management Models
-const Menu = sequelize.define('Menu', {
+export const Menu = sequelize.define('Menu', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -436,7 +436,7 @@ const Menu = sequelize.define('Menu', {
   timestamps: true
 });
 
-const ItemCategory = sequelize.define('ItemCategory', {
+export const ItemCategory = sequelize.define('ItemCategory', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -454,7 +454,7 @@ const ItemCategory = sequelize.define('ItemCategory', {
   tableName: 'tbl_ItemCategory',
   timestamps: true
 });
-const UOM = sequelize.define('UOM', {
+export const UOM = sequelize.define('UOM', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -478,7 +478,7 @@ const UOM = sequelize.define('UOM', {
 });
 
 
-const Item = sequelize.define('Item', {
+export const Item = sequelize.define('Item', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -522,7 +522,7 @@ const Item = sequelize.define('Item', {
   timestamps: true
 });
 
-const MessBill = sequelize.define('MessBill', {
+export const MessBill = sequelize.define('MessBill', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -568,7 +568,7 @@ const MessBill = sequelize.define('MessBill', {
   tableName: 'tbl_MessBill',
   timestamps: true
 });
-const HostelFacilityType = sequelize.define('HostelFacilityType', {
+export const HostelFacilityType = sequelize.define('HostelFacilityType', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -591,7 +591,7 @@ const HostelFacilityType = sequelize.define('HostelFacilityType', {
   timestamps: true
 });
 
-const HostelFacility = sequelize.define('HostelFacility', {
+export const HostelFacility = sequelize.define('HostelFacility', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -635,7 +635,7 @@ const HostelFacility = sequelize.define('HostelFacility', {
   timestamps: true
 });
 
-const HostelFacilityRegister = sequelize.define('HostelFacilityRegister', {
+export const HostelFacilityRegister = sequelize.define('HostelFacilityRegister', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -680,7 +680,7 @@ const HostelFacilityRegister = sequelize.define('HostelFacilityRegister', {
   timestamps: true
 });
 
-const HostelMaintenance = sequelize.define('HostelMaintenance', {
+export const HostelMaintenance = sequelize.define('HostelMaintenance', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -753,7 +753,7 @@ const HostelMaintenance = sequelize.define('HostelMaintenance', {
 });
 
 // FINANCE MANAGEMENT MODELS
-const IncomeType = sequelize.define('IncomeType', {
+export const IncomeType = sequelize.define('IncomeType', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -776,7 +776,7 @@ const IncomeType = sequelize.define('IncomeType', {
   timestamps: true
 });
 
-const ExpenseType = sequelize.define('ExpenseType', {
+export const ExpenseType = sequelize.define('ExpenseType', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -800,7 +800,7 @@ const ExpenseType = sequelize.define('ExpenseType', {
 });
 
 // WARDEN WORKFLOW MODELS
-const Suspension = sequelize.define('Suspension', {
+export const Suspension = sequelize.define('Suspension', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -850,7 +850,7 @@ const Suspension = sequelize.define('Suspension', {
 // ... (imports)
 
 // Updated Attendance Model
-const Attendance = sequelize.define('Attendance', {
+export const Attendance = sequelize.define('Attendance', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -907,7 +907,7 @@ const Attendance = sequelize.define('Attendance', {
   tableName: 'tbl_Attendance',
   timestamps: true
 });
-const Holiday = sequelize.define('Holiday', {
+export const Holiday = sequelize.define('Holiday', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -942,7 +942,7 @@ const Holiday = sequelize.define('Holiday', {
   timestamps: true
 });
 
-const Fee = sequelize.define('Fee', {
+export const Fee = sequelize.define('Fee', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1047,7 +1047,7 @@ Fee.belongsTo(User, { foreignKey: 'collected_by', as: 'CollectedBy' });
 Fee.belongsTo(Enrollment, { foreignKey: 'enrollment_id', as: 'Enrollment' });
 Enrollment.hasMany(Fee, { foreignKey: 'enrollment_id', as: 'Fees' });
 
-const AdditionalCollectionType = sequelize.define('AdditionalCollectionType', {
+export const AdditionalCollectionType = sequelize.define('AdditionalCollectionType', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1075,7 +1075,7 @@ const AdditionalCollectionType = sequelize.define('AdditionalCollectionType', {
   timestamps: true
 });
 
-const AdditionalCollection = sequelize.define('AdditionalCollection', {
+export const AdditionalCollection = sequelize.define('AdditionalCollection', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1127,7 +1127,7 @@ const AdditionalCollection = sequelize.define('AdditionalCollection', {
   timestamps: true
 });
 
-const AdditionalIncome = sequelize.define('AdditionalIncome', {
+export const AdditionalIncome = sequelize.define('AdditionalIncome', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1175,7 +1175,7 @@ const AdditionalIncome = sequelize.define('AdditionalIncome', {
   timestamps: true
 });
 
-const Rebate = sequelize.define('Rebate', {
+export const Rebate = sequelize.define('Rebate', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1226,7 +1226,7 @@ const Rebate = sequelize.define('Rebate', {
   timestamps: true
 });
 
-const Complaint = sequelize.define('Complaint', {
+export const Complaint = sequelize.define('Complaint', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1282,7 +1282,7 @@ const Complaint = sequelize.define('Complaint', {
 });
 
 // STUDENT WORKFLOW MODELS
-const Leave = sequelize.define('Leave', {
+export const Leave = sequelize.define('Leave', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1337,7 +1337,7 @@ const Leave = sequelize.define('Leave', {
   timestamps: true
 });
 
-const Transaction = sequelize.define('Transaction', {
+export const Transaction = sequelize.define('Transaction', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1389,7 +1389,7 @@ const Transaction = sequelize.define('Transaction', {
 });
 
 // MESS WORKFLOW MODELS
-const MenuItem = sequelize.define('MenuItem', {
+export const MenuItem = sequelize.define('MenuItem', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1433,7 +1433,7 @@ const MenuItem = sequelize.define('MenuItem', {
   timestamps: true
 });
 
-const MenuSchedule = sequelize.define('MenuSchedule', {
+export const MenuSchedule = sequelize.define('MenuSchedule', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1490,7 +1490,7 @@ const MenuSchedule = sequelize.define('MenuSchedule', {
   timestamps: true
 });
 
-const Token = sequelize.define('Token', {
+export const Token = sequelize.define('Token', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1525,7 +1525,7 @@ const Token = sequelize.define('Token', {
   timestamps: true
 });
 
-const Groceries = sequelize.define('Groceries', {
+export const Groceries = sequelize.define('Groceries', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1566,7 +1566,7 @@ const Groceries = sequelize.define('Groceries', {
   timestamps: true
 });
 
-const GroceriesType = sequelize.define('GroceriesType', {
+export const GroceriesType = sequelize.define('GroceriesType', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1585,7 +1585,7 @@ const GroceriesType = sequelize.define('GroceriesType', {
   timestamps: true
 });
 
-const ItemStock = sequelize.define('ItemStock', {
+export const ItemStock = sequelize.define('ItemStock', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1631,7 +1631,7 @@ const ItemStock = sequelize.define('ItemStock', {
     { fields: ['item_id', 'hostel_id'] },
   ],
 });
-const DailyConsumption = sequelize.define('DailyConsumption', {
+export const DailyConsumption = sequelize.define('DailyConsumption', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1685,7 +1685,7 @@ const DailyConsumption = sequelize.define('DailyConsumption', {
   ],
 });
 
-const NonConsumables = sequelize.define('NonConsumables', {
+export const NonConsumables = sequelize.define('NonConsumables', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1721,7 +1721,7 @@ const NonConsumables = sequelize.define('NonConsumables', {
   timestamps: true
 });
 
-const OtherItems = sequelize.define('OtherItems', {
+export const OtherItems = sequelize.define('OtherItems', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1753,7 +1753,7 @@ const OtherItems = sequelize.define('OtherItems', {
   timestamps: true
 });
 
-const Supplier = sequelize.define('Supplier', {
+export const Supplier = sequelize.define('Supplier', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1792,7 +1792,7 @@ const Supplier = sequelize.define('Supplier', {
   timestamps: true
 });
 
-const PurchaseOrder = sequelize.define('PurchaseOrder', {
+export const PurchaseOrder = sequelize.define('PurchaseOrder', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1845,7 +1845,7 @@ const PurchaseOrder = sequelize.define('PurchaseOrder', {
   timestamps: true
 });
 
-const PurchaseOrderItem = sequelize.define('PurchaseOrderItem', {
+export const PurchaseOrderItem = sequelize.define('PurchaseOrderItem', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1884,7 +1884,7 @@ const PurchaseOrderItem = sequelize.define('PurchaseOrderItem', {
   timestamps: true
 });
 
-const SupplierBill = sequelize.define('SupplierBill', {
+export const SupplierBill = sequelize.define('SupplierBill', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1943,7 +1943,7 @@ const SupplierBill = sequelize.define('SupplierBill', {
   timestamps: true
 });
 
-const SupplierBillItem = sequelize.define('SupplierBillItem', {
+export const SupplierBillItem = sequelize.define('SupplierBillItem', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -1982,7 +1982,7 @@ const SupplierBillItem = sequelize.define('SupplierBillItem', {
   timestamps: true
 });
 
-const MessFeesAllot = sequelize.define('MessFeesAllot', {
+export const MessFeesAllot = sequelize.define('MessFeesAllot', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2030,7 +2030,7 @@ const MessFeesAllot = sequelize.define('MessFeesAllot', {
   timestamps: true
 });
 
-const OtherExpense = sequelize.define('OtherExpense', {
+export const OtherExpense = sequelize.define('OtherExpense', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2078,7 +2078,7 @@ const OtherExpense = sequelize.define('OtherExpense', {
   timestamps: true
 });
 
-const MessDailyExpense = sequelize.define('MessDailyExpense', {
+export const MessDailyExpense = sequelize.define('MessDailyExpense', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2127,7 +2127,7 @@ const MessDailyExpense = sequelize.define('MessDailyExpense', {
 });
 
 // GUEST MANAGEMENT
-const Guest = sequelize.define('Guest', {
+export const Guest = sequelize.define('Guest', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2195,7 +2195,7 @@ const Guest = sequelize.define('Guest', {
   timestamps: true
 });
 // Add this new model to your models/index.js file
-const MessCharge = sequelize.define('MessCharge', {
+export const MessCharge = sequelize.define('MessCharge', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2235,7 +2235,7 @@ const MessCharge = sequelize.define('MessCharge', {
     }
   ]
 });
-const DailyMessCharge = sequelize.define('DailyMessCharge', {
+export const DailyMessCharge = sequelize.define('DailyMessCharge', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2285,7 +2285,7 @@ const DailyMessCharge = sequelize.define('DailyMessCharge', {
   ]
 });
 // Store Model
-const Store = sequelize.define('Store', {
+export const Store = sequelize.define('Store', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2313,7 +2313,7 @@ const Store = sequelize.define('Store', {
 });
 
 // ItemStore mapping model
-const ItemStore = sequelize.define('ItemStore', {
+export const ItemStore = sequelize.define('ItemStore', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2355,7 +2355,7 @@ const ItemStore = sequelize.define('ItemStore', {
 // Inventory Transaction Model for tracking purchases and consumption
 // models/index.js - PARTIAL UPDATE: Find this section and modify it.
 
-const InventoryTransaction = sequelize.define('InventoryTransaction', {
+export const InventoryTransaction = sequelize.define('InventoryTransaction', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2425,7 +2425,7 @@ const InventoryTransaction = sequelize.define('InventoryTransaction', {
   timestamps: true
 });
 
-  const SpecialFoodItem = sequelize.define('SpecialFoodItem', {
+  export const SpecialFoodItem = sequelize.define('SpecialFoodItem', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2470,7 +2470,7 @@ const InventoryTransaction = sequelize.define('InventoryTransaction', {
 });
 
 // FoodOrder Model (for special food items)
-const FoodOrder = sequelize.define('FoodOrder', {
+export const FoodOrder = sequelize.define('FoodOrder', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2523,7 +2523,7 @@ const FoodOrder = sequelize.define('FoodOrder', {
 });
 
 // FoodOrderItem Model (for individual items in an order)
-const FoodOrderItem = sequelize.define('FoodOrderItem', {
+export const FoodOrderItem = sequelize.define('FoodOrderItem', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2566,7 +2566,7 @@ const FoodOrderItem = sequelize.define('FoodOrderItem', {
   tableName: 'tbl_FoodOrderItem',
   timestamps: true
 });
-const Concern = sequelize.define('Concern', {
+export const Concern = sequelize.define('Concern', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2591,7 +2591,7 @@ const Concern = sequelize.define('Concern', {
   timestamps: true,
 });
 
-const InventoryBatch = sequelize.define('InventoryBatch', {
+export const InventoryBatch = sequelize.define('InventoryBatch', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2648,7 +2648,7 @@ const InventoryBatch = sequelize.define('InventoryBatch', {
   ],
 });
 // Remove the beforeCreate hook from this model definition
-const ConsumptionLog = sequelize.define('ConsumptionLog', {
+export const ConsumptionLog = sequelize.define('ConsumptionLog', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2687,7 +2687,7 @@ const ConsumptionLog = sequelize.define('ConsumptionLog', {
     { fields: ['batch_id'] },
   ],
 });
-const DailyConsumptionReturn = sequelize.define('DailyConsumptionReturn', {
+export const DailyConsumptionReturn = sequelize.define('DailyConsumptionReturn', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2725,7 +2725,7 @@ const DailyConsumptionReturn = sequelize.define('DailyConsumptionReturn', {
 // ... other model definitions
 
 // NEW: Special Consumption Model
-const CreditToken = sequelize.define('CreditToken', {
+export const CreditToken = sequelize.define('CreditToken', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2758,7 +2758,7 @@ const CreditToken = sequelize.define('CreditToken', {
   tableName: 'tbl_CreditToken',
   timestamps: true,
 });
-const SpecialConsumption = sequelize.define('SpecialConsumption', {
+export const SpecialConsumption = sequelize.define('SpecialConsumption', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2799,7 +2799,7 @@ const SpecialConsumption = sequelize.define('SpecialConsumption', {
 });
 
 // NEW: Special Consumption Item Model
-const SpecialConsumptionItem = sequelize.define('SpecialConsumptionItem', {
+export const SpecialConsumptionItem = sequelize.define('SpecialConsumptionItem', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2843,7 +2843,7 @@ const SpecialConsumptionItem = sequelize.define('SpecialConsumptionItem', {
 
 // ... after the 'FoodOrderItem' or 'Fee' model definition ...
 
-const StudentFee = sequelize.define('StudentFee', {
+export const StudentFee = sequelize.define('StudentFee', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2897,7 +2897,7 @@ const StudentFee = sequelize.define('StudentFee', {
   tableName: 'tbl_StudentFee',
   timestamps: true,
 });
-const HostelLayout = sequelize.define('HostelLayout', {
+export const HostelLayout = sequelize.define('HostelLayout', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -2968,7 +2968,7 @@ const HostelLayout = sequelize.define('HostelLayout', {
   tableName: 'tbl_HostelLayout',
   timestamps: true
 });
-const RoomRequest = sequelize.define(
+export const RoomRequest = sequelize.define(
   "RoomRequest",
   {
     id: {
@@ -3032,7 +3032,7 @@ const RoomRequest = sequelize.define(
     timestamps: true,
   }
 );
-const RestockPlan = sequelize.define('RestockPlan', {
+export const RestockPlan = sequelize.define('RestockPlan', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false },
   item_id: { type: DataTypes.INTEGER, allowNull: false },
@@ -3048,7 +3048,7 @@ const RestockPlan = sequelize.define('RestockPlan', {
 
 // ... existing models ...
 
-const DayReductionRequest = sequelize.define('DayReductionRequest', {
+export const DayReductionRequest = sequelize.define('DayReductionRequest', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -3117,7 +3117,7 @@ const DayReductionRequest = sequelize.define('DayReductionRequest', {
 });
 // models/index.js
 
-const Recipe = sequelize.define('Recipe', {
+export const Recipe = sequelize.define('Recipe', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -3142,7 +3142,7 @@ const Recipe = sequelize.define('Recipe', {
   timestamps: true
 });
 
-const RecipeItem = sequelize.define('RecipeItem', {
+export const RecipeItem = sequelize.define('RecipeItem', {
   id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
@@ -3447,7 +3447,7 @@ RoomRequest.belongsTo(Hostel, { foreignKey: "hostel_id" });
 User.hasMany(RoomRequest, { foreignKey: "student_id", as: "RoomRequests" });
 HostelRoom.hasMany(RoomRequest, { foreignKey: "room_id", as: "RoomRequests" });
 Hostel.hasMany(RoomRequest, { foreignKey: "hostel_id", as: "RoomRequests" });
-const DailyRateLog = sequelize.define('DailyRateLog', {
+export const DailyRateLog = sequelize.define('DailyRateLog', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false },
   month: { type: DataTypes.INTEGER, allowNull: false },
@@ -3461,87 +3461,3 @@ const DailyRateLog = sequelize.define('DailyRateLog', {
   tableName: 'tbl_DailyRateLog',
   indexes: [{ unique: true, fields: ['hostel_id', 'month', 'year'] }]
 });
-
-module.exports = {
-  sequelize,
-  User,
-  Hostel,
-  RoomType,
-  HostelRoom,
-  Session,
-  Enrollment,
-  RoomAllotment,
-  Menu,
-  ItemCategory,
-  UOM,
-  Item,
-  MessBill,
-  GPSAttendance,
-  // Facility Management
-  HostelFacilityType,
-  HostelFacility,
-  HostelFacilityRegister,
-  HostelMaintenance,
-  // Finance Management
-  IncomeType,
-  ExpenseType,
-  // Warden Workflow
-  Suspension,
-  Attendance,
-  Holiday,
-  Fee,
-  AdditionalCollectionType,
-  AdditionalCollection,
-  AdditionalIncome,
-  Rebate,
-  Complaint,
-  // Student Workflow
-  Leave,
-  Transaction,
-  // Mess Workflow
-  MenuItem,
-  MenuSchedule,
-  Token,
-  Groceries,
-  GroceriesType,
-  ItemStock,
-  DailyConsumption,
-  DailyConsumptionReturn,
-  NonConsumables,
-  OtherItems,
-  Supplier,
-  PurchaseOrder,
-  PurchaseOrderItem,
-  SupplierBill,
-  SupplierBillItem,
-  MessFeesAllot,
-  OtherExpense,
-  // Guest Management
-  DailyMessCharge,
-  Guest,
-  MessCharge,
-  Store,
-  ItemStore,
-  InventoryTransaction,
-  
-  SpecialFoodItem,
-  FoodOrder,
-  FoodOrderItem,
-
-  InventoryBatch,
-  ConsumptionLog,
-
-  MessDailyExpense,
-  SpecialConsumption,
-  SpecialConsumptionItem,
-  StudentFee,
-  CreditToken,
-  Concern,
-  HostelLayout,
-  RoomRequest,
-  RestockPlan,
-  DayReductionRequest,
-  Recipe,
-  RecipeItem,
-  DailyRateLog
-};

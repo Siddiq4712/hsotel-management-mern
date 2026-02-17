@@ -1,13 +1,12 @@
-const bcrypt = require('bcryptjs');
-const { Op } = require('sequelize');
-const moment = require('moment');
-const { 
-  sequelize, User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,MessFeesAllot,
-  Attendance, Leave, Complaint, Suspension, Holiday,Fee, MessBill,Hostel,RoomRequest,DayReductionRequest, Rebate, DailyRateLog
-  // Note: Models not used in this controller have been removed from this import for clarity
-} = require('../models');
-
-const enrollStudent = async (req, res) => {
+import bcrypt from 'bcryptjs';
+import { Op } from 'sequelize';
+import moment from 'moment';
+import { 
+  User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session, MessFeesAllot,
+  Attendance, Leave, Complaint, Suspension, Holiday, Fee, MessBill, Hostel, RoomRequest,
+  DayReductionRequest, Rebate, DailyRateLog, HostelLayout, AdditionalCollection, AdditionalCollectionType
+} from '../models/index.js';
+export const enrollStudent = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     // Extract user information from the request body
@@ -141,7 +140,7 @@ const enrollStudent = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-exports.getAttendanceSummary = async (req, res) => {
+export const getAttendanceSummary = async (req, res) => {
   const date = req.query.date;
 
   const totalStudents = await User.count({
@@ -160,7 +159,7 @@ exports.getAttendanceSummary = async (req, res) => {
   });
 };
 // ROOM MANAGEMENT
-const getAvailableRooms = async (req, res) => {
+export const getAvailableRooms = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     const rooms = await HostelRoom.findAll({
@@ -190,7 +189,7 @@ const getAvailableRooms = async (req, res) => {
   }
 };
 
-const allotRoom = async (req, res) => {
+export const allotRoom = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { student_id, room_id } = req.body;
@@ -219,7 +218,7 @@ const allotRoom = async (req, res) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
-const getRoomOccupants = async (req, res) => {
+export const getRoomOccupants = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -251,7 +250,7 @@ const getRoomOccupants = async (req, res) => {
     });
   }
 };
-const fetchAvailableRooms = async () => {
+export const fetchAvailableRooms = async () => {
   try {
     setRoomsLoading(true);
     const response = await wardenAPI.getAvailableRooms();
@@ -307,7 +306,7 @@ const fetchAvailableRooms = async () => {
 // In your backend routes file (e.g., routes/warden.js or app.js)
 
 // Warden Room Type Management - Scoped to warden's hostel
-const createRoomTypeWarden = async (req, res) => {
+export const createRoomTypeWarden = async (req, res) => {
   try {
     const { name, capacity, description } = req.body;
     const hostel_id = req.user.hostel_id;
@@ -353,9 +352,8 @@ const finalName = name;
     });
   }
 };
-const { HostelLayout } = require('../models');
 
-const getLayout = async (req, res) => {
+export const getLayout = async (req, res) => {
   try {
     const layout = await HostelLayout.findOne({
       where: { hostel_id: req.user.hostel_id }
@@ -366,7 +364,7 @@ const getLayout = async (req, res) => {
   }
 };
 
-const saveLayout = async (req, res) => {
+export const saveLayout = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     const body = { ...req.body, hostel_id };
@@ -385,7 +383,7 @@ const saveLayout = async (req, res) => {
   }
 };
 
-const getRoomTypesWarden = async (req, res) => {
+export const getRoomTypesWarden = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     const { search } = req.query;
@@ -408,7 +406,7 @@ const getRoomTypesWarden = async (req, res) => {
   }
 };
 
-const updateRoomTypeWarden = async (req, res) => {
+export const updateRoomTypeWarden = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, capacity, description } = req.body;
@@ -439,7 +437,7 @@ const updateRoomTypeWarden = async (req, res) => {
   }
 };
 
-const deleteRoomTypeWarden = async (req, res) => {
+export const deleteRoomTypeWarden = async (req, res) => {
   try {
     const { id } = req.params;
     const hostel_id = req.user.hostel_id;
@@ -487,7 +485,7 @@ const deleteRoomTypeWarden = async (req, res) => {
 };
 
 // Warden Room Management - Scoped to hostel
-const createRoomWarden = async (req, res) => {
+export const createRoomWarden = async (req, res) => {
   try {
     const { room_type_id, room_number, floor, layout_slot, is_active } = req.body;
     const hostel_id = req.user.hostel_id;
@@ -558,7 +556,7 @@ const createRoomWarden = async (req, res) => {
   }
 };
 
-const getRoomsWarden = async (req, res) => {
+export const getRoomsWarden = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     const { room_type_id, search, is_occupied } = req.query;
@@ -593,7 +591,7 @@ const getRoomsWarden = async (req, res) => {
   }
 };
 
-const updateRoomWarden = async (req, res) => {
+export const updateRoomWarden = async (req, res) => {
   try {
     const { id } = req.params;
     const { room_type_id, room_number, floor, layout_slot, is_active } = req.body;
@@ -679,7 +677,7 @@ if (!room.is_active) {
   }
 };
 
-const deleteRoomWarden = async (req, res) => {
+export const deleteRoomWarden = async (req, res) => {
   try {
     const { id } = req.params;
     const hostel_id = req.user.hostel_id;
@@ -713,7 +711,7 @@ const deleteRoomWarden = async (req, res) => {
 };
 
 // DASHBOARD STATISTICS
-const getDashboardStats = async (req, res) => {
+export const getDashboardStats = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     
@@ -859,7 +857,7 @@ const getDashboardStats = async (req, res) => {
 // ... (existing imports and functions remain the same)
 
 // NEW: Bulk Month-End Mandays Entry
-const bulkMonthEndMandays = async (req, res) => {
+export const bulkMonthEndMandays = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { month, year, total_operational_days, student_reductions = [] } = req.body;
@@ -952,7 +950,7 @@ const bulkMonthEndMandays = async (req, res) => {
 };
 
 // UPDATED: getMonthlyAttendance - Now calculates operational days using holidays
-const getMonthlyAttendance = async (req, res) => {
+export const getMonthlyAttendance = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
@@ -1033,7 +1031,7 @@ const getMonthlyAttendance = async (req, res) => {
   }
 };
 
-const getMonthlyComplaints = async (req, res) => {
+export const getMonthlyComplaints = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
@@ -1072,7 +1070,7 @@ const getMonthlyComplaints = async (req, res) => {
 
 // --- END NEW DASHBOARD FUNCTIONS ---
 
-const getSessions = async (req, res) => {
+export const getSessions = async (req, res) => {
   try {
     const sessions = await Session.findAll({ where: { is_active: true }, order: [['createdAt', 'DESC']] });
     res.json({ success: true, data: sessions });
@@ -1083,7 +1081,7 @@ const getSessions = async (req, res) => {
 };
 
 // ATTENDANCE MANAGEMENT
-const markAttendance = async (req, res) => {
+export const markAttendance = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { student_id, date, status, from_date, to_date, reason, remarks } = req.body;
@@ -1187,7 +1185,7 @@ const markAttendance = async (req, res) => {
     res.status(error.message.includes('not found') ? 404 : 400).json({ success: false, message: error.message });
   }
 };
-const updateAttendance = async (req, res) => {
+export const updateAttendance = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
@@ -1299,7 +1297,7 @@ const updateAttendance = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-const bulkMarkAttendance = async (req, res) => {
+export const bulkMarkAttendance = async (req, res) => {
     const { date, attendanceData } = req.body;
     const marked_by = req.user.id;
     const hostel_id = req.user.hostel_id;
@@ -1382,7 +1380,7 @@ const bulkMarkAttendance = async (req, res) => {
     }
 };
 
-const getAttendance = async (req, res) => {
+export const getAttendance = async (req, res) => {
   try {
     const { date } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -1398,7 +1396,7 @@ const getAttendance = async (req, res) => {
 };
 
 // LEAVE MANAGEMENT - UPDATED WITH PROPER FILTERS
-const getLeaveRequests = async (req, res) => {
+export const getLeaveRequests = async (req, res) => {
   try {
     const { status, from_date, to_date } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -1442,7 +1440,7 @@ const getLeaveRequests = async (req, res) => {
   }
 };
 
-const getPendingLeaves = async (req, res) => {
+export const getPendingLeaves = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
 
@@ -1466,7 +1464,7 @@ const getPendingLeaves = async (req, res) => {
   }
 };
 
-const approveLeave = async (req, res) => {
+export const approveLeave = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, remarks } = req.body;
@@ -1538,7 +1536,7 @@ const approveLeave = async (req, res) => {
 };
 
 // COMPLAINT MANAGEMENT - UPDATED WITH PROPER FILTERS
-const getComplaints = async (req, res) => {
+export const getComplaints = async (req, res) => {
   try {
     const { status, category, priority, from_date, to_date } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -1588,7 +1586,7 @@ const getComplaints = async (req, res) => {
   }
 };
 
-const getPendingComplaints = async (req, res) => {
+export const getPendingComplaints = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
 
@@ -1623,7 +1621,7 @@ const getPendingComplaints = async (req, res) => {
   }
 };
 
-const updateComplaint = async (req, res) => {
+export const updateComplaint = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, resolution, assigned_to } = req.body;
@@ -1688,7 +1686,7 @@ const updateComplaint = async (req, res) => {
 };
 
 // SUSPENSION MANAGEMENT
-const createSuspension = async (req, res) => {
+export const createSuspension = async (req, res) => {
   try {
     const { student_id, reason, start_date, end_date, remarks } = req.body;
     const hostel_id = req.user.hostel_id;
@@ -1725,7 +1723,7 @@ const createSuspension = async (req, res) => {
   }
 };
 
-const getSuspensions = async (req, res) => {
+export const getSuspensions = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
 
@@ -1752,7 +1750,7 @@ const getSuspensions = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-const updateSuspension = async (req, res) => {
+export const updateSuspension = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, remarks } = req.body;
@@ -1791,7 +1789,7 @@ const updateSuspension = async (req, res) => {
 };
 
 // HOLIDAY MANAGEMENT
-const createHoliday = async (req, res) => {
+export const createHoliday = async (req, res) => {
   try {
     const { name, date, type, description } = req.body;
     const hostel_id = req.user.hostel_id;
@@ -1815,7 +1813,7 @@ const createHoliday = async (req, res) => {
   }
 };
 
-const getHolidays = async (req, res) => {
+export const getHolidays = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
 
@@ -1831,7 +1829,7 @@ const getHolidays = async (req, res) => {
   }
 };
 
-const updateHoliday = async (req, res) => {
+export const updateHoliday = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, date, type, description } = req.body;
@@ -1866,7 +1864,7 @@ const updateHoliday = async (req, res) => {
   }
 };
 
-const deleteHoliday = async (req, res) => {
+export const deleteHoliday = async (req, res) => {
   try {
     const { id } = req.params;
     const hostel_id = req.user.hostel_id;
@@ -1894,7 +1892,7 @@ const deleteHoliday = async (req, res) => {
 };
 
 // ADDITIONAL COLLECTIONS
-const createAdditionalCollection = async (req, res) => {
+export const createAdditionalCollection = async (req, res) => {
   try {
     const { student_id, collection_type_id, amount, reason } = req.body;
     const hostel_id = req.user.hostel_id;
@@ -1933,7 +1931,7 @@ const createAdditionalCollection = async (req, res) => {
 const getSession = (student) => {
   return student.session || 'N/A';  // FIXED: Use direct student.session instead of tbl_Enrollments[0].session
 };
-const getStudents = async (req, res) => {
+export const getStudents = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     if (!hostel_id) {
@@ -1996,7 +1994,7 @@ const getStudents = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
-const getAdditionalCollections = async (req, res) => {
+export const getAdditionalCollections = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
 
@@ -2030,7 +2028,7 @@ const getAdditionalCollections = async (req, res) => {
 // Add these functions to wardenController.js
 
 // Generate mess bills for all students in hostel, excluding those on OD
-const generateMessBills = async (req, res) => {
+export const generateMessBills = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { month, year, amount_per_day } = req.body;
@@ -2179,7 +2177,7 @@ const generateMessBills = async (req, res) => {
 };
 
 // Get all mess bills for a specific month
-const getMessBills = async (req, res) => {
+export const getMessBills = async (req, res) => {
   try {
     const { month, year } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -2243,7 +2241,7 @@ const getMessBills = async (req, res) => {
 };
 
 // Update mess bill status
-const updateMessBillStatus = async (req, res) => {
+export const updateMessBillStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, payment_date } = req.body;
@@ -2294,7 +2292,7 @@ const updateMessBillStatus = async (req, res) => {
     });
   }
 };
-const fetchDailyCosts = async (month, year) => {
+export const fetchDailyCosts = async (month, year) => {
   setCalculatingCosts(true);
   try {
     // Create start and end dates for the month
@@ -2363,7 +2361,7 @@ const fetchDailyCosts = async (month, year) => {
     setCalculatingCosts(false);
   }
 };
-const getRoomRequestsWarden = async (req, res) => {
+export const getRoomRequestsWarden = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     const { status } = req.query;
@@ -2410,7 +2408,7 @@ const getRoomRequestsWarden = async (req, res) => {
   }
 };
 
-const decideRoomRequest = async (req, res) => {
+export const decideRoomRequest = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const hostel_id = req.user.hostel_id;
@@ -2501,7 +2499,7 @@ const decideRoomRequest = async (req, res) => {
     res.status(400).json({ success: false, message: error.message });
   }
 };
-const getDayReductionRequestsForWarden = async (req, res) => {
+export const getDayReductionRequestsForWarden = async (req, res) => {
   try {
     const wardenHostelId = req.user.hostel_id;
     if (!wardenHostelId) {
@@ -2547,7 +2545,7 @@ const getDayReductionRequestsForWarden = async (req, res) => {
   }
 };
 
-const updateDayReductionRequestStatusByWarden = async (req, res) => {
+export const updateDayReductionRequestStatusByWarden = async (req, res) => {
   const transaction = await sequelize.transaction(); // Use a transaction for atomicity
   try {
     const { id } = req.params;
@@ -2647,7 +2645,7 @@ const updateDayReductionRequestStatusByWarden = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-const getRebates = async (req, res) => {
+export const getRebates = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     const { status } = req.query;
@@ -2723,7 +2721,7 @@ const getRebates = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-const updateRebateStatus = async (req, res) => {
+export const updateRebateStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, amount } = req.body; // amount is now sent from frontend
@@ -2755,7 +2753,7 @@ const updateRebateStatus = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-const getLatestDailyRate = async (req, res) => {
+export const getLatestDailyRate = async (req, res) => {
   try {
     const latest = await DailyRateLog.findOne({
       where: { hostel_id: req.user.hostel_id },
@@ -2765,74 +2763,4 @@ const getLatestDailyRate = async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
-};
-module.exports = {
-  // Student Enrollment
-  enrollStudent,
-  getStudents,
-  // Room Management
-  getAvailableRooms,
-  allotRoom,
-  // Dashboard
-  getDashboardStats,
-  getMonthlyAttendance, // <-- ADDED
-  getMonthlyComplaints, // <-- ADDED
-  getSessions,
-  // Attendance Management
-  markAttendance,
-  getAttendance,
-  bulkMarkAttendance,
-  updateAttendance,
-  // Leave Management - Updated
-  getLeaveRequests,
-  getPendingLeaves,
-  approveLeave,
-  // Complaint Management - Updated
-  getComplaints,
-  bulkMonthEndMandays,
-  getPendingComplaints,
-  updateComplaint,
-  // Suspension Management
-  createSuspension,
-  getSuspensions,
-  updateSuspension,
-  // Holiday Management
-  createHoliday,
-  getHolidays,
-  updateHoliday,
-  deleteHoliday,
-  // Additional Collections
-  createAdditionalCollection,
-  getAdditionalCollections,
-  //mess bill management
-  generateMessBills,
-  getMessBills,
-  updateMessBillStatus,
-
-  fetchDailyCosts,
-  getRoomOccupants,
-
-createRoomTypeWarden,
-updateRoomTypeWarden,
-deleteRoomTypeWarden,
-getRoomTypesWarden,
-
-createRoomWarden,
-updateRoomWarden,
-deleteRoomWarden,
-getRoomsWarden,
-
-saveLayout,
-getLayout,
-
-getRoomRequestsWarden,
-decideRoomRequest,
-
-getDayReductionRequestsForWarden,       // <-- NEW EXPORT
-updateDayReductionRequestStatusByWarden, // <-- NEW EXPORT
-
-getRebates,
-updateRebateStatus,
-
-getLatestDailyRate
 };
