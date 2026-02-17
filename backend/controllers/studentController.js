@@ -1,13 +1,14 @@
-// controllers/studentController.js
-const { 
-  User, HostelRoom, RoomType, MessBill, MessCharge,DailyMessCharge,MenuSchedule,MessDailyExpense,ExpenseType,
+import { 
+  User, HostelRoom, RoomType, MessBill, MessCharge, DailyMessCharge, MenuSchedule, MessDailyExpense, ExpenseType,
   Leave, Complaint, Transaction, Attendance, Token, Rebate,
-  HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel,HostelLayout,RoomRequest,
-  SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, sequelize,DailyConsumption,IncomeType,AdditionalIncome,StudentFee,
-   FeeType,DayReductionRequest,
-} = require('../models');
-const { Op } = require('sequelize'); // <-- NEW LINE: Import 'sequelize' object
-const moment = require('moment'); 
+  HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel, HostelLayout, RoomRequest,
+  SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, DailyConsumption, IncomeType, AdditionalIncome, StudentFee,
+  DayReductionRequest
+} from '../models/index.js';
+import { Op } from 'sequelize';
+import sequelize from '../config/database.js';
+import moment from 'moment';
+
 // Custom rounding function: <= 0.20 rounds down, > 0.20 rounds up
 function customRounding(amount) {
   const num = parseFloat(amount);
@@ -23,10 +24,9 @@ function customRounding(amount) {
   }
 }
 
-// PROFILE MANAGEMENT
-// controllers/studentController.js
+/* ---------- PROFILE MANAGEMENT ---------- */
 
-const getProfile = async (req, res) => {
+export const getProfile = async (req, res) => {
   try {
     const student = await User.findByPk(req.user.id, {
       attributes: { exclude: ['password'] },
@@ -50,7 +50,6 @@ const getProfile = async (req, res) => {
         {
           model: Hostel,
           as: 'Hostel',
-          // ADD 'annual_fee_amount' and 'show_fee_reminder' here:
           attributes: ['id', 'name', 'address', 'contact_number', 'annual_fee_amount', 'show_fee_reminder']
         }
       ]
@@ -62,13 +61,11 @@ const getProfile = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-// Updated getRoommates function in controllers/studentController.js
 
-const getRoommates = async (req, res) => {
+export const getRoommates = async (req, res) => {
   try {
     const studentId = req.user.id;
 
-    // First, get the student's current active room allotment
     const studentAllotment = await RoomAllotment.findOne({
       where: { 
         student_id: studentId, 
@@ -83,15 +80,11 @@ const getRoommates = async (req, res) => {
     });
 
     if (!studentAllotment || !studentAllotment.HostelRoom) {
-      return res.json({ 
-        success: true, 
-        data: [] 
-      });
+      return res.json({ success: true, data: [] });
     }
 
     const roomId = studentAllotment.HostelRoom.id;
 
-    // Get all active allotments for this room
     const roomAllotments = await RoomAllotment.findAll({
       where: { 
         room_id: roomId, 
@@ -106,46 +99,32 @@ const getRoommates = async (req, res) => {
       ]
     });
 
-    // Filter out the current user and extract student data
     const roommates = roomAllotments
       .filter(allotment => allotment.AllotmentStudent.id !== studentId)
       .map(allotment => allotment.AllotmentStudent);
 
-    res.json({ 
-      success: true, 
-      data: roommates 
-    });
+    res.json({ success: true, data: roommates });
   } catch (error) {
     console.error('Error fetching roommates:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Server error: ' + error.message 
-    });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-const updateProfile = async (req, res) => {
+
+export const updateProfile = async (req, res) => {
   try {
     const { username, email } = req.body;
-    
     const student = await User.findByPk(req.user.id);
     
     if (!student) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Student not found' 
-      });
+      return res.status(404).json({ success: false, message: 'Student not found' });
     }
 
-    // Check if username/email already exists for other users
     if (username && username !== student.username) {
       const existingUser = await User.findOne({
         where: { username, id: { [Op.ne]: req.user.id } }
       });
       if (existingUser) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Username already exists' 
-        });
+        return res.status(400).json({ success: false, message: 'Username already exists' });
       }
     }
 
@@ -154,10 +133,7 @@ const updateProfile = async (req, res) => {
         where: { email, id: { [Op.ne]: req.user.id } }
       });
       if (existingUser) {
-        return res.status(400).json({ 
-          success: false, 
-          message: 'Email already exists' 
-        });
+        return res.status(400).json({ success: false, message: 'Email already exists' });
       }
     }
 
@@ -182,26 +158,17 @@ const updateProfile = async (req, res) => {
   }
 };
 
-// MESS BILLS MANAGEMENT
-// In studentController.js
-const getMessBills = async (req, res) => {
+/* ---------- MESS BILLS MANAGEMENT ---------- */
+
+export const getMessBills = async (req, res) => {
   try {
     const student_id = req.user.id;
     const { status, month, year } = req.query;
 
     let whereClause = { student_id };
-
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    }
-
-    if (month) {
-      whereClause.month = parseInt(month);
-    }
-
-    if (year) {
-      whereClause.year = parseInt(year);
-    }
+    if (status && status !== 'all') whereClause.status = status;
+    if (month) whereClause.month = parseInt(month);
+    if (year) whereClause.year = parseInt(year);
 
     const bills = await MessBill.findAll({
       where: whereClause,
@@ -221,24 +188,17 @@ const getMessBills = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-const getMessBillById = async (req, res) => {
+
+export const getMessBillById = async (req, res) => {
   try {
     const { id } = req.params;
-    
     const bill = await MessBill.findOne({
-      where: { 
-        id, 
-        student_id: req.user.id 
-      }
+      where: { id, student_id: req.user.id }
     });
     
     if (!bill) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Bill not found' 
-      });
+      return res.status(404).json({ success: false, message: 'Bill not found' });
     }
-
     res.json({ success: true, data: bill });
   } catch (error) {
     console.error('Mess bill fetch error:', error);
@@ -246,11 +206,10 @@ const getMessBillById = async (req, res) => {
   }
 };
 
-const getMyMessCharges = async (req, res) => {
+export const getMyMessCharges = async (req, res) => {
   try {
     const student_id = req.user.id;
     const { month, year } = req.query;
-    
     const currentMonth = month || new Date().getMonth() + 1;
     const currentYear = year || new Date().getFullYear();
 
@@ -274,24 +233,16 @@ const getMyMessCharges = async (req, res) => {
   }
 };
 
-// LEAVE MANAGEMENT - Complete CRUD
-const applyLeave = async (req, res) => {
+/* ---------- LEAVE MANAGEMENT ---------- */
+
+export const applyLeave = async (req, res) => {
   try {
     const { leave_type, from_date, to_date, reason } = req.body;
-
     if (!leave_type || !from_date || !to_date || !reason) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'All fields are required' 
-      });
+      return res.status(400).json({ success: false, message: 'All fields are required' });
     }
-
-    // Validate dates
     if (new Date(from_date) > new Date(to_date)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'From date cannot be after to date' 
-      });
+      return res.status(400).json({ success: false, message: 'From date cannot be after to date' });
     }
 
     const leave = await Leave.create({
@@ -303,54 +254,27 @@ const applyLeave = async (req, res) => {
       status: 'pending'
     });
 
-    // Fetch the created leave with associations
     const createdLeave = await Leave.findByPk(leave.id, {
-      include: [
-        {
-          model: User,
-          as: 'Student',
-          attributes: ['id', 'username', 'email']
-        }
-      ]
+      include: [{ model: User, as: 'Student', attributes: ['id', 'username', 'email'] }]
     });
 
-    res.status(201).json({ 
-      success: true, 
-      data: createdLeave,
-      message: 'Leave application submitted successfully' 
-    });
+    res.status(201).json({ success: true, data: createdLeave, message: 'Leave application submitted successfully' });
   } catch (error) {
     console.error('Leave application error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const getMyLeaves = async (req, res) => {
+export const getMyLeaves = async (req, res) => {
   try {
     const { status, from_date, to_date } = req.query;
-    
     let whereClause = { student_id: req.user.id };
-    
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    }
-    
-    if (from_date && to_date) {
-      whereClause.createdAt = {
-        [Op.between]: [from_date, to_date]
-      };
-    }
+    if (status && status !== 'all') whereClause.status = status;
+    if (from_date && to_date) whereClause.createdAt = { [Op.between]: [from_date, to_date] };
 
     const leaves = await Leave.findAll({
       where: whereClause,
-      include: [
-        {
-          model: User,
-          as: 'ApprovedBy',
-          attributes: ['id', 'username'],
-          required: false
-        }
-      ],
+      include: [{ model: User, as: 'ApprovedBy', attributes: ['id', 'username'], required: false }],
       order: [['createdAt', 'DESC']]
     });
 
@@ -361,32 +285,14 @@ const getMyLeaves = async (req, res) => {
   }
 };
 
-const getLeaveById = async (req, res) => {
+export const getLeaveById = async (req, res) => {
   try {
     const { id } = req.params;
-    
     const leave = await Leave.findOne({
-      where: { 
-        id, 
-        student_id: req.user.id 
-      },
-      include: [
-        {
-          model: User,
-          as: 'ApprovedBy',
-          attributes: ['id', 'username'],
-          required: false
-        }
-      ]
+      where: { id, student_id: req.user.id },
+      include: [{ model: User, as: 'ApprovedBy', attributes: ['id', 'username'], required: false }]
     });
-    
-    if (!leave) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Leave request not found' 
-      });
-    }
-
+    if (!leave) return res.status(404).json({ success: false, message: 'Leave request not found' });
     res.json({ success: true, data: leave });
   } catch (error) {
     console.error('Leave fetch error:', error);
@@ -394,120 +300,55 @@ const getLeaveById = async (req, res) => {
   }
 };
 
-const updateLeave = async (req, res) => {
+export const updateLeave = async (req, res) => {
   try {
     const { id } = req.params;
     const { leave_type, from_date, to_date, reason } = req.body;
-
-    const leave = await Leave.findOne({
-      where: { 
-        id, 
-        student_id: req.user.id 
-      }
-    });
+    const leave = await Leave.findOne({ where: { id, student_id: req.user.id } });
     
-    if (!leave) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Leave request not found' 
-      });
-    }
+    if (!leave) return res.status(404).json({ success: false, message: 'Leave request not found' });
+    if (leave.status !== 'pending') return res.status(400).json({ success: false, message: 'Cannot update processed leave' });
 
-    if (leave.status !== 'pending') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot update processed leave request' 
-      });
-    }
-
-    const updateData = {};
-    if (leave_type) updateData.leave_type = leave_type;
-    if (from_date) updateData.from_date = from_date;
-    if (to_date) updateData.to_date = to_date;
-    if (reason) updateData.reason = reason;
-
-    // Validate dates if provided
     const newFromDate = from_date || leave.from_date;
     const newToDate = to_date || leave.to_date;
-    
     if (new Date(newFromDate) > new Date(newToDate)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'From date cannot be after to date' 
-      });
+      return res.status(400).json({ success: false, message: 'From date cannot be after to date' });
     }
 
-    await leave.update(updateData);
-
+    await leave.update({ leave_type, from_date, to_date, reason });
     const updatedLeave = await Leave.findByPk(id, {
-      include: [
-        {
-          model: User,
-          as: 'ApprovedBy',
-          attributes: ['id', 'username'],
-          required: false
-        }
-      ]
+      include: [{ model: User, as: 'ApprovedBy', attributes: ['id', 'username'], required: false }]
     });
 
-    res.json({ 
-      success: true, 
-      data: updatedLeave,
-      message: 'Leave request updated successfully' 
-    });
+    res.json({ success: true, data: updatedLeave, message: 'Leave request updated successfully' });
   } catch (error) {
     console.error('Leave update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const deleteLeave = async (req, res) => {
+export const deleteLeave = async (req, res) => {
   try {
     const { id } = req.params;
-
-    const leave = await Leave.findOne({
-      where: { 
-        id, 
-        student_id: req.user.id 
-      }
-    });
-    
-    if (!leave) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Leave request not found' 
-      });
-    }
-
-    if (leave.status !== 'pending') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot delete processed leave request' 
-      });
-    }
+    const leave = await Leave.findOne({ where: { id, student_id: req.user.id } });
+    if (!leave) return res.status(404).json({ success: false, message: 'Leave request not found' });
+    if (leave.status !== 'pending') return res.status(400).json({ success: false, message: 'Cannot delete processed leave' });
 
     await leave.destroy();
-    
-    res.json({ 
-      success: true, 
-      message: 'Leave request deleted successfully' 
-    });
+    res.json({ success: true, message: 'Leave request deleted successfully' });
   } catch (error) {
     console.error('Leave deletion error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// COMPLAINT MANAGEMENT - Complete CRUD
-const createComplaint = async (req, res) => {
+/* ---------- COMPLAINT MANAGEMENT ---------- */
+
+export const createComplaint = async (req, res) => {
   try {
     const { subject, description, category, priority } = req.body;
-
     if (!subject || !description || !category) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Subject, description, and category are required' 
-      });
+      return res.status(400).json({ success: false, message: 'Required fields missing' });
     }
 
     const complaint = await Complaint.create({
@@ -519,62 +360,29 @@ const createComplaint = async (req, res) => {
       status: 'submitted'
     });
 
-    // Fetch the created complaint with associations
     const createdComplaint = await Complaint.findByPk(complaint.id, {
-      include: [
-        {
-          model: User,
-          as: 'Student',
-          attributes: ['id', 'username', 'email']
-        }
-      ]
+      include: [{ model: User, as: 'Student', attributes: ['id', 'username', 'email'] }]
     });
 
-    res.status(201).json({ 
-      success: true, 
-      data: createdComplaint,
-      message: 'Complaint submitted successfully' 
-    });
+    res.status(201).json({ success: true, data: createdComplaint, message: 'Complaint submitted successfully' });
   } catch (error) {
     console.error('Complaint creation error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const getMyComplaints = async (req, res) => {
+export const getMyComplaints = async (req, res) => {
   try {
     const { status, category, priority, from_date, to_date } = req.query;
-    
     let whereClause = { student_id: req.user.id };
-    
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    }
-    
-    if (category && category !== 'all') {
-      whereClause.category = category;
-    }
-    
-    if (priority && priority !== 'all') {
-      whereClause.priority = priority;
-    }
-    
-    if (from_date && to_date) {
-      whereClause.createdAt = {
-        [Op.between]: [from_date, to_date]
-      };
-    }
+    if (status && status !== 'all') whereClause.status = status;
+    if (category && category !== 'all') whereClause.category = category;
+    if (priority && priority !== 'all') whereClause.priority = priority;
+    if (from_date && to_date) whereClause.createdAt = { [Op.between]: [from_date, to_date] };
 
     const complaints = await Complaint.findAll({
       where: whereClause,
-      include: [
-        {
-          model: User,
-          as: 'AssignedTo',
-          attributes: ['id', 'username'],
-          required: false
-        }
-      ],
+      include: [{ model: User, as: 'AssignedTo', attributes: ['id', 'username'], required: false }],
       order: [['createdAt', 'DESC']]
     });
 
@@ -585,32 +393,14 @@ const getMyComplaints = async (req, res) => {
   }
 };
 
-const getComplaintById = async (req, res) => {
+export const getComplaintById = async (req, res) => {
   try {
     const { id } = req.params;
-    
     const complaint = await Complaint.findOne({
-      where: { 
-        id, 
-        student_id: req.user.id 
-      },
-      include: [
-        {
-          model: User,
-          as: 'AssignedTo',
-          attributes: ['id', 'username'],
-          required: false
-        }
-      ]
+      where: { id, student_id: req.user.id },
+      include: [{ model: User, as: 'AssignedTo', attributes: ['id', 'username'], required: false }]
     });
-    
-    if (!complaint) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Complaint not found' 
-      });
-    }
-
+    if (!complaint) return res.status(404).json({ success: false, message: 'Complaint not found' });
     res.json({ success: true, data: complaint });
   } catch (error) {
     console.error('Complaint fetch error:', error);
@@ -618,133 +408,56 @@ const getComplaintById = async (req, res) => {
   }
 };
 
-const updateComplaint = async (req, res) => {
+export const updateComplaint = async (req, res) => {
   try {
     const { id } = req.params;
     const { subject, description, category, priority } = req.body;
+    const complaint = await Complaint.findOne({ where: { id, student_id: req.user.id } });
+    if (!complaint) return res.status(404).json({ success: false, message: 'Complaint not found' });
+    if (complaint.status !== 'submitted') return res.status(400).json({ success: false, message: 'Processing complaint cannot be updated' });
 
-    const complaint = await Complaint.findOne({
-      where: { 
-        id, 
-        student_id: req.user.id 
-      }
-    });
-    
-    if (!complaint) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Complaint not found' 
-      });
-    }
-
-    if (complaint.status !== 'submitted') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot update complaint that is being processed' 
-      });
-    }
-
-    const updateData = {};
-    if (subject) updateData.subject = subject;
-    if (description) updateData.description = description;
-    if (category) updateData.category = category;
-    if (priority) updateData.priority = priority;
-
-    await complaint.update(updateData);
-
+    await complaint.update({ subject, description, category, priority });
     const updatedComplaint = await Complaint.findByPk(id, {
-      include: [
-        {
-          model: User,
-          as: 'AssignedTo',
-          attributes: ['id', 'username'],
-          required: false
-        }
-      ]
+      include: [{ model: User, as: 'AssignedTo', attributes: ['id', 'username'], required: false }]
     });
 
-    res.json({ 
-      success: true, 
-      data: updatedComplaint,
-      message: 'Complaint updated successfully' 
-    });
+    res.json({ success: true, data: updatedComplaint, message: 'Complaint updated' });
   } catch (error) {
     console.error('Complaint update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const deleteComplaint = async (req, res) => {
+export const deleteComplaint = async (req, res) => {
   try {
     const { id } = req.params;
-
-    const complaint = await Complaint.findOne({
-      where: { 
-        id, 
-        student_id: req.user.id 
-      }
-    });
-    
-    if (!complaint) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Complaint not found' 
-      });
-    }
-
-    if (complaint.status !== 'submitted') {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot delete complaint that is being processed' 
-      });
-    }
+    const complaint = await Complaint.findOne({ where: { id, student_id: req.user.id } });
+    if (!complaint) return res.status(404).json({ success: false, message: 'Complaint not found' });
+    if (complaint.status !== 'submitted') return res.status(400).json({ success: false, message: 'Processing complaint cannot be deleted' });
 
     await complaint.destroy();
-    
-    res.json({ 
-      success: true, 
-      message: 'Complaint deleted successfully' 
-    });
+    res.json({ success: true, message: 'Complaint deleted' });
   } catch (error) {
     console.error('Complaint deletion error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// TRANSACTION HISTORY
-const getTransactions = async (req, res) => {
+/* ---------- TRANSACTION HISTORY ---------- */
+
+export const getTransactions = async (req, res) => {
   try {
     const { transaction_type, status, from_date, to_date } = req.query;
-    
     let whereClause = { student_id: req.user.id };
-    
-    if (transaction_type && transaction_type !== 'all') {
-      whereClause.transaction_type = transaction_type;
-    }
-    
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    }
-    
-    if (from_date && to_date) {
-      whereClause.createdAt = {
-        [Op.between]: [from_date, to_date]
-      };
-    }
+    if (transaction_type && transaction_type !== 'all') whereClause.transaction_type = transaction_type;
+    if (status && status !== 'all') whereClause.status = status;
+    if (from_date && to_date) whereClause.createdAt = { [Op.between]: [from_date, to_date] };
 
     const transactions = await Transaction.findAll({
       where: whereClause,
-      include: [
-        {
-          model: User,
-          as: 'ProcessedBy',
-          attributes: ['id', 'username'],
-          required: false
-        }
-      ],
+      include: [{ model: User, as: 'ProcessedBy', attributes: ['id', 'username'], required: false }],
       order: [['createdAt', 'DESC']]
     });
-
     res.json({ success: true, data: transactions });
   } catch (error) {
     console.error('Transactions fetch error:', error);
@@ -752,32 +465,14 @@ const getTransactions = async (req, res) => {
   }
 };
 
-const getTransactionById = async (req, res) => {
+export const getTransactionById = async (req, res) => {
   try {
     const { id } = req.params;
-    
     const transaction = await Transaction.findOne({
-      where: { 
-        id, 
-        student_id: req.user.id 
-      },
-      include: [
-        {
-          model: User,
-          as: 'ProcessedBy',
-          attributes: ['id', 'username'],
-          required: false
-        }
-      ]
+      where: { id, student_id: req.user.id },
+      include: [{ model: User, as: 'ProcessedBy', attributes: ['id', 'username'], required: false }]
     });
-    
-    if (!transaction) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Transaction not found' 
-      });
-    }
-
+    if (!transaction) return res.status(404).json({ success: false, message: 'Transaction not found' });
     res.json({ success: true, data: transaction });
   } catch (error) {
     console.error('Transaction fetch error:', error);
@@ -785,35 +480,20 @@ const getTransactionById = async (req, res) => {
   }
 };
 
-// ATTENDANCE HISTORY
-const getMyAttendance = async (req, res) => {
+/* ---------- ATTENDANCE ---------- */
+
+export const getMyAttendance = async (req, res) => {
   try {
     const { from_date, to_date, status } = req.query;
-    
     let whereClause = { student_id: req.user.id };
-    
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    }
-    
-    if (from_date && to_date) {
-      whereClause.date = {
-        [Op.between]: [from_date, to_date]
-      };
-    }
+    if (status && status !== 'all') whereClause.status = status;
+    if (from_date && to_date) whereClause.date = { [Op.between]: [from_date, to_date] };
 
     const attendance = await Attendance.findAll({
       where: whereClause,
-      include: [
-        {
-          model: User,
-          as: 'MarkedBy',
-          attributes: ['id', 'username']
-        }
-      ],
+      include: [{ model: User, as: 'MarkedBy', attributes: ['id', 'username'] }],
       order: [['date', 'DESC']]
     });
-
     res.json({ success: true, data: attendance });
   } catch (error) {
     console.error('Attendance fetch error:', error);
@@ -821,30 +501,19 @@ const getMyAttendance = async (req, res) => {
   }
 };
 
-// FACILITY USAGE - Complete CRUD
-const getFacilities = async (req, res) => {
+/* ---------- FACILITY USAGE ---------- */
+
+export const getFacilities = async (req, res) => {
   try {
-    // Create where clause
     let whereClause = { 
       hostel_id: req.user.hostel_id,
       status: 'active'
     };
-    
-    // Add other query parameters if needed
-    
     const facilities = await HostelFacility.findAll({
       where: whereClause,
-      include: [
-        {
-          model: HostelFacilityType,
-          // CHANGE THIS LINE: Change to 'HostelFacilityType'
-          as: 'HostelFacilityType',  // THIS IS THE IMPORTANT CHANGE
-          attributes: ['id', 'name']
-        }
-      ],
+      include: [{ model: HostelFacilityType, as: 'HostelFacilityType', attributes: ['id', 'name'] }],
       order: [['name', 'ASC']]
     });
-    
     res.json({ success: true, data: facilities });
   } catch (error) {
     console.error('Facilities fetch error:', error);
@@ -852,47 +521,17 @@ const getFacilities = async (req, res) => {
   }
 };
 
-
-
-const useFacility = async (req, res) => {
+export const useFacility = async (req, res) => {
   try {
     const { facility_id, duration_minutes, remarks } = req.body;
+    if (!facility_id || !duration_minutes) return res.status(400).json({ success: false, message: 'Required fields missing' });
 
-    if (!facility_id || !duration_minutes) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Facility and duration are required' 
-      });
-    }
-
-    // First check if facility exists without any conditions
-    const facilityExists = await HostelFacility.findByPk(facility_id);
-    if (!facilityExists) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Facility not found' 
-      });
-    }
-    
-    // Then verify facility belongs to student's hostel
     const facility = await HostelFacility.findOne({
-      where: { 
-        id: facility_id,
-        hostel_id: req.user.hostel_id,
-        status: 'active'
-      }
+      where: { id: facility_id, hostel_id: req.user.hostel_id, status: 'active' }
     });
+    if (!facility) return res.status(400).json({ success: false, message: 'Facility not available' });
 
-    if (!facility) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Facility not available for your hostel' 
-      });
-    }
-
-    // Calculate cost
     const cost = (facility.cost_per_use * (duration_minutes / 60)) || facility.cost_per_use || 0;
-
     const facilityUsage = await HostelFacilityRegister.create({
       facility_id,
       student_id: req.user.id,
@@ -902,70 +541,38 @@ const useFacility = async (req, res) => {
     });
 
     const usageWithDetails = await HostelFacilityRegister.findByPk(facilityUsage.id, {
-      include: [
-        {
-          model: HostelFacility,
-          as: 'facility',
-          attributes: ['id', 'name'],
-          include: [
-            {
-              model: HostelFacilityType,
-              as: 'HostelFacilityType',
-              attributes: ['id', 'name']
-            }
-          ]
-        }
-      ]
+      include: [{ 
+        model: HostelFacility, 
+        as: 'facility', 
+        attributes: ['id', 'name'],
+        include: [{ model: HostelFacilityType, as: 'HostelFacilityType', attributes: ['id', 'name'] }]
+      }]
     });
 
-    res.status(201).json({ 
-      success: true, 
-      data: usageWithDetails,
-      message: 'Facility usage recorded successfully'
-    });
+    res.status(201).json({ success: true, data: usageWithDetails, message: 'Facility usage recorded' });
   } catch (error) {
     console.error('Facility usage error:', error);
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-const getMyFacilityUsage = async (req, res) => {
+
+export const getMyFacilityUsage = async (req, res) => {
   try {
     let whereClause = { student_id: req.user.id };
-    
-    // Add other query filters
     const { facility_id, from_date, to_date } = req.query;
-    
-    if (facility_id && facility_id !== 'all') {
-      whereClause.facility_id = facility_id;
-    }
-    
-    if (from_date && to_date) {
-      whereClause.usage_date = {
-        [Op.between]: [from_date, to_date]
-      };
-    }
+    if (facility_id && facility_id !== 'all') whereClause.facility_id = facility_id;
+    if (from_date && to_date) whereClause.usage_date = { [Op.between]: [from_date, to_date] };
 
     const usage = await HostelFacilityRegister.findAll({
       where: whereClause,
-      include: [
-        {
-          model: HostelFacility,
-          // CHANGE THIS LINE: Change 'model' to 'HostelFacility'
-          as: 'facility',  // THIS IS THE IMPORTANT CHANGE
-          attributes: ['id', 'name'],
-          include: [
-            {
-              model: HostelFacilityType,
-              // CHANGE THIS LINE: Change to 'HostelFacilityType'
-              as: 'HostelFacilityType',  // THIS IS THE IMPORTANT CHANGE
-              attributes: ['id', 'name']
-            }
-          ]
-        }
-      ],
+      include: [{
+        model: HostelFacility,
+        as: 'facility',
+        attributes: ['id', 'name'],
+        include: [{ model: HostelFacilityType, as: 'HostelFacilityType', attributes: ['id', 'name'] }]
+      }],
       order: [['usage_date', 'DESC']]
     });
-
     res.json({ success: true, data: usage });
   } catch (error) {
     console.error('Facility usage fetch error:', error);
@@ -973,38 +580,19 @@ const getMyFacilityUsage = async (req, res) => {
   }
 };
 
-const getFacilityUsageById = async (req, res) => {
+export const getFacilityUsageById = async (req, res) => {
   try {
     const { id } = req.params;
-    
     const usage = await HostelFacilityRegister.findOne({
-      where: { 
-        id, 
-        student_id: req.user.id 
-      },
-      include: [
-        {
-          model: HostelFacility,
-          as: 'facility',
-          attributes: ['id', 'name'],
-          include: [
-            {
-              model: HostelFacilityType,
-              as: 'HostelFacilityType',
-              attributes: ['id', 'name']
-            }
-          ]
-        }
-      ]
+      where: { id, student_id: req.user.id },
+      include: [{
+        model: HostelFacility,
+        as: 'facility',
+        attributes: ['id', 'name'],
+        include: [{ model: HostelFacilityType, as: 'HostelFacilityType', attributes: ['id', 'name'] }]
+      }]
     });
-    
-    if (!usage) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Facility usage record not found' 
-      });
-    }
-
+    if (!usage) return res.status(404).json({ success: false, message: 'Record not found' });
     res.json({ success: true, data: usage });
   } catch (error) {
     console.error('Facility usage fetch error:', error);
@@ -1012,143 +600,68 @@ const getFacilityUsageById = async (req, res) => {
   }
 };
 
-const updateFacilityUsage = async (req, res) => {
+export const updateFacilityUsage = async (req, res) => {
   try {
     const { id } = req.params;
     const { duration_minutes, remarks } = req.body;
+    const usage = await HostelFacilityRegister.findOne({ where: { id, student_id: req.user.id } });
+    if (!usage) return res.status(404).json({ success: false, message: 'Record not found' });
 
-    const usage = await HostelFacilityRegister.findOne({
-      where: { 
-        id, 
-        student_id: req.user.id 
-      }
-    });
-    
-    if (!usage) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Facility usage record not found' 
-      });
-    }
+    const hoursDiff = (new Date() - new Date(usage.usage_date)) / (1000 * 60 * 60);
+    if (hoursDiff > 24) return res.status(400).json({ success: false, message: 'Cannot update after 24 hours' });
 
-    // Check if usage record is recent (within last 24 hours)
-    const timeDiff = new Date() - new Date(usage.usage_date);
-    const hoursDiff = timeDiff / (1000 * 60 * 60);
-    
-    if (hoursDiff > 24) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot update usage record older than 24 hours' 
-      });
-    }
-
-    const updateData = {};
+    const updateData = { remarks };
     if (duration_minutes) {
-      // Recalculate cost if duration changes
       const facility = await HostelFacility.findByPk(usage.facility_id);
       const newCost = (facility.cost_per_use * (duration_minutes / 60)) || facility.cost_per_use || 0;
       updateData.duration_minutes = duration_minutes;
       updateData.cost = newCost.toFixed(2);
     }
-    if (remarks !== undefined) updateData.remarks = remarks;
 
     await usage.update(updateData);
-
     const updatedUsage = await HostelFacilityRegister.findByPk(id, {
-      include: [
-        {
-          model: HostelFacility,
-          as: 'facility',
-          attributes: ['id', 'name'],
-          include: [
-            {
-              model: HostelFacilityType,
-              as: 'HostelFacilityType',
-              attributes: ['id', 'name']
-            }
-          ]
-        }
-      ]
+      include: [{
+        model: HostelFacility,
+        as: 'facility',
+        attributes: ['id', 'name'],
+        include: [{ model: HostelFacilityType, as: 'HostelFacilityType', attributes: ['id', 'name'] }]
+      }]
     });
-
-    res.json({ 
-      success: true, 
-      data: updatedUsage,
-      message: 'Facility usage updated successfully' 
-    });
+    res.json({ success: true, data: updatedUsage, message: 'Updated successfully' });
   } catch (error) {
     console.error('Facility usage update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const deleteFacilityUsage = async (req, res) => {
+export const deleteFacilityUsage = async (req, res) => {
   try {
     const { id } = req.params;
+    const usage = await HostelFacilityRegister.findOne({ where: { id, student_id: req.user.id } });
+    if (!usage) return res.status(404).json({ success: false, message: 'Record not found' });
 
-    const usage = await HostelFacilityRegister.findOne({
-      where: { 
-        id, 
-        student_id: req.user.id 
-      }
-    });
-    
-    if (!usage) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Facility usage record not found' 
-      });
-    }
-
-    // Check if usage record is recent (within last 24 hours)
-    const timeDiff = new Date() - new Date(usage.usage_date);
-    const hoursDiff = timeDiff / (1000 * 60 * 60);
-    
-    if (hoursDiff > 24) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Cannot delete usage record older than 24 hours' 
-      });
-    }
+    const hoursDiff = (new Date() - new Date(usage.usage_date)) / (1000 * 60 * 60);
+    if (hoursDiff > 24) return res.status(400).json({ success: false, message: 'Cannot delete after 24 hours' });
 
     await usage.destroy();
-    
-    res.json({ 
-      success: true, 
-      message: 'Facility usage record deleted successfully' 
-    });
+    res.json({ success: true, message: 'Deleted successfully' });
   } catch (error) {
     console.error('Facility usage deletion error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// MEAL TOKENS - Complete CRUD
-const getMyTokens = async (req, res) => {
+/* ---------- MEAL TOKENS ---------- */
+
+export const getMyTokens = async (req, res) => {
   try {
     const { meal_type, status, from_date, to_date } = req.query;
-    
     let whereClause = { student_id: req.user.id };
-    
-    if (meal_type && meal_type !== 'all') {
-      whereClause.meal_type = meal_type;
-    }
-    
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    }
-    
-    if (from_date && to_date) {
-      whereClause.token_date = {
-        [Op.between]: [from_date, to_date]
-      };
-    }
+    if (meal_type && meal_type !== 'all') whereClause.meal_type = meal_type;
+    if (status && status !== 'all') whereClause.status = status;
+    if (from_date && to_date) whereClause.token_date = { [Op.between]: [from_date, to_date] };
 
-    const tokens = await Token.findAll({
-      where: whereClause,
-      order: [['token_date', 'DESC']]
-    });
-
+    const tokens = await Token.findAll({ where: whereClause, order: [['token_date', 'DESC']] });
     res.json({ success: true, data: tokens });
   } catch (error) {
     console.error('Tokens fetch error:', error);
@@ -1156,24 +669,11 @@ const getMyTokens = async (req, res) => {
   }
 };
 
-const getTokenById = async (req, res) => {
+export const getTokenById = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const token = await Token.findOne({
-      where: { 
-        id, 
-        student_id: req.user.id 
-      }
-    });
-    
-    if (!token) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Token not found' 
-      });
-    }
-
+    const token = await Token.findOne({ where: { id, student_id: req.user.id } });
+    if (!token) return res.status(404).json({ success: false, message: 'Token not found' });
     res.json({ success: true, data: token });
   } catch (error) {
     console.error('Token fetch error:', error);
@@ -1181,72 +681,35 @@ const getTokenById = async (req, res) => {
   }
 };
 
-// DASHBOARD STATISTICS
-const getDashboardStats = async (req, res) => {
+/* ---------- DASHBOARD & CHARTS ---------- */
+
+export const getDashboardStats = async (req, res) => {
   try {
     const student_id = req.user.id;
-
-    // Get basic counts
-    const totalLeaves = await Leave.count({ where: { student_id } });
-    const pendingLeaves = await Leave.count({ 
-      where: { student_id, status: 'pending' } 
-    });
-    const totalComplaints = await Complaint.count({ where: { student_id } });
-    const pendingComplaints = await Complaint.count({ 
-      where: { student_id, status: ['submitted', 'in_progress'] } 
-    });
-    const totalTransactions = await Transaction.count({ where: { student_id } });
-    const facilityUsageCount = await HostelFacilityRegister.count({ where: { student_id } });
-
-    // Get recent activities
-    const recentLeaves = await Leave.findAll({
-      where: { student_id },
-      order: [['createdAt', 'DESC']],
-      limit: 5
-    });
-
-    const recentComplaints = await Complaint.findAll({
-      where: { student_id },
-      order: [['createdAt', 'DESC']],
-      limit: 5
-    });
-
-    // Get pending bills
-    const pendingBills = await MessBill.count({
-      where: { student_id, status: 'pending' }
-    });
-
-    res.json({
-      success: true,
-      data: {
-        totalLeaves,
-        pendingLeaves,
-        totalComplaints,
-        pendingComplaints,
-        totalTransactions,
-        facilityUsageCount,
-        pendingBills,
-        recentLeaves,
-        recentComplaints
-      }
-    });
+    const stats = {
+      totalLeaves: await Leave.count({ where: { student_id } }),
+      pendingLeaves: await Leave.count({ where: { student_id, status: 'pending' } }),
+      totalComplaints: await Complaint.count({ where: { student_id } }),
+      pendingComplaints: await Complaint.count({ where: { student_id, status: ['submitted', 'in_progress'] } }),
+      totalTransactions: await Transaction.count({ where: { student_id } }),
+      facilityUsageCount: await HostelFacilityRegister.count({ where: { student_id } }),
+      pendingBills: await MessBill.count({ where: { student_id, status: 'pending' } }),
+      recentLeaves: await Leave.findAll({ where: { student_id }, order: [['createdAt', 'DESC']], limit: 5 }),
+      recentComplaints: await Complaint.findAll({ where: { student_id }, order: [['createdAt', 'DESC']], limit: 5 })
+    };
+    res.json({ success: true, data: stats });
   } catch (error) {
     console.error('Dashboard stats error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-const getAvailableSpecialFoodItems = async (req, res) => {
+
+export const getAvailableSpecialFoodItems = async (req, res) => {
   try {
     const { category } = req.query;
     let whereClause = { is_available: true };
-    if (category) {
-      whereClause.category = category;
-    }
-
-    const items = await SpecialFoodItem.findAll({
-      where: whereClause,
-      order: [['name', 'ASC']]
-    });
+    if (category) whereClause.category = category;
+    const items = await SpecialFoodItem.findAll({ where: whereClause, order: [['name', 'ASC']] });
     res.json({ success: true, data: items });
   } catch (error) {
     console.error('Error fetching special food items:', error);
@@ -1254,7 +717,7 @@ const getAvailableSpecialFoodItems = async (req, res) => {
   }
 };
 
-const getSpecialFoodItemCategories = async (req, res) => {
+export const getSpecialFoodItemCategories = async (req, res) => {
   try {
     const categories = await SpecialFoodItem.findAll({
       attributes: [[sequelize.fn('DISTINCT', sequelize.col('category')), 'category']],
@@ -1263,686 +726,288 @@ const getSpecialFoodItemCategories = async (req, res) => {
     });
     res.json({ success: true, data: categories.map(c => c.category) });
   } catch (error) {
-    console.error('Error fetching special food item categories:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    console.error('Error fetching categories:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// In studentController.js
-
-// In studentController.js - Modified getMyDailyMessCharges to include special food costs
-
-// Updated getMyDailyMessCharges in studentController.js to sum cost_per_serving from served menus
-
-// controllers/studentController.js
-
-// const {
-//   User, HostelRoom, RoomType, MessBill, MessCharge, DailyMessCharge, MenuSchedule, MessDailyExpense, ExpenseType,
-//   Leave, Complaint, Transaction, Attendance, Token, Enrollment, StudentFee,
-//   HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel,
-//   SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, sequelize,
-//   DailyConsumption, IncomeType, AdditionalIncome // ADDED for daily rate calculation
-const getMyDailyMessCharges = async (req, res) => {
+export const getMyDailyMessCharges = async (req, res) => {
   try {
     const { month, year } = req.query;
     const student_id = req.user.id;
     const hostel_id = req.user.hostel_id;
 
-    if (!month || !year) {
-      return res.status(400).json({ success: false, message: 'Month and year are required.' });
-    }
+    if (!month || !year) return res.status(400).json({ success: false, message: 'Month and year required' });
 
     const startDate = moment({ year, month: month - 1 }).startOf('month').toDate();
     const endDate = moment().isSame(moment({ year, month: month - 1 }), 'month')
-      ? moment().endOf('day').toDate() // stop at today if current month
+      ? moment().endOf('day').toDate()
       : moment({ year, month: month - 1 }).endOf('month').toDate();
 
-    console.log(`[Student Charges] Fetching charges for student ${student_id}, hostel ${hostel_id} for ${month}/${year}`);
-    console.log(`[Student Charges] Date range: ${moment(startDate).format('YYYY-MM-DD')} to ${moment(endDate).format('YYYY-MM-DD')}`);
-
-    // --- Step 1: Calculate the Hostel's Monthly Averaged Daily Rate ---
-    // This logic is largely taken from the messController's generateDailyRateReport.
-    // It is calculated once per month for the whole hostel.
-
-    // Get total Man-Days for the *entire hostel* for the given month
     const hostelManDaysData = await Attendance.findAll({
       attributes: [[sequelize.fn('SUM', sequelize.col('totalManDays')), 'manDays']],
-      where: {
-        hostel_id,
-        date: { [Op.between]: [startDate, endDate] }
-      },
-      group: ['hostel_id'], // Group by hostel_id to get a single sum
+      where: { hostel_id, date: { [Op.between]: [startDate, endDate] } },
       raw: true
     });
     const totalHostelManDays = hostelManDaysData[0] ? parseInt(hostelManDaysData[0].manDays) : 0;
-    console.log(`[Student Charges] Total Hostel Man-Days: ${totalHostelManDays}`);
 
-    // Get Gross Expenses (Food Ingredients + Other Mess Expenses)
     const totalFoodIngredientCost = (await DailyConsumption.sum('total_cost', { where: { hostel_id, consumption_date: { [Op.between]: [startDate, endDate] } } })) || 0;
     const totalOtherMessExpenses = (await MessDailyExpense.sum('amount', { where: { hostel_id, expense_date: { [Op.between]: [startDate, endDate] } } })) || 0;
     const grandTotalGrossExpenses = totalFoodIngredientCost + totalOtherMessExpenses;
-    console.log(`[Student Charges] Grand Total Gross Expenses: ${grandTotalGrossExpenses.toFixed(2)}`);
 
-    // Get Deductions (Cash Token, Sister Concern, Special Orders pending (hostel-wide), Guest Income)
     const cashTokenIncomeType = await IncomeType.findOne({ where: { name: 'Cash Token' } });
-    const cashTokenAmount = cashTokenIncomeType
-      ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: cashTokenIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0
-      : 0;
+    const cashTokenAmount = cashTokenIncomeType ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: cashTokenIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0 : 0;
 
     const sisterConcernIncomeType = await IncomeType.findOne({ where: { name: 'Sister Concern Bill' } });
-    const creditTokenAmount = sisterConcernIncomeType
-      ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: sisterConcernIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0
-      : 0;
+    const creditTokenAmount = sisterConcernIncomeType ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: sisterConcernIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0 : 0;
 
-    // Sum of special food orders confirmed by hostel staff but *still pending payment* from any student
-    // This is counted as a deduction from gross mess expenses as it will be individually billed to students.
-    const studentSpecialOrdersPendingPaymentForHostel = (await FoodOrder.sum('total_amount', {
-        where: {
-            hostel_id,
-            status: 'confirmed',
-            payment_status: 'pending',
-            order_date: { [Op.between]: [startDate, endDate] }
-        }
-    })) || 0;
-
-    const studentGuestIncomeType = await IncomeType.findOne({ where: { name: 'Student Guest Income' } });
-    const studentGuestIncomeAmount = studentGuestIncomeType
-        ? (await AdditionalIncome.sum('amount', {
-            where: { hostel_id, income_type_id: studentGuestIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } }
-        })) || 0
-        : 0;
-
-    const totalDeductions = cashTokenAmount + creditTokenAmount + studentSpecialOrdersPendingPaymentForHostel + studentGuestIncomeAmount;
-    console.log(`[Student Charges] Total Deductions: ${totalDeductions.toFixed(2)}`);
-
+    const totalDeductions = cashTokenAmount + creditTokenAmount;
     const netMessCost = grandTotalGrossExpenses - totalDeductions;
     const monthlyCalculatedDailyRate = totalHostelManDays > 0 ? netMessCost / totalHostelManDays : 0;
-    console.log(`[Student Charges] Monthly Calculated Daily Rate: ${monthlyCalculatedDailyRate.toFixed(2)}`);
-    // --- End of Hostel-Wide Daily Rate Calculation ---
 
-
-    // --- Step 2: Get Student's Specific Data for the Month ---
-
-    // Student's daily attendance records
     const attendanceRecords = await Attendance.findAll({
-      where: {
-        student_id,
-        date: { [Op.between]: [startDate, endDate] }
-      },
-      attributes: ['date', 'status', 'totalManDays'], // totalManDays will be 1 for present/on-duty, 0 for absent
+      where: { student_id, date: { [Op.between]: [startDate, endDate] } },
+      attributes: ['date', 'status', 'totalManDays'],
       raw: true
     });
-    const attendanceMap = new Map(attendanceRecords.map(att => [moment(att.date).format('YYYY-MM-DD'), { status: att.status, manDays: att.totalManDays }]));
-    
-    // Sum student's total Man-Days for the month
-    const studentTotalManDaysForMonth = attendanceRecords.reduce((sum, att) => sum + parseInt(att.totalManDays || 0), 0);
-    console.log(`[Student Charges] Student Total Man-Days for month: ${studentTotalManDaysForMonth}`);
+    const attendanceMap = new Map(attendanceRecords.map(att => [moment(att.date).format('YYYY-MM-DD'), att]));
 
-    // Student's special food costs (pending payment only)
-    const studentSpecialFoodOrdersData = await FoodOrder.findAll({
-      attributes: [
-        [sequelize.fn('DATE', sequelize.col('order_date')), 'date'],
-        [sequelize.fn('SUM', sequelize.col('total_amount')), 'total_special_food_cost']
-      ],
-      where: {
-        student_id,
-        hostel_id,
-        status: 'confirmed',
-        payment_status: 'pending', // Only pending payments are added to student's current bill
-        order_date: { [Op.between]: [startDate, endDate] }
-      },
-      group: [sequelize.fn('DATE', sequelize.col('order_date'))],
-      raw: true
-    });
-    const studentSpecialFoodOrderMap = new Map(studentSpecialFoodOrdersData.map(item => [moment(item.date).format('YYYY-MM-DD'), parseFloat(item.total_special_food_cost)]));
-    
-    // Sum student's total pending special food cost for the month
-    const totalMonthlySpecialFoodCost = studentSpecialFoodOrdersData.reduce((sum, item) => sum + parseFloat(item.total_special_food_cost || 0), 0);
-    console.log(`[Student Charges] Student Total Monthly Special Food Cost (pending): ${totalMonthlySpecialFoodCost.toFixed(2)}`);
-
-
-    // --- Step 3: Combine daily charges for the student ---
     const dailyCharges = [];
     let currentDate = moment(startDate);
-    const today = moment().startOf('day'); // Only calculate up to today, not future days
-    const endOfReportPeriod = moment(endDate).startOf('day'); // Ensure end date is also start of day for comparison
-
-    while (currentDate.isSameOrBefore(endOfReportPeriod) && currentDate.isSameOrBefore(today)) {
+    while (currentDate.isSameOrBefore(moment().startOf('day')) && currentDate.isSameOrBefore(moment(endDate))) {
       const dateStr = currentDate.format('YYYY-MM-DD');
-      const studentAttendance = attendanceMap.get(dateStr) || { status: 'A', manDays: 0 }; // Default to Absent if no record
-
-      // Student is charged base mess cost if present ('P') or on duty ('OD')
-      const isChargedDay = (studentAttendance.status === 'P' || studentAttendance.status === 'OD');
-
-      const baseMessCharge = isChargedDay ? parseFloat(monthlyCalculatedDailyRate) : 0;
-      const specialFoodCost = studentSpecialFoodOrderMap.get(dateStr) || 0; // Per day special food cost
-      const dailyTotalCharge = baseMessCharge + specialFoodCost;
-
+      const att = attendanceMap.get(dateStr) || { status: 'A', totalManDays: 0 };
+      const baseMessCharge = (att.status === 'P' || att.status === 'OD') ? monthlyCalculatedDailyRate : 0;
+      
       dailyCharges.push({
-        id: dateStr, // Unique ID for the day
+        id: dateStr,
         date: dateStr,
-        attendance_status: studentAttendance.status, // Use the actual attendance status (P, A, OD)
+        attendance_status: att.status,
         baseMessCharge: parseFloat(baseMessCharge.toFixed(2)),
-        specialFoodCost: parseFloat(specialFoodCost.toFixed(2)),
-        dailyTotalCharge: parseFloat(dailyTotalCharge.toFixed(2)),
+        dailyTotalCharge: parseFloat(baseMessCharge.toFixed(2))
       });
       currentDate.add(1, 'day');
     }
 
-    // --- Step 4: Fetch other monthly flat fees for this student ---
-    const otherMonthlyFees = await StudentFee.findAll({
-      where: { student_id, hostel_id, month, year },
-      attributes: ['fee_type', 'amount', 'description'],
-      raw: true
-    });
-
-    const formattedFlatFees = [];
-    // Aggregate by fee_type if multiple entries for the same type (e.g., multiple staff-recorded special_food_charge entries)
-    const flatFeesMap = new Map();
-    otherMonthlyFees.forEach(fee => {
-      let key = fee.fee_type;
-      if (flatFeesMap.has(key)) {
-        flatFeesMap.get(key).amount += parseFloat(fee.amount);
-        if (fee.description && !flatFeesMap.get(key).description.includes(fee.description)) {
-          flatFeesMap.get(key).description += `; ${fee.description}`;
-        }
-      } else {
-        flatFeesMap.set(key, { ...fee, amount: parseFloat(fee.amount) });
-      }
-    });
-
-    flatFeesMap.forEach(fee => formattedFlatFees.push(fee));
-    console.log(`[Student Charges] Student Other Flat Fees:`, formattedFlatFees);
-
-
     res.json({
       success: true,
       data: {
-        dailyCharges: dailyCharges, // Breakdown for the table
+        dailyCharges,
         monthlySummary: {
           monthlyCalculatedDailyRate: parseFloat(monthlyCalculatedDailyRate.toFixed(2)),
-          studentTotalManDaysForMonth: studentTotalManDaysForMonth,
-          totalMonthlySpecialFoodCost: parseFloat(totalMonthlySpecialFoodCost.toFixed(2)), // Sum of pending special food
-          flatFees: formattedFlatFees, // Array of other flat fees (e.g., newspaper, bed charge)
-        },
+          studentTotalManDaysForMonth: attendanceRecords.reduce((sum, att) => sum + parseInt(att.totalManDays || 0), 0)
+        }
       }
     });
   } catch (error) {
-    console.error('Error fetching student daily mess charges:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    console.error('Charges fetch error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const getMonthlyMessExpensesChartData = async (req, res) => {
+export const getMonthlyMessExpensesChartData = async (req, res) => {
   try {
     const student_id = req.user.id;
-    // Fetch data for the last 12 months (current month included)
     const twelveMonthsAgo = moment().subtract(11, 'months').startOf('month');
-
     const monthlyExpenses = await MessBill.findAll({
-      attributes: [
-        'year',
-        'month',
-        [sequelize.fn('SUM', sequelize.col('amount')), 'total_amount'],
-      ],
+      attributes: ['year', 'month', [sequelize.fn('SUM', sequelize.col('amount')), 'total_amount']],
       where: {
         student_id,
         [Op.or]: [
-          {
-            year: { [Op.gt]: twelveMonthsAgo.year() },
-          },
-          {
-            year: twelveMonthsAgo.year(),
-            month: { [Op.gte]: twelveMonthsAgo.month() + 1 }, // moment().month() is 0-indexed, DB month is 1-indexed
-          },
-        ],
+          { year: { [Op.gt]: twelveMonthsAgo.year() } },
+          { year: twelveMonthsAgo.year(), month: { [Op.gte]: twelveMonthsAgo.month() + 1 } }
+        ]
       },
       group: ['year', 'month'],
       order: [['year', 'ASC'], ['month', 'ASC']],
-      raw: true,
+      raw: true
     });
-
     res.json({ success: true, data: monthlyExpenses });
   } catch (error) {
-    console.error('Error fetching monthly mess expenses chart data:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    console.error('Chart data error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const getMonthlyAttendanceChartData = async (req, res) => {
+export const getMonthlyAttendanceChartData = async (req, res) => {
   try {
     const student_id = req.user.id;
-    // Fetch data for the last 12 months (current month included)
     const twelveMonthsAgo = moment().subtract(11, 'months').startOf('month');
-
     const monthlyAttendance = await Attendance.findAll({
       attributes: [
         [sequelize.fn('YEAR', sequelize.col('date')), 'year'],
         [sequelize.fn('MONTH', sequelize.col('date')), 'month'],
         [sequelize.fn('SUM', sequelize.literal("CASE WHEN status = 'P' THEN 1 ELSE 0 END")), 'present_days'],
         [sequelize.fn('SUM', sequelize.literal("CASE WHEN status = 'A' THEN 1 ELSE 0 END")), 'absent_days'],
-        [sequelize.fn('SUM', sequelize.literal("CASE WHEN status = 'OD' THEN 1 ELSE 0 END")), 'on_duty_days'],
-        // Optionally, you could also count total days marked in the month if needed
-        // [sequelize.fn('COUNT', sequelize.col('id')), 'total_marked_days'],
+        [sequelize.fn('SUM', sequelize.literal("CASE WHEN status = 'OD' THEN 1 ELSE 0 END")), 'on_duty_days']
       ],
-      where: {
-        student_id,
-        date: {
-          [Op.gte]: twelveMonthsAgo.format('YYYY-MM-DD')
-        }
-      },
+      where: { student_id, date: { [Op.gte]: twelveMonthsAgo.format('YYYY-MM-DD') } },
       group: [sequelize.fn('YEAR', sequelize.col('date')), sequelize.fn('MONTH', sequelize.col('date'))],
       order: [[sequelize.fn('YEAR', sequelize.col('date')), 'ASC'], [sequelize.fn('MONTH', sequelize.col('date')), 'ASC']],
-      raw: true,
+      raw: true
     });
-
     res.json({ success: true, data: monthlyAttendance });
   } catch (error) {
-    console.error('Error fetching monthly attendance chart data:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    console.error('Attendance chart data error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-/* ---------- shared helper ---------- */
+
+/* ---------- LAYOUT & BOOKING ---------- */
+
 const ensureStudentHostel = (req) => {
   const hostelId = req.user?.hostel_id;
   if (!hostelId) throw new Error("Student is not linked to a hostel.");
   return hostelId;
 };
 
-/* ---------- layout + booking ---------- */
-const getStudentHostelLayout = async (req, res) => {
+export const getStudentHostelLayout = async (req, res) => {
   try {
     const hostel_id = ensureStudentHostel(req);
     const layout = await HostelLayout.findOne({ where: { hostel_id } });
     res.json({ success: true, data: layout });
   } catch (error) {
-    console.error("Student layout fetch error:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-const getStudentRooms = async (req, res) => {
+export const getStudentRooms = async (req, res) => {
   try {
     const hostel_id = ensureStudentHostel(req);
     const rooms = await HostelRoom.findAll({
       where: { hostel_id, is_active: true },
-      include: [{ model: RoomType, as: 'RoomType' }], // Make sure this association exists
-      order: [["room_number", "ASC"]],
+      include: [{ model: RoomType, as: 'RoomType' }],
+      order: [["room_number", "ASC"]]
     });
     res.json({ success: true, data: rooms });
-  }catch (error) {
-    console.error("Student rooms fetch error:", error);
+  } catch (error) {
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-const getStudentRoomTypes = async (req, res) => {
+export const getStudentRoomTypes = async (req, res) => {
   try {
     const hostel_id = ensureStudentHostel(req);
-    const types = await RoomType.findAll({
-      where: { hostel_id },
-      order: [["name", "ASC"]],
-    });
+    const types = await RoomType.findAll({ where: { hostel_id }, order: [["name", "ASC"]] });
     res.json({ success: true, data: types });
   } catch (error) {
-    console.error("Student room types fetch error:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-const getStudentRoomOccupants = async (req, res) => {
+export const getStudentRoomOccupants = async (req, res) => {
   try {
     const hostel_id = ensureStudentHostel(req);
     const { id } = req.params;
-
-    const room = await HostelRoom.findOne({
-      where: { id, hostel_id, is_active: true },
-      attributes: ["id", "room_number"],
-    });
-    if (!room) throw new Error("Room not found");
-
     const allotments = await RoomAllotment.findAll({
       where: { room_id: id, is_active: true },
-      include: [
-        {
-          model: User,
-          as: "AllotmentStudent",
-          attributes: ["id", "username", "email", "roll_number", "profile_picture"],
-        },
-      ],
+      include: [{ model: User, as: "AllotmentStudent", attributes: ["id", "username", "email", "roll_number", "profile_picture"] }]
     });
-
     const occupants = allotments.map((row) => ({
       user_id: row.student_id,
       username: row.AllotmentStudent.username,
-      name: row.AllotmentStudent.username,
       email: row.AllotmentStudent.email,
       roll_number: row.AllotmentStudent.roll_number,
-      profile_picture: row.AllotmentStudent.profile_picture,
+      profile_picture: row.AllotmentStudent.profile_picture
     }));
-
     res.json({ success: true, data: occupants });
   } catch (error) {
-    console.error("Student room occupants error:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-const getMyRoomRequests = async (req, res) => {
+export const getMyRoomRequests = async (req, res) => {
   try {
-    const requests = await RoomRequest.findAll({
-      where: { student_id: req.user.id },
-      order: [["createdAt", "DESC"]],
-    });
+    const requests = await RoomRequest.findAll({ where: { student_id: req.user.id }, order: [["createdAt", "DESC"]] });
     res.json({ success: true, data: requests });
   } catch (error) {
-    console.error("Room request list error:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-const requestRoomBooking = async (req, res) => {
+export const requestRoomBooking = async (req, res) => {
   try {
     const hostel_id = ensureStudentHostel(req);
     const { room_id } = req.body;
     const student_id = req.user.id;
 
-    if (!room_id) {
-      return res.status(400).json({ success: false, message: "Room selection is required." });
-    }
+    const existingAllotment = await RoomAllotment.findOne({ where: { student_id, is_active: true } });
+    if (existingAllotment) return res.status(400).json({ success: false, message: "Active allotment exists" });
 
-    // 1. Check if student already has an active room
-    const existingAllotment = await RoomAllotment.findOne({
-      where: { student_id, is_active: true }
-    });
-    if (existingAllotment) {
-      return res.status(400).json({ success: false, message: "You already have an active room allotment." });
-    }
+    const room = await HostelRoom.findOne({ where: { id: room_id, hostel_id, is_active: true } });
+    if (!room) return res.status(404).json({ success: false, message: "Room unavailable" });
 
-    // 2. Verify the room exists and belongs to this hostel
-    const room = await HostelRoom.findOne({
-      where: { id: room_id, hostel_id, is_active: true },
-      include: [{ model: RoomType }]
-    });
+    const pendingRequest = await RoomRequest.findOne({ where: { student_id, status: 'pending' } });
+    if (pendingRequest) return res.status(400).json({ success: false, message: "Pending request exists" });
 
-    if (!room) {
-      return res.status(404).json({ success: false, message: "Room not found or unavailable." });
-    }
-
-    // 3. Check for existing PENDING request (don't allow duplicates)
-    const pendingRequest = await RoomRequest.findOne({
-      where: { 
-        student_id, 
-        status: 'pending' 
-      }
-    });
-
-    if (pendingRequest) {
-      return res.status(400).json({ 
-        success: false, 
-        message: `You already have a pending request for Room ${pendingRequest.room_id === room.id ? 'this room' : 'another room'}.` 
-      });
-    }
-
-    // 4. Create the request
-    const request = await RoomRequest.create({
-      hostel_id,
-      student_id,
-      room_id,
-      status: "pending",
-      requested_at: new Date(),
-    });
-
-    res.status(201).json({ 
-      success: true, 
-      data: request, 
-      message: "Room request submitted successfully for Warden approval." 
-    });
+    const request = await RoomRequest.create({ hostel_id, student_id, room_id, status: "pending", requested_at: new Date() });
+    res.status(201).json({ success: true, data: request, message: "Request submitted" });
   } catch (error) {
-    console.error("Room request creation error:", error);
-    res.status(500).json({ success: false, message: "Server error: " + error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
-const cancelRoomRequest = async (req, res) => {
+
+export const cancelRoomRequest = async (req, res) => {
   try {
     const { id } = req.params;
-    const request = await RoomRequest.findOne({
-      where: { id, student_id: req.user.id },
-    });
-
-    if (!request) throw new Error("Request not found.");
-    if (request.status !== "pending") throw new Error("Only pending requests can be cancelled.");
-
-    await request.update({ status: "cancelled", cancelled_at: new Date() });
-    res.json({ success: true, message: "Room request cancelled." });
+    const request = await RoomRequest.findOne({ where: { id, student_id: req.user.id } });
+    if (!request || request.status !== "pending") throw new Error("Invalid cancellation");
+    await request.update({ status: "cancelled" });
+    res.json({ success: true, message: "Cancelled" });
   } catch (error) {
-    console.error("Room request cancellation error:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
-const applyDayReduction = async (req, res) => {
+
+/* ---------- DAY REDUCTION & REBATE ---------- */
+
+export const applyDayReduction = async (req, res) => {
   try {
     const { from_date, to_date, reason } = req.body;
     const student_id = req.user.id;
-    const hostel_id = req.user.hostel_id; // Assuming student's hostel_id is available in req.user
+    const hostel_id = req.user.hostel_id;
+    if (!hostel_id) return res.status(400).json({ success: false, message: 'No hostel assigned' });
 
-    if (!hostel_id) {
-      return res.status(400).json({ success: false, message: 'Student is not assigned to a hostel.' });
-    }
-    if (!from_date || !to_date || !reason) {
-      return res.status(400).json({ success: false, message: 'From date, to date, and reason are required.' });
-    }
-
-    // Basic date validation
-    if (moment(from_date).isAfter(moment(to_date))) {
-      return res.status(400).json({ success: false, message: 'From date cannot be after to date.' });
-    }
-    // Cannot request reduction for past dates (can be adjusted based on policy)
-    if (moment(to_date).isBefore(moment(), 'day')) {
-      return res.status(400).json({ success: false, message: 'Cannot request day reduction for past dates.' });
-    }
-
-
-    // Check for existing pending or partially approved requests for the same student and overlapping dates
-    const existingRequest = await DayReductionRequest.findOne({
-      where: {
-        student_id,
-        // Requests that are still in review or awaiting warden's final decision
-        status: { [Op.in]: ['pending_admin', 'approved_by_admin'] },
-        [Op.or]: [
-          { from_date: { [Op.lte]: to_date }, to_date: { [Op.gte]: from_date } }
-        ]
-      }
-    });
-
-    if (existingRequest) {
-      return res.status(400).json({ success: false, message: 'You have a pending or partially approved day reduction request overlapping with these dates.' });
-    }
-
-    const newRequest = await DayReductionRequest.create({
-      student_id,
-      hostel_id,
-      from_date,
-      to_date,
-      reason,
-      status: 'pending_admin' // Initial status
-    });
-
-    res.status(201).json({ success: true, data: newRequest, message: 'Day reduction request submitted successfully for admin review.' });
-
+    const newRequest = await DayReductionRequest.create({ student_id, hostel_id, from_date, to_date, reason, status: 'pending_admin' });
+    res.status(201).json({ success: true, data: newRequest, message: 'Submitted for review' });
   } catch (error) {
-    console.error('Error applying for day reduction:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-const getMyDayReductionRequests = async (req, res) => {
+export const getMyDayReductionRequests = async (req, res) => {
   try {
     const student_id = req.user.id;
-    const { status, from_date, to_date } = req.query;
-
-    let whereClause = { student_id };
-
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    }
-    if (from_date && to_date) {
-      // Filter requests that overlap with the given date range
-      whereClause[Op.and] = [
-        { from_date: { [Op.lte]: to_date } },
-        { to_date: { [Op.gte]: from_date } }
-      ];
-    }
-
     const requests = await DayReductionRequest.findAll({
-      where: whereClause,
+      where: { student_id },
       include: [
-        { model: User, as: 'AdminProcessor', attributes: ['id', 'username', 'email'], required: false },
-        { model: User, as: 'WardenProcessor', attributes: ['id', 'username', 'email'], required: false },
-        { model: Hostel, as: 'Hostel', attributes: ['id', 'name'], required: false }
+        { model: User, as: 'AdminProcessor', attributes: ['username'], required: false },
+        { model: Hostel, as: 'Hostel', attributes: ['name'], required: false }
       ],
       order: [['createdAt', 'DESC']]
     });
-
     res.json({ success: true, data: requests });
   } catch (error) {
-    console.error('Error fetching student day reduction requests:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
-// Add these to studentController.js
 
-const applyRebate = async (req, res) => {
+export const applyRebate = async (req, res) => {
   try {
     const student_id = req.user.id;
     const { rebate_type, from_date, to_date, reason } = req.body;
-
-    // Basic Validation
-    if (!rebate_type || !from_date || !to_date || !reason) {
-      return res.status(400).json({ success: false, message: 'All fields are required' });
-    }
-
-    // Check for overlapping pending/approved rebates to prevent double-claiming
-    const overlapping = await Rebate.findOne({
-      where: {
-        student_id,
-        status: ['pending', 'approved'],
-        [Op.or]: [
-          { from_date: { [Op.between]: [from_date, to_date] } },
-          { to_date: { [Op.between]: [from_date, to_date] } }
-        ]
-      }
-    });
-
-    if (overlapping) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'You already have an active or pending rebate for these dates.' 
-      });
-    }
-
-    // Note: The 'amount' is often calculated by the Warden during approval 
-    // based on daily rates, but we'll set it to 0.00 as a placeholder here.
-    const rebate = await Rebate.create({
-      student_id,
-      rebate_type,
-      from_date,
-      to_date,
-      reason,
-      amount: 0.00, // To be updated by warden during approval
-      status: 'pending'
-    });
-
-    res.status(201).json({ 
-      success: true, 
-      message: 'Rebate application submitted successfully', 
-      data: rebate 
-    });
+    const rebate = await Rebate.create({ student_id, rebate_type, from_date, to_date, reason, amount: 0.00, status: 'pending' });
+    res.status(201).json({ success: true, message: 'Submitted', data: rebate });
   } catch (error) {
-    console.error('Apply rebate error:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-const getMyRebates = async (req, res) => {
+export const getMyRebates = async (req, res) => {
   try {
-    const student_id = req.user.id;
-    const rebates = await Rebate.findAll({
-      where: { student_id },
-      include: [{
-        model: User,
-        as: 'RebateApprovedBy',
-        attributes: ['username']
-      }],
-      order: [['createdAt', 'DESC']]
-    });
-
+    const rebates = await Rebate.findAll({ where: { student_id: req.user.id }, order: [['createdAt', 'DESC']] });
     res.json({ success: true, data: rebates });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error' });
   }
-};
-module.exports = {
-  // Profile Management
-  getProfile,
-  updateProfile,
-  
-  // Mess Bills Management
-  getMessBills,
-  getMessBillById,
-  getMyMessCharges,
-  
-  // Leave Management - Complete CRUD
-  applyLeave,
-  getMyLeaves,
-  getLeaveById,
-  updateLeave,
-  deleteLeave,
-  
-  // Complaint Management - Complete CRUD
-  createComplaint,
-  getMyComplaints,
-  getComplaintById,
-  updateComplaint,
-  deleteComplaint,
-  
-  // Transaction History
-  getTransactions,
-  getTransactionById,
-  
-  // Attendance
-  getMyAttendance,
-  
-  // Facility Usage - Complete CRUD
-  getFacilities,
-  useFacility,
-  getMyFacilityUsage,
-  getFacilityUsageById,
-  updateFacilityUsage,
-  deleteFacilityUsage,
-  
-  // Meal Tokens
-  getMyTokens,
-  getTokenById,
-  
-  // Dashboard
-  getDashboardStats,
-  // Special Food Orders
-  getAvailableSpecialFoodItems,
-  getSpecialFoodItemCategories,
-  getMyDailyMessCharges,
-  getMonthlyMessExpensesChartData,
-  getMonthlyAttendanceChartData,
-  getRoommates,
-  getStudentHostelLayout,
-  getStudentRooms,
-  getStudentRoomTypes,
-  getStudentRoomOccupants,
-  getMyRoomRequests,
-  requestRoomBooking,
-  cancelRoomRequest,
-  applyDayReduction,       // <-- NEW EXPORT
-  getMyDayReductionRequests, // <-- NEW EXPORT
-  applyRebate,
-  getMyRebates
 };

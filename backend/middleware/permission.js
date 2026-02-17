@@ -1,5 +1,5 @@
 // middleware/permissions.js
-const { User, Hostel } = require('../models');
+import { User, Hostel } from '../models/index.js';
 
 /**
  * Check if user has permission to access a specific hostel
@@ -7,7 +7,7 @@ const { User, Hostel } = require('../models');
  * @param {Object} res - Express response object
  * @param {Function} next - Express next middleware function
  */
-const checkHostelAccess = async (req, res, next) => {
+export const checkHostelAccess = async (req, res, next) => {
   try {
     const hostelId = req.params.hostelId || req.body.hostel_id;
     
@@ -37,11 +37,8 @@ const checkHostelAccess = async (req, res, next) => {
 
 /**
  * Check if user can modify inventory
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
  */
-const checkInventoryPermission = (req, res, next) => {
+export const checkInventoryPermission = (req, res, next) => {
   const allowedRoles = ['admin', 'mess'];
   
   if (!allowedRoles.includes(req.user.role)) {
@@ -56,11 +53,8 @@ const checkInventoryPermission = (req, res, next) => {
 
 /**
  * Check if user can approve financial transactions
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
  */
-const checkFinancePermission = (req, res, next) => {
+export const checkFinancePermission = (req, res, next) => {
   const allowedRoles = ['admin', 'warden'];
   
   if (!allowedRoles.includes(req.user.role)) {
@@ -75,11 +69,8 @@ const checkFinancePermission = (req, res, next) => {
 
 /**
  * Check if user can generate reports
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- * @param {Function} next - Express next middleware function
  */
-const checkReportingPermission = (req, res, next) => {
+export const checkReportingPermission = (req, res, next) => {
   const allowedRoles = ['admin', 'warden', 'mess'];
   
   if (!allowedRoles.includes(req.user.role)) {
@@ -90,11 +81,4 @@ const checkReportingPermission = (req, res, next) => {
   }
   
   next();
-};
-
-module.exports = {
-  checkHostelAccess,
-  checkInventoryPermission,
-  checkFinancePermission,
-  checkReportingPermission
 };

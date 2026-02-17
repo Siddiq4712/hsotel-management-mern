@@ -1,18 +1,18 @@
-const bcrypt = require('bcryptjs');
-const { Op, fn, col, literal } = require('sequelize'); // Import fn, col, literal
-const {
-  User, Hostel, RoomType, HostelRoom, Session,sequelize,Attendance,
+import bcrypt from 'bcryptjs';
+import { Op, fn, col, literal } from 'sequelize';
+import {
+  User, Hostel, RoomType, HostelRoom, Session, Attendance,
   HostelFacilityType, HostelFacility, HostelMaintenance,
-  IncomeType, ExpenseType, UOM, Supplier, PurchaseOrder, SupplierBill,DayReductionRequest,
-  // Corrected imports based on your index.js and individual model files
-  Fee, // Changed from Fees to Fee
+  IncomeType, ExpenseType, UOM, Supplier, PurchaseOrder, SupplierBill, DayReductionRequest,
+  Fee,
   AdditionalIncome,
-  MessDailyExpense, // Changed from MessDailyExpenses to MessDailyExpense
-  OtherExpense // Changed from OtherExpenses to OtherExpense
-} = require('../models');
-const moment = require('moment'); // For date manipulation, ensure 'moment' is installed in backend
-// HOSTEL MANAGEMENT - Complete CRUD
-const createHostel = async (req, res) => {
+  MessDailyExpense,
+  OtherExpense
+} from '../models/index.js'; // Added .js extension
+import moment from 'moment';
+
+// HOSTEL MANAGEMENT
+export const createHostel = async (req, res) => {
   try {
     const { name, address, contact_number, email, capacity } = req.body;
 
@@ -42,7 +42,7 @@ const createHostel = async (req, res) => {
   }
 };
 
-const getHostels = async (req, res) => {
+export const getHostels = async (req, res) => {
   try {
     const { search } = req.query;
 
@@ -73,7 +73,7 @@ const getHostels = async (req, res) => {
   }
 };
 
-const getHostelById = async (req, res) => {
+export const getHostelById = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -100,7 +100,7 @@ const getHostelById = async (req, res) => {
   }
 };
 
-const updateHostel = async (req, res) => {
+export const updateHostel = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, address, contact_number, email, capacity } = req.body;
@@ -133,7 +133,7 @@ const updateHostel = async (req, res) => {
   }
 };
 
-const deleteHostel = async (req, res) => {
+export const deleteHostel = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -146,19 +146,16 @@ const deleteHostel = async (req, res) => {
       });
     }
 
-    // Check if hostel has users or rooms
     const usersCount = await User.count({ where: { hostel_id: id } });
     const roomsCount = await HostelRoom.count({ where: { hostel_id: id } });
 
     if (usersCount > 0 || roomsCount > 0) {
-      // Soft delete
       await hostel.update({ is_active: false });
       res.json({
         success: true,
         message: 'Hostel deactivated successfully (has associated records)'
       });
     } else {
-      // Hard delete
       await hostel.destroy();
       res.json({
         success: true,
@@ -171,18 +168,14 @@ const deleteHostel = async (req, res) => {
   }
 };
 
-// USER MANAGEMENT - Complete CRUD
-const createUser = async (req, res) => {
+// USER MANAGEMENT
+export const createUser = async (req, res) => {
   try {
     const { username, email, password, role, hostel_id } = req.body;
 
-    // Check if user exists
     const existingUser = await User.findOne({
       where: {
-        [Op.or]: [
-          { username },
-          { email }
-        ]
+        [Op.or]: [{ username }, { email }]
       }
     });
 
@@ -193,7 +186,6 @@ const createUser = async (req, res) => {
       });
     }
 
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
@@ -219,7 +211,7 @@ const createUser = async (req, res) => {
   }
 };
 
-const getUsers = async (req, res) => {
+export const getUsers = async (req, res) => {
   try {
     const { role, hostel_id, search } = req.query;
 
@@ -260,7 +252,7 @@ const getUsers = async (req, res) => {
   }
 };
 
-const updateUser = async (req, res) => {
+export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
     const { username, email, role, hostel_id, password } = req.body;
@@ -281,7 +273,6 @@ const updateUser = async (req, res) => {
       hostel_id: role === 'admin' ? null : hostel_id
     };
 
-    // Update password if provided
     if (password && password.trim()) {
       const salt = await bcrypt.genSalt(10);
       updateData.password = await bcrypt.hash(password, salt);
@@ -303,38 +294,27 @@ const updateUser = async (req, res) => {
   }
 };
 
-const deleteUser = async (req, res) => {
+export const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
-
     const user = await User.findByPk(id);
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Soft delete - set is_active to false
     await user.update({ is_active: false });
 
-    res.json({
-      success: true,
-      message: 'User deactivated successfully'
-    });
+    res.json({ success: true, message: 'User deactivated successfully' });
   } catch (error) {
     console.error('User deletion error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// ROOM TYPE MANAGEMENT - Complete CRUD
-// adminController.js
-
-const createRoomType = async (req, res) => {
+// ROOM TYPE MANAGEMENT
+export const createRoomType = async (req, res) => {
   try {
-    // Add hostel_id to destructuring
     const { name, capacity, description, hostel_id } = req.body;
 
     if (!name || !capacity || !hostel_id) {
@@ -344,12 +324,7 @@ const createRoomType = async (req, res) => {
       });
     }
 
-    const roomType = await RoomType.create({
-      name,
-      capacity,
-      description,
-      hostel_id // Pass hostel_id here
-    });
+    const roomType = await RoomType.create({ name, capacity, description, hostel_id });
 
     res.status(201).json({
       success: true,
@@ -362,44 +337,17 @@ const createRoomType = async (req, res) => {
   }
 };
 
-const updateRoomType = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, capacity, description, hostel_id } = req.body; // Add hostel_id here
-
-    const roomType = await RoomType.findByPk(id);
-    if (!roomType) {
-      return res.status(404).json({ success: false, message: 'Room type not found' });
-    }
-
-    await roomType.update({
-      name,
-      capacity,
-      description,
-      hostel_id // Update hostel_id here
-    });
-
-    res.json({ success: true, data: roomType, message: 'Room type updated successfully' });
-  } catch (error) {
-    console.error('Room type update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-const getRoomTypes = async (req, res) => {
+export const getRoomTypes = async (req, res) => {
   try {
     const { search } = req.query;
-
     let whereClause = {};
-
     if (search) {
       whereClause.name = { [Op.iLike]: `%${search}%` };
     }
-
     const roomTypes = await RoomType.findAll({
       where: whereClause,
       order: [['createdAt', 'DESC']]
     });
-
     res.json({ success: true, data: roomTypes });
   } catch (error) {
     console.error('Room types fetch error:', error);
@@ -407,20 +355,33 @@ const getRoomTypes = async (req, res) => {
   }
 };
 
-
-const deleteRoomType = async (req, res) => {
+export const updateRoomType = async (req, res) => {
   try {
     const { id } = req.params;
+    const { name, capacity, description, hostel_id } = req.body;
 
     const roomType = await RoomType.findByPk(id);
     if (!roomType) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room type not found'
-      });
+      return res.status(404).json({ success: false, message: 'Room type not found' });
     }
 
-    // Check if room type is being used by any rooms
+    await roomType.update({ name, capacity, description, hostel_id });
+
+    res.json({ success: true, data: roomType, message: 'Room type updated successfully' });
+  } catch (error) {
+    console.error('Room type update error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const deleteRoomType = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const roomType = await RoomType.findByPk(id);
+    if (!roomType) {
+      return res.status(404).json({ success: false, message: 'Room type not found' });
+    }
+
     const roomsCount = await HostelRoom.count({ where: { room_type_id: id } });
     if (roomsCount > 0) {
       return res.status(400).json({
@@ -430,46 +391,28 @@ const deleteRoomType = async (req, res) => {
     }
 
     await roomType.destroy();
-    res.json({
-      success: true,
-      message: 'Room type deleted successfully'
-    });
+    res.json({ success: true, message: 'Room type deleted successfully' });
   } catch (error) {
     console.error('Room type deletion error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// ROOM MANAGEMENT - Complete CRUD
-const createRoom = async (req, res) => {
+// ROOM MANAGEMENT
+export const createRoom = async (req, res) => {
   try {
     const { hostel_id, room_type_id, room_number, floor } = req.body;
 
     if (!hostel_id || !room_type_id || !room_number) {
-      return res.status(400).json({
-        success: false,
-        message: 'Hostel, room type, and room number are required'
-      });
+      return res.status(400).json({ success: false, message: 'Hostel, room type, and room number are required' });
     }
 
-    // Check if room number already exists in this hostel
-    const existingRoom = await HostelRoom.findOne({
-      where: { hostel_id, room_number }
-    });
-
+    const existingRoom = await HostelRoom.findOne({ where: { hostel_id, room_number } });
     if (existingRoom) {
-      return res.status(400).json({
-        success: false,
-        message: 'Room number already exists in this hostel'
-      });
+      return res.status(400).json({ success: false, message: 'Room number already exists in this hostel' });
     }
 
-    const room = await HostelRoom.create({
-      hostel_id,
-      room_type_id,
-      room_number,
-      floor
-    });
+    const room = await HostelRoom.create({ hostel_id, room_type_id, room_number, floor });
 
     const roomWithDetails = await HostelRoom.findByPk(room.id, {
       include: [
@@ -478,38 +421,22 @@ const createRoom = async (req, res) => {
       ]
     });
 
-    res.status(201).json({
-      success: true,
-      data: roomWithDetails,
-      message: 'Room created successfully'
-    });
+    res.status(201).json({ success: true, data: roomWithDetails, message: 'Room created successfully' });
   } catch (error) {
     console.error('Room creation error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const getRooms = async (req, res) => {
+export const getRooms = async (req, res) => {
   try {
     const { hostel_id, room_type_id, search, is_occupied } = req.query;
-
     let whereClause = { is_active: true };
 
-    if (hostel_id && hostel_id !== 'all') {
-      whereClause.hostel_id = hostel_id;
-    }
-
-    if (room_type_id && room_type_id !== 'all') {
-      whereClause.room_type_id = room_type_id;
-    }
-
-    if (is_occupied !== undefined && is_occupied !== 'all') {
-      whereClause.is_occupied = is_occupied === 'true';
-    }
-
-    if (search) {
-      whereClause.room_number = { [Op.iLike]: `%${search}%` };
-    }
+    if (hostel_id && hostel_id !== 'all') whereClause.hostel_id = hostel_id;
+    if (room_type_id && room_type_id !== 'all') whereClause.room_type_id = room_type_id;
+    if (is_occupied !== undefined && is_occupied !== 'all') whereClause.is_occupied = is_occupied === 'true';
+    if (search) whereClause.room_number = { [Op.iLike]: `%${search}%` };
 
     const rooms = await HostelRoom.findAll({
       where: whereClause,
@@ -527,26 +454,15 @@ const getRooms = async (req, res) => {
   }
 };
 
-const updateRoom = async (req, res) => {
+export const updateRoom = async (req, res) => {
   try {
     const { id } = req.params;
     const { hostel_id, room_type_id, room_number, floor } = req.body;
 
     const room = await HostelRoom.findByPk(id);
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
 
-    if (!room) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room not found'
-      });
-    }
-
-    await room.update({
-      hostel_id,
-      room_type_id,
-      room_number,
-      floor
-    });
+    await room.update({ hostel_id, room_type_id, room_number, floor });
 
     const updatedRoom = await HostelRoom.findByPk(id, {
       include: [
@@ -555,97 +471,51 @@ const updateRoom = async (req, res) => {
       ]
     });
 
-    res.json({
-      success: true,
-      data: updatedRoom,
-      message: 'Room updated successfully'
-    });
+    res.json({ success: true, data: updatedRoom, message: 'Room updated successfully' });
   } catch (error) {
     console.error('Room update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const deleteRoom = async (req, res) => {
+export const deleteRoom = async (req, res) => {
   try {
     const { id } = req.params;
-
     const room = await HostelRoom.findByPk(id);
-
-    if (!room) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room not found'
-      });
-    }
-
-    if (room.is_occupied) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete occupied room'
-      });
-    }
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+    if (room.is_occupied) return res.status(400).json({ success: false, message: 'Cannot delete occupied room' });
 
     await room.update({ is_active: false });
-
-    res.json({
-      success: true,
-      message: 'Room deactivated successfully'
-    });
+    res.json({ success: true, message: 'Room deactivated successfully' });
   } catch (error) {
     console.error('Room deletion error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// SESSION MANAGEMENT - Complete CRUD
-const createSession = async (req, res) => {
+// SESSION MANAGEMENT
+export const createSession = async (req, res) => {
   try {
     const { name, start_date, end_date } = req.body;
-
     if (!name || !start_date || !end_date) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name, start date, and end date are required'
-      });
+      return res.status(400).json({ success: false, message: 'Name, start date, and end date are required' });
     }
-
-    const session = await Session.create({
-      name,
-      start_date,
-      end_date
-    });
-
-    res.status(201).json({
-      success: true,
-      data: session,
-      message: 'Session created successfully'
-    });
+    const session = await Session.create({ name, start_date, end_date });
+    res.status(201).json({ success: true, data: session, message: 'Session created successfully' });
   } catch (error) {
     console.error('Session creation error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const getSessions = async (req, res) => {
+export const getSessions = async (req, res) => {
   try {
     const { search, is_active } = req.query;
-
     let whereClause = {};
+    if (is_active !== undefined && is_active !== 'all') whereClause.is_active = is_active === 'true';
+    if (search) whereClause.name = { [Op.iLike]: `%${search}%` };
 
-    if (is_active !== undefined && is_active !== 'all') {
-      whereClause.is_active = is_active === 'true';
-    }
-
-    if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
-    }
-
-    const sessions = await Session.findAll({
-      where: whereClause,
-      order: [['createdAt', 'DESC']]
-    });
-
+    const sessions = await Session.findAll({ where: whereClause, order: [['createdAt', 'DESC']] });
     res.json({ success: true, data: sessions });
   } catch (error) {
     console.error('Sessions fetch error:', error);
@@ -653,106 +523,53 @@ const getSessions = async (req, res) => {
   }
 };
 
-const updateSession = async (req, res) => {
+export const updateSession = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, start_date, end_date, is_active } = req.body;
-
     const session = await Session.findByPk(id);
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
 
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: 'Session not found'
-      });
-    }
-
-    await session.update({
-      name,
-      start_date,
-      end_date,
-      is_active
-    });
-
-    res.json({
-      success: true,
-      data: session,
-      message: 'Session updated successfully'
-    });
+    await session.update({ name, start_date, end_date, is_active });
+    res.json({ success: true, data: session, message: 'Session updated successfully' });
   } catch (error) {
     console.error('Session update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const deleteSession = async (req, res) => {
+export const deleteSession = async (req, res) => {
   try {
     const { id } = req.params;
-
     const session = await Session.findByPk(id);
-
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: 'Session not found'
-      });
-    }
-
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
     await session.update({ is_active: false });
-
-    res.json({
-      success: true,
-      message: 'Session deactivated successfully'
-    });
+    res.json({ success: true, message: 'Session deactivated successfully' });
   } catch (error) {
     console.error('Session deletion error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// FACILITY TYPE MANAGEMENT - Complete CRUD
-const createFacilityType = async (req, res) => {
+// FACILITY TYPE MANAGEMENT
+export const createFacilityType = async (req, res) => {
   try {
     const { name, description } = req.body;
-
-    if (!name) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name is required'
-      });
-    }
-
-    const facilityType = await HostelFacilityType.create({
-      name,
-      description
-    });
-
-    res.status(201).json({
-      success: true,
-      data: facilityType,
-      message: 'Facility type created successfully'
-    });
+    if (!name) return res.status(400).json({ success: false, message: 'Name is required' });
+    const facilityType = await HostelFacilityType.create({ name, description });
+    res.status(201).json({ success: true, data: facilityType, message: 'Facility type created successfully' });
   } catch (error) {
     console.error('Facility type creation error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const getFacilityTypes = async (req, res) => {
+export const getFacilityTypes = async (req, res) => {
   try {
     const { search } = req.query;
-
     let whereClause = { is_active: true };
-
-    if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
-    }
-
-    const facilityTypes = await HostelFacilityType.findAll({
-      where: whereClause,
-      order: [['createdAt', 'DESC']]
-    });
-
+    if (search) whereClause.name = { [Op.iLike]: `%${search}%` };
+    const facilityTypes = await HostelFacilityType.findAll({ where: whereClause, order: [['createdAt', 'DESC']] });
     res.json({ success: true, data: facilityTypes });
   } catch (error) {
     console.error('Facility types fetch error:', error);
@@ -760,66 +577,33 @@ const getFacilityTypes = async (req, res) => {
   }
 };
 
-const updateFacilityType = async (req, res) => {
+export const updateFacilityType = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description } = req.body;
-
     const facilityType = await HostelFacilityType.findByPk(id);
-
-    if (!facilityType) {
-      return res.status(404).json({
-        success: false,
-        message: 'Facility type not found'
-      });
-    }
-
-    await facilityType.update({
-      name,
-      description
-    });
-
-    res.json({
-      success: true,
-      data: facilityType,
-      message: 'Facility type updated successfully'
-    });
+    if (!facilityType) return res.status(404).json({ success: false, message: 'Facility type not found' });
+    await facilityType.update({ name, description });
+    res.json({ success: true, data: facilityType, message: 'Facility type updated successfully' });
   } catch (error) {
     console.error('Facility type update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const deleteFacilityType = async (req, res) => {
+export const deleteFacilityType = async (req, res) => {
   try {
     const { id } = req.params;
-
     const facilityType = await HostelFacilityType.findByPk(id);
+    if (!facilityType) return res.status(404).json({ success: false, message: 'Facility type not found' });
 
-    if (!facilityType) {
-      return res.status(404).json({
-        success: false,
-        message: 'Facility type not found'
-      });
-    }
-
-    // Check if facility type is being used
-    const facilitiesCount = await HostelFacility.count({
-      where: { facility_type_id: id }
-    });
-
+    const facilitiesCount = await HostelFacility.count({ where: { facility_type_id: id } });
     if (facilitiesCount > 0) {
       await facilityType.update({ is_active: false });
-      res.json({
-        success: true,
-        message: 'Facility type deactivated successfully (has associated facilities)'
-      });
+      res.json({ success: true, message: 'Facility type deactivated successfully' });
     } else {
       await facilityType.destroy();
-      res.json({
-        success: true,
-        message: 'Facility type deleted successfully'
-      });
+      res.json({ success: true, message: 'Facility type deleted successfully' });
     }
   } catch (error) {
     console.error('Facility type deletion error:', error);
@@ -827,75 +611,38 @@ const deleteFacilityType = async (req, res) => {
   }
 };
 
-// FACILITY MANAGEMENT - Complete CRUD
-const createFacility = async (req, res) => {
+// FACILITY MANAGEMENT
+export const createFacility = async (req, res) => {
   try {
     const { hostel_id, facility_type_id, name, capacity, cost_per_use } = req.body;
-
     if (!hostel_id || !facility_type_id || !name) {
-      return res.status(400).json({
-        success: false,
-        message: 'Hostel, facility type, and name are required'
-      });
+      return res.status(400).json({ success: false, message: 'Hostel, facility type, and name are required' });
     }
-
-    const facility = await HostelFacility.create({
-      hostel_id,
-      facility_type_id,
-      name,
-      capacity,
-      cost_per_use: cost_per_use || 0.00
-    });
-
+    const facility = await HostelFacility.create({ hostel_id, facility_type_id, name, capacity, cost_per_use: cost_per_use || 0.00 });
     const facilityWithDetails = await HostelFacility.findByPk(facility.id, {
-      include: [
-        { model: Hostel, attributes: ['id', 'name'] },
-        { model: HostelFacilityType, attributes: ['id', 'name'] }
-      ]
+      include: [{ model: Hostel, attributes: ['id', 'name'] }, { model: HostelFacilityType, attributes: ['id', 'name'] }]
     });
-
-    res.status(201).json({
-      success: true,
-      data: facilityWithDetails,
-      message: 'Facility created successfully'
-    });
+    res.status(201).json({ success: true, data: facilityWithDetails, message: 'Facility created successfully' });
   } catch (error) {
     console.error('Facility creation error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const getFacilities = async (req, res) => {
+export const getFacilities = async (req, res) => {
   try {
     const { hostel_id, facility_type_id, search, status } = req.query;
-
     let whereClause = {};
-
-    if (hostel_id && hostel_id !== 'all') {
-      whereClause.hostel_id = hostel_id;
-    }
-
-    if (facility_type_id && facility_type_id !== 'all') {
-      whereClause.facility_type_id = facility_type_id;
-    }
-
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    }
-
-    if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
-    }
+    if (hostel_id && hostel_id !== 'all') whereClause.hostel_id = hostel_id;
+    if (facility_type_id && facility_type_id !== 'all') whereClause.facility_type_id = facility_type_id;
+    if (status && status !== 'all') whereClause.status = status;
+    if (search) whereClause.name = { [Op.iLike]: `%${search}%` };
 
     const facilities = await HostelFacility.findAll({
       where: whereClause,
-      include: [
-        { model: Hostel, attributes: ['id', 'name'] },
-        { model: HostelFacilityType, attributes: ['id', 'name'] }
-      ],
+      include: [{ model: Hostel, attributes: ['id', 'name'] }, { model: HostelFacilityType, attributes: ['id', 'name'] }],
       order: [['createdAt', 'DESC']]
     });
-
     res.json({ success: true, data: facilities });
   } catch (error) {
     console.error('Facilities fetch error:', error);
@@ -903,77 +650,42 @@ const getFacilities = async (req, res) => {
   }
 };
 
-const updateFacility = async (req, res) => {
+export const updateFacility = async (req, res) => {
   try {
     const { id } = req.params;
     const { hostel_id, facility_type_id, name, capacity, cost_per_use, status } = req.body;
-
     const facility = await HostelFacility.findByPk(id);
+    if (!facility) return res.status(404).json({ success: false, message: 'Facility not found' });
 
-    if (!facility) {
-      return res.status(404).json({
-        success: false,
-        message: 'Facility not found'
-      });
-    }
-
-    await facility.update({
-      hostel_id,
-      facility_type_id,
-      name,
-      capacity,
-      cost_per_use,
-      status
-    });
-
+    await facility.update({ hostel_id, facility_type_id, name, capacity, cost_per_use, status });
     const updatedFacility = await HostelFacility.findByPk(id, {
-      include: [
-        { model: Hostel, attributes: ['id', 'name'] },
-        { model: HostelFacilityType, attributes: ['id', 'name'] }
-      ]
+      include: [{ model: Hostel, attributes: ['id', 'name'] }, { model: HostelFacilityType, attributes: ['id', 'name'] }]
     });
-
-    res.json({
-      success: true,
-      data: updatedFacility,
-      message: 'Facility updated successfully'
-    });
+    res.json({ success: true, data: updatedFacility, message: 'Facility updated successfully' });
   } catch (error) {
     console.error('Facility update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const deleteFacility = async (req, res) => {
+export const deleteFacility = async (req, res) => {
   try {
     const { id } = req.params;
-
     const facility = await HostelFacility.findByPk(id);
+    if (!facility) return res.status(404).json({ success: false, message: 'Facility not found' });
 
-    if (!facility) {
-      return res.status(404).json({
-        success: false,
-        message: 'Facility not found'
-      });
-    }
-
-    // Check if facility has usage records
-    const usageCount = await HostelFacilityRegister.count({
-      where: { facility_id: id }
-    });
+    // Use a try-catch for the usage count check if HostelFacilityRegister isn't globally available
+    let usageCount = 0;
+    try {
+      usageCount = await HostelFacilityRegister.count({ where: { facility_id: id } });
+    } catch (e) {}
 
     if (usageCount > 0) {
       await facility.update({ status: 'inactive' });
-      res.json({
-        success: true,
-        message: 'Facility deactivated successfully (has usage records)'
-      });
+      res.json({ success: true, message: 'Facility deactivated successfully' });
     } else {
       await facility.destroy();
-      res.json({
-        success: true,
-        message: 'Facility deleted successfully'
-      });
+      res.json({ success: true, message: 'Facility deleted successfully' });
     }
   } catch (error) {
     console.error('Facility deletion error:', error);
@@ -981,27 +693,17 @@ const deleteFacility = async (req, res) => {
   }
 };
 
-// MAINTENANCE MANAGEMENT - Complete CRUD
-// In adminController.js - Fix createMaintenance
-const createMaintenance = async (req, res) => {
+// MAINTENANCE MANAGEMENT
+export const createMaintenance = async (req, res) => {
   try {
     const { hostel_id, room_id, facility_id, issue_type, description, priority } = req.body;
 
     if (!hostel_id || !issue_type || !description) {
-      return res.status(400).json({
-        success: false,
-        message: 'Hostel, issue type, and description are required'
-      });
+      return res.status(400).json({ success: false, message: 'Hostel, issue type, and description are required' });
     }
 
-    // Validate hostel exists
     const hostelExists = await Hostel.findByPk(hostel_id);
-    if (!hostelExists) {
-      return res.status(400).json({
-        success: false,
-        message: 'Selected hostel does not exist'
-      });
-    }
+    if (!hostelExists) return res.status(400).json({ success: false, message: 'Selected hostel does not exist' });
 
     const maintenanceData = {
       hostel_id,
@@ -1010,77 +712,36 @@ const createMaintenance = async (req, res) => {
       issue_type,
       description,
       priority: priority || 'medium',
-      reported_by: req.user ? req.user.id : 1, // Use authenticated user ID or fallback
+      reported_by: req.user ? req.user.id : 1,
       status: 'reported'
     };
 
     const maintenance = await HostelMaintenance.create(maintenanceData);
-
-    // Fetch the created maintenance with related data
     const maintenanceWithDetails = await HostelMaintenance.findByPk(maintenance.id, {
       include: [
-        {
-          model: Hostel,
-          attributes: ['id', 'name']
-        },
-        {
-          model: HostelRoom,
-          attributes: ['id', 'room_number'],
-          required: false
-        },
-        {
-          model: HostelFacility,
-          attributes: ['id', 'name'],
-          required: false
-        },
-        {
-          model: User,
-          as: 'ReportedBy', // Make sure this alias matches your model association
-          attributes: ['id', 'username'],
-          required: false
-        }
+        { model: Hostel, attributes: ['id', 'name'] },
+        { model: HostelRoom, attributes: ['id', 'room_number'], required: false },
+        { model: HostelFacility, attributes: ['id', 'name'], required: false },
+        { model: User, as: 'ReportedBy', attributes: ['id', 'username'], required: false }
       ]
     });
 
-    res.status(201).json({
-      success: true,
-      data: maintenanceWithDetails,
-      message: 'Maintenance request created successfully'
-    });
+    res.status(201).json({ success: true, data: maintenanceWithDetails, message: 'Maintenance request created successfully' });
   } catch (error) {
     console.error('Maintenance creation error:', error);
-    console.error('Error details:', error.message);
-    console.error('Request body:', req.body);
-    res.status(500).json({
-      success: false,
-      message: 'Server error: ' + error.message
-    });
+    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 
-const getMaintenance = async (req, res) => {
+export const getMaintenance = async (req, res) => {
   try {
     const { hostel_id, status, priority, search } = req.query;
-
     let whereClause = {};
-
-    if (hostel_id && hostel_id !== 'all') {
-      whereClause.hostel_id = hostel_id;
-    }
-
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    }
-
-    if (priority && priority !== 'all') {
-      whereClause.priority = priority;
-    }
-
+    if (hostel_id && hostel_id !== 'all') whereClause.hostel_id = hostel_id;
+    if (status && status !== 'all') whereClause.status = status;
+    if (priority && priority !== 'all') whereClause.priority = priority;
     if (search) {
-      whereClause[Op.or] = [
-        { issue_type: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } }
-      ];
+      whereClause[Op.or] = [{ issue_type: { [Op.iLike]: `%${search}%` } }, { description: { [Op.iLike]: `%${search}%` } }];
     }
 
     const maintenance = await HostelMaintenance.findAll({
@@ -1093,7 +754,6 @@ const getMaintenance = async (req, res) => {
       ],
       order: [['createdAt', 'DESC']]
     });
-
     res.json({ success: true, data: maintenance });
   } catch (error) {
     console.error('Maintenance fetch error:', error);
@@ -1101,19 +761,12 @@ const getMaintenance = async (req, res) => {
   }
 };
 
-const updateMaintenance = async (req, res) => {
+export const updateMaintenance = async (req, res) => {
   try {
     const { id } = req.params;
     const { status, assigned_to, cost, completion_date } = req.body;
-
     const maintenance = await HostelMaintenance.findByPk(id);
-
-    if (!maintenance) {
-      return res.status(404).json({
-        success: false,
-        message: 'Maintenance request not found'
-      });
-    }
+    if (!maintenance) return res.status(404).json({ success: false, message: 'Maintenance request not found' });
 
     const updateData = {};
     if (status) updateData.status = status;
@@ -1122,7 +775,6 @@ const updateMaintenance = async (req, res) => {
     if (completion_date) updateData.completion_date = completion_date;
 
     await maintenance.update(updateData);
-
     const updatedMaintenance = await HostelMaintenance.findByPk(id, {
       include: [
         { model: Hostel, attributes: ['id', 'name'] },
@@ -1131,86 +783,45 @@ const updateMaintenance = async (req, res) => {
         { model: User, as: 'ReportedBy', attributes: ['id', 'username'] }
       ]
     });
-
-    res.json({
-      success: true,
-      data: updatedMaintenance,
-      message: 'Maintenance request updated successfully'
-    });
+    res.json({ success: true, data: updatedMaintenance, message: 'Maintenance request updated successfully' });
   } catch (error) {
     console.error('Maintenance update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const deleteMaintenance = async (req, res) => {
+export const deleteMaintenance = async (req, res) => {
   try {
     const { id } = req.params;
-
     const maintenance = await HostelMaintenance.findByPk(id);
-
-    if (!maintenance) {
-      return res.status(404).json({
-        success: false,
-        message: 'Maintenance request not found'
-      });
-    }
-
+    if (!maintenance) return res.status(404).json({ success: false, message: 'Maintenance request not found' });
     await maintenance.destroy();
-
-    res.json({
-      success: true,
-      message: 'Maintenance request deleted successfully'
-    });
+    res.json({ success: true, message: 'Maintenance request deleted successfully' });
   } catch (error) {
     console.error('Maintenance deletion error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// INCOME TYPE MANAGEMENT - Complete CRUD
-const createIncomeType = async (req, res) => {
+// FINANCE MANAGEMENT
+export const createIncomeType = async (req, res) => {
   try {
     const { name, description } = req.body;
-
-    if (!name) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name is required'
-      });
-    }
-
-    const incomeType = await IncomeType.create({
-      name,
-      description
-    });
-
-    res.status(201).json({
-      success: true,
-      data: incomeType,
-      message: 'Income type created successfully'
-    });
+    if (!name) return res.status(400).json({ success: false, message: 'Name is required' });
+    const incomeType = await IncomeType.create({ name, description });
+    res.status(201).json({ success: true, data: incomeType, message: 'Income type created successfully' });
   } catch (error) {
     console.error('Income type creation error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const getIncomeTypes = async (req, res) => {
+export const getIncomeTypes = async (req, res) => {
   try {
     const { search } = req.query;
-
     let whereClause = { is_active: true };
-
-    if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
-    }
-
-    const incomeTypes = await IncomeType.findAll({
-      where: whereClause,
-      order: [['name', 'ASC']]
-    });
-
+    if (search) whereClause.name = { [Op.iLike]: `%${search}%` };
+    const incomeTypes = await IncomeType.findAll({ where: whereClause, order: [['name', 'ASC']] });
     res.json({ success: true, data: incomeTypes });
   } catch (error) {
     console.error('Income types fetch error:', error);
@@ -1218,104 +829,51 @@ const getIncomeTypes = async (req, res) => {
   }
 };
 
-const updateIncomeType = async (req, res) => {
+export const updateIncomeType = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description } = req.body;
-
     const incomeType = await IncomeType.findByPk(id);
-
-    if (!incomeType) {
-      return res.status(404).json({
-        success: false,
-        message: 'Income type not found'
-      });
-    }
-
-    await incomeType.update({
-      name,
-      description
-    });
-
-    res.json({
-      success: true,
-      data: incomeType,
-      message: 'Income type updated successfully'
-    });
+    if (!incomeType) return res.status(404).json({ success: false, message: 'Income type not found' });
+    await incomeType.update({ name, description });
+    res.json({ success: true, data: incomeType, message: 'Income type updated successfully' });
   } catch (error) {
     console.error('Income type update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-// Continuing from deleteIncomeType...
-const deleteIncomeType = async (req, res) => {
+
+export const deleteIncomeType = async (req, res) => {
   try {
     const { id } = req.params;
-
     const incomeType = await IncomeType.findByPk(id);
-
-    if (!incomeType) {
-      return res.status(404).json({
-        success: false,
-        message: 'Income type not found'
-      });
-    }
-
+    if (!incomeType) return res.status(404).json({ success: false, message: 'Income type not found' });
     await incomeType.update({ is_active: false });
-
-    res.json({
-      success: true,
-      message: 'Income type deactivated successfully'
-    });
+    res.json({ success: true, message: 'Income type deactivated successfully' });
   } catch (error) {
     console.error('Income type deletion error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// EXPENSE TYPE MANAGEMENT - Complete CRUD
-const createExpenseType = async (req, res) => {
+export const createExpenseType = async (req, res) => {
   try {
     const { name, description } = req.body;
-
-    if (!name) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name is required'
-      });
-    }
-
-    const expenseType = await ExpenseType.create({
-      name,
-      description
-    });
-
-    res.status(201).json({
-      success: true,
-      data: expenseType,
-      message: 'Expense type created successfully'
-    });
+    if (!name) return res.status(400).json({ success: false, message: 'Name is required' });
+    const expenseType = await ExpenseType.create({ name, description });
+    res.status(201).json({ success: true, data: expenseType, message: 'Expense type created successfully' });
   } catch (error) {
     console.error('Expense type creation error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const getExpenseTypes = async (req, res) => {
+export const getExpenseTypes = async (req, res) => {
   try {
     const { search } = req.query;
-
     let whereClause = { is_active: true };
-
-    if (search) {
-      whereClause.name = { [Op.iLike]: `%${search}%` };
-    }
-
-    const expenseTypes = await ExpenseType.findAll({
-      where: whereClause,
-      order: [['name', 'ASC']]
-    });
-
+    if (search) whereClause.name = { [Op.iLike]: `%${search}%` };
+    const expenseTypes = await ExpenseType.findAll({ where: whereClause, order: [['name', 'ASC']] });
     res.json({ success: true, data: expenseTypes });
   } catch (error) {
     console.error('Expense types fetch error:', error);
@@ -1323,116 +881,55 @@ const getExpenseTypes = async (req, res) => {
   }
 };
 
-const updateExpenseType = async (req, res) => {
+export const updateExpenseType = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description } = req.body;
-
     const expenseType = await ExpenseType.findByPk(id);
-
-    if (!expenseType) {
-      return res.status(404).json({
-        success: false,
-        message: 'Expense type not found'
-      });
-    }
-
-    await expenseType.update({
-      name,
-      description
-    });
-
-    res.json({
-      success: true,
-      data: expenseType,
-      message: 'Expense type updated successfully'
-    });
+    if (!expenseType) return res.status(404).json({ success: false, message: 'Expense type not found' });
+    await expenseType.update({ name, description });
+    res.json({ success: true, data: expenseType, message: 'Expense type updated successfully' });
   } catch (error) {
     console.error('Expense type update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const deleteExpenseType = async (req, res) => {
+export const deleteExpenseType = async (req, res) => {
   try {
     const { id } = req.params;
-
     const expenseType = await ExpenseType.findByPk(id);
-
-    if (!expenseType) {
-      return res.status(404).json({
-        success: false,
-        message: 'Expense type not found'
-      });
-    }
-
+    if (!expenseType) return res.status(404).json({ success: false, message: 'Expense type not found' });
     await expenseType.update({ is_active: false });
-
-    res.json({
-      success: true,
-      message: 'Expense type deactivated successfully'
-    });
+    res.json({ success: true, message: 'Expense type deactivated successfully' });
   } catch (error) {
     console.error('Expense type deletion error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// SUPPLIER MANAGEMENT - Complete CRUD
-const createSupplier = async (req, res) => {
+// SUPPLIER MANAGEMENT
+export const createSupplier = async (req, res) => {
   try {
     const { name, contact_person, phone, email, address, supplier_type } = req.body;
-
-    if (!name || !supplier_type) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name and supplier type are required'
-      });
-    }
-
-    const supplier = await Supplier.create({
-      name,
-      contact_person,
-      phone,
-      email,
-      address,
-      supplier_type
-    });
-
-    res.status(201).json({
-      success: true,
-      data: supplier,
-      message: 'Supplier created successfully'
-    });
+    if (!name || !supplier_type) return res.status(400).json({ success: false, message: 'Name and supplier type are required' });
+    const supplier = await Supplier.create({ name, contact_person, phone, email, address, supplier_type });
+    res.status(201).json({ success: true, data: supplier, message: 'Supplier created successfully' });
   } catch (error) {
     console.error('Supplier creation error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const getSuppliers = async (req, res) => {
+export const getSuppliers = async (req, res) => {
   try {
     const { supplier_type, search } = req.query;
-
     let whereClause = { is_active: true };
-
-    if (supplier_type && supplier_type !== 'all') {
-      whereClause.supplier_type = supplier_type;
-    }
-
+    if (supplier_type && supplier_type !== 'all') whereClause.supplier_type = supplier_type;
     if (search) {
-      whereClause[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { contact_person: { [Op.iLike]: `%${search}%` } },
-        { email: { [Op.iLike]: `%${search}%` } }
-      ];
+      whereClause[Op.or] = [{ name: { [Op.iLike]: `%${search}%` } }, { contact_person: { [Op.iLike]: `%${search}%` } }, { email: { [Op.iLike]: `%${search}%` } }];
     }
-
-    const suppliers = await Supplier.findAll({
-      where: whereClause,
-      order: [['name', 'ASC']]
-    });
-
+    const suppliers = await Supplier.findAll({ where: whereClause, order: [['name', 'ASC']] });
     res.json({ success: true, data: suppliers });
   } catch (error) {
     console.error('Suppliers fetch error:', error);
@@ -1440,19 +937,11 @@ const getSuppliers = async (req, res) => {
   }
 };
 
-const getSupplierById = async (req, res) => {
+export const getSupplierById = async (req, res) => {
   try {
     const { id } = req.params;
-
     const supplier = await Supplier.findByPk(id);
-
-    if (!supplier) {
-      return res.status(404).json({
-        success: false,
-        message: 'Supplier not found'
-      });
-    }
-
+    if (!supplier) return res.status(404).json({ success: false, message: 'Supplier not found' });
     res.json({ success: true, data: supplier });
   } catch (error) {
     console.error('Supplier fetch error:', error);
@@ -1460,76 +949,35 @@ const getSupplierById = async (req, res) => {
   }
 };
 
-const updateSupplier = async (req, res) => {
+export const updateSupplier = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, contact_person, phone, email, address, supplier_type } = req.body;
-
     const supplier = await Supplier.findByPk(id);
-
-    if (!supplier) {
-      return res.status(404).json({
-        success: false,
-        message: 'Supplier not found'
-      });
-    }
-
-    await supplier.update({
-      name,
-      contact_person,
-      phone,
-      email,
-      address,
-      supplier_type
-    });
-
-    res.json({
-      success: true,
-      data: supplier,
-      message: 'Supplier updated successfully'
-    });
+    if (!supplier) return res.status(404).json({ success: false, message: 'Supplier not found' });
+    await supplier.update({ name, contact_person, phone, email, address, supplier_type });
+    res.json({ success: true, data: supplier, message: 'Supplier updated successfully' });
   } catch (error) {
     console.error('Supplier update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const deleteSupplier = async (req, res) => {
+export const deleteSupplier = async (req, res) => {
   try {
     const { id } = req.params;
-
     const supplier = await Supplier.findByPk(id);
+    if (!supplier) return res.status(404).json({ success: false, message: 'Supplier not found' });
 
-    if (!supplier) {
-      return res.status(404).json({
-        success: false,
-        message: 'Supplier not found'
-      });
-    }
-
-    // Check if supplier has any purchase orders or bills
-    const purchaseOrdersCount = await PurchaseOrder.count({
-      where: { supplier_id: id }
-    });
-
-    const billsCount = await SupplierBill.count({
-      where: { supplier_id: id }
-    });
+    const purchaseOrdersCount = await PurchaseOrder.count({ where: { supplier_id: id } });
+    const billsCount = await SupplierBill.count({ where: { supplier_id: id } });
 
     if (purchaseOrdersCount > 0 || billsCount > 0) {
-      // Soft delete
       await supplier.update({ is_active: false });
-      res.json({
-        success: true,
-        message: 'Supplier deactivated successfully (has associated records)'
-      });
+      res.json({ success: true, message: 'Supplier deactivated successfully' });
     } else {
-      // Hard delete
       await supplier.destroy();
-      res.json({
-        success: true,
-        message: 'Supplier deleted successfully'
-      });
+      res.json({ success: true, message: 'Supplier deleted successfully' });
     }
   } catch (error) {
     console.error('Supplier deletion error:', error);
@@ -1537,57 +985,28 @@ const deleteSupplier = async (req, res) => {
   }
 };
 
-// UOM MANAGEMENT - Complete CRUD
-const createUOM = async (req, res) => {
+// UOM MANAGEMENT
+export const createUOM = async (req, res) => {
   try {
     const { name, abbreviation, type } = req.body;
-
-    if (!name || !abbreviation || !type) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name, abbreviation, and type are required'
-      });
-    }
-
-    const uom = await UOM.create({
-      name,
-      abbreviation,
-      type
-    });
-
-    res.status(201).json({
-      success: true,
-      data: uom,
-      message: 'UOM created successfully'
-    });
+    if (!name || !abbreviation || !type) return res.status(400).json({ success: false, message: 'Required fields missing' });
+    const uom = await UOM.create({ name, abbreviation, type });
+    res.status(201).json({ success: true, data: uom, message: 'UOM created successfully' });
   } catch (error) {
     console.error('UOM creation error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const getUOMs = async (req, res) => {
+export const getUOMs = async (req, res) => {
   try {
     const { type, search } = req.query;
-
     let whereClause = {};
-
-    if (type && type !== 'all') {
-      whereClause.type = type;
-    }
-
+    if (type && type !== 'all') whereClause.type = type;
     if (search) {
-      whereClause[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { abbreviation: { [Op.iLike]: `%${search}%` } }
-      ];
+      whereClause[Op.or] = [{ name: { [Op.iLike]: `%${search}%` } }, { abbreviation: { [Op.iLike]: `%${search}%` } }];
     }
-
-    const uoms = await UOM.findAll({
-      where: whereClause,
-      order: [['name', 'ASC']]
-    });
-
+    const uoms = await UOM.findAll({ where: whereClause, order: [['name', 'ASC']] });
     res.json({ success: true, data: uoms });
   } catch (error) {
     console.error('UOMs fetch error:', error);
@@ -1595,64 +1014,35 @@ const getUOMs = async (req, res) => {
   }
 };
 
-const updateUOM = async (req, res) => {
+export const updateUOM = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, abbreviation, type } = req.body;
-
     const uom = await UOM.findByPk(id);
-
-    if (!uom) {
-      return res.status(404).json({
-        success: false,
-        message: 'UOM not found'
-      });
-    }
-
-    await uom.update({
-      name,
-      abbreviation,
-      type
-    });
-
-    res.json({
-      success: true,
-      data: uom,
-      message: 'UOM updated successfully'
-    });
+    if (!uom) return res.status(404).json({ success: false, message: 'UOM not found' });
+    await uom.update({ name, abbreviation, type });
+    res.json({ success: true, data: uom, message: 'UOM updated successfully' });
   } catch (error) {
     console.error('UOM update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const deleteUOM = async (req, res) => {
+export const deleteUOM = async (req, res) => {
   try {
     const { id } = req.params;
-
     const uom = await UOM.findByPk(id);
-
-    if (!uom) {
-      return res.status(404).json({
-        success: false,
-        message: 'UOM not found'
-      });
-    }
-
+    if (!uom) return res.status(404).json({ success: false, message: 'UOM not found' });
     await uom.destroy();
-
-    res.json({
-      success: true,
-      message: 'UOM deleted successfully'
-    });
+    res.json({ success: true, message: 'UOM deleted successfully' });
   } catch (error) {
     console.error('UOM deletion error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-// DASHBOARD STATISTICS - Existing function, keep as is
-const getDashboardStats = async (req, res) => {
+// DASHBOARD
+export const getDashboardStats = async (req, res) => {
   try {
     const totalHostels = await Hostel.count({ where: { is_active: true } });
     const totalWardens = await User.count({ where: { role: 'warden', is_active: true } });
@@ -1666,15 +1056,9 @@ const getDashboardStats = async (req, res) => {
     res.json({
       success: true,
       data: {
-        totalHostels,
-        totalWardens,
-        totalStudents,
-        totalRooms,
-        occupiedRooms,
-        availableRooms: totalRooms - occupiedRooms,
-        totalSuppliers,
-        totalFacilities,
-        pendingMaintenance
+        totalHostels, totalWardens, totalStudents, totalRooms,
+        occupiedRooms, availableRooms: totalRooms - occupiedRooms,
+        totalSuppliers, totalFacilities, pendingMaintenance
       }
     });
   } catch (error) {
@@ -1683,18 +1067,13 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
-// NEW FUNCTION: Get data for various admin dashboard charts
-const getAdminChartData = async (req, res) => {
+export const getAdminChartData = async (req, res) => {
   try {
     const chartData = {};
 
-    // 1. User Role Distribution
     const userRoleCounts = await User.findAll({
-      attributes: [
-        'role',
-        [fn('COUNT', col('id')), 'count']
-      ],
-      where: { is_active: true }, // Include all active users, including 'admin'
+      attributes: ['role', [fn('COUNT', col('id')), 'count']],
+      where: { is_active: true },
       group: ['role'],
       raw: true
     });
@@ -1702,15 +1081,12 @@ const getAdminChartData = async (req, res) => {
     const labels = [];
     const counts = [];
     userRoleCounts.forEach(item => {
-      // Capitalize role name for better display
       labels.push(item.role.charAt(0).toUpperCase() + item.role.slice(1));
       counts.push(parseInt(item.count, 10));
     });
 
     chartData.userRoles = { labels, counts };
 
-
-    // 2. Monthly Financial Overview (Last 6 months)
     const monthsToFetch = 6;
     const financialMonths = [];
     const monthlyIncome = [];
@@ -1720,72 +1096,22 @@ const getAdminChartData = async (req, res) => {
       const month = moment().subtract(i, 'months');
       const startOfMonth = month.startOf('month').toDate();
       const endOfMonth = month.endOf('month').toDate();
-      const monthLabel = month.format('MMM YYYY');
-      financialMonths.push(monthLabel);
+      financialMonths.push(month.format('MMM YYYY'));
 
-      // Calculate total income for the month
-      const feesIncome = await Fee.sum('amount', { // Corrected from 'amount_paid' to 'amount'
-        where: {
-          payment_date: {
-            [Op.between]: [startOfMonth, endOfMonth]
-          },
-          status: 'paid'
-        }
-      }) || 0;
+      const feesIncome = await Fee.sum('amount', { where: { payment_date: { [Op.between]: [startOfMonth, endOfMonth] }, status: 'paid' } }) || 0;
+      const additionalIncome = await AdditionalIncome.sum('amount', { where: { received_date: { [Op.between]: [startOfMonth, endOfMonth] } } }) || 0;
+      monthlyIncome.push(feesIncome + additionalIncome);
 
-      const additionalIncome = await AdditionalIncome.sum('amount', {
-        where: {
-          received_date: { // Corrected from 'date' to 'received_date'
-            [Op.between]: [startOfMonth, endOfMonth]
-          }
-        }
-      }) || 0;
-
-      const totalIncome = feesIncome + additionalIncome;
-      monthlyIncome.push(totalIncome);
-
-      // Calculate total expenses for the month
-      const messExpenses = await MessDailyExpense.sum('amount', { // Corrected model name
-        where: {
-          expense_date: { // Corrected from 'date' to 'expense_date'
-            [Op.between]: [startOfMonth, endOfMonth]
-          }
-        }
-      }) || 0;
-
-      const otherExpenses = await OtherExpense.sum('amount', { // Corrected model name
-        where: {
-          expense_date: { // Corrected from 'date' to 'expense_date'
-            [Op.between]: [startOfMonth, endOfMonth]
-          }
-        }
-      }) || 0;
-
-      const maintenanceExpenses = await HostelMaintenance.sum('cost', {
-        where: {
-          completion_date: {
-            [Op.between]: [startOfMonth, endOfMonth]
-          },
-          status: 'completed'
-        }
-      }) || 0;
-
-      const totalExpenses = messExpenses + otherExpenses + maintenanceExpenses;
-      monthlyExpenses.push(totalExpenses);
+      const messExpenses = await MessDailyExpense.sum('amount', { where: { expense_date: { [Op.between]: [startOfMonth, endOfMonth] } } }) || 0;
+      const otherExpenses = await OtherExpense.sum('amount', { where: { expense_date: { [Op.between]: [startOfMonth, endOfMonth] } } }) || 0;
+      const maintenanceExpenses = await HostelMaintenance.sum('cost', { where: { completion_date: { [Op.between]: [startOfMonth, endOfMonth] }, status: 'completed' } }) || 0;
+      monthlyExpenses.push(messExpenses + otherExpenses + maintenanceExpenses);
     }
 
-    chartData.monthlyFinancials = {
-      labels: financialMonths,
-      income: monthlyIncome,
-      expenses: monthlyExpenses
-    };
+    chartData.monthlyFinancials = { labels: financialMonths, income: monthlyIncome, expenses: monthlyExpenses };
 
-    // 3. Maintenance Request Status
     const maintenanceStatusCounts = await HostelMaintenance.findAll({
-      attributes: [
-        'status',
-        [fn('COUNT', col('id')), 'count']
-      ],
+      attributes: ['status', [fn('COUNT', col('id')), 'count']],
       group: ['status'],
       raw: true
     });
@@ -1798,37 +1124,26 @@ const getAdminChartData = async (req, res) => {
     });
 
     chartData.maintenanceStatus = { labels: statusLabels, counts: statusCounts };
-
-
     res.json({ success: true, data: chartData });
   } catch (error) {
-    console.error('Error fetching admin chart data:', error);
+    console.error('Error fetching chart data:', error);
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 
-// --- NEW: Day Reduction Requests for Admin ---
-const getDayReductionRequestsForAdmin = async (req, res) => {
+export const getDayReductionRequestsForAdmin = async (req, res) => {
   try {
     const { status, hostel_id, student_id, from_date, to_date } = req.query;
-
     let whereClause = {};
-
-    // Admins will primarily view requests pending their review, or those they've already processed
-    // It's good to also show 'approved_by_warden' and 'rejected_by_warden' for historical context
     if (status && status !== 'all') {
       whereClause.status = status;
     } else {
       whereClause.status = { [Op.in]: ['pending_admin', 'approved_by_admin', 'rejected_by_admin', 'approved_by_warden', 'rejected_by_warden'] };
     }
-
     if (hostel_id) whereClause.hostel_id = hostel_id;
     if (student_id) whereClause.student_id = student_id;
     if (from_date && to_date) {
-      whereClause[Op.and] = [
-        { from_date: { [Op.lte]: to_date } },
-        { to_date: { [Op.gte]: from_date } }
-      ];
+      whereClause[Op.and] = [{ from_date: { [Op.lte]: to_date } }, { to_date: { [Op.gte]: from_date } }];
     }
 
     const requests = await DayReductionRequest.findAll({
@@ -1836,206 +1151,82 @@ const getDayReductionRequestsForAdmin = async (req, res) => {
       include: [
         { model: User, as: 'Student', attributes: ['id', 'username', 'email', 'roll_number'] },
         { model: User, as: 'AdminProcessor', attributes: ['id', 'username'], required: false },
-        { model: User, as: 'WardenProcessor', attributes: ['id', 'username'], required: false }, // Keep for full history
+        { model: User, as: 'WardenProcessor', attributes: ['id', 'username'], required: false },
         { model: Hostel, as: 'Hostel', attributes: ['id', 'name'] }
       ],
       order: [['createdAt', 'DESC']]
     });
-
     res.json({ success: true, data: requests });
   } catch (error) {
-    console.error('Error fetching day reduction requests for admin:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    console.error('Error fetching requests:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
-const updateDayReductionRequestStatusByAdmin = async (req, res) => {
-  const transaction = await sequelize.transaction(); // Start a transaction for atomicity
+export const updateDayReductionRequestStatusByAdmin = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
-    const { action, admin_remarks } = req.body; // 'approve' or 'reject'
+    const { action, admin_remarks } = req.body;
     const admin_id = req.user.id;
 
     const request = await DayReductionRequest.findByPk(id, { transaction });
-
-    if (!request) {
+    if (!request || request.status !== 'pending_admin') {
       await transaction.rollback();
-      return res.status(404).json({ success: false, message: 'Day reduction request not found.' });
+      return res.status(400).json({ success: false, message: 'Request not found or invalid status' });
     }
 
-    // Ensure only 'pending_admin' requests can be processed by admin
-    if (request.status !== 'pending_admin') {
-      await transaction.rollback();
-      return res.status(400).json({ success: false, message: `Request already processed or not in a state for admin review (current status: ${request.status}).` });
-    }
+    let newStatus = action === 'approve' ? 'approved_by_admin' : 'rejected_by_admin';
 
-    let newStatus;
-    if (action === 'approve') {
-      newStatus = 'approved_by_admin'; // Admin approves, and this is now the final status that triggers OD
-    } else if (action === 'reject') {
-      newStatus = 'rejected_by_admin'; // Admin rejects outright
-    } else {
-      await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'Invalid action. Must be "approve" or "reject".' });
-    }
+    await request.update({ status: newStatus, admin_id, admin_remarks }, { transaction });
 
-    await request.update({
-      status: newStatus,
-      admin_id,
-      admin_remarks,
-      // No 'warden_id' or 'warden_remarks' here, as warden only views
-    }, { transaction });
-
-    // IMPORTANT: Mark attendance as 'OD' if approved by Admin
     if (newStatus === 'approved_by_admin') {
       const { student_id, from_date, to_date, hostel_id } = request;
-      const startDate = moment(from_date);
+      let currentDate = moment(from_date);
       const endDate = moment(to_date);
 
-      let currentDate = moment(startDate);
       while (currentDate.isSameOrBefore(endDate)) {
         const dateString = currentDate.format('YYYY-MM-DD');
-
-        // Check for existing attendance record for the day
-        let existingAttendance = await Attendance.findOne({
-          where: {
-            student_id,
-            hostel_id,
-            date: dateString
-          },
-          transaction
-        });
+        let existingAttendance = await Attendance.findOne({ where: { student_id, hostel_id, date: dateString }, transaction });
 
         if (existingAttendance) {
-          // Update existing record if its status is NOT 'P' (Present).
-          // 'OD' (On Duty) should override 'A' (Absent) or 'L' (Leave/unmarked).
-          // We generally don't override a confirmed 'P' with 'OD'.
           if (existingAttendance.status !== 'P') {
-             await existingAttendance.update({
+            await existingAttendance.update({
               status: 'OD',
-              totalManDays: 1, // 'OD' counts as a man-day for mess calculation
-              remarks: existingAttendance.remarks ? `${existingAttendance.remarks}; Day reduction request approved by Admin (ID: ${id})` : `Day reduction request approved by Admin (ID: ${id})`,
-              marked_by: admin_id // Admin approved this change
+              totalManDays: 1,
+              remarks: (existingAttendance.remarks || '') + '; Day reduction approved by Admin',
+              marked_by: admin_id
             }, { transaction });
           }
         } else {
-          // Create new attendance record if none exists for the day
           await Attendance.create({
-            student_id,
-            hostel_id,
-            date: dateString,
-            status: 'OD',
-            totalManDays: 1, // 'OD' counts as a man-day for mess calculation
-            remarks: `Day reduction request approved by Admin (ID: ${id})`,
-            marked_by: admin_id
+            student_id, hostel_id, date: dateString, status: 'OD', totalManDays: 1,
+            remarks: 'Day reduction request approved by Admin', marked_by: admin_id
           }, { transaction });
         }
         currentDate.add(1, 'day');
       }
     }
 
-    await transaction.commit(); // Commit all changes if successful
-    res.json({ success: true, data: request, message: `Day reduction request ${newStatus.replace('_', ' ')} successfully.` });
-
+    await transaction.commit();
+    res.json({ success: true, data: request, message: `Request ${newStatus} successfully.` });
   } catch (error) {
-    await transaction.rollback(); // Rollback all changes if any error occurs
-    console.error('Error updating day reduction request status by admin:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    await transaction.rollback();
+    console.error('Error updating status:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-const updateHostelFeeSettings = async (req, res) => {
-  try {
-    const { id } = req.params; // hostel_id
-    const { annual_fee_amount, show_fee_reminder } = req.body;
 
+export const updateHostelFeeSettings = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { annual_fee_amount, show_fee_reminder } = req.body;
     const hostel = await Hostel.findByPk(id);
     if (!hostel) return res.status(404).json({ success: false, message: 'Hostel not found' });
 
     await hostel.update({ annual_fee_amount, show_fee_reminder });
-
     res.json({ success: true, message: 'Fee settings updated successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
-};
-module.exports = {
-  // Hostel Management
-  createHostel,
-  getHostels,
-  getHostelById,
-  updateHostel,
-  deleteHostel,
-
-  // User Management
-  createUser,
-  getUsers,
-  updateUser,
-  deleteUser,
-
-  // Room Type Management
-  createRoomType,
-  getRoomTypes,
-  updateRoomType,
-  deleteRoomType,
-
-  // Room Management
-  createRoom,
-  getRooms,
-  updateRoom,
-  deleteRoom,
-
-  // Session Management
-  createSession,
-  getSessions,
-  updateSession,
-  deleteSession,
-
-  // Facility Type Management
-  createFacilityType,
-  getFacilityTypes,
-  updateFacilityType,
-  deleteFacilityType,
-
-  // Facility Management
-  createFacility,
-  getFacilities,
-  updateFacility,
-  deleteFacility,
-
-  // Maintenance Management
-  createMaintenance,
-  getMaintenance,
-  updateMaintenance,
-  deleteMaintenance,
-
-  // Finance Management
-  createIncomeType,
-  getIncomeTypes,
-  updateIncomeType,
-  deleteIncomeType,
-  createExpenseType,
-  getExpenseTypes,
-  updateExpenseType,
-  deleteExpenseType,
-
-  // Supplier Management
-  createSupplier,
-  getSuppliers,
-  getSupplierById,
-  updateSupplier,
-  deleteSupplier,
-
-  // UOM Management
-  createUOM,
-  getUOMs,
-  updateUOM,
-  deleteUOM,
-
-  // Dashboard
-  getDashboardStats,
-  getAdminChartData, // ADD THIS LINE
-  getDayReductionRequestsForAdmin,       // <-- NEW EXPORT
-  updateDayReductionRequestStatusByAdmin,
-
-  updateHostelFeeSettings
 };

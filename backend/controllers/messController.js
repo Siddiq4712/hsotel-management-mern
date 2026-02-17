@@ -1,18 +1,20 @@
-const ExcelJS = require('exceljs');
-const {
+import ExcelJS from 'exceljs';
+import {
   Menu, Item, ItemCategory, User, MenuItem, Hostel, Attendance, Enrollment, DailyMessCharge,
-  MenuSchedule, UOM, ItemStock, DailyConsumption, MessBill,Session, CreditToken,Concern,Holiday,
-  Store, ItemStore, InventoryTransaction, ConsumptionLog, IncomeType, AdditionalIncome, StudentFee,RestockPlan,
-  InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem, MessDailyExpense, ExpenseType, SpecialConsumption, SpecialConsumptionItem,Newspaper,
-  Recipe,RecipeItem, DailyRateLog
-} = require('../models');
-const { Op } = require('sequelize');
-const sequelize = require('../config/database');
-const moment = require('moment');
-const { getMonthDateRange } = require('../utils/dateUtils'); // Assuming dateUtils is in ../utils
-// const { getSessions } = require('./wardenController');
-const { sendConsumptionNotificationToAdmin } = require('../utils/emailUtils');
+  MenuSchedule, UOM, ItemStock, DailyConsumption, MessBill, Session, CreditToken, Concern, Holiday,
+  Store, ItemStore, InventoryTransaction, ConsumptionLog, IncomeType, AdditionalIncome, StudentFee, RestockPlan,
+  InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem, MessDailyExpense, ExpenseType, SpecialConsumption, SpecialConsumptionItem,
+  Recipe, RecipeItem, DailyRateLog
+} from '../models/index.js'; // Ensure .js extension and named imports
 
+import { Op } from 'sequelize';
+import sequelize from '../config/database.js'; // Default export from your converted config
+import moment from 'moment';
+import { getMonthDateRange } from '../utils/dateUtils.js'; // Added .js extension
+import { sendConsumptionNotificationToAdmin } from '../utils/emailUtils.js'; // Added .js extension
+
+// If you had 'Newspaper' in your require but it wasn't in your models/index.js definition earlier, 
+// make sure it is exported from models/index.js or remove it from this list.
 // Custom rounding function: <= 0.20 rounds down, > 0.20 rounds up
 function customRounding(amount) {
   const num = parseFloat(amount);
@@ -32,7 +34,7 @@ const MENU_ROUNDING_INCOME_TYPE_NAME = 'Menu Rounding Adjustments';
 const DAILY_CHARGE_ROUNDING_INCOME_TYPE_NAME = 'Daily Charge Calculation Adjustments';
 
 // MENU MANAGEMENT - Complete CRUD
-const createMenu = async (req, res) => {
+export const createMenu = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { name, meal_type, description, estimated_servings, preparation_time, items } = req.body;
@@ -124,7 +126,7 @@ const createMenu = async (req, res) => {
 };
 
 // GET MENUS
-const getMenus = async (req, res) => {
+export const getMenus = async (req, res) => {
   try {
     const { meal_type, search } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -172,7 +174,7 @@ const getMenus = async (req, res) => {
   }
 };
 
-const getMenuById = async (req, res) => {
+export const getMenuById = async (req, res) => {
   try {
     const { id } = req.params;
     const hostel_id = req.user.hostel_id;
@@ -212,7 +214,7 @@ const getMenuById = async (req, res) => {
 };
 
 // Enhanced updateMenu function - now handles menu details AND items (create/update/delete logic for items)
-const updateMenu = async (req, res) => {
+export const updateMenu = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
@@ -365,7 +367,7 @@ const updateMenu = async (req, res) => {
 };
 
 // Enhanced deleteMenu - now checks if used in schedules before deletion
-const deleteMenu = async (req, res) => {
+export const deleteMenu = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
@@ -415,7 +417,7 @@ const deleteMenu = async (req, res) => {
 };
 
 // APPLY MENU DATE RANGE - Creates menu schedules for specific days over multiple weeks
-const applyMenuDateRange = async (req, res) => {
+export const applyMenuDateRange = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
@@ -554,7 +556,7 @@ const applyMenuDateRange = async (req, res) => {
 };
 
 // Optional: New endpoint to recalculate menu cost with FIFO (call this after updating items if needed)
-const recalculateMenuCostWithFIFO = async (req, res) => {
+export const recalculateMenuCostWithFIFO = async (req, res) => {
   try {
     const { menu_id } = req.params;
     const hostel_id = req.user.hostel_id;
@@ -651,7 +653,7 @@ const recalculateMenuCostWithFIFO = async (req, res) => {
   }
 };
 // ITEM MANAGEMENT - Complete CRUD
-const createItem = async (req, res) => {
+export const createItem = async (req, res) => {
   try {
     const { name, category_id, unit_price, unit_id, description,maximum_quantity } = req.body;
 
@@ -696,7 +698,7 @@ const createItem = async (req, res) => {
   }
 };
 
-const getItems = async (req, res) => {
+export const getItems = async (req, res) => {
   try {
     const { category_id, search } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -788,7 +790,7 @@ const getItems = async (req, res) => {
   }
 };
 
-const getItemById = async (req, res) => {
+export const getItemById = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -819,7 +821,7 @@ const getItemById = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-const updateItem = async (req, res) => {
+export const updateItem = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, category_id, unit_price, unit_id, description,maximum_quantity } = req.body;
@@ -866,7 +868,7 @@ const updateItem = async (req, res) => {
   }
 };
 
-const deleteItem = async (req, res) => {
+export const deleteItem = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -899,7 +901,7 @@ const deleteItem = async (req, res) => {
 };
 
 // ITEM CATEGORY MANAGEMENT - Complete CRUD
-const createItemCategory = async (req, res) => {
+export const createItemCategory = async (req, res) => {
   try {
     const { name, description } = req.body;
 
@@ -926,7 +928,7 @@ const createItemCategory = async (req, res) => {
   }
 };
 
-const getItemCategories = async (req, res) => {
+export const getItemCategories = async (req, res) => {
   try {
     const { search } = req.query;
 
@@ -948,7 +950,7 @@ const getItemCategories = async (req, res) => {
   }
 };
 
-const updateItemCategory = async (req, res) => {
+export const updateItemCategory = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description } = req.body;
@@ -977,7 +979,7 @@ const updateItemCategory = async (req, res) => {
   }
 };
 
-const deleteItemCategory = async (req, res) => {
+export const deleteItemCategory = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1010,7 +1012,7 @@ const deleteItemCategory = async (req, res) => {
 };
 
 // MENU ITEM MANAGEMENT - Complete CRUD
-const addItemsToMenu = async (req, res) => {
+export const addItemsToMenu = async (req, res) => {
   try {
     const { menu_id } = req.params;
     const { items } = req.body;
@@ -1055,7 +1057,7 @@ const addItemsToMenu = async (req, res) => {
   }
 };
 
-const getMenuWithItems = async (req, res) => {
+export const getMenuWithItems = async (req, res) => {
   try {
     const { menu_id } = req.params;
     const hostel_id = req.user.hostel_id;
@@ -1099,7 +1101,7 @@ const getMenuWithItems = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-const removeItemFromMenu = async (req, res) => {
+export const removeItemFromMenu = async (req, res) => {
   try {
     const { menu_id, item_id } = req.params;
 
@@ -1140,7 +1142,7 @@ const removeItemFromMenu = async (req, res) => {
 };
 
 // MENU SCHEDULING
-const scheduleMenu = async (req, res) => {
+export const scheduleMenu = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { menu_id, scheduled_date, meal_time } = req.body;
@@ -1233,7 +1235,7 @@ if (totalQty > 0) {
   }
 };
 // getMenuSchedule
-const getMenuSchedule = async (req, res) => {
+export const getMenuSchedule = async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -1284,7 +1286,7 @@ const getMenuSchedule = async (req, res) => {
   }
 };
 
-const updateMenuSchedule = async (req, res) => {
+export const updateMenuSchedule = async (req, res) => {
   try {
     const { id } = req.params;
     const { menu_id, meal_time, estimated_servings, status } = req.body;
@@ -1326,7 +1328,7 @@ const updateMenuSchedule = async (req, res) => {
   }
 };
 
-const deleteMenuSchedule = async (req, res) => {
+export const deleteMenuSchedule = async (req, res) => {
   try {
     const { id } = req.params;
     const hostel_id = req.user.hostel_id;
@@ -1344,7 +1346,7 @@ const deleteMenuSchedule = async (req, res) => {
 };
 
 // UOM MANAGEMENT
-const createUOM = async (req, res) => {
+export const createUOM = async (req, res) => {
   try {
     const { name, abbreviation, type } = req.body;
 
@@ -1372,7 +1374,7 @@ const createUOM = async (req, res) => {
   }
 };
 
-const getUOMs = async (req, res) => {
+export const getUOMs = async (req, res) => {
   try {
     const { type } = req.query;
 
@@ -1397,7 +1399,7 @@ const getUOMs = async (req, res) => {
   }
 };
 
-const updateUOM = async (req, res) => {
+export const updateUOM = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, abbreviation, type } = req.body;
@@ -1423,7 +1425,7 @@ const updateUOM = async (req, res) => {
   }
 };
 
-const deleteUOM = async (req, res) => {
+export const deleteUOM = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1457,7 +1459,7 @@ const deleteUOM = async (req, res) => {
 };
 
 // MENU COST CALCULATION
-const calculateMenuCost = async (req, res) => {
+export const calculateMenuCost = async (req, res) => {
   try {
     const { menu_id } = req.params;
     const hostel_id = req.user.hostel_id;
@@ -1521,7 +1523,7 @@ const calculateMenuCost = async (req, res) => {
 };
 
 // DASHBOARD AND STATISTICS
-const getMessDashboardStats = async (req, res) => {
+export const getMessDashboardStats = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
 
@@ -1554,7 +1556,7 @@ const getMessDashboardStats = async (req, res) => {
   }
 };
 
-const getMonthlyExpensesChartData = async (req, res) => {
+export const getMonthlyExpensesChartData = async (req, res) => {
   try {
     const { month, year } = req.query; // Expect month (1-12) and year
     const hostel_id = req.user.hostel_id;
@@ -1643,7 +1645,7 @@ const getMonthlyExpensesChartData = async (req, res) => {
 };
 
 // NEW: API for Item Stock Chart Data (Top 10 items by quantity)
-const getItemStockChartData = async (req, res) => {
+export const getItemStockChartData = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
 
@@ -1698,7 +1700,7 @@ const getItemStockChartData = async (req, res) => {
 };
 
 // STOCK MANAGEMENT - Updated for FIFO
-const updateItemStock = async (req, res) => {
+export const updateItemStock = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     // Extract hostel_id from the authenticated user rather than the request body
@@ -1771,7 +1773,7 @@ const updateItemStock = async (req, res) => {
   }
 };
 
-const getItemStock = async (req, res) => {
+export const getItemStock = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     const { low_stock } = req.query;
@@ -1876,7 +1878,7 @@ const getItemStock = async (req, res) => {
   }
 };
 
-const getDailyConsumption = async (req, res) => {
+export const getDailyConsumption = async (req, res) => {
   try {
     const { date, meal_type, item_id } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -1928,7 +1930,7 @@ const getDailyConsumption = async (req, res) => {
   }
 };
 
-const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_id, transaction) => {
+export const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_id, transaction) => {
   console.log("[WEIGHTED-AVG] === Starting weighted-average consumption processing ===");
   console.log("[WEIGHTED-AVG] Payload:", JSON.stringify(consumptions, null, 2));
 
@@ -2094,7 +2096,7 @@ if (!created) {
   return { lowStockItems, createdDailyConsumptions };
 };
 // Add this to your messController.js
-const getItemFIFOPrice = async (req, res) => {
+export const getItemFIFOPrice = async (req, res) => {
   try {
     const { id } = req.params;
     const hostel_id = req.user.hostel_id;
@@ -2130,7 +2132,7 @@ const getItemFIFOPrice = async (req, res) => {
   }
 };
 // In messController.js
-const getItemBatches = async (req, res) => {
+export const getItemBatches = async (req, res) => {
   try {
     const { id } = req.params;
     const hostel_id = req.user.hostel_id;
@@ -2160,7 +2162,7 @@ const getItemBatches = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
-const fetchBatchPrices = async (itemId) => {
+export const fetchBatchPrices = async (itemId) => {
   try {
     // Add an API endpoint to get the active batches for an item
     const response = await messAPI.getItemBatches(itemId);
@@ -2178,7 +2180,7 @@ const fetchBatchPrices = async (itemId) => {
 };
 
 // Then in the handleQuantityChange function
-const handleQuantityChange = async (itemId, value) => {
+export const handleQuantityChange = async (itemId, value) => {
   console.log(`[CreateMenu] Quantity changed for item ${itemId} to ${value}`);
 
   // Only calculate if quantity > 0
@@ -2248,7 +2250,7 @@ const handleQuantityChange = async (itemId, value) => {
 };
 
 // Update the updateMenuItems function to use batch prices
-const updateMenuItems = (updatedItems) => {
+export const updateMenuItems = (updatedItems) => {
   console.log("[CreateMenu] Updating menu items for cost calculation");
 
   const selectedItems = updatedItems.filter(item => item.quantity > 0)
@@ -2296,7 +2298,7 @@ const updateMenuItems = (updatedItems) => {
 };
 
 // Update the `recordBulkConsumption` API handler to use the new logic
-const recordBulkConsumption = async (req, res) => {
+export const recordBulkConsumption = async (req, res) => {
   const { consumptions } = req.body;
   const hostel_id = req.user.hostel_id;
   const user_id = req.user.id;
@@ -2334,7 +2336,7 @@ const recordBulkConsumption = async (req, res) => {
     });
   }
 };
-const recordInventoryPurchase = async (req, res) => {
+export const recordInventoryPurchase = async (req, res) => {
   const { items } = req.body;
   const { hostel_id, id: user_id } = req.user;
   console.log('[API] recordInventoryPurchase CALLED at', new Date().toISOString());
@@ -2433,7 +2435,7 @@ const recordInventoryPurchase = async (req, res) => {
 };
 
 
-const getInventoryTransactions = async (req, res) => {
+export const getInventoryTransactions = async (req, res) => {
   try {
     const { transaction_type, item_id, store_id, from_date, to_date } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -2491,7 +2493,7 @@ const getInventoryTransactions = async (req, res) => {
   }
 };
 // STORE MANAGEMENT
-const createStore = async (req, res) => {
+export const createStore = async (req, res) => {
   try {
     const { name, address, contact_number } = req.body;
 
@@ -2520,7 +2522,7 @@ const createStore = async (req, res) => {
   }
 };
 
-const getStores = async (req, res) => {
+export const getStores = async (req, res) => {
   try {
     const { search, is_active } = req.query;
 
@@ -2549,7 +2551,7 @@ const getStores = async (req, res) => {
   }
 };
 
-const updateStore = async (req, res) => {
+export const updateStore = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, address, contact_number, is_active } = req.body;
@@ -2580,7 +2582,7 @@ const updateStore = async (req, res) => {
   }
 };
 
-const deleteStore = async (req, res) => {
+export const deleteStore = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -2615,7 +2617,7 @@ const deleteStore = async (req, res) => {
 };
 
 // Item-Store Mapping
-const mapItemToStore = async (req, res) => {
+export const mapItemToStore = async (req, res) => {
   try {
     const { item_id, store_id, price, is_preferred } = req.body;
 
@@ -2662,7 +2664,7 @@ const mapItemToStore = async (req, res) => {
   }
 };
 
-const getItemStores = async (req, res) => {
+export const getItemStores = async (req, res) => {
   try {
     const { item_id } = req.query;
 
@@ -2700,7 +2702,7 @@ const getItemStores = async (req, res) => {
   }
 };
 
-const removeItemStoreMapping = async (req, res) => {
+export const removeItemStoreMapping = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -2724,7 +2726,7 @@ const removeItemStoreMapping = async (req, res) => {
 };
 
 // SPECIAL FOOD ITEMS MANAGEMENT
-const createSpecialFoodItem = async (req, res) => {
+export const createSpecialFoodItem = async (req, res) => {
   try {
     const { name, description, price, preparation_time_minutes, category, image_url, expiry_time } = req.body;
 
@@ -2757,7 +2759,7 @@ const createSpecialFoodItem = async (req, res) => {
   }
 };
 
-const getSpecialFoodItems = async (req, res) => {
+export const getSpecialFoodItems = async (req, res) => {
   try {
     const { category, is_available, search } = req.query;
     let whereClause = {};
@@ -2784,7 +2786,7 @@ const getSpecialFoodItems = async (req, res) => {
   }
 };
 
-const getSpecialFoodItemById = async (req, res) => {
+export const getSpecialFoodItemById = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -2806,7 +2808,7 @@ const getSpecialFoodItemById = async (req, res) => {
   }
 };
 
-const updateSpecialFoodItem = async (req, res) => {
+export const updateSpecialFoodItem = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, price, preparation_time_minutes, category, image_url, is_available, expiry_time } = req.body;
@@ -2841,7 +2843,7 @@ const updateSpecialFoodItem = async (req, res) => {
   }
 };
 
-const deleteSpecialFoodItem = async (req, res) => {
+export const deleteSpecialFoodItem = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -2876,7 +2878,7 @@ const deleteSpecialFoodItem = async (req, res) => {
 };
 
 // FOOD ORDERS MANAGEMENT
-const createFoodOrder = async (req, res) => {
+export const createFoodOrder = async (req, res) => {
   try {
     const { items, requested_time, notes } = req.body;
     const student_id = req.user.id;
@@ -2988,7 +2990,7 @@ const createFoodOrder = async (req, res) => {
   }
 };
 
-const getFoodOrders = async (req, res) => {
+export const getFoodOrders = async (req, res) => {
   try {
     const { status, from_date, to_date, student_id } = req.query;
     const user = req.user;
@@ -3046,7 +3048,7 @@ const getFoodOrders = async (req, res) => {
   }
 };
 
-const getFoodOrderById = async (req, res) => {
+export const getFoodOrderById = async (req, res) => {
   try {
     const { id } = req.params;
     const user = req.user;
@@ -3089,7 +3091,7 @@ const getFoodOrderById = async (req, res) => {
   }
 };
 
-const updateFoodOrderStatus = async (req, res) => {
+export const updateFoodOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -3144,7 +3146,7 @@ const updateFoodOrderStatus = async (req, res) => {
   }
 };
 
-const updatePaymentStatus = async (req, res) => {
+export const updatePaymentStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { payment_status } = req.body;
@@ -3185,7 +3187,7 @@ const updatePaymentStatus = async (req, res) => {
   }
 };
 
-const cancelFoodOrder = async (req, res) => {
+export const cancelFoodOrder = async (req, res) => {
   try {
     const { id } = req.params;
     const user = req.user;
@@ -3229,7 +3231,7 @@ const cancelFoodOrder = async (req, res) => {
 };
 
 // Generate Monthly Food Order Report
-const getMonthlyFoodOrderReport = async (req, res) => {
+export const getMonthlyFoodOrderReport = async (req, res) => {
   try {
     const { month, year } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -3318,7 +3320,7 @@ const getMonthlyFoodOrderReport = async (req, res) => {
   }
 };
 
-const getItemsByStoreId = async (req, res) => {
+export const getItemsByStoreId = async (req, res) => {
   try {
     const { store_id } = req.params;
     const itemStores = await ItemStore.findAll({
@@ -3348,7 +3350,7 @@ const getItemsByStoreId = async (req, res) => {
   }
 };
 
-const getStoresByItemId = async (req, res) => {
+export const getStoresByItemId = async (req, res) => {
   try {
     const { item_id } = req.params;
 
@@ -3382,7 +3384,7 @@ const getStoresByItemId = async (req, res) => {
 };
 // In messController.js
 
-const getSummarizedConsumptionReport = async (req, res) => {
+export const getSummarizedConsumptionReport = async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -3433,7 +3435,7 @@ const getSummarizedConsumptionReport = async (req, res) => {
 };
 // In messController.js - Final fix for markMenuAsServed with correct ENUM mapping
 
-const markMenuAsServed = async (req, res) => {
+export const markMenuAsServed = async (req, res) => {
   const { id } = req.params; // MenuSchedule ID
   const { hostel_id, id: userId } = req.user;
   const transaction = await sequelize.transaction();
@@ -3627,7 +3629,7 @@ if (finalDailyCharges.length > 0) {
 };
 // DEPRECATED: This function is replaced by the new monthly calculation in generateMonthlyMessReport.
 // Ensure frontend calls `markMenuAsServed` to record daily menu costs.
-const calculateAndApplyDailyMessCharges = async (req, res) => {
+export const calculateAndApplyDailyMessCharges = async (req, res) => {
   return res.status(200).json({
     success: false,
     message: 'This endpoint is deprecated. Daily menu costs are now recorded via `markMenuAsServed`, and total monthly charges are calculated via `generateMonthlyMessReport`.'
@@ -3635,7 +3637,7 @@ const calculateAndApplyDailyMessCharges = async (req, res) => {
 };
 
 
-const createMessDailyExpense = async (req, res) => {
+export const createMessDailyExpense = async (req, res) => {
   try {
     const { expense_type_id, amount, expense_date, description } = req.body;
     const hostel_id = req.user.hostel_id;
@@ -3668,7 +3670,7 @@ const createMessDailyExpense = async (req, res) => {
   }
 };
 
-const getMessDailyExpenses = async (req, res) => {
+export const getMessDailyExpenses = async (req, res) => {
   try {
     const { expense_type_id, from_date, to_date, search } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -3721,7 +3723,7 @@ const getMessDailyExpenses = async (req, res) => {
   }
 };
 
-const getMessDailyExpenseById = async (req, res) => {
+export const getMessDailyExpenseById = async (req, res) => {
   try {
     const { id } = req.params;
     const hostel_id = req.user.hostel_id;
@@ -3753,7 +3755,7 @@ const getMessDailyExpenseById = async (req, res) => {
   }
 };
 
-const updateMessDailyExpense = async (req, res) => {
+export const updateMessDailyExpense = async (req, res) => {
   try {
     const { id } = req.params;
     const { expense_type_id, amount, expense_date, description } = req.body;
@@ -3779,7 +3781,7 @@ const updateMessDailyExpense = async (req, res) => {
   }
 };
 
-const deleteMessDailyExpense = async (req, res) => {
+export const deleteMessDailyExpense = async (req, res) => {
   try {
     const { id } = req.params;
     const hostel_id = req.user.hostel_id;
@@ -3823,7 +3825,7 @@ const deleteMessDailyExpense = async (req, res) => {
 //     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
 //   }
 // };
-const createExpenseType = async (req, res) => {
+export const createExpenseType = async (req, res) => {
   try {
     const { name, description } = req.body;
 
@@ -3850,7 +3852,7 @@ const createExpenseType = async (req, res) => {
   }
 };
 
-const getExpenseTypes = async (req, res) => {
+export const getExpenseTypes = async (req, res) => {
   try {
     const { search } = req.query;
 
@@ -3872,7 +3874,7 @@ const getExpenseTypes = async (req, res) => {
   }
 };
 
-const updateExpenseType = async (req, res) => {
+export const updateExpenseType = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description } = req.body;
@@ -3902,7 +3904,7 @@ const updateExpenseType = async (req, res) => {
   }
 };
 
-const deleteExpenseType = async (req, res) => {
+export const deleteExpenseType = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -3927,7 +3929,7 @@ const deleteExpenseType = async (req, res) => {
   }
 };
 // Add this function to your CreateMenu component
-const calculateMultiBatchPrice = async (itemId, requestedQuantity) => {
+export const calculateMultiBatchPrice = async (itemId, requestedQuantity) => {
   try {
     console.log(`[createMenu] Fetching batches for item ${itemId} to compute weighted average`);
     const response = await messAPI.getItemBatches(itemId);
@@ -3975,7 +3977,7 @@ const calculateMultiBatchPrice = async (itemId, requestedQuantity) => {
   }
 };
 
-const createSpecialConsumption = async (req, res) => {
+export const createSpecialConsumption = async (req, res) => {
   const { name, description, consumption_date, items } = req.body;
   const hostel_id = req.user.hostel_id;
   const user_id = req.user.id;
@@ -4106,7 +4108,7 @@ const createSpecialConsumption = async (req, res) => {
 };
 
 
-const getSpecialConsumptions = async (req, res) => {
+export const getSpecialConsumptions = async (req, res) => {
   try {
     const { from_date, to_date, search } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -4136,7 +4138,7 @@ const getSpecialConsumptions = async (req, res) => {
   }
 };
 
-const getSpecialConsumptionById = async (req, res) => {
+export const getSpecialConsumptionById = async (req, res) => {
   try {
     const { id } = req.params;
     const hostel_id = req.user.hostel_id;
@@ -4169,7 +4171,7 @@ const getSpecialConsumptionById = async (req, res) => {
 // In messController.js
 
 // NEW: Function to get Additional Income related to menu rounding
-const getMenuRoundingAdjustments = async (req, res) => {
+export const getMenuRoundingAdjustments = async (req, res) => {
   try {
     const { from_date, to_date } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -4211,7 +4213,7 @@ const getMenuRoundingAdjustments = async (req, res) => {
 };
 
 // NEW: Function to get Additional Income related to daily charge rounding
-const getDailyChargeRoundingAdjustments = async (req, res) => {
+export const getDailyChargeRoundingAdjustments = async (req, res) => {
   try {
     const { from_date, to_date } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -4253,7 +4255,7 @@ const getDailyChargeRoundingAdjustments = async (req, res) => {
 };
 
 // REVISED getRoundingAdjustments: Now fetches all relevant rounding types
-const getRoundingAdjustments = async (req, res) => {
+export const getRoundingAdjustments = async (req, res) => {
   try {
     const { from_date, to_date } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -4308,7 +4310,7 @@ const getRoundingAdjustments = async (req, res) => {
 // Add this new function inside messController.js
 
 // In messController.js
-const getLatestPurchaseReport = async (req, res) => {
+export const getLatestPurchaseReport = async (req, res) => {
   try {
     const { hostel_id } = req.user;
     const { store_id } = req.query;
@@ -4364,7 +4366,7 @@ const getLatestPurchaseReport = async (req, res) => {
   }
 };
 
-const correctLastPurchase = async (req, res) => {
+export const correctLastPurchase = async (req, res) => {
   const { item_id, new_quantity, new_unit_price } = req.body;
   const { hostel_id } = req.user;
   const transaction = await sequelize.transaction();
@@ -4443,7 +4445,7 @@ const correctLastPurchase = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-const getMessFeeSummary = async (req, res) => {
+export const getMessFeeSummary = async (req, res) => {
   try {
     const { month, year } = req.query;
     const { hostel_id } = req.user;
@@ -4550,7 +4552,7 @@ const getMessFeeSummary = async (req, res) => {
     });
   }
 };
-const getStudentFeeBreakdown = async (req, res) => {
+export const getStudentFeeBreakdown = async (req, res) => {
   try {
     const { month, year } = req.query;
     const { hostel_id } = req.user;
@@ -4630,7 +4632,7 @@ const getStudentFeeBreakdown = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-const getSessions = async (req, res) => {
+export const getSessions = async (req, res) => {
     try {
         const sessions = await Session.findAll({ where: { is_active: true }, order: [['start_date', 'DESC']] });
         res.json({ success: true, data: sessions });
@@ -4640,7 +4642,7 @@ const getSessions = async (req, res) => {
 };
 
 // Also, add CRUD functions for the new StudentFee model
-const createStudentFee = async (req, res) => {
+export const createStudentFee = async (req, res) => {
   try {
     const { student_id, fee_type, amount, description, month, year } = req.body;
     const { hostel_id, id: issued_by } = req.user;
@@ -4657,7 +4659,7 @@ const createStudentFee = async (req, res) => {
 
 // messController.js - Modifications to createBulkStudentFee
 
-const createBulkStudentFee = async (req, res) => {
+export const createBulkStudentFee = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     // Add specific_student_ids to destructuring. Rename existing student_ids if any.
@@ -4824,7 +4826,7 @@ const createBulkStudentFee = async (req, res) => {
   }
 };
 
-const getStudents = async (req, res) => {
+export const getStudents = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     const { requires_bed, session_id } = req.query; // Query parameters from frontend
@@ -4903,7 +4905,7 @@ const getStudents = async (req, res) => {
   }
 };
 
-const getStudentFees = async (req, res) => {
+export const getStudentFees = async (req, res) => {
     try {
         const { month, year, fee_type } = req.query;
         const { hostel_id } = req.user;
@@ -4930,7 +4932,7 @@ const getStudentFees = async (req, res) => {
         res.status(500).json({ success: false, message: 'Server error: ' + error.message });
     }
 };
-const createIncomeEntry = async (req, res) => {
+export const createIncomeEntry = async (req, res) => {
   console.log('--- [START] Create Income Entry (Cash Token/Sister Concern) ---');
   const { type, amount, description, date } = req.body;
   const { hostel_id, id: recorded_by } = req.user;
@@ -4971,7 +4973,7 @@ const createIncomeEntry = async (req, res) => {
   }
 };
 
-const getIncomeEntries = async (req, res) => {
+export const getIncomeEntries = async (req, res) => {
   console.log('--- [START] Get Income Entries ---');
   try {
     const { hostel_id } = req.user;
@@ -5009,7 +5011,7 @@ const getIncomeEntries = async (req, res) => {
 
 // ... (previous imports and functions)
 
-const generateMonthlyMessReport = async (req, res) => {
+export const generateMonthlyMessReport = async (req, res) => {
   try {
     const { month, year, college } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -5173,7 +5175,7 @@ const generateMonthlyMessReport = async (req, res) => {
     res.status(500).json({ success: false, message: "Server Error: " + error.message });
   }
 };
-const createConcern = async (req, res) => {
+export const createConcern = async (req, res) => {
   try {
     const { name, description } = req.body;
     if (!name) throw new Error('Concern name is required.');
@@ -5185,7 +5187,7 @@ const createConcern = async (req, res) => {
 };
 
 // Get all active concerns
-const getConcerns = async (req, res) => {
+export const getConcerns = async (req, res) => {
   try {
     const concerns = await Concern.findAll({ where: { is_active: true }, order: [['name', 'ASC']] });
     res.json({ success: true, data: concerns });
@@ -5195,7 +5197,7 @@ const getConcerns = async (req, res) => {
 };
 
 // Update a concern
-const updateConcern = async (req, res) => {
+export const updateConcern = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, is_active } = req.body;
@@ -5207,7 +5209,7 @@ const updateConcern = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-const deleteConcern = async (req, res) => {
+export const deleteConcern = async (req, res) => {
   try {
     const { id } = req.params;
     const concern = await Concern.findByPk(id);
@@ -5219,7 +5221,7 @@ const deleteConcern = async (req, res) => {
   }
 };
 
-const getDailyConsumptionDetails = async (req, res) => {
+export const getDailyConsumptionDetails = async (req, res) => {
   try {
     const { month, year } = req.query;
     const { hostel_id } = req.user;
@@ -5272,7 +5274,7 @@ const getDailyConsumptionDetails = async (req, res) => {
 // Add these to messController.js
 
 // 1. Delete a single fee record
-const deleteStudentFee = async (req, res) => {
+export const deleteStudentFee = async (req, res) => {
   try {
     const { id } = req.params;
     const { hostel_id } = req.user;
@@ -5291,7 +5293,7 @@ const deleteStudentFee = async (req, res) => {
 };
 
 // 2. Bulk Delete (Undo Batch) - Much more efficient
-const bulkDeleteStudentFees = async (req, res) => {
+export const bulkDeleteStudentFees = async (req, res) => {
   try {
     const { ids } = req.body; // Array of IDs from the frontend
     const { hostel_id } = req.user;
@@ -5316,7 +5318,7 @@ const bulkDeleteStudentFees = async (req, res) => {
   }
 };
 
-const exportStockToExcel = async (req, res) => {
+export const exportStockToExcel = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
     console.log(`[Export] User ${req.user.id} from Hostel ${hostel_id} is requesting stock export.`);
@@ -5563,7 +5565,7 @@ function convertNumberToWords(num) {
   return result;
 }
 // In messController.js
-const saveDailyRate = async (req, res) => {
+export const saveDailyRate = async (req, res) => {
   const { month, year } = req.body;
   const hostel_id = req.user.hostel_id;
 
@@ -5657,7 +5659,7 @@ const saveDailyRate = async (req, res) => {
 };
 // controllers/messController.js
 
-const getLatestDailyRate = async (req, res) => {
+export const getLatestDailyRate = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
 
@@ -5682,7 +5684,7 @@ const getLatestDailyRate = async (req, res) => {
 };
 
 // In messController.js
-const exportUnitRateCalculation = async (req, res) => {
+export const exportUnitRateCalculation = async (req, res) => {
   try {
     const { month, year } = req.query; // Expecting month (1-12) and year
     const { hostel_id } = req.user;
@@ -5970,7 +5972,7 @@ const exportUnitRateCalculation = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-const createCreditToken = async (req, res) => {
+export const createCreditToken = async (req, res) => {
   console.log('--- [START] Create Credit Token ---');
   const { concern_id, amount, date } = req.body;
   const { hostel_id, id: recorded_by } = req.user;
@@ -6007,7 +6009,7 @@ const createCreditToken = async (req, res) => {
 };
 
 // READ all Credit Token entries
-const getCreditTokens = async (req, res) => {
+export const getCreditTokens = async (req, res) => {
   console.log('--- [START] Get Credit Tokens ---');
   try {
     const { hostel_id } = req.user;
@@ -6030,7 +6032,7 @@ const getCreditTokens = async (req, res) => {
 };
 
 // UPDATE an existing Credit Token entry
-const updateCreditToken = async (req, res) => {
+export const updateCreditToken = async (req, res) => {
     console.log('--- [START] Update Credit Token ---');
     const { id } = req.params;
     const { concern_id, amount, date } = req.body;
@@ -6061,7 +6063,7 @@ const updateCreditToken = async (req, res) => {
 };
 
 // DELETE a Credit Token entry
-const deleteCreditToken = async (req, res) => {
+export const deleteCreditToken = async (req, res) => {
     console.log('--- [START] Delete Credit Token ---');
     const { id } = req.params;
     const { hostel_id } = req.user;
@@ -6083,7 +6085,7 @@ const deleteCreditToken = async (req, res) => {
         res.status(500).json({ success: false, message: `Server error: ${error.message}` });
     }
 };
-const generateDailyRateReport = async (req, res) => {
+export const generateDailyRateReport = async (req, res) => {
   try {
     const { month, year, export: exportToExcel } = req.query;
     const { hostel_id } = req.user;
@@ -6320,7 +6322,7 @@ const generateDailyRateReport = async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-const recordStaffRecordedSpecialFoodConsumption = async (req, res) => {
+export const recordStaffRecordedSpecialFoodConsumption = async (req, res) => {
   const transaction = await sequelize.transaction(); // Start a transaction for atomicity
   try {
     const { student_id, consumption_date, items, description } = req.body;
@@ -6444,7 +6446,7 @@ const recordStaffRecordedSpecialFoodConsumption = async (req, res) => {
   }
 };
 // NEW: Generate and store consolidated MessBill records for a month
-const generateMessBills = async (req, res) => {
+export const generateMessBills = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { month, year, college } = req.query; // Optional college filter
@@ -6678,7 +6680,7 @@ const generateMessBills = async (req, res) => {
   }
 };
 
-const createBedFee = async (req, res) => {
+export const createBedFee = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { student_id, amount, month, year, description } = req.body;
@@ -6762,7 +6764,7 @@ const createBedFee = async (req, res) => {
 };
 
 // Get bed fees for a student
-const getStudentBedFees = async (req, res) => {
+export const getStudentBedFees = async (req, res) => {
   try {
     const { student_id } = req.params;
     const { hostel_id } = req.user;
@@ -6802,7 +6804,7 @@ const getStudentBedFees = async (req, res) => {
 };
 
 // Bulk create bed fees for all eligible students
-const createBulkBedFees = async (req, res) => {
+export const createBulkBedFees = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { amount, month, year, session_id } = req.body;
@@ -6897,7 +6899,7 @@ const createBulkBedFees = async (req, res) => {
 };
 
 // Get all bed fees with filtering options
-const getAllBedFees = async (req, res) => {
+export const getAllBedFees = async (req, res) => {
   try {
     const { month, year, session_id } = req.query;
     const { hostel_id } = req.user;
@@ -6964,7 +6966,7 @@ const getAllBedFees = async (req, res) => {
 };
 
 // Delete a bed fee
-const deleteBedFee = async (req, res) => {
+export const deleteBedFee = async (req, res) => {
   try {
     const { id } = req.params;
     const { hostel_id } = req.user;
@@ -6999,7 +7001,7 @@ const deleteBedFee = async (req, res) => {
   }
 };
 
-const getPurchaseOrders = async (req, res) => {
+export const getPurchaseOrders = async (req, res) => {
   try {
     const { month, year, includeCleared = 'false' } = req.query;
     const hostel_id = req.user.hostel_id;
@@ -7068,7 +7070,7 @@ const getPurchaseOrders = async (req, res) => {
   }
 };
 
-const clearPurchaseOrders = async (req, res) => {
+export const clearPurchaseOrders = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { ids } = req.body;
@@ -7092,7 +7094,7 @@ const clearPurchaseOrders = async (req, res) => {
 };
 // messController.js
 
-const createRecipe = async (req, res) => {
+export const createRecipe = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { name, description, items } = req.body;
@@ -7121,7 +7123,7 @@ const createRecipe = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-const getRecipes = async (req, res) => {
+export const getRecipes = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
 
@@ -7158,7 +7160,7 @@ const getRecipes = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-const updateRecipe = async (req, res) => {
+export const updateRecipe = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
@@ -7195,7 +7197,7 @@ const updateRecipe = async (req, res) => {
   }
 };
 
-const deleteRecipe = async (req, res) => {
+export const deleteRecipe = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
@@ -7217,129 +7219,4 @@ const deleteRecipe = async (req, res) => {
     await transaction.rollback();
     res.status(500).json({ success: false, message: error.message });
   }
-};
-module.exports = {
-  createBedFee,
-  getStudentBedFees,
-  createBulkBedFees,
-  getAllBedFees,
-  deleteBedFee,
-  createMenu,
-  getMenus,
-  getMenuById,
-  updateMenu,
-  deleteMenu,
-  applyMenuDateRange,
-  createItem,
-  getItems,
-  getItemById,
-  updateItem,
-  deleteItem,
-  createItemCategory,
-  getItemCategories,
-  updateItemCategory,
-  deleteItemCategory,
-  addItemsToMenu,
-  getMenuWithItems,
-  updateMenuItems,
-  removeItemFromMenu,
-  scheduleMenu,
-  getMenuSchedule,
-  updateMenuSchedule,
-  deleteMenuSchedule,
-  createUOM,
-  getUOMs,
-  updateUOM,
-  deleteUOM,
-  calculateMenuCost,
-  getMessDashboardStats,
-  updateItemStock,
-  getItemStock,
-  getDailyConsumption,
-  recordBulkConsumption,
-  recordInventoryPurchase,
-  getInventoryTransactions,
-  createStore,
-  getStores,
-  updateStore,
-  deleteStore,
-  mapItemToStore,
-  getItemStores,
-  removeItemStoreMapping,
-  createSpecialFoodItem,
-  getSpecialFoodItems,
-  getSpecialFoodItemById,
-  updateSpecialFoodItem,
-  deleteSpecialFoodItem,
-  createFoodOrder,
-  getFoodOrders,
-  getFoodOrderById,
-  updateFoodOrderStatus,
-  updatePaymentStatus,
-  cancelFoodOrder,
-  getMonthlyFoodOrderReport,
-  getItemsByStoreId,
-  getStoresByItemId,
-  getSummarizedConsumptionReport,
-  markMenuAsServed,
-  createMessDailyExpense,
-  getMessDailyExpenses,
-  getMessDailyExpenseById,
-  updateMessDailyExpense,
-  deleteMessDailyExpense,
-  createExpenseType,
-  getExpenseTypes,
-  updateExpenseType,
-  deleteExpenseType,
-  getItemBatches,
-  getItemFIFOPrice,
-  calculateMultiBatchPrice,
-  _recordBulkConsumptionLogic,
-  fetchBatchPrices,
-  createSpecialConsumption,
-  getSpecialConsumptions,
-  getSpecialConsumptionById,
-  calculateAndApplyDailyMessCharges, // Deprecated
-  getRoundingAdjustments,
-  getMenuRoundingAdjustments,
-  getDailyChargeRoundingAdjustments,
-  getLatestPurchaseReport,
-  correctLastPurchase,
-  getMessFeeSummary,
-  getStudentFeeBreakdown,
-  createStudentFee,
-  generateMonthlyMessReport,
-  exportStockToExcel,
-  getDailyConsumptionDetails,
-  exportUnitRateCalculation,
-  createBulkStudentFee,
-  getStudentFees,
-  getSessions,
-  createCreditToken,
-  getCreditTokens,
-  updateCreditToken,
-  deleteCreditToken,
-  createConcern,
-  getConcerns,
-  updateConcern,
-  deleteConcern,
-  getIncomeEntries,
-  createIncomeEntry,
-  generateDailyRateReport,
-  getStudents,
-  recordStaffRecordedSpecialFoodConsumption,
-  getMonthlyExpensesChartData, // Add this
-  getItemStockChartData,  
-  generateDailyRateReport,
-  generateMessBills,
-  getPurchaseOrders,
-  clearPurchaseOrders,
-  createRecipe,
-  getRecipes,
-  updateRecipe,
-  deleteRecipe,
-  saveDailyRate,
-  getLatestDailyRate,
-  deleteStudentFee,
-  bulkDeleteStudentFees
 };
