@@ -328,6 +328,7 @@ export const messAPI = {
   deleteMenuSchedule: (id) => api.delete(`/mess/menu-schedule/${id}`),
   // Note: Uses PUT to match backend route
   serveMenu: (id) => api.put(`/mess/menu-schedule/${id}/serve`),
+  applyMenuDateRange: (menuId, data) => api.post(`/mess/menus/${menuId}/apply-date-range`, data), // Expected data: { start_date, days: ['Monday', 'Tuesday', ...], number_of_weeks: 2 }
 
   // UOM Management - Complete CRUD
   // Expected data: { name, abbreviation, type }
@@ -402,6 +403,8 @@ export const messAPI = {
   updateExpenseType: (id, data) => api.put(`/mess/expenses-types/${id}`, data),
   deleteExpenseType: (id) => api.delete(`/mess/expenses-types/${id}`),
 
+  bulkDeleteStudentFees: (ids) => api.delete('/mess/student-fees/bulk', { data: { ids } }),
+  
   recordAdhocConsumption: (data) => api.post('/mess/special-consumption', data),
   getAdhocConsumptions: (params) => api.get('/mess/special-consumption', { params }),
   getAdhocConsumptionById: (id) => api.get(`/mess/special-consumption/${id}`),

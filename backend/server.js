@@ -1,39 +1,49 @@
-const express = require('express');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import bcrypt from 'bcryptjs';
+import 'dotenv/config';
 
-const session = require('express-session'); // <-- Add this
-const passport = require('./config/passport'); // <-- Add this
+import session from 'express-session';
+import passport from './config/passport.js'; // Added .js
+import sequelize from './config/database.js'; // Default export from your converted config
+import { User } from './models/index.js'; // Added /index.js
 
-const { sequelize, User } = require('./models');
-const authRoutes = require('./routes/auth');
-const adminRoutes = require('./routes/admin');
-const wardenRoutes = require('./routes/warden');
-const studentRoutes = require('./routes/student');
-const messRoutes = require('./routes/mess');
-const { verifyEmailConnection } = require('./utils/emailUtils');
-const attendanceRoutes = require('./routes/attendanceRoutes');
+import authRoutes from './routes/auth.js'; // Added .js
+import adminRoutes from './routes/admin.js'; // Added .js
+import wardenRoutes from './routes/warden.js'; // Added .js
+import studentRoutes from './routes/student.js'; // Added .js
+import messRoutes from './routes/mess.js'; // Added .js
+import { verifyEmailConnection } from './utils/emailUtils.js'; // Added .js
+import attendanceRoutes from './routes/attendanceRoutes.js'; // Added .js
 
 const app = express();
 
-// Middleware
+/* =======================
+   MIDDLEWARE
+======================= */
 app.use(cors());
 app.use(express.json());
 
-// ----- SESSION & PASSPORT CONFIG -----
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-session-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: false } // Set to true in production with HTTPS
-}));
+/* =======================
+   SESSION & PASSPORT
+======================= */
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'your-session-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: false // true only if HTTPS
+    }
+  })
+);
 
 app.use(passport.initialize());
 app.use(passport.session());
-// ------------------------------------
 
-// Routes
+/* =======================
+   ROUTES
+======================= */
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/warden', wardenRoutes);
@@ -41,46 +51,54 @@ app.use('/api/student', studentRoutes);
 app.use('/api/mess', messRoutes);
 app.use('/api/attendance', attendanceRoutes);
 
-// Create default admin user
+/* =======================
+   CREATE DEFAULT ADMIN
+======================= */
 const createDefaultAdmin = async () => {
   try {
     const adminExists = await User.findOne({ where: { role: 'admin' } });
+
     if (!adminExists) {
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash('admin123', salt);
-      
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+
       await User.create({
         username: 'admin',
-        email: 'admin@example.com', // Add required email field
+        email: 'admin@example.com',
         password: hashedPassword,
-        role: 'admin'
+        role: 'admin',
+        is_active: true
       });
-      console.log('Default admin user created: admin/admin123');
+
+      console.log('✅ Default admin created (admin / admin123)');
     }
   } catch (error) {
-    console.error('Error creating default admin:', error);
+    console.error('❌ Admin creation error:', error);
   }
 };
 
-// Database sync and server start
+/* =======================
+   DATABASE SYNC (SAFE)
+======================= */
 const PORT = process.env.PORT || 5000;
 
-// TEMPORARILY use force: true to recreate all tables
-sequelize.sync({ force: false }).then(() => {
-  console.log('Database synced - All tables recreated');
-  createDefaultAdmin();
+sequelize
+  .sync() // 🔥 SAFE: DOES NOT DROP DATA
+  .then(async () => {
+    console.log('✅ Database synced safely');
+    
+    // Optional: Verify email connection on startup
+    try {
+        await verifyEmailConnection();
+    } catch (e) {
+        console.error("📧 Email service check failed");
+    }
 
-  verifyEmailConnection().then(isConnected => {
-  if (isConnected) {
-    console.log('✅ Email service is ready');
-  } else {
-    console.warn('⚠️ Email service is not configured properly. Notifications may not work.');
-  }
-});
-  
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    await createDefaultAdmin();
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('❌ Database sync failed:', err);
   });
-}).catch(err => {
-  console.error('Unable to sync database:', err);
-});

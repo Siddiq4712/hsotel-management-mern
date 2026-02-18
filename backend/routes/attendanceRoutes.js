@@ -1,10 +1,11 @@
-// routes/attendanceRoutes.js
-const express = require('express');
-const router = express.Router();
-const { markGpsAttendance, getTodaySummary } = require('../controllers/gpsAttendanceController');
-const { auth: protect } = require('../middleware/auth');
+import express from 'express';
+import { markGpsAttendance, getTodaySummary } from '../controllers/gpsAttendanceController.js'; // Added .js
+import { auth as protect } from '../middleware/auth.js'; // Added .js
 
-router.post('/gps', protect, markGpsAttendance);     // student & warden
+const router = express.Router();
+
+// Apply routes
+router.post('/gps', protect, markGpsAttendance);        // student & warden
 router.get('/summary/today', protect, getTodaySummary); // warden only
 
-module.exports = router;
+export default router;
