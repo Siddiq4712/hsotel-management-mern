@@ -1237,15 +1237,21 @@ if (totalQty > 0) {
 // getMenuSchedule
 export const getMenuSchedule = async (req, res) => {
   try {
-    const { start_date, end_date } = req.query;
+    const { start_date, end_date, meal_time } = req.query; // ← ADD meal_time
     const hostel_id = req.user.hostel_id;
 
     let whereClause = { hostel_id };
 
+    // Date filter
     if (start_date && end_date) {
       whereClause.scheduled_date = {
         [Op.between]: [start_date, end_date]
       };
+    }
+
+    // FIX: Add meal_time filter
+    if (meal_time && meal_time !== 'all') {
+      whereClause.meal_time = meal_time;
     }
 
     const schedules = await MenuSchedule.findAll({
@@ -1280,6 +1286,7 @@ export const getMenuSchedule = async (req, res) => {
     });
 
     res.json({ success: true, data: schedules });
+
   } catch (error) {
     console.error('Get menu schedule error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
