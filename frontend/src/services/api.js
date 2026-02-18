@@ -1,7 +1,8 @@
 // src/services/api.js
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5001/api';
+// Vite uses import.meta.env instead of process.env
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -416,7 +417,7 @@ export const messAPI = {
   correctLastPurchase: (payload) => api.post('/mess/inventory/correct-last-purchase', payload),
   getStudentFeeBreakdown: (params) => api.get('/mess/reports/student-fee-breakdown', { params }),
   createStudentFee: (data) => api.post('/mess/student-fees', data),
-  getStudents: () => api.get('/mess/students'),
+  // getStudents: () => api.get('/mess/students'),
   generateMonthlyMessReport: (params) => api.get('/mess/reports/monthly-mess-bill', { params }),
   getDailyConsumptionDetails: (params) => api.get('/mess/reports/daily-consumption-details', { params }),
   exportUnitRateCalculation: (params) => api.get('/mess/stock/export-unit-rate', { params, responseType: 'blob' }),
@@ -441,6 +442,7 @@ export const messAPI = {
   exportDailyRateReport: (params) => api.get('/mess/reports/daily-rate-calculation', { params: { ...params, export: true }, responseType: 'blob' }),
 
   getStudents: () => api.get('/mess/students'), // Endpoint to fetch students for dropdown
+
   recordStaffRecordedSpecialFoodConsumption: (data) => api.post('/mess/student-special-consumption-staff', data),
   generateMessBills: (data, config) => api.post('/mess/generate-mess-bills', data, config),
   createBedFee: (data) => api.post('/bed-fees', data),
@@ -451,7 +453,7 @@ export const messAPI = {
   // Add this to the messAPI object
   deleteStudentFee: (id) => api.delete(`/mess/student-fees/${id}`),
 // In src/services/api.js (in the messAPI object)
-  getStudents: (params) => api.get('/mess/students', { params }), // Add support for params
+  // getStudents: (params) => api.get('/mess/students', { params }), // Add support for params
 
  getPurchaseOrders: (params) => api.get('/mess/purchase-orders', { params }),
  clearPurchaseOrders: (ids) => api.put('/mess/purchase-orders/clear', { ids }),
