@@ -1,20 +1,20 @@
-const express = require('express');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import bcrypt from 'bcryptjs';
+import 'dotenv/config';
 
-const session = require('express-session');
-const passport = require('./config/passport');
+import session from 'express-session';
+import passport from './config/passport.js'; // Added .js
+import sequelize from './config/database.js'; // Default export from your converted config
+import { User } from './models/index.js'; // Added /index.js
 
-const { sequelize, User } = require('./models');
-
-const authRoutes = require('./routes/auth');
-const adminRoutes = require('./routes/admin');
-const wardenRoutes = require('./routes/warden');
-const studentRoutes = require('./routes/student');
-const messRoutes = require('./routes/mess');
-const { verifyEmailConnection } = require('./utils/emailUtils');
-const attendanceRoutes = require('./routes/attendanceRoutes');
+import authRoutes from './routes/auth.js'; // Added .js
+import adminRoutes from './routes/admin.js'; // Added .js
+import wardenRoutes from './routes/warden.js'; // Added .js
+import studentRoutes from './routes/student.js'; // Added .js
+import messRoutes from './routes/mess.js'; // Added .js
+import { verifyEmailConnection } from './utils/emailUtils.js'; // Added .js
+import attendanceRoutes from './routes/attendanceRoutes.js'; // Added .js
 
 const app = express();
 
@@ -81,6 +81,7 @@ const createDefaultAdmin = async () => {
 ======================= */
 const PORT = process.env.PORT || 5000;
 
+<<<<<<< HEAD
 // TEMPORARILY use force: true to recreate all tables
 sequelize.sync({ force: false }).then(() => {
   console.log('Database synced - All tables recreated');
@@ -97,3 +98,26 @@ sequelize.sync({ force: false }).then(() => {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
+=======
+sequelize
+  .sync() // 🔥 SAFE: DOES NOT DROP DATA
+  .then(async () => {
+    console.log('✅ Database synced safely');
+    
+    // Optional: Verify email connection on startup
+    try {
+        await verifyEmailConnection();
+    } catch (e) {
+        console.error("📧 Email service check failed");
+    }
+
+    await createDefaultAdmin();
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('❌ Database sync failed:', err);
+  });
+>>>>>>> e2af4daeac8831689e7fe329f0c073485304e41a

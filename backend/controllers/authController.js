@@ -1,11 +1,10 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const passport = require('passport');
-const { Op } = require('sequelize');
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import passport from 'passport';
+import { Op } from 'sequelize';
+import { User, Hostel } from '../models/index.js'; // Ensure the .js extension
 
-const { User, Hostel } = require('../models');
-
-const login = async (req, res) => {
+export const login = async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -55,9 +54,7 @@ const login = async (req, res) => {
   }
 };
 
-// ... rest of your code
-
-const getProfile = async (req, res) => {
+export const getProfile = async (req, res) => {
   try {
     const user = await User.findByPk(req.user.id, {
       attributes: { exclude: ['password'] },
@@ -74,14 +71,15 @@ const getProfile = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-const googleAuth = (req, res, next) => {
+
+export const googleAuth = (req, res, next) => {
   // This will redirect to Google
   passport.authenticate('google', { 
     scope: ['profile', 'email'] 
   })(req, res, next);
 };
 
-const googleCallback = (req, res, next) => {
+export const googleCallback = (req, res, next) => {
   passport.authenticate('google', { 
     failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=access_denied`,
     session: false 
@@ -118,7 +116,7 @@ const googleCallback = (req, res, next) => {
   })(req, res, next);
 };
 
-const changePassword = async (req, res) => {
+export const changePassword = async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
     const userId = req.user.id;
@@ -147,12 +145,4 @@ const changePassword = async (req, res) => {
     console.error('Change password error:', error);
     res.status(500).json({ message: 'Server error' });
   }
-};
-
-module.exports = { 
-  login,
-  getProfile,
-  googleAuth,
-  googleCallback,
-  changePassword
 };

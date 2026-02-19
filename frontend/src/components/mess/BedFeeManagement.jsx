@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card, Table, Button, Modal, Form, Input, Select, message, Popconfirm, 
-  Space, Typography, Tabs, Checkbox, Row, Col, ConfigProvider, 
-  theme, Skeleton, Divider, Tag, Tooltip, InputNumber
+  Space, Typography, Checkbox, Row, Col, ConfigProvider, 
+  theme, Skeleton, Divider, Tag, InputNumber
 } from 'antd';
 import { 
   Bed, Plus, Trash2, ChevronLeft, ChevronRight, LayoutGrid, 
-  Users, RefreshCw, FilePlus, ClipboardCheck, Info, Search 
+  RefreshCw, FilePlus, ClipboardCheck, Info, Search 
 } from 'lucide-react';
 import moment from 'moment';
 import { messAPI } from '../../services/api';
@@ -14,21 +14,15 @@ import { messAPI } from '../../services/api';
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-// --- Specialized Skeleton for Bed Fee Management ---
+// --- Specialized Skeleton for Loading State ---
 const BedFeeSkeleton = () => (
   <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <Skeleton.Input active style={{ width: 250 }} />
-        <div className="flex gap-2">
-          <Skeleton.Button active />
-          <Skeleton.Button active />
-        </div>
+        <div className="flex gap-2"><Skeleton.Button active /><Skeleton.Button active /></div>
       </div>
-      <div className="flex gap-4 border-b border-slate-100 pb-4">
-        {[...Array(3)].map((_, i) => <Skeleton.Input key={i} active style={{ width: 150 }} />)}
-      </div>
-      {[...Array(5)].map((_, i) => (
+      {[...Array(4)].map((_, i) => (
         <div key={i} className="flex gap-4 items-center border-b border-slate-50 pb-6">
           <Skeleton.Avatar active shape="square" size="large" />
           <div className="flex-1"><Skeleton active paragraph={{ rows: 1 }} /></div>
@@ -41,23 +35,24 @@ const BedFeeSkeleton = () => (
 
 const BedFeeManagement = () => {
   const [loading, setLoading] = useState(true);
+  const [modalLoading, setModalLoading] = useState(false);
   const [bedFees, setBedFees] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [studentsForSelection, setStudentsForSelection] = useState([]);
+  
+  // Modals & Forms
   const [isGenerateFeeModalVisible, setIsGenerateFeeModalVisible] = useState(false);
   const [isBulkModalVisible, setIsBulkModalVisible] = useState(false);
   const [generateFeeForm] = Form.useForm();
   const [bulkForm] = Form.useForm();
+
+  // State for Filters
   const [selectedDate, setSelectedDate] = useState(moment());
   const [selectedSessionId, setSelectedSessionId] = useState(undefined);
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const [sessionForModalFilter, setSessionForModalFilter] = useState(undefined);
 
-  // --- NAVIGATION CONTROLS ---
-  const changeMonth = (offset) => setSelectedDate(prev => prev.clone().add(offset, 'month'));
-  const changeYear = (offset) => setSelectedDate(prev => prev.clone().add(offset, 'year'));
-  const handleToday = () => setSelectedDate(moment());
-
+  // --- 1. FETCH MAIN DATA (Existing Fees) ---
   const fetchInitialData = useCallback(async () => {
     setLoading(true);
     try {
@@ -75,11 +70,31 @@ const BedFeeManagement = () => {
     } catch (error) {
       message.error('Failed to sync bed fee records');
     } finally {
-      setTimeout(() => setLoading(false), 800);
+      setLoading(false);
     }
   }, [selectedDate, selectedSessionId]);
 
   useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
+
+  // --- 2. FETCH ELIGIBLE STUDENTS (Requires Bed = 1) ---
+  // This is triggered when the Generate Modal opens or the Session dropdown inside it changes
+  const fetchStudentsForModalSelection = async (sessionId) => {
+    if (!sessionId) return;
+    setModalLoading(true);
+    try {
+      // Logic: Fetch students from backend where Enrollment.requires_bed = 1
+      const response = await messAPI.getStudents({ 
+        requires_bed: 'true', // Backend expects string 'true' for query param
+        session_id: sessionId 
+      });
+      setStudentsForSelection(response.data.data || []);
+      setSelectedStudentIds([]); // Clear previous selection
+    } catch (error) {
+      message.error('Failed to load students who require beds');
+    } finally {
+      setModalLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (isGenerateFeeModalVisible && sessionForModalFilter) {
@@ -87,15 +102,7 @@ const BedFeeManagement = () => {
     }
   }, [isGenerateFeeModalVisible, sessionForModalFilter]);
 
-  const fetchStudentsForModalSelection = async (sessionId) => {
-    try {
-      const response = await messAPI.getStudents({ requires_bed: true, session_id: sessionId });
-      setStudentsForSelection(response.data.data || []);
-    } catch (error) {
-      message.error('Failed to load eligible students');
-    }
-  };
-
+  // --- 3. SUBMIT SELECTIVE GENERATION ---
   const handleGenerateBedFees = async (values) => {
     if (selectedStudentIds.length === 0) return message.warning('Select at least one student');
     try {
@@ -103,23 +110,49 @@ const BedFeeManagement = () => {
       await messAPI.createBulkStudentFee({
         ...values,
         fee_type: 'bed_charge',
-        student_ids: selectedStudentIds,
+        student_ids: selectedStudentIds, // Specifically selected student IDs
+        month: selectedDate.month() + 1,
+        year: selectedDate.year(),
         description: values.description || `Bed fee for ${selectedDate.format('MMMM YYYY')}`
       });
-      message.success('Fees generated successfully');
+      message.success(`Generated fees for ${selectedStudentIds.length} students`);
       setIsGenerateFeeModalVisible(false);
+      generateFeeForm.resetFields();
       fetchInitialData();
+    } catch (err) {
+        message.error(err.message);
     } finally { setLoading(false); }
   };
 
+  // --- 4. SUBMIT SESSION BULK GENERATION ---
+  const handleBulkSessionGenerate = async (values) => {
+    try {
+      setLoading(true);
+      await messAPI.createBulkStudentFee({
+        ...values,
+        fee_type: 'bed_charge',
+        requires_bed: true, // Tells backend to filter tbl_enrollment by requires_bed = 1
+        month: selectedDate.month() + 1,
+        year: selectedDate.year()
+      });
+      message.success('Bulk bed fees generated for the session');
+      setIsBulkModalVisible(false);
+      bulkForm.resetFields();
+      fetchInitialData();
+    } catch (err) {
+        message.error(err.message);
+    } finally { setLoading(false); }
+  };
+
+  // --- TABLE COLUMNS ---
   const columns = [
     {
       title: 'Student Details',
       key: 'student',
       render: (_, r) => (
         <Space direction="vertical" size={0}>
-          <Text strong className="text-slate-700">{r.Student?.username}</Text>
-          <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{r.Student?.roll_number}</Text>
+          <Text strong>{r.Student?.username}</Text>
+          <Text className="text-[10px] text-slate-400 font-bold uppercase">{r.Student?.roll_number}</Text>
         </Space>
       )
     },
@@ -132,157 +165,139 @@ const BedFeeManagement = () => {
     {
       title: 'Period',
       key: 'period',
-      render: (_, r) => <Tag bordered={false} className="rounded-full px-3 bg-slate-100 font-medium">{moment().month(r.month - 1).format('MMM')} {r.year}</Tag>
+      render: (_, r) => <Tag color="blue">{moment().month(r.month - 1).format('MMMM')} {r.year}</Tag>
     },
     {
-      title: 'Actions',
+      title: 'Action',
       align: 'right',
       render: (_, r) => (
-        <Popconfirm title="Delete this fee record?" onConfirm={() => messAPI.deleteStudentFee(r.id).then(fetchInitialData)}>
-          <Button type="text" danger icon={<Trash2 size={16} />} className="flex items-center justify-center hover:bg-rose-50 rounded-lg" />
+        <Popconfirm title="Remove this record?" onConfirm={() => messAPI.deleteStudentFee(r.id).then(fetchInitialData)}>
+          <Button type="text" danger icon={<Trash2 size={16} />} />
         </Popconfirm>
       )
     }
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
       <div className="p-8 bg-slate-50 min-h-screen">
         
-        {/* Header Section */}
+        {/* Header */}
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
-              <Bed className="text-white" size={24} />
-            </div>
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100"><Bed className="text-white" size={24} /></div>
             <div>
               <Title level={2} style={{ margin: 0 }}>Bed Fee Management</Title>
-              <Text type="secondary">Manage housing charges and bulk fee processing</Text>
+              <Text type="secondary">Managing housing charges for eligible residents</Text>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Year Navigator */}
-            <div className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200 flex items-center">
-              <Button type="text" icon={<ChevronLeft size={16} />} onClick={() => changeYear(-1)} />
-              <div className="px-4 text-center min-w-[70px]"><Text strong className="text-slate-700">{selectedDate.format('YYYY')}</Text></div>
-              <Button type="text" icon={<ChevronRight size={16} />} onClick={() => changeYear(1)} />
+          <div className="flex items-center gap-3">
+            <div className="bg-white p-1 rounded-xl shadow-sm border flex items-center">
+              <Button type="text" icon={<ChevronLeft size={16} />} onClick={() => setSelectedDate(prev => prev.clone().subtract(1, 'month'))} />
+              <div className="px-4 text-center min-w-[140px]"><Text strong className="text-blue-600 uppercase">{selectedDate.format('MMMM YYYY')}</Text></div>
+              <Button type="text" icon={<ChevronRight size={16} />} onClick={() => setSelectedDate(prev => prev.clone().add(1, 'month'))} />
             </div>
-
-            {/* Month Navigator */}
-            <div className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200 flex items-center">
-              <Button type="text" icon={<ChevronLeft size={16} />} onClick={() => changeMonth(-1)} />
-              <div className="px-6 text-center min-w-[120px]"><Text strong className="text-blue-600 uppercase tracking-wide">{selectedDate.format('MMMM')}</Text></div>
-              <Button type="text" icon={<ChevronRight size={16} />} onClick={() => changeMonth(1)} />
-            </div>
-
-            <Button onClick={handleToday} className="rounded-2xl h-11 border-slate-200 text-slate-500 font-medium hover:text-blue-600">Today</Button>
+            <Space>
+              <Button icon={<LayoutGrid size={18}/>} onClick={() => setIsBulkModalVisible(true)}>Session Bulk</Button>
+              <Button type="primary" icon={<FilePlus size={18}/>} onClick={() => setIsGenerateFeeModalVisible(true)}>Generate New Fees</Button>
+            </Space>
           </div>
-
-          <Space>
-            <Button icon={<LayoutGrid size={18}/>} onClick={() => setIsBulkModalVisible(true)} className="rounded-xl h-12">Session Bulk</Button>
-            <Button type="primary" icon={<FilePlus size={18}/>} onClick={() => setIsGenerateFeeModalVisible(true)} className="rounded-xl h-12 shadow-lg shadow-blue-100 font-semibold px-6">Generate New Fees</Button>
-          </Space>
         </div>
 
-        {/* Filters & Content */}
-        <div className="space-y-6">
-          <Card className="border-none shadow-sm rounded-2xl">
-            <div className="flex items-center gap-4">
-              <div className="bg-slate-50 p-2 rounded-xl flex items-center gap-3 border border-slate-100 flex-1 max-w-md">
-                <Search size={18} className="text-slate-400" />
-                <Select
-                  placeholder="Filter by Session"
-                  className="w-full"
-                  bordered={false}
-                  allowClear
-                  value={selectedSessionId}
-                  onChange={setSelectedSessionId}
-                >
-                  {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
-                </Select>
-              </div>
-              <Button icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''} />} onClick={fetchInitialData} className="rounded-xl h-10">Sync</Button>
-            </div>
+        {/* Filters */}
+        <Card className="border-none shadow-sm rounded-xl mb-6">
+          <div className="flex items-center gap-4">
+            <Select
+              placeholder="Filter List by Session"
+              className="w-64"
+              allowClear
+              value={selectedSessionId}
+              onChange={setSelectedSessionId}
+            >
+              {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
+            </Select>
+            <Button icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''} />} onClick={fetchInitialData}>Refresh</Button>
+          </div>
+        </Card>
+
+        {/* Table */}
+        {loading ? <BedFeeSkeleton /> : (
+          <Card className="border-none shadow-sm rounded-2xl overflow-hidden" bodyStyle={{ padding: 0 }}>
+            <Table 
+              columns={columns} 
+              dataSource={bedFees} 
+              rowKey="id" 
+              pagination={{ pageSize: 15 }}
+              summary={(pageData) => {
+                const total = pageData.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0);
+                return (
+                  <Table.Summary.Row className="bg-slate-50 font-bold">
+                    <Table.Summary.Cell index={0} align="right">Total Monthly Bed Collections:</Table.Summary.Cell>
+                    <Table.Summary.Cell index={1} align="right"><Text className="text-blue-600">₹{total.toFixed(2)}</Text></Table.Summary.Cell>
+                    <Table.Summary.Cell index={2} colSpan={2} />
+                  </Table.Summary.Row>
+                );
+              }}
+            />
           </Card>
+        )}
 
-          {loading ? <BedFeeSkeleton /> : (
-            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
-              <Table 
-                columns={columns} 
-                dataSource={bedFees} 
-                rowKey="id" 
-                pagination={{ pageSize: 10 }}
-                summary={(pageData) => {
-                  const total = pageData.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0);
-                  return (
-                    <Table.Summary.Row className="bg-slate-50 font-bold">
-                      <Table.Summary.Cell index={0} align="right">Total Bed Charges</Table.Summary.Cell>
-                      <Table.Summary.Cell index={1} align="right">
-                        <Text className="text-blue-600">₹{total.toFixed(2)}</Text>
-                      </Table.Summary.Cell>
-                      <Table.Summary.Cell index={2} colSpan={2} />
-                    </Table.Summary.Row>
-                  );
-                }}
-              />
-            </Card>
-          )}
-        </div>
-
-        {/* Modal: Generate Fees (Multi-Select) */}
+        {/* Modal: Selective Generation */}
         <Modal
-          title={<div className="flex items-center gap-2 text-blue-600"><ClipboardCheck size={18}/> Selective Fee Generation</div>}
+          title={<div className="flex items-center gap-2"><ClipboardCheck size={18}/> Selective Bed Fee Generation</div>}
           open={isGenerateFeeModalVisible}
-          onCancel={() => setIsGenerateFeeModalVisible(false)}
+          onCancel={() => { setIsGenerateFeeModalVisible(false); generateFeeForm.resetFields(); setStudentsForSelection([]); }}
           onOk={() => generateFeeForm.submit()}
-          width={700}
-          className="rounded-2xl"
+          width={650}
           okText="Generate Fees"
+          confirmLoading={loading}
         >
           <Form form={generateFeeForm} layout="vertical" onFinish={handleGenerateBedFees} className="mt-4">
             <Row gutter={16}>
               <Col span={12}>
-                <Form.Item name="session_id_for_modal" label="Source Session" rules={[{ required: true }]}>
-                  <Select placeholder="Filter Students" onChange={setSessionForModalFilter}>
+                <Form.Item name="session_id_for_modal" label="Filter Students by Session" rules={[{ required: true, message: 'Select session to see students' }]}>
+                  <Select placeholder="Select Session" onChange={setSessionForModalFilter}>
                     {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
                   </Select>
                 </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item name="amount" label="Fee Amount (₹)" rules={[{ required: true }]}>
-                  <InputNumber className="w-full h-10 rounded-xl flex items-center" prefix="₹" precision={2} />
+                <Form.Item name="amount" label="Amount (₹)" rules={[{ required: true }]}>
+                  <InputNumber className="w-full" prefix="₹" precision={2} />
                 </Form.Item>
               </Col>
             </Row>
 
-            <Divider orientation="left" className="m-0 mb-4"><Text className="text-[10px] font-bold uppercase text-slate-400">Target Beneficiaries</Text></Divider>
+            <Divider orientation="left"><Text className="text-[10px] font-bold uppercase text-slate-400">Eligible Students (requires_bed = 1)</Text></Divider>
             
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-               <Checkbox
-                  indeterminate={selectedStudentIds.length > 0 && selectedStudentIds.length < studentsForSelection.length}
-                  onChange={(e) => setSelectedStudentIds(e.target.checked ? studentsForSelection.map(s => s.id) : [])}
-                  checked={selectedStudentIds.length === studentsForSelection.length && studentsForSelection.length > 0}
-                >
-                  Select All Students ({studentsForSelection.length})
-                </Checkbox>
-                <div className="max-h-48 overflow-y-auto mt-4 pr-2 custom-scrollbar">
-                  <Checkbox.Group 
-                    className="w-full" 
-                    value={selectedStudentIds} 
-                    onChange={setSelectedStudentIds}
+            <div className="bg-slate-50 p-4 rounded-xl border">
+               {modalLoading ? <Skeleton active paragraph={{ rows: 2 }} /> : (
+                 <>
+                  <Checkbox
+                    indeterminate={selectedStudentIds.length > 0 && selectedStudentIds.length < studentsForSelection.length}
+                    onChange={(e) => setSelectedStudentIds(e.target.checked ? studentsForSelection.map(s => s.id) : [])}
+                    checked={selectedStudentIds.length === studentsForSelection.length && studentsForSelection.length > 0}
+                    disabled={studentsForSelection.length === 0}
                   >
-                    <Row gutter={[0, 8]}>
-                      {studentsForSelection.map(s => (
-                        <Col span={12} key={s.id}><Checkbox value={s.id}>{s.username}</Checkbox></Col>
-                      ))}
-                    </Row>
-                  </Checkbox.Group>
-                </div>
+                    Select All Eligible ({studentsForSelection.length})
+                  </Checkbox>
+                  <div className="max-h-48 overflow-y-auto mt-4 pr-2">
+                    {studentsForSelection.length === 0 && <Text type="secondary" className="block text-center py-4">No students found in this session with 'Requires Bed' status.</Text>}
+                    <Checkbox.Group className="w-full" value={selectedStudentIds} onChange={setSelectedStudentIds}>
+                      <Row gutter={[0, 8]}>
+                        {studentsForSelection.map(s => (
+                          <Col span={12} key={s.id}><Checkbox value={s.id}>{s.username}</Checkbox></Col>
+                        ))}
+                      </Row>
+                    </Checkbox.Group>
+                  </div>
+                 </>
+               )}
             </div>
             
-            <Form.Item name="description" label="Remarks" className="mt-6">
-              <Input.TextArea placeholder="e.g., Standard monthly housing fee" className="rounded-xl" />
+            <Form.Item name="description" label="Description" className="mt-4">
+              <Input placeholder="Optional remark" />
             </Form.Item>
           </Form>
         </Modal>
@@ -293,21 +308,25 @@ const BedFeeManagement = () => {
           open={isBulkModalVisible}
           onCancel={() => setIsBulkModalVisible(false)}
           onOk={() => bulkForm.submit()}
-          className="rounded-2xl"
+          confirmLoading={loading}
+          okText="Generate All"
         >
-           <Form form={bulkForm} layout="vertical" onFinish={(v) => messAPI.createBulkStudentFee({...v, fee_type: 'bed_charge', requires_bed: true}).then(() => { fetchInitialData(); setIsBulkModalVisible(false); })}>
+           <Form form={bulkForm} layout="vertical" onFinish={handleBulkSessionGenerate}>
+              <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex gap-3 mb-6">
+                  <Info size={18} className="text-amber-500 shrink-0" />
+                  <Text className="text-[11px] text-amber-700">
+                    This action will generate bed fees for <b>every active student</b> in the selected session 
+                    who has <b>Requires Bed = Yes</b> in their enrollment record.
+                  </Text>
+              </div>
               <Form.Item name="session_id" label="Target Session" rules={[{ required: true }]}>
                 <Select placeholder="Select Session">
                   {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
                 </Select>
               </Form.Item>
-              <Form.Item name="amount" label="Amount for All Students (₹)" rules={[{ required: true }]}>
-                <InputNumber className="w-full h-10 rounded-xl flex items-center" prefix="₹" />
+              <Form.Item name="amount" label="Monthly Amount (₹)" rules={[{ required: true }]}>
+                <InputNumber className="w-full" prefix="₹" />
               </Form.Item>
-              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 flex gap-3">
-                  <Info size={18} className="text-blue-500 shrink-0" />
-                  <Text className="text-[11px] text-blue-700">This will generate bed fees for <b>every student</b> in the selected session who is marked as requiring a bed.</Text>
-              </div>
            </Form>
         </Modal>
 

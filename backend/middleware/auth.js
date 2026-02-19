@@ -1,7 +1,7 @@
-const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+import jwt from 'jsonwebtoken';
+import { User } from '../models/index.js'; // Ensure the .js extension
 
-const auth = async (req, res, next) => {
+export const auth = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
     
@@ -18,7 +18,7 @@ const auth = async (req, res, next) => {
       attributes: { exclude: ['password'] }
     });
 
-    console.log('Auth middleware - User found:', user ? user.toJSON() : 'Not found');
+    console.log('Auth middleware - User found:', user ? user.username : 'Not found');
 
     if (!user) {
       return res.status(401).json({ message: 'Token is not valid' });
@@ -32,20 +32,18 @@ const auth = async (req, res, next) => {
   }
 };
 
-const authorize = (roles) => {
+export const authorize = (roles) => {
   return (req, res, next) => {
     console.log('Authorize middleware - Required roles:', roles);
     console.log('Authorize middleware - User role:', req.user?.role);
     
-    if (!roles.includes(req.user.role)) {
+    if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ 
         message: 'Access denied',
         required: roles,
-        current: req.user.role
+        current: req.user?.role || 'none'
       });
     }
     next();
   };
 };
-
-module.exports = { auth, authorize };

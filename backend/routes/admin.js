@@ -1,6 +1,5 @@
-// routes/adminRoutes.js - Complete version
-const express = require('express');
-const {
+import express from 'express';
+import {
   // Hostel Management
   createHostel, getHostels, getHostelById, updateHostel, deleteHostel,
 
@@ -33,16 +32,18 @@ const {
   createSupplier, getSuppliers, getSupplierById, updateSupplier, deleteSupplier,
 
   // UOM Management
-  createUOM, getUOMs, updateUOM, deleteUOM,getDayReductionRequestsForAdmin,updateDayReductionRequestStatusByAdmin,
+  createUOM, getUOMs, updateUOM, deleteUOM,
+  getDayReductionRequestsForAdmin,
+  updateDayReductionRequestStatusByAdmin,
 
   updateHostelFeeSettings,
 
   // Dashboard
   getDashboardStats,
-  getAdminChartData // ADD THIS LINE
-} = require('../controllers/adminController');
+  getAdminChartData
+} from '../controllers/adminController.js'; // Added .js extension
 
-const { auth, authorize } = require('../middleware/auth');
+import { auth, authorize } from '../middleware/auth.js'; // Added .js extension
 
 const router = express.Router();
 
@@ -52,7 +53,7 @@ router.use(authorize(['admin']));
 
 // Dashboard
 router.get('/dashboard-stats', getDashboardStats);
-router.get('/chart-data', getAdminChartData); // ADD THIS LINE
+router.get('/chart-data', getAdminChartData);
 
 // Hostel Management
 router.post('/hostels', createHostel);
@@ -127,9 +128,11 @@ router.get('/uoms', getUOMs);
 router.put('/uoms/:id', updateUOM);
 router.delete('/uoms/:id', deleteUOM);
 
+// Day Reduction Requests
 router.get('/day-reduction-requests', getDayReductionRequestsForAdmin);
 router.put('/day-reduction-requests/:id/status', updateDayReductionRequestStatusByAdmin);
 
+// Fee Settings
 router.put('/hostels/:id/fee-settings', updateHostelFeeSettings);
 
-module.exports = router;
+export default router;
