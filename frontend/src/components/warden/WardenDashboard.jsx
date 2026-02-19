@@ -10,15 +10,29 @@ import {
 } from 'lucide-react';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import {
-  Chart as ChartJS, CategoryScale, LinearScale, BarElement, 
-  Title as ChartTitle, Tooltip as ChartTooltip, Legend, ArcElement, 
+  Card, Typography, Row, Col, Statistic, Button,
+  ConfigProvider, Skeleton
+} from 'antd';
+
+import {
+  Users, BedDouble, Calendar, MessageSquare,
+  RefreshCw, UserPlus, Home, CheckSquare,
+  Clock, ChevronRight, HelpCircle
+} from 'lucide-react';
+
+import { Bar, Doughnut, Line } from 'react-chartjs-2';
+
+import {
+  Chart as ChartJS, CategoryScale, LinearScale, BarElement,
+  Title as ChartTitle, Tooltip as ChartTooltip, Legend, ArcElement,
   PointElement, LineElement, Filler
 } from 'chart.js';
+
 import { wardenAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
 ChartJS.register(
-  CategoryScale, LinearScale, BarElement, ChartTitle, 
+  CategoryScale, LinearScale, BarElement, ChartTitle,
   ChartTooltip, Legend, ArcElement, PointElement, LineElement, Filler
 );
 
@@ -115,6 +129,7 @@ const WardenDashboard = ({ setCurrentView }) => {
           ))}
         </Row>
 
+        {/* MAIN GRID */}
         <Row gutter={[24, 24]}>
           {/* MAIN CONTENT COLUMN */}
           <Col lg={16} xs={24} className="space-y-6">
