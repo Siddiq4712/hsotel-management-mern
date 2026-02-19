@@ -157,9 +157,9 @@ const handleDeleteBatch = async (batch) => {
       align: 'right',
       render: (_, r) => (
         <Space>
-          <Tooltip title="View full logs for this action">
+          {/* <Tooltip title="View full logs for this action">
              <Button icon={<Info size={14}/>} type="text" shape="circle" />
-          </Tooltip>
+          </Tooltip> */}
           <Popconfirm
             title="Undo this action?"
             description={`This will delete all ${r.studentCount} individual fee records created in this batch. This cannot be undone.`}

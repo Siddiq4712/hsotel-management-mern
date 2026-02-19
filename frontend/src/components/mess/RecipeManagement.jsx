@@ -268,11 +268,11 @@ const RecipeManagement = () => {
 
         <div style={{ padding: '28px 32px' }}>
           {/* Stats */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
+          {/* <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
             <StatCard label="Total Recipes" value={stats.totalRecipes} icon={LayoutGrid} accent />
             <StatCard label="Avg. Ingredients" value={stats.avgComponents} icon={Beaker} />
             <StatCard label="Most Complex Dish" value={stats.mostComplexName} icon={ChefHat} />
-          </div>
+          </div> */}
 
           {/* Search */}
           <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, boxShadow: T.shadow }}>

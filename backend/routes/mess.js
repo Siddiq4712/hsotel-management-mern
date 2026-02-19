@@ -376,4 +376,8 @@ router.delete('/recipes/:id', authorize(['admin', 'mess']), deleteRecipe);
 /* ---------- COST CALCULATION ---------- */
 router.get('/menus/:menu_id/cost', authorize(['mess', 'warden', 'admin']), calculateMenuCost);
 
+router.post('/special-consumption', authorize(['mess', 'admin']), createSpecialConsumption);
+router.get('/special-consumption', authorize(['mess', 'warden', 'admin']), getSpecialConsumptions);
+router.get('/special-consumption/:id', authorize(['mess', 'warden', 'admin']), getSpecialConsumptionById);
+
 export default router;
