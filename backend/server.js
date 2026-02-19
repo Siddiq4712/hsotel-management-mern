@@ -100,5 +100,5 @@ sequelize
     });
   })
   .catch((err) => {
-    console.error('❌ Database sync failed:', err);
+    console.error('❌ Database sync failed:', err); 
   });
