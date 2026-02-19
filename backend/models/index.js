@@ -344,7 +344,11 @@ export const Enrollment = sequelize.define('Enrollment', {
    college: {
     type: DataTypes.ENUM('nec', 'lapc'),
     allowNull: true // Or false if it's a required field
-  }
+  },
+  remaining_dues: {
+  type: DataTypes.INTEGER,
+  defaultValue: 0 // Will be set to 6 by logic
+}
 }, {
   tableName: 'tbl_Enrollment',
   timestamps: true
@@ -3245,7 +3249,7 @@ HostelRoom.belongsTo(RoomType, { foreignKey: 'room_type_id' });
 Hostel.hasMany(HostelRoom, { foreignKey: 'hostel_id' });
 RoomType.hasMany(HostelRoom, { foreignKey: 'room_type_id' });
 
-User.hasMany(Enrollment, { foreignKey: 'student_id', as: 'tbl_Enrollments' });
+User.hasMany(Enrollment, { foreignKey: 'student_id', as: 'tbl_Enrollment' });
 Enrollment.belongsTo(User, { foreignKey: 'student_id', as: 'EnrollmentStudent' });
 Enrollment.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 Enrollment.belongsTo(Session, { foreignKey: 'session_id' });

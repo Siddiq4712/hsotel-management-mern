@@ -441,7 +441,7 @@ export const messAPI = {
   generateDailyRateReport: (params) => api.get('/mess/reports/daily-rate-calculation', { params }),
   exportDailyRateReport: (params) => api.get('/mess/reports/daily-rate-calculation', { params: { ...params, export: true }, responseType: 'blob' }),
 
-  getStudents: () => api.get('/mess/students'), // Endpoint to fetch students for dropdown
+  // getStudents: () => api.get('/mess/students'), // Endpoint to fetch students for dropdown
 
   recordStaffRecordedSpecialFoodConsumption: (data) => api.post('/mess/student-special-consumption-staff', data),
   generateMessBills: (data, config) => api.post('/mess/generate-mess-bills', data, config),
@@ -453,7 +453,7 @@ export const messAPI = {
   // Add this to the messAPI object
   deleteStudentFee: (id) => api.delete(`/mess/student-fees/${id}`),
 // In src/services/api.js (in the messAPI object)
-  // getStudents: (params) => api.get('/mess/students', { params }), // Add support for params
+  getStudents: (params) => api.get('/mess/students', { params }), // Add support for params
 
  getPurchaseOrders: (params) => api.get('/mess/purchase-orders', { params }),
  clearPurchaseOrders: (ids) => api.put('/mess/purchase-orders/clear', { ids }),

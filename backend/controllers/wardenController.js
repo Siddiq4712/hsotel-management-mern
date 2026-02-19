@@ -87,7 +87,8 @@ export const enrollStudent = async (req, res) => {
       requires_bed: requires_bed || false,
       initial_emi_status: requires_bed ? (paid_initial_emi ? 'paid' : 'pending') : 'not_required',
       college: college || 'nec', // Default to 'nec' if not provided
-      roll_number: roll_number || null
+      roll_number: roll_number || null,
+      remaining_dues: requires_bed ? 6 : 0, 
     }, { transaction });
 
     // If bed is required and initial EMI is paid, create fee records for the 5 EMIs

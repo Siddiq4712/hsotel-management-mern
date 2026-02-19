@@ -4666,107 +4666,89 @@ export const createStudentFee = async (req, res) => {
 
 // messController.js - Modifications to createBulkStudentFee
 
+// messController.js -> createBulkStudentFee
 export const createBulkStudentFee = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    // Add specific_student_ids to destructuring. Rename existing student_ids if any.
-    const { session_id, fee_type, amount, description, month, year, requires_bed, student_ids: specific_student_ids } = req.body;
+    const { session_id, fee_type, amount, month, year, student_ids, description } = req.body;
     const { hostel_id, id: issued_by } = req.user;
-
-    console.log(`[API] Creating bulk student fees of type '${fee_type}' for session ${session_id || 'N/A'}. Specific IDs provided: ${specific_student_ids ? specific_student_ids.length : 'No'}`);
-
-    // Validate required fields (now, session_id might not be required if specific_student_ids are provided)
-    if (!fee_type || !amount || !month || !year) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Fee type, amount, month, and year are required.'
-      });
-    }
-
-    if (parseFloat(amount) <= 0) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Amount must be a positive number.'
-      });
-    }
 
     let targetStudentIds = [];
 
-    // --- NEW LOGIC: Prioritize specific_student_ids if provided ---
-    if (specific_student_ids && Array.isArray(specific_student_ids) && specific_student_ids.length > 0) {
-      console.log('[API] Using specific student IDs provided in request for individual generation.');
-      // Validate that these specific_student_ids are indeed active students of the current hostel
-      const validStudents = await User.findAll({
-        where: { id: { [Op.in]: specific_student_ids }, hostel_id, role: 'student', is_active: true },
-        attributes: ['id'],
-        raw: true,
-        transaction
-      });
-      targetStudentIds = validStudents.map(s => s.id);
-
-      if (targetStudentIds.length === 0) {
-          await transaction.rollback();
-          return res.status(404).json({
-              success: false,
-              message: 'No valid students found among the provided specific IDs for this hostel.'
-          });
-      }
-      if (targetStudentIds.length !== specific_student_ids.length) {
-          console.warn('[API] Some provided specific_student_ids were not found or invalid for this hostel. Proceeding with valid ones.');
-      }
-
+    // 1. Determine which students to target
+    if (student_ids && Array.isArray(student_ids) && student_ids.length > 0) {
+      targetStudentIds = student_ids;
     } else {
-      // --- EXISTING LOGIC: Fallback to session-based and requires_bed filtering ---
-      if (!session_id) {
-        await transaction.rollback();
-        return res.status(400).json({
-          success: false,
-          message: 'Session ID is required for bulk creation without specific student IDs.'
-        });
-      }
+      // SESSION-BASED BULK LOGIC
+      if (!session_id) throw new Error('Session ID is required');
 
-      let enrollmentWhereClause = {
+      const enrollmentWhere = {
         session_id,
         hostel_id,
         status: 'active'
       };
 
-      if (requires_bed === true) {
-        console.log('[API] Filtering for students who require beds via session-based bulk.');
-        enrollmentWhereClause.requires_bed = true;
+      // ONLY filter by requires_bed if it's a bed charge
+      if (fee_type === 'bed_charge') {
+        enrollmentWhere.requires_bed = true;
       }
 
-      console.log('[API] Enrollment query for session-based bulk:', JSON.stringify(enrollmentWhereClause));
-
       const enrollments = await Enrollment.findAll({
-        where: enrollmentWhereClause,
+        where: enrollmentWhere,
         attributes: ['student_id'],
         raw: true,
         transaction
       });
-
       targetStudentIds = enrollments.map(e => e.student_id);
-
-      if (targetStudentIds.length === 0) {
-        await transaction.rollback();
-        return res.status(404).json({
-          success: false,
-          message: 'No eligible students found for the selected session and criteria.'
-        });
-      }
-      console.log(`[API] Found ${targetStudentIds.length} eligible students for session-based bulk fee creation.`);
     }
 
-    // --- Common logic for filtering out existing fees and creating new ones ---
+    if (targetStudentIds.length === 0) {
+      await transaction.rollback();
+      return res.status(404).json({ 
+        success: false, 
+        message: `No eligible students found for session ${session_id}.` 
+      });
+    }
+
+    // 2. Logic specific to Bed Charges (Decrementing dues)
+    if (fee_type === 'bed_charge') {
+      // Find valid enrollments that still have dues > 0
+      const activeEnrollmentsWithDues = await Enrollment.findAll({
+        where: {
+          student_id: { [Op.in]: targetStudentIds },
+          hostel_id,
+          status: 'active',
+          requires_bed: true,
+          remaining_dues: { [Op.gt]: 0 }
+        },
+        transaction
+      });
+
+      const validBedStudentIds = activeEnrollmentsWithDues.map(e => e.student_id);
+      
+      if (validBedStudentIds.length === 0) {
+        throw new Error('All selected students have already completed their 6 months of bed dues.');
+      }
+
+      // Decrement dues
+      await Enrollment.decrement('remaining_dues', {
+        by: 1,
+        where: { id: { [Op.in]: activeEnrollmentsWithDues.map(e => e.id) } },
+        transaction
+      });
+
+      // Override target list with only those who had dues to pay
+      targetStudentIds = validBedStudentIds;
+    }
+
+    // 3. Prevent Duplicates (Don't apply the SAME fee type twice in the same month)
     const existingFees = await StudentFee.findAll({
-      where: {
-        student_id: { [Op.in]: targetStudentIds },
-        hostel_id,
-        fee_type,
-        month,
-        year
+      where: { 
+        student_id: { [Op.in]: targetStudentIds }, 
+        hostel_id, 
+        fee_type, 
+        month, 
+        year 
       },
       attributes: ['student_id'],
       transaction
@@ -4776,15 +4758,11 @@ export const createBulkStudentFee = async (req, res) => {
     const eligibleStudentIds = targetStudentIds.filter(id => !existingFeeStudentIds.includes(id));
 
     if (eligibleStudentIds.length === 0) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'All selected students already have fees of this type for this month/year.'
-      });
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: 'Fees already exist for all selected students this month.' });
     }
 
-    console.log(`[API] ${existingFeeStudentIds.length} students already had fees, creating for ${eligibleStudentIds.length} remaining students.`);
-
+    // 4. Create the records
     const feesToCreate = eligibleStudentIds.map(student_id => ({
       student_id,
       hostel_id,
@@ -4796,119 +4774,77 @@ export const createBulkStudentFee = async (req, res) => {
       issued_by
     }));
 
-    const createdFees = await StudentFee.bulkCreate(feesToCreate, { transaction });
-
-    console.log(`[API] Successfully created ${createdFees.length} student fees.`);
+    await StudentFee.bulkCreate(feesToCreate, { transaction });
     await transaction.commit();
 
-    // Get the session name for the response (if session_id was used, otherwise it's 'N/A')
-    let sessionName = 'N/A';
-    if (session_id) {
-        const session = await Session.findByPk(session_id);
-        sessionName = session ? session.name : 'Unknown Session';
-    }
-
-    res.status(201).json({
-      success: true,
-      message: `Successfully created ${createdFees.length} ${fee_type} fees for ${eligibleStudentIds.length} student(s).`,
-      data: {
-        total_students_considered: targetStudentIds.length,
-        fees_created: createdFees.length,
-        already_had_fees: existingFeeStudentIds.length,
-        fee_type,
-        amount,
-        month,
-        year,
-        session_name: sessionName // Include session name if applicable
-      }
+    res.status(201).json({ 
+      success: true, 
+      message: `Created ${fee_type} fees for ${feesToCreate.length} students.` 
     });
 
   } catch (error) {
-    await transaction.rollback();
-    console.error('[API ERROR] Creating bulk student fees:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error: ' + error.message
-    });
+    if (transaction) await transaction.rollback();
+    console.error("BULK FEE ERROR:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
-
 export const getStudents = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
-    const { requires_bed, session_id } = req.query; // Query parameters from frontend
+    const { requires_bed, session_id } = req.query; 
 
-    let includeEnrollment = false;
     let enrollmentWhereClause = {
-      status: 'active', // Always filter for active enrollments
-      hostel_id // Ensure enrollment is for the correct hostel
+      status: 'active',
+      hostel_id
     };
 
-    if (requires_bed === 'true') { // Check for 'true' string from query params
-      includeEnrollment = true;
-      enrollmentWhereClause.requires_bed = true;
-    }
-    if (session_id) { // If a session_id is provided, filter by it
-      includeEnrollment = true;
+    if (session_id) {
       enrollmentWhereClause.session_id = session_id;
     }
 
-    let students;
-    if (includeEnrollment) {
-      // Fetch Users, including their Enrollments and filtering by Enrollment criteria
-      students = await User.findAll({
-        where: {
-          hostel_id,
-          role: 'student',
-          is_active: true
-        },
-        attributes: ['id', 'username', 'email', 'roll_number'],
-        include: [{
-          model: Enrollment,
-          as: 'tbl_Enrollments', // Use the alias defined in associations
-          where: enrollmentWhereClause,
-          required: true, // INNER JOIN to only get students with matching enrollments
-          attributes: ['id', 'session_id', 'requires_bed', 'college'] // Include relevant enrollment data
-        }],
-        order: [['username', 'ASC']]
-      });
-    } else {
-      // If no specific enrollment filter, just fetch users directly
-      students = await User.findAll({
-        where: {
-          hostel_id,
-          role: 'student',
-          is_active: true
-        },
-        attributes: ['id', 'username', 'email', 'roll_number'],
-        order: [['username', 'ASC']]
-      });
+    if (requires_bed === 'true') {
+      enrollmentWhereClause.requires_bed = true;
+      enrollmentWhereClause.remaining_dues = { [Op.gt]: 0 }; 
     }
 
-    // Process students to flatten enrollment data if it was included and for dropdown use
+    const students = await User.findAll({
+      where: {
+        hostel_id,
+        role: 'student',
+        is_active: true
+      },
+      attributes: ['id', 'username', 'roll_number'],
+      include: [{
+        model: Enrollment,
+        as: 'tbl_Enrollment', // <--- CHANGED FROM tbl_Enrollments TO tbl_Enrollment
+        where: enrollmentWhereClause,
+        required: true, 
+        attributes: ['id', 'session_id', 'requires_bed', 'remaining_dues']
+      }],
+      order: [['username', 'ASC']]
+    });
+
     const formattedStudents = students.map(student => {
-      const studentData = student.toJSON();
-      if (studentData.tbl_Enrollments && studentData.tbl_Enrollments.length > 0) {
-        // Assuming one active enrollment per student for simplicity here
-        const activeEnrollment = studentData.tbl_Enrollments[0]; // Or find the most relevant one if multiple are possible
-        return {
-          id: studentData.id,
-          username: studentData.username,
-          email: studentData.email,
-          roll_number: studentData.roll_number,
-          enrollment_id: activeEnrollment.id,
-          requires_bed: activeEnrollment.requires_bed,
-          session_id: activeEnrollment.session_id,
-          college: activeEnrollment.college
-        };
-      }
-      return studentData; // Return basic student data if no enrollment criteria were applied
+      const studentData = student.get({ plain: true });
+      
+      // Update the alias here as well to match singular
+      const activeEnrollment = studentData.tbl_Enrollment && studentData.tbl_Enrollment[0] 
+        ? studentData.tbl_Enrollment[0] 
+        : null;
+
+      return {
+        id: studentData.id,
+        username: studentData.username,
+        roll_number: studentData.roll_number,
+        requires_bed: activeEnrollment?.requires_bed,
+        remaining_dues: activeEnrollment?.remaining_dues
+      };
     });
 
     res.json({ success: true, data: formattedStudents });
   } catch (error) {
-    console.error('Error fetching students:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    console.error("FATAL ERROR IN GET STUDENTS:", error); 
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -5282,49 +5218,101 @@ export const getDailyConsumptionDetails = async (req, res) => {
 
 // 1. Delete a single fee record
 export const deleteStudentFee = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
     const { hostel_id } = req.user;
 
-    const result = await StudentFee.destroy({ 
-      where: { id, hostel_id } 
+    // 1. Find the fee first to check its type and student_id
+    const fee = await StudentFee.findOne({ 
+      where: { id, hostel_id },
+      transaction 
     });
 
-    if (result === 0) {
+    if (!fee) {
+      await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Fee record not found.' });
     }
-    res.json({ success: true, message: 'Fee record deleted successfully.' });
+
+    // 2. If it's a bed charge, increment the remaining dues
+    if (fee.fee_type === 'bed_charge') {
+      await Enrollment.increment('remaining_dues', {
+        by: 1,
+        where: { 
+          student_id: fee.student_id, 
+          hostel_id, 
+          status: 'active' 
+        },
+        transaction
+      });
+      console.log(`[BedFee] Incremented dues for student ${fee.student_id} due to deletion.`);
+    }
+
+    // 3. Delete the fee record
+    await fee.destroy({ transaction });
+
+    await transaction.commit();
+    res.json({ success: true, message: 'Fee record deleted and dues updated successfully.' });
   } catch (error) {
+    await transaction.rollback();
+    console.error('Delete fee error:', error);
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-
-// 2. Bulk Delete (Undo Batch) - Much more efficient
 export const bulkDeleteStudentFees = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const { ids } = req.body; // Array of IDs from the frontend
+    const { ids } = req.body; 
     const { hostel_id } = req.user;
 
     if (!ids || !Array.isArray(ids)) {
       return res.status(400).json({ success: false, message: 'Invalid IDs provided.' });
     }
 
+    // 1. Fetch all fees being deleted to identify bed charges
+    const feesToDelete = await StudentFee.findAll({
+      where: { id: { [Op.in]: ids }, hostel_id },
+      transaction
+    });
+
+    const bedChargeFees = feesToDelete.filter(f => f.fee_type === 'bed_charge');
+
+    // 2. If there are bed charges, increment dues for those students
+    if (bedChargeFees.length > 0) {
+      const studentIds = bedChargeFees.map(f => f.student_id);
+      
+      // Increment by 1 for all matching enrollments
+      await Enrollment.increment('remaining_dues', {
+        by: 1,
+        where: { 
+          student_id: { [Op.in]: studentIds }, 
+          hostel_id, 
+          status: 'active' 
+        },
+        transaction
+      });
+    }
+
+    // 3. Perform bulk destruction
     const result = await StudentFee.destroy({
       where: {
         id: { [Op.in]: ids },
         hostel_id
-      }
+      },
+      transaction
     });
 
+    await transaction.commit();
     res.json({ 
       success: true, 
-      message: `Successfully reverted ${result} records.` 
+      message: `Successfully reverted ${result} records and restored any applicable dues.` 
     });
   } catch (error) {
+    await transaction.rollback();
+    console.error('Bulk delete error:', error);
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
-
 export const exportStockToExcel = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
