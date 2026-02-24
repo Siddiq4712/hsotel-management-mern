@@ -5,7 +5,7 @@ import moment from 'moment';
 import { 
   User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session, MessFeesAllot,
   Attendance, Leave, Complaint, Suspension, Holiday, Fee, MessBill, Hostel, RoomRequest,
-  DayReductionRequest, Rebate, DailyRateLog, HostelLayout, AdditionalCollection, AdditionalCollectionType
+  DayReductionRequest, Rebate, DailyRateLog, HostelLayout, AdditionalCollection, AdditionalCollectionType, sequelize
 } from '../models/index.js';
 export const enrollStudent = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -1943,7 +1943,7 @@ export const createAdditionalCollection = async (req, res) => {
 };
 // Helper to get session from enrollment
 const getSession = (student) => {
-  return student.session || 'N/A';  // FIXED: Use direct student.session instead of tbl_Enrollments[0].session
+  return student.session || 'N/A';  // FIXED: Use direct student.session instead of tbl_Enrollment[0].session
 };
 export const getStudents = async (req, res) => {
   try {
@@ -1976,7 +1976,7 @@ export const getStudents = async (req, res) => {
         },
         {
           model: Enrollment,
-          as: 'tbl_Enrollments',
+          as: 'tbl_Enrollment',
           required: false,
           include: [{  // FIXED: Nest include for Session to get the name
             model: Session,
@@ -1995,10 +1995,10 @@ export const getStudents = async (req, res) => {
     const students = studentsWithModels.map(instance => {
       const plain = instance.get({ plain: true });
       // FIXED: Extract session name from nested Session
-      plain.session = plain.tbl_Enrollments?.[0]?.Session?.name || 'N/A';
+      plain.session = plain.tbl_Enrollment?.[0]?.Session?.name || 'N/A';
       // Existing college extraction
-      plain.college = plain.tbl_Enrollments?.[0]?.college || 'N/A';
-      delete plain.tbl_Enrollments; // Clean up nested enrollments
+      plain.college = plain.tbl_Enrollment?.[0]?.college || 'N/A';
+      delete plain.tbl_Enrollment; // Clean up nested enrollments
       return plain;
     });
 

@@ -390,7 +390,11 @@ export const RoomAllotment = sequelize.define('RoomAllotment', {
   is_active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
-  }
+  },
+  remaining_dues: {
+  type: DataTypes.INTEGER,
+  defaultValue: 0
+}
 }, {
   tableName: 'tbl_RoomAllotment', // Corrected typo
   timestamps: true
@@ -3466,3 +3470,5 @@ export const DailyRateLog = sequelize.define('DailyRateLog', {
   tableName: 'tbl_DailyRateLog',
   indexes: [{ unique: true, fields: ['hostel_id', 'month', 'year'] }]
 });
+
+export { sequelize };
