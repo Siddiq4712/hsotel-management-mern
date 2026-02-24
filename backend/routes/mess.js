@@ -230,7 +230,7 @@ router.post('/menus', authorize(['mess', 'admin']), validateMenu, createMenu);
 router.get('/menus', authorize(['mess', 'warden', 'admin']), getMenus);
 router.get('/menus/:id', authorize(['mess', 'warden', 'admin']), getMenuById);
 router.put('/menus/:id', authorize(['mess', 'admin']), validateMenu, updateMenu);
-router.delete('/menus/:id', authorize(['admin', 'warden']), deleteMenu);
+router.delete('/menus/:id', authorize(['mess', 'admin', 'warden']), deleteMenu);
 router.post('/menus/:id/apply-date-range', authorize(['mess', 'admin']), applyMenuDateRange);
 
 /* ---------- ITEM MANAGEMENT ---------- */

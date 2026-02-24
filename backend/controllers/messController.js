@@ -1012,28 +1012,15 @@ export const deleteItemCategory = async (req, res) => {
 };
 
 // MENU ITEM MANAGEMENT - Complete CRUD
+// backend/controllers/messController.js
+
 export const addItemsToMenu = async (req, res) => {
   try {
     const { menu_id } = req.params;
-    const { items } = req.body;
+    const { items } = req.body; // Incoming from frontend
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Items array is required'
-      });
-    }
-
-    // Verify menu belongs to user's hostel
-    const menu = await Menu.findOne({
-      where: { id: menu_id, hostel_id: req.user.hostel_id }
-    });
-
-    if (!menu) {
-      return res.status(404).json({
-        success: false,
-        message: 'Menu not found'
-      });
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({ success: false, message: 'Items array is required' });
     }
 
     const menuItems = await MenuItem.bulkCreate(
@@ -1041,16 +1028,13 @@ export const addItemsToMenu = async (req, res) => {
         menu_id: parseInt(menu_id),
         item_id: item.item_id,
         quantity: item.quantity,
-        unit: item.unit,
+        // CHANGE THIS LINE: Ensure it uses 'unit_id'
+        unit_id: item.unit_id, 
         preparation_notes: item.preparation_notes
       }))
     );
 
-    res.status(201).json({
-      success: true,
-      data: menuItems,
-      message: 'Items added to menu successfully'
-    });
+    res.status(201).json({ success: true, data: menuItems });
   } catch (error) {
     console.error('Menu items creation error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
