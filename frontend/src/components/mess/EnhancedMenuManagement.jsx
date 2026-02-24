@@ -115,6 +115,7 @@ const EnhancedMenuManagement = () => {
   const [applyForm] = Form.useForm();
   const [selectingMenu, setSelectingMenu] = useState(null);
   const [applyLoading, setApplyLoading] = useState(false);
+  const [uoms, setUoms] = useState([]);
 
   // Define fetchMenus with useCallback so it can be used in useEffect safely
   const fetchMenus = useCallback(async () => {
@@ -145,6 +146,16 @@ const EnhancedMenuManagement = () => {
   useEffect(() => {
     fetchMenus();
   }, [fetchMenus]);
+
+  useEffect(() => {
+  const fetchUOMs = async () => {
+    try {
+      const response = await messAPI.getUOMs();
+      setUoms(response.data.data || []);
+    } catch (e) { console.error(e); }
+  };
+  fetchUOMs();
+}, []);
 
   const fetchItems = async () => {
     try {
@@ -592,8 +603,14 @@ const EnhancedMenuManagement = () => {
                       </div>
                       <button
                         onClick={async () => {
-                           await messAPI.removeItemFromMenu(item.id);
-                           handleViewMenu(currentMenu.menu);
+                          try {
+                            // ✅ CORRECT: Pass the menu ID and the specific ITEM ID
+                            await messAPI.removeItemFromMenu(currentMenu.menu.id, item.item_id);
+                            message.success('Item removed from menu');
+                            handleViewMenu(currentMenu.menu);
+                          } catch (err) {
+                            message.error('Could not remove item');
+                          }
                         }}
                         style={{
                           background: 'none', border: 'none', cursor: 'pointer',
@@ -622,9 +639,16 @@ const EnhancedMenuManagement = () => {
                 form={itemForm}
                 layout="vertical"
                 onFinish={async (v) => {
-                  await messAPI.addItemsToMenu(currentMenu.menu.id, { items: [v] });
-                  handleViewMenu(currentMenu.menu);
-                  itemForm.resetFields();
+                  // The payload sent to messAPI.addItemsToMenu
+                  // v will now contain { item_id: 123, quantity: 5, unit_id: 2 }
+                  try {
+                    await messAPI.addItemsToMenu(currentMenu.menu.id, { items: [v] });
+                    handleViewMenu(currentMenu.menu);
+                    itemForm.resetFields();
+                    message.success('Item added');
+                  } catch (err) {
+                    message.error('Failed to add item');
+                  }
                 }}
                 className="pm-form-input"
               >
@@ -640,8 +664,16 @@ const EnhancedMenuManagement = () => {
                     </Form.Item>
                   </Col>
                   <Col span={12}>
-                    <Form.Item name="unit" label={<FieldLabel>Unit</FieldLabel>} rules={[{ required: true }]}>
-                      <Input placeholder="kg, ltr, pcs…" style={{ borderRadius: 8 }} />
+                    <Form.Item 
+                      name="unit_id" // 🟢 Rename to unit_id
+                      label={<FieldLabel>Unit</FieldLabel>} 
+                      rules={[{ required: true, message: 'Required' }]}
+                    >
+                      <Select placeholder="Select unit" style={{ borderRadius: 8 }}>
+                        {uoms.map(u => (
+                          <Option key={u.id} value={u.id}>{u.abbreviation} ({u.name})</Option>
+                        ))}
+                      </Select>
                     </Form.Item>
                   </Col>
                 </Row>
