@@ -85,11 +85,20 @@ const MessFeeManagement = () => {
       // Update calculations based on synced Ledger Daily Rate
       const updatedData = data.map(row => {
         const messAmount = (row.messDays || 0) * dailyRateValue;
-        const total = messAmount + row.additionalAmount + row.bedCharges + row.hinduIndianExpress;
+        
+        // Ensure bedCharges and newspaper (hinduIndianExpress) are included in the math
+        const bed = parseFloat(row.bedCharges || 0);
+        const paper = parseFloat(row.hinduIndianExpress || 0);
+        const extra = parseFloat(row.additionalAmount || 0);
+
+        const total = messAmount + extra + bed + paper;
+
         return {
           ...row,
           dailyRate: dailyRateValue,
           messAmount: parseFloat(messAmount.toFixed(2)),
+          bedCharges: bed, // ensure it's a number
+          hinduIndianExpress: paper, // ensure it's a number
           total: parseFloat(total.toFixed(2)),
           finalAmount: row.finalAmount || Math.round(total),
         };
@@ -176,22 +185,27 @@ const MessFeeManagement = () => {
 
   const columns = [
     { title: 'S.No.', key: 'sno', render: (_, __, i) => (currentPage - 1) * pageSize + i + 1, width: 70, fixed: 'left' },
+    { title: 'Student Name', dataIndex: 'name', key: 'name', width: 220, fixed: 'left', render: (t) => <Text strong className="text-slate-700">{t}</Text> },
+    { title: 'Reg No', dataIndex: 'regNo', width: 120 },
+    { title: 'Days', dataIndex: 'messDays', align: 'center', width: 80, render: (d) => <Badge count={d} color="#2563eb" overflowCount={31} /> },
+    { title: 'Daily Rate', dataIndex: 'dailyRate', align: 'right', render: (v) => <Text type="secondary">₹{parseFloat(v).toFixed(2)}</Text> },
+    
+    // --- ADDED COLUMNS START ---
     { 
-      title: 'Student Details', 
-      key: 'student', 
-      width: 250, 
-      fixed: 'left',
-      render: (r) => (
-        <Space direction="vertical" size={0}>
-          <Text strong className="text-slate-800">{r.name}</Text>
-          <Text type="secondary" style={{ fontSize: '11px' }}>{r.regNo}</Text>
-        </Space>
-      )
+      title: 'Bed Fee', 
+      dataIndex: 'bedCharges', 
+      align: 'right', 
+      render: (v) => v > 0 ? <Text className="text-orange-600">₹{v}</Text> : <Text type="secondary" className="text-[10px]">NA</Text> 
     },
-    { title: 'Days', dataIndex: 'messDays', align: 'center', width: 90, render: (d) => <Badge count={d} color="#2563eb" overflowCount={31} /> },
-    { title: 'Rate', dataIndex: 'dailyRate', align: 'right', width: 100, render: (v) => `₹${v.toFixed(2)}` },
-    { title: 'Mess Bill', dataIndex: 'messAmount', align: 'right', render: (v) => `₹${v.toFixed(2)}` },
-    { title: 'Others', dataIndex: 'additionalAmount', align: 'right', render: (v) => v > 0 ? <Text type="danger">+₹{v}</Text> : '—' },
+    { 
+      title: 'Newspaper', 
+      dataIndex: 'hinduIndianExpress', 
+      align: 'right', 
+      render: (v) => v > 0 ? <Text className="text-purple-600">₹{v}</Text> : <Text type="secondary" className="text-[10px]">NA</Text> 
+    },
+    // --- ADDED COLUMNS END ---
+
+    { title: 'Extra Charges', dataIndex: 'additionalAmount', align: 'right', render: (v) => v > 0 ? <Text type="danger">+₹{v}</Text> : '—' },
     { title: 'Total', dataIndex: 'total', align: 'right', className: 'bg-slate-50/50', render: (v) => <Text strong>₹{v}</Text> },
     { 
       title: 'Payable Amount', 
@@ -296,7 +310,7 @@ const MessFeeManagement = () => {
               columns={columns} 
               dataSource={reportData} 
               rowKey="studentId" 
-              scroll={{ x: 1200 }} 
+              scroll={{ x: 1400 }} 
               pagination={{ 
                 current: currentPage, pageSize: pageSize,
                 onChange: (p, s) => { setCurrentPage(p); setPageSize(s); },
