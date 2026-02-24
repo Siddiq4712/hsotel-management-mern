@@ -2,6 +2,7 @@ import React, { useState, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { StockProvider } from './context/StockContext';
+import { App as AntdApp } from 'antd';
 import Layout from './components/common/Layout';
 import Login from './components/auth/Login';
 import OAuthCallback from './components/auth/OAuthCallback';
@@ -325,22 +326,24 @@ function App() {
   return (
     <AuthProvider>
       <StockProvider>
-        <Router>
-          <div className="App">
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/auth/callback" element={<OAuthCallback />} />
-              <Route
-                path="/*"
-                element={
-                  <ProtectedRoute>
-                    <DashboardRouter />
-                  </ProtectedRoute>
-                }
-              />
-            </Routes>
-          </div>
-        </Router>
+        <AntdApp>
+          <Router>
+            <div className="App">
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/auth/callback" element={<OAuthCallback />} />
+                <Route
+                  path="/*"
+                  element={
+                    <ProtectedRoute>
+                      <DashboardRouter />
+                    </ProtectedRoute>
+                  }
+                />
+              </Routes>
+            </div>
+          </Router>
+        </AntdApp>
       </StockProvider>
     </AuthProvider>
   );

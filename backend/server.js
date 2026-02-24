@@ -81,24 +81,6 @@ const createDefaultAdmin = async () => {
 ======================= */
 const PORT = process.env.PORT || 5000;
 
-<<<<<<< HEAD
-// TEMPORARILY use force: true to recreate all tables
-sequelize.sync({ force: false }).then(() => {
-  console.log('Database synced - All tables recreated');
-  createDefaultAdmin();
-
-  verifyEmailConnection().then(isConnected => {
-  if (isConnected) {
-    console.log('✅ Email service is ready');
-  } else {
-    console.warn('⚠️ Email service is not configured properly. Notifications may not work.');
-  }
-});
-  
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-=======
 sequelize
   .sync() // 🔥 SAFE: DOES NOT DROP DATA
   .then(async () => {
@@ -118,6 +100,5 @@ sequelize
     });
   })
   .catch((err) => {
-    console.error('❌ Database sync failed:', err);
+    console.error('❌ Database sync failed:', err); 
   });
->>>>>>> e2af4daeac8831689e7fe329f0c073485304e41a

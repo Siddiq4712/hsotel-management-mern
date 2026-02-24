@@ -347,7 +347,8 @@ export const Enrollment = sequelize.define('Enrollment', {
   },
   remaining_dues: {
   type: DataTypes.INTEGER,
-  defaultValue: 0 // Will be set to 6 by logic
+  defaultValue: 0, // Will be set to 6 by logic
+  allowNull: true // Temporarily allow null until migration is run
 }
 }, {
   tableName: 'tbl_Enrollment',

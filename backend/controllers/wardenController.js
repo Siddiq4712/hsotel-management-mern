@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { Op } from 'sequelize';
+import sequelize from '../config/database.js';
 import moment from 'moment';
 import { 
   User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session, MessFeesAllot,
@@ -79,6 +80,18 @@ export const enrollStudent = async (req, res) => {
       }, { transaction });
     }
 
+    // Check if roll_number already exists in enrollment
+    if (roll_number) {
+      const existingEnrollment = await Enrollment.findOne({
+        where: { roll_number: roll_number },
+        transaction
+      });
+      if (existingEnrollment) {
+        await transaction.rollback();
+        return res.status(400).json({ error: 'Roll number already exists in enrollment' });
+      }
+    }
+
     // Create enrollment for the student
     const enrollment = await Enrollment.create({
       student_id: student.id,
@@ -88,7 +101,7 @@ export const enrollStudent = async (req, res) => {
       initial_emi_status: requires_bed ? (paid_initial_emi ? 'paid' : 'pending') : 'not_required',
       college: college || 'nec', // Default to 'nec' if not provided
       roll_number: roll_number || null,
-      remaining_dues: requires_bed ? 6 : 0, 
+      remaining_dues: requires_bed ? 6 : 0,
     }, { transaction });
 
     // If bed is required and initial EMI is paid, create fee records for the 5 EMIs

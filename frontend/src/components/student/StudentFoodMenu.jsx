@@ -223,6 +223,7 @@ const StudentFoodMenu = () => {
     try {
       const payload = {
         items: Object.values(cart).map(c => ({ food_item_id: c.item.id, quantity: c.quantity })),
+        requested_time: moment().add(1, 'hour').toISOString(), // Set requested time to 1 hour from now
         notes: orderNotes
       };
       await studentAPI.createFoodOrder(payload);

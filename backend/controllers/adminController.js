@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { Op, fn, col, literal } from 'sequelize';
+import sequelize from '../config/database.js';
 import {
   User, Hostel, RoomType, HostelRoom, Session, Attendance,
   HostelFacilityType, HostelFacility, HostelMaintenance,

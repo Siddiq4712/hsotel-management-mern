@@ -4719,7 +4719,7 @@ export const createBulkStudentFee = async (req, res) => {
           hostel_id,
           status: 'active',
           requires_bed: true,
-          remaining_dues: { [Op.gt]: 0 }
+          // remaining_dues: { [Op.gt]: 0 } // Temporarily disabled until migration is run
         },
         transaction
       });
@@ -4804,7 +4804,7 @@ export const getStudents = async (req, res) => {
 
     if (requires_bed === 'true') {
       enrollmentWhereClause.requires_bed = true;
-      enrollmentWhereClause.remaining_dues = { [Op.gt]: 0 }; 
+      // enrollmentWhereClause.remaining_dues = { [Op.gt]: 0 }; // Temporarily disabled until migration is run
     }
 
     const students = await User.findAll({
@@ -4819,7 +4819,7 @@ export const getStudents = async (req, res) => {
         as: 'tbl_Enrollment', // <--- CHANGED FROM tbl_Enrollments TO tbl_Enrollment
         where: enrollmentWhereClause,
         required: true, 
-        attributes: ['id', 'session_id', 'requires_bed', 'remaining_dues']
+        attributes: ['id', 'session_id', 'requires_bed']
       }],
       order: [['username', 'ASC']]
     });
@@ -4837,7 +4837,7 @@ export const getStudents = async (req, res) => {
         username: studentData.username,
         roll_number: studentData.roll_number,
         requires_bed: activeEnrollment?.requires_bed,
-        remaining_dues: activeEnrollment?.remaining_dues
+        remaining_dues: activeEnrollment?.remaining_dues || (activeEnrollment?.requires_bed ? 6 : 0)
       };
     });
 
