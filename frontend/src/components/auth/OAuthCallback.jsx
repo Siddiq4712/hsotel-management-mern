@@ -3,6 +3,28 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Spin, message, Avatar } from 'antd';
 import { UserOutlined, GoogleOutlined } from '@ant-design/icons';
 
+const normalizeRole = (role) => {
+  if (role === null || role === undefined) return null;
+
+  const normalized = String(role).trim().toLowerCase();
+  const roleMap = {
+    admin: 'admin',
+    administrator: 'admin',
+    1: 'admin',
+    warden: 'warden',
+    3: 'warden',
+    student: 'student',
+    2: 'student',
+    lapc: 'lapc',
+    mess: 'mess',
+    messstaff: 'mess',
+    'mess staff': 'mess',
+    4: 'mess'
+  };
+
+  return roleMap[normalized] || normalized;
+};
+
 const OAuthCallback = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -50,9 +72,10 @@ const OAuthCallback = () => {
       if (token && userDataParam) {
         try {
           const user = JSON.parse(decodeURIComponent(userDataParam));
+          const normalizedUser = { ...user, role: normalizeRole(user.role) };
           
           // Set the user data in state to display profile info while processing
-          setUserData(user);
+          setUserData(normalizedUser);
           
           // Retrieve Google profile picture from localStorage if available
           // This would need to be set during Google login
@@ -61,16 +84,16 @@ const OAuthCallback = () => {
           // Store token and user data
           localStorage.setItem('token', token);
           localStorage.setItem('user', JSON.stringify({
-            ...user,
-            profile_picture: user.profile_picture || googleProfilePic || null
+            ...normalizedUser,
+            profile_picture: normalizedUser.profile_picture || googleProfilePic || null
           }));
           
-          message.success(`Welcome back, ${user.first_name || user.username}!`);
+          message.success(`Welcome back, ${normalizedUser.first_name || normalizedUser.username}!`);
           
           // Add slight delay for better UX
           setTimeout(() => {
             // Redirect based on user role
-            switch (user.role) {
+            switch (normalizedUser.role) {
               case 'admin':
                 navigate('/admin');
                 break;

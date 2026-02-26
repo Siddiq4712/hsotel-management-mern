@@ -227,7 +227,7 @@ const DayReductionRequestsAdmin = () => {
                   <Search size={18} className="text-slate-300" />
                   <Input 
                     placeholder="Search Student or Hostel..." 
-                    bordered={false} 
+                    variant="borderless"
                     className="w-full font-medium"
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
@@ -238,7 +238,7 @@ const DayReductionRequestsAdmin = () => {
                   <Select
                     value={filters.status}
                     onChange={(val) => setFilters(prev => ({ ...prev, status: val }))}
-                    bordered={false}
+                    variant="borderless"
                     className="w-48 font-medium"
                   >
                     <Option value="all">All Records</Option>
@@ -251,7 +251,7 @@ const DayReductionRequestsAdmin = () => {
             </Card>
 
             {/* Data Ledger */}
-            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" styles={{ body: { padding: 0 } }}>
               {filteredData.length > 0 ? (
                 <Table 
                   dataSource={filteredData} 

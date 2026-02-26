@@ -1,8 +1,8 @@
-import bcrypt from 'bcryptjs';
+﻿import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
 import { Op } from 'sequelize';
-import { User, Hostel } from '../models/index.js'; // Ensure the .js extension
+import { User, Hostel, Role } from '../models/index.js'; // Ensure the .js extension
 
 export const login = async (req, res) => {
   try {
@@ -12,11 +12,11 @@ export const login = async (req, res) => {
     const user = await User.findOne({
       where: {
         [Op.or]: [
-          { username: username },
+          { userName: username },
           { roll_number: username }
         ]
       },
-      include: [{ model: Hostel, attributes: ['id', 'name'] }]
+      include: [{ model: Hostel, attributes: ['id', 'name'] }, { model: Role, as: 'role', attributes: ['roleName'] }]
     });
 
     if (!user) {
@@ -31,8 +31,8 @@ export const login = async (req, res) => {
 
     // Generate JWT
     const payload = {
-      userId: user.id,
-      role: user.role,
+      userId: user.userId,
+      role: user.role?.roleName || user.roleId,
       hostelId: user.hostel_id
     };
 
@@ -41,9 +41,9 @@ export const login = async (req, res) => {
     res.json({
       token,
       user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
+        id: user.userId,
+        username: user.userName,
+        role: user.role?.roleName || user.roleId,
         hostel_id: user.hostel_id,
         hostel: user.Hostel
       }
@@ -56,9 +56,9 @@ export const login = async (req, res) => {
 
 export const getProfile = async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id, {
+    const user = await User.findByPk(req.user.userId, {
       attributes: { exclude: ['password'] },
-      include: [{ model: Hostel, attributes: ['id', 'name'] }]
+      include: [{ model: Hostel, attributes: ['id', 'name'] }, { model: Role, as: 'role', attributes: ['roleName'] }]
     });
 
     if (!user) {
@@ -91,8 +91,8 @@ export const googleCallback = (req, res, next) => {
     // Generate JWT
     const token = jwt.sign(
       { 
-        userId: user.id, 
-        email: user.email
+        userId: user.userId, 
+        email: user.userMail
       },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '30d' }
@@ -100,12 +100,12 @@ export const googleCallback = (req, res, next) => {
 
     // Prepare user data to send to frontend
     const userData = {
-      id: user.id,
-      email: user.email,
-      username: user.username,
+      id: user.userId,
+      email: user.userMail,
+      username: user.userName,
       first_name: user.first_name,
       last_name: user.last_name,
-      role: user.role,
+      role: user.role?.roleName || user.roleId,
       hostel_id: user.hostel_id,
       profile_picture: user.profile_picture || user.dataValues.profile_picture
     };
@@ -119,7 +119,7 @@ export const googleCallback = (req, res, next) => {
 export const changePassword = async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
-    const userId = req.user.id;
+    const userId = req.user.userId;
     
     // Get the user with their current password
     const user = await User.findByPk(userId);
@@ -146,3 +146,4 @@ export const changePassword = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+

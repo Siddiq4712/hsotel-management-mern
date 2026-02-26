@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Card, Form, Input, Button, Select, Typography, 
   Row, Col, Divider, message, ConfigProvider, theme, 
-  Space, Skeleton 
+  Space, Skeleton, Modal
 } from 'antd';
 import { 
   User, Lock, Building, CheckCircle2, AlertCircle, 
@@ -40,39 +40,56 @@ const FormSkeleton = () => (
 
 const CreateUser = () => {
   const [form] = Form.useForm();
+  const [roleForm] = Form.useForm();
   const [hostels, setHostels] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [componentLoading, setComponentLoading] = useState(true);
-  const [selectedRole, setSelectedRole] = useState('');
+  const [selectedRoleId, setSelectedRoleId] = useState(null);
+  const [roleModalVisible, setRoleModalVisible] = useState(false);
+  const [roleCreating, setRoleCreating] = useState(false);
 
   useEffect(() => {
-    fetchHostels();
+    fetchInitialData();
   }, []);
 
-  const fetchHostels = async () => {
+  const fetchInitialData = async () => {
     try {
-      const response = await adminAPI.getHostels();
-      setHostels(response.data.data || []);
+      const [hostelResponse, roleResponse] = await Promise.all([
+        adminAPI.getHostels(),
+        adminAPI.getRoles()
+      ]);
+      setHostels(hostelResponse.data.data || []);
+      setRoles(roleResponse.data.data || []);
     } catch (error) {
-      console.error('Error fetching hostels:', error);
-      message.error('Failed to sync hostel registry.');
+      console.error('Error fetching initial data:', error);
+      message.error('Failed to sync role/hostel registry.');
     } finally {
       // Intentional minor delay for smooth shimmer effect
       setTimeout(() => setComponentLoading(false), 600);
     }
   };
 
+  const fetchRoles = async () => {
+    const response = await adminAPI.getRoles();
+    setRoles(response.data.data || []);
+  };
+
   const onFinish = async (values) => {
     setLoading(true);
     try {
+      const selectedRole = roles.find((r) => r.roleId === values.roleId);
+      const isAdminRole = selectedRole?.roleName?.toLowerCase() === 'admin';
+
       await adminAPI.createUser({
         ...values,
-        hostel_id: values.role === 'admin' ? null : parseInt(values.hostel_id)
+        role: selectedRole?.roleName,
+        hostel_id: isAdminRole ? null : parseInt(values.hostel_id, 10)
       });
       
       message.success('System identity provisioned successfully!');
       form.resetFields();
-      setSelectedRole('');
+      setSelectedRoleId(null);
     } catch (error) {
       console.error('Provisioning Error:', error);
       message.error(error.response?.data?.message || 'Protocol violation: User creation failed');
@@ -81,26 +98,44 @@ const CreateUser = () => {
     }
   };
 
-  const roles = [
-    { value: 'admin', label: 'Administrator' },
-    { value: 'warden', label: 'Hostel Warden' },
-    { value: 'student', label: 'Student Member' },
-    { value: 'mess', label: 'Mess Operations' }
-  ];
+  const handleCreateRole = async () => {
+    try {
+      const values = await roleForm.validateFields();
+      setRoleCreating(true);
+      await adminAPI.createRole(values);
+      message.success('New role created successfully');
+      roleForm.resetFields();
+      setRoleModalVisible(false);
+      await fetchRoles();
+    } catch (error) {
+      if (error?.errorFields) return;
+      message.error(error.response?.data?.message || 'Failed to create role');
+    } finally {
+      setRoleCreating(false);
+    }
+  };
+
+  const selectedRole = roles.find((r) => r.roleId === selectedRoleId);
+  const isAdminRole = selectedRole?.roleName?.toLowerCase() === 'admin';
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
       <div className="p-8 bg-slate-50 min-h-screen">
         
         {/* Header Section */}
-        <div className="flex items-center gap-4 mb-8">
-          <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
-            <UserPlus className="text-white" size={24} />
+        <div className="flex items-center justify-between gap-4 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <UserPlus className="text-white" size={24} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0, fontWeight: 600 }}>Provision Identity</Title>
+              <Text type="secondary">Deploy new user credentials into the institutional ecosystem</Text>
+            </div>
           </div>
-          <div>
-            <Title level={2} style={{ margin: 0, fontWeight: 600 }}>Provision Identity</Title>
-            <Text type="secondary">Deploy new user credentials into the institutional ecosystem</Text>
-          </div>
+          <Button type="primary" ghost className="rounded-xl h-11 px-5 font-semibold" onClick={() => setRoleModalVisible(true)}>
+            + Create Role
+          </Button>
         </div>
 
         <Row gutter={24}>
@@ -126,7 +161,9 @@ const CreateUser = () => {
                     className="p-8"
                     autoComplete="off"
                     onValuesChange={(changedValues) => {
-                      if (changedValues.role) setSelectedRole(changedValues.role);
+                      if (Object.prototype.hasOwnProperty.call(changedValues, 'roleId')) {
+                        setSelectedRoleId(changedValues.roleId);
+                      }
                     }}
                   >
                     <Row gutter={16}>
@@ -173,20 +210,20 @@ const CreateUser = () => {
                     <Row gutter={16}>
                       <Col span={12}>
                         <Form.Item 
-                          name="role" 
+                          name="roleId" 
                           label={<Text strong>Access Role</Text>} 
                           rules={[{ required: true }]}
                         >
                           <Select placeholder="Select level" className="h-12 w-full">
                             {roles.map(role => (
-                              <Option key={role.value} value={role.value}>{role.label}</Option>
+                              <Option key={role.roleId} value={role.roleId}>{role.roleName}</Option>
                             ))}
                           </Select>
                         </Form.Item>
                       </Col>
                       
                       <Col span={12}>
-                        {selectedRole && selectedRole !== 'admin' && (
+                        {selectedRoleId && !isAdminRole && (
                           <Form.Item 
                             name="hostel_id" 
                             label={<Text strong>Assigned Hostel Unit</Text>}
@@ -228,7 +265,7 @@ const CreateUser = () => {
                       <Button 
                         size="large" 
                         icon={<RotateCcw size={18}/>} 
-                        onClick={() => { form.resetFields(); setSelectedRole(''); }}
+                        onClick={() => { form.resetFields(); setSelectedRoleId(null); }}
                         className="h-14 px-8 rounded-2xl border-slate-200"
                       >
                         Reset
@@ -279,6 +316,31 @@ const CreateUser = () => {
             </div>
           </Col>
         </Row>
+
+        <Modal
+          title="Create New Role"
+          open={roleModalVisible}
+          onCancel={() => {
+            setRoleModalVisible(false);
+            roleForm.resetFields();
+          }}
+          onOk={handleCreateRole}
+          confirmLoading={roleCreating}
+          okText="Create Role"
+        >
+          <Form form={roleForm} layout="vertical">
+            <Form.Item
+              name="roleName"
+              label="Role Name"
+              rules={[
+                { required: true, message: 'Role name is required' },
+                { min: 2, message: 'Role name must be at least 2 characters' }
+              ]}
+            >
+              <Input placeholder="e.g. Warden, Mess, Student, Admin" />
+            </Form.Item>
+          </Form>
+        </Modal>
       </div>
     </ConfigProvider>
   );
