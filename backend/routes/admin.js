@@ -4,7 +4,7 @@ import {
   createHostel, getHostels, getHostelById, updateHostel, deleteHostel,
 
   // User Management
-  createUser, getUsers, updateUser, deleteUser,
+  createUser, getUsers, updateUser, deleteUser, getRoles, createRole,
 
   // Room Type Management
   createRoomType, getRoomTypes, updateRoomType, deleteRoomType,
@@ -63,6 +63,8 @@ router.put('/hostels/:id', updateHostel);
 router.delete('/hostels/:id', deleteHostel);
 
 // User Management
+router.get('/roles', getRoles);
+router.post('/roles', createRole);
 router.post('/users', createUser);
 router.get('/users', getUsers);
 router.put('/users/:id', updateUser);

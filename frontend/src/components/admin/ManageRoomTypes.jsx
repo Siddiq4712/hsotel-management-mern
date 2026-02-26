@@ -112,7 +112,7 @@ const ManageRoomTypes = ({ isTabbed }) => {
                   </Space>
                 </div>
                 <div className="mt-2">
-                  <Tag color="blue">{type.capacity} Pax</Tag>
+                  <Tag color="blue">{type.capacity} max</Tag>
                   <Tag color="cyan">{hostels.find(h => h.id === type.hostel_id)?.name || 'N/A'}</Tag>
                 </div>
               </Card>
@@ -138,7 +138,7 @@ const ManageRoomTypes = ({ isTabbed }) => {
           <Form.Item name="name" label="Template Label" rules={[{ required: true }]}>
             <Input placeholder="e.g., Executive Suite" variant="filled" />
           </Form.Item>
-          <Form.Item name="capacity" label="Pax Capacity" rules={[{ required: true }]}>
+          <Form.Item name="capacity" label="max Capacity" rules={[{ required: true }]}>
             <InputNumber min={1} className="w-full" variant="filled" />
           </Form.Item>
           <Form.Item name="description" label="Description">

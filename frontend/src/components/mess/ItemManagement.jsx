@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Table, Button, Space, Popconfirm, Tag, message, Modal, Form,
+  Table, Button, Space, Tag, Modal, Form,
   Input, Select, InputNumber, Typography, Row, Col, 
-  ConfigProvider, theme, Skeleton, Divider
+  ConfigProvider, theme, Skeleton, Divider, message
 } from 'antd';
 import {
-  Package, Tags, Plus, Search, Edit2, Trash2, 
+  Package, Tags, Plus, Search, Edit2, 
   Database, Boxes, Info, CheckCircle2, X, RefreshCw, 
   Layers, AlertTriangle, Calculator, DollarSign
 } from 'lucide-react';
@@ -193,9 +193,6 @@ const ItemManagement = () => {
       render: (_, record) => (
         <Space>
           <ActionBtn icon={<Edit2 size={13}/>} onClick={() => { setEditingItem(record); form.setFieldsValue(record); setModalVisible(true); }}>Edit</ActionBtn>
-          <Popconfirm title="Permanently delete?" onConfirm={() => messAPI.deleteItem(record.id).then(fetchData)}>
-            <ActionBtn icon={<Trash2 size={13}/>} variant="danger" />
-          </Popconfirm>
         </Space>
       ),
     },
@@ -210,9 +207,6 @@ const ItemManagement = () => {
         render: (_, record) => (
           <Space>
             <ActionBtn icon={<Edit2 size={13}/>} onClick={() => { setEditingCategory(record); categoryForm.setFieldsValue(record); setCategoryModalVisible(true); }}>Edit</ActionBtn>
-            <Popconfirm title="Delete category?" onConfirm={() => messAPI.deleteItemCategory(record.id).then(fetchData)}>
-              <ActionBtn icon={<Trash2 size={13}/>} variant="danger" />
-            </Popconfirm>
           </Space>
         ),
       },

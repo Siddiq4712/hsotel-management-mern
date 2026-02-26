@@ -238,14 +238,14 @@ router.post('/items', authorize(['mess', 'admin']), validateItem, createItem);
 router.get('/items', authorize(['mess', 'warden', 'admin']), getItems);
 router.get('/items/:id', authorize(['mess', 'warden', 'admin']), getItemById);
 router.put('/items/:id', authorize(['mess', 'admin']), validateItem, updateItem);
-router.delete('/items/:id', authorize(['admin', 'warden']), deleteItem);
+router.delete('/items/:id', authorize(['mess', 'admin', 'warden']), deleteItem);
 router.get('/items/:id/batches', authorize(['mess', 'admin']), getItemBatches);
 
 /* ---------- ITEM CATEGORY MANAGEMENT ---------- */
 router.post('/item-categories', authorize(['mess', 'admin']), validateItemCategory, createItemCategory);
 router.get('/item-categories', authorize(['mess', 'warden', 'admin']), getItemCategories);
 router.put('/item-categories/:id', authorize(['mess', 'admin']), validateItemCategory, updateItemCategory);
-router.delete('/item-categories/:id', authorize(['admin', 'warden']), deleteItemCategory);
+router.delete('/item-categories/:id', authorize(['mess', 'admin', 'warden']), deleteItemCategory);
 
 /* ---------- MENU ITEM MANAGEMENT ---------- */
 router.post('/menus/:menu_id/items', authorize(['mess', 'admin']), addItemsToMenu);
@@ -257,14 +257,14 @@ router.delete('/menus/:menu_id/items/:item_id', authorize(['mess', 'admin']), re
 router.post('/menu-schedule', authorize(['mess', 'admin']), validateMenuSchedule, scheduleMenu);
 router.get('/menu-schedule', authorize(['mess', 'warden', 'admin']), getMenuSchedule);
 router.put('/menu-schedule/:id', authorize(['mess', 'admin']), validateMenuSchedule, updateMenuSchedule);
-router.delete('/menu-schedule/:id', authorize(['admin', 'warden']), deleteMenuSchedule);
+router.delete('/menu-schedule/:id', authorize(['mess', 'admin', 'warden']), deleteMenuSchedule);
 router.put('/menu-schedule/:id/serve', authorize(['mess', 'admin']), markMenuAsServed);
 
 /* ---------- UOM MANAGEMENT ---------- */
 router.post('/uoms', authorize(['mess', 'admin']), validateUOM, createUOM);
 router.get('/uoms', authorize(['mess', 'warden', 'admin']), getUOMs);
 router.put('/uoms/:id', authorize(['mess', 'admin']), validateUOM, updateUOM);
-router.delete('/uoms/:id', authorize(['admin', 'warden']), deleteUOM);
+router.delete('/uoms/:id', authorize(['mess', 'admin', 'warden']), deleteUOM);
 
 /* ---------- STOCK & CONSUMPTION ---------- */
 router.post('/stock', authorize(['mess', 'admin']), updateItemStock);
@@ -287,7 +287,7 @@ router.post('/generate-mess-bills', authorize(['mess', 'admin']), generateMessBi
 router.post('/stores', authorize(['mess', 'admin']), validateStore, createStore);
 router.get('/stores', authorize(['mess', 'warden', 'admin']), getStores);
 router.put('/stores/:id', authorize(['mess', 'admin']), validateStore, updateStore);
-router.delete('/stores/:id', authorize(['admin', 'warden']), deleteStore);
+router.delete('/stores/:id', authorize(['mess', 'admin', 'warden']), deleteStore);
 
 /* ---------- ITEM-STORE MAPPING ---------- */
 router.post('/item-stores', authorize(['mess', 'admin']), mapItemToStore);
@@ -301,7 +301,7 @@ router.post('/special-food-items', authorize(['mess', 'admin']), validateSpecial
 router.get('/special-food-items', authorize(['mess', 'warden', 'admin', 'student']), getSpecialFoodItems);
 router.get('/special-food-items/:id', authorize(['mess', 'warden', 'admin', 'student']), getSpecialFoodItemById);
 router.put('/special-food-items/:id', authorize(['mess', 'admin']), validateSpecialFoodItem, updateSpecialFoodItem);
-router.delete('/special-food-items/:id', authorize(['admin', 'warden']), deleteSpecialFoodItem);
+router.delete('/special-food-items/:id', authorize(['mess', 'admin', 'warden']), deleteSpecialFoodItem);
 
 router.post('/food-orders', authorize(['student', 'mess', 'admin']), createOrderLimiter, validateFoodOrder, createFoodOrder);
 router.get('/food-orders', authorize(['mess', 'warden', 'admin', 'student']), getFoodOrders);

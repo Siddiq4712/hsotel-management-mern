@@ -1,12 +1,13 @@
-import express from 'express';
+﻿import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import 'dotenv/config';
+import { Op } from 'sequelize';
 
 import session from 'express-session';
 import passport from './config/passport.js'; // Added .js
 import sequelize from './config/database.js'; // Default export from your converted config
-import { User } from './models/index.js'; // Added /index.js
+import { User, Role, initAssociations } from './models/index.js'; // Added /index.js
 
 import authRoutes from './routes/auth.js'; // Added .js
 import adminRoutes from './routes/admin.js'; // Added .js
@@ -56,23 +57,35 @@ app.use('/api/attendance', attendanceRoutes);
 ======================= */
 const createDefaultAdmin = async () => {
   try {
-    const adminExists = await User.findOne({ where: { role: 'admin' } });
+    let adminRole = await Role.findOne({
+      where: { roleName: { [Op.in]: ['Admin', 'admin'] } }
+    });
+
+    if (!adminRole) {
+      adminRole = await Role.create({
+        roleName: 'Admin',
+        status: 'Active'
+      });
+      console.log("Created missing 'Admin' role.");
+    }
+
+    const adminExists = await User.findOne({ where: { roleId: adminRole.roleId } });
 
     if (!adminExists) {
       const hashedPassword = await bcrypt.hash('admin123', 10);
 
       await User.create({
         userName: 'admin',
-        userMail 'admin@example.com',
+        userMail: 'admin@example.com',
         password: hashedPassword,
-        role: 'admin',
-        is_active: true
+        roleId: adminRole.roleId,
+        status: 'Active'
       });
 
-      console.log('✅ Default admin created (admin / admin123)');
+      console.log('Default admin created (admin / admin123)');
     }
   } catch (error) {
-    console.error('❌ Admin creation error:', error);
+    console.error('Admin creation error:', error);
   }
 };
 
@@ -81,24 +94,27 @@ const createDefaultAdmin = async () => {
 ======================= */
 const PORT = process.env.PORT || 5000;
 
+// Initialize all model associations before sync/query usage.
+initAssociations();
+
 sequelize
-  .sync() // 🔥 SAFE: DOES NOT DROP DATA
+  .sync() // ðŸ”¥ SAFE: DOES NOT DROP DATA
   .then(async () => {
-    console.log('✅ Database synced safely');
+    console.log('âœ… Database synced safely');
     
     // Optional: Verify email connection on startup
     try {
         await verifyEmailConnection();
     } catch (e) {
-        console.error("📧 Email service check failed");
+        console.error("ðŸ“§ Email service check failed");
     }
 
     await createDefaultAdmin();
 
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`ðŸš€ Server running on port ${PORT}`);
     });
   })
   .catch((err) => {
-    console.error('❌ Database sync failed:', err); 
+    console.error('âŒ Database sync failed:', err); 
   });

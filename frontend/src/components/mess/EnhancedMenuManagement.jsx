@@ -204,9 +204,13 @@ const EnhancedMenuManagement = () => {
       okType: 'danger',
       cancelText: 'Cancel',
       onOk: async () => {
-        await messAPI.deleteMenu(id);
-        message.success('Menu removed');
-        fetchMenus();
+        try {
+          await messAPI.deleteMenu(id);
+          message.success('Menu removed');
+          fetchMenus();
+        } catch (error) {
+          message.error(error.response?.data?.message || 'Failed to delete menu');
+        }
       },
     });
   };

@@ -1,15 +1,44 @@
 import bcrypt from 'bcryptjs';
 import { Op, fn, col, literal } from 'sequelize';
+import sequelize from '../config/database.js';
 import {
-  User, Hostel, RoomType, HostelRoom, Session, Attendance,
+  User, Role, Hostel, RoomType, HostelRoom, Session, Attendance,
   HostelFacilityType, HostelFacility, HostelMaintenance,
   IncomeType, ExpenseType, UOM, Supplier, PurchaseOrder, SupplierBill, DayReductionRequest,
   Fee,
   AdditionalIncome,
   MessDailyExpense,
   OtherExpense
-} from '../models/index.js'; // Added .js extension
+} from '../models/index.js'; 
 import moment from 'moment';
+
+const resolveRoleRecord = async ({ roleId, role }) => {
+  if (roleId) {
+    return Role.findByPk(roleId);
+  }
+
+  if (!role) return null;
+
+  const normalizedRole = String(role).trim().toLowerCase();
+  const roleAlias = {
+    admin: 'admin',
+    administrator: 'admin',
+    warden: 'warden',
+    student: 'student',
+    mess: 'mess',
+    'mess staff': 'mess',
+    messstaff: 'mess',
+    lapc: 'student'
+  };
+
+  const roleKey = roleAlias[normalizedRole] || normalizedRole;
+
+  return Role.findOne({
+    where: sequelize.where(fn('LOWER', col('roleName')), roleKey)
+  });
+};
+
+const normalizeRoleName = (name) => String(name || '').trim();
 
 // HOSTEL MANAGEMENT
 export const createHostel = async (req, res) => {
@@ -169,13 +198,87 @@ export const deleteHostel = async (req, res) => {
 };
 
 // USER MANAGEMENT
+export const getRoles = async (req, res) => {
+  try {
+    const roles = await Role.findAll({
+      where: { status: 'Active' },
+      attributes: ['roleId', 'roleName', 'status'],
+      order: [['roleName', 'ASC']]
+    });
+
+    res.json({ success: true, data: roles });
+  } catch (error) {
+    console.error('Roles fetch error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const createRole = async (req, res) => {
+  try {
+    const roleName = normalizeRoleName(req.body?.roleName || req.body?.name || req.body?.role);
+    if (!roleName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role name is required'
+      });
+    }
+
+    const existingRole = await Role.findOne({
+      where: sequelize.where(fn('LOWER', col('roleName')), roleName.toLowerCase())
+    });
+
+    if (existingRole) {
+      const updatedBy = req.user?.userId || null;
+
+      if (existingRole.status === 'Inactive') {
+        await existingRole.update({ status: 'Active', updatedBy });
+        return res.status(200).json({
+          success: true,
+          data: existingRole,
+          message: 'Role reactivated successfully'
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: existingRole,
+        message: 'Role already exists'
+      });
+    }
+
+    const createdBy = req.user?.userId || null;
+    const role = await Role.create({
+      roleName,
+      status: 'Active',
+      createdBy,
+      updatedBy: createdBy
+    });
+
+    res.status(201).json({
+      success: true,
+      data: role,
+      message: 'Role created successfully'
+    });
+  } catch (error) {
+    console.error('Role creation error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 export const createUser = async (req, res) => {
   try {
-    const { username, email, password, role, hostel_id } = req.body;
+    const { username, email, password, roleId, role, hostel_id } = req.body;
+
+    if (!username || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username, email, and password are required'
+      });
+    }
 
     const existingUser = await User.findOne({
       where: {
-        [Op.or]: [{ username }, { email }]
+        [Op.or]: [{ userName: username }, { userMail: email }]
       }
     });
 
@@ -189,12 +292,29 @@ export const createUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    const roleData = await resolveRoleRecord({ roleId, role });
+    if (!roleData) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role selection'
+      });
+    }
+
+    const isAdminRole = roleData.roleName?.toLowerCase() === 'admin';
+    if (!isAdminRole && !hostel_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Hostel selection is required for this role'
+      });
+    }
+
     const user = await User.create({
-      username,
-      email,
+      userName: username,
+      userMail: email,
       password: hashedPassword,
-      role,
-      hostel_id: role === 'admin' ? null : hostel_id
+      roleId: roleData.roleId,
+      hostel_id: isAdminRole ? null : parseInt(hostel_id, 10),
+      status: 'Active'
     });
 
     const userResponse = { ...user.toJSON() };
@@ -215,11 +335,7 @@ export const getUsers = async (req, res) => {
   try {
     const { role, hostel_id, search } = req.query;
 
-    let whereClause = { is_active: true };
-
-    if (role && role !== 'all') {
-      whereClause.role = role;
-    }
+    let whereClause = { status: 'Active' };
 
     if (hostel_id && hostel_id !== 'all') {
       whereClause.hostel_id = hostel_id;
@@ -227,15 +343,21 @@ export const getUsers = async (req, res) => {
 
     if (search) {
       whereClause[Op.or] = [
-        { username: { [Op.iLike]: `%${search}%` } },
-        { email: { [Op.iLike]: `%${search}%` } }
+        { userName: { [Op.iLike]: `%${search}%` } },
+        { userMail: { [Op.iLike]: `%${search}%` } }
       ];
+    }
+
+    let roleInclude = { model: Role, as: 'role' };
+    if (role && role !== 'all') {
+      roleInclude.where = sequelize.where(fn('LOWER', col('role.roleName')), String(role).trim().toLowerCase());
     }
 
     const users = await User.findAll({
       where: whereClause,
       attributes: { exclude: ['password'] },
       include: [
+        roleInclude,
         {
           model: Hostel,
           attributes: ['id', 'name'],
@@ -254,8 +376,8 @@ export const getUsers = async (req, res) => {
 
 export const updateUser = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { username, email, role, hostel_id, password } = req.body;
+    const { id } = req.params; // userId from params
+    const { username, email, roleId, role, hostel_id, password } = req.body;
 
     const user = await User.findByPk(id);
 
@@ -266,11 +388,27 @@ export const updateUser = async (req, res) => {
       });
     }
 
+    const roleData = await resolveRoleRecord({ roleId, role });
+    if (!roleData) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid role selection'
+      });
+    }
+
+    const isAdminRole = roleData.roleName?.toLowerCase() === 'admin';
+    if (!isAdminRole && !hostel_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Hostel selection is required for this role'
+      });
+    }
+
     const updateData = {
-      username,
-      email,
-      role,
-      hostel_id: role === 'admin' ? null : hostel_id
+      userName: username,
+      userMail: email,
+      roleId: roleData.roleId,
+      hostel_id: isAdminRole ? null : parseInt(hostel_id, 10)
     };
 
     if (password && password.trim()) {
@@ -303,7 +441,7 @@ export const deleteUser = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    await user.update({ is_active: false });
+    await user.update({ status: 'Inactive' });
 
     res.json({ success: true, message: 'User deactivated successfully' });
   } catch (error) {
@@ -674,7 +812,6 @@ export const deleteFacility = async (req, res) => {
     const facility = await HostelFacility.findByPk(id);
     if (!facility) return res.status(404).json({ success: false, message: 'Facility not found' });
 
-    // Use a try-catch for the usage count check if HostelFacilityRegister isn't globally available
     let usageCount = 0;
     try {
       usageCount = await HostelFacilityRegister.count({ where: { facility_id: id } });
@@ -712,7 +849,7 @@ export const createMaintenance = async (req, res) => {
       issue_type,
       description,
       priority: priority || 'medium',
-      reported_by: req.user ? req.user.id : 1,
+      reported_by: req.user ? req.user.userId : 1, // Changed to userId
       status: 'reported'
     };
 
@@ -722,7 +859,7 @@ export const createMaintenance = async (req, res) => {
         { model: Hostel, attributes: ['id', 'name'] },
         { model: HostelRoom, attributes: ['id', 'room_number'], required: false },
         { model: HostelFacility, attributes: ['id', 'name'], required: false },
-        { model: User, as: 'ReportedBy', attributes: ['id', 'username'], required: false }
+        { model: User, as: 'ReportedBy', attributes: ['userId', 'userName'], required: false } // Changed attributes
       ]
     });
 
@@ -750,7 +887,7 @@ export const getMaintenance = async (req, res) => {
         { model: Hostel, attributes: ['id', 'name'] },
         { model: HostelRoom, attributes: ['id', 'room_number'], required: false },
         { model: HostelFacility, attributes: ['id', 'name'], required: false },
-        { model: User, as: 'ReportedBy', attributes: ['id', 'username'] }
+        { model: User, as: 'ReportedBy', attributes: ['userId', 'userName'] } // Changed attributes
       ],
       order: [['createdAt', 'DESC']]
     });
@@ -780,7 +917,7 @@ export const updateMaintenance = async (req, res) => {
         { model: Hostel, attributes: ['id', 'name'] },
         { model: HostelRoom, attributes: ['id', 'room_number'], required: false },
         { model: HostelFacility, attributes: ['id', 'name'], required: false },
-        { model: User, as: 'ReportedBy', attributes: ['id', 'username'] }
+        { model: User, as: 'ReportedBy', attributes: ['userId', 'userName'] } // Changed attributes
       ]
     });
     res.json({ success: true, data: updatedMaintenance, message: 'Maintenance request updated successfully' });
@@ -1045,8 +1182,18 @@ export const deleteUOM = async (req, res) => {
 export const getDashboardStats = async (req, res) => {
   try {
     const totalHostels = await Hostel.count({ where: { is_active: true } });
-    const totalWardens = await User.count({ where: { role: 'warden', is_active: true } });
-    const totalStudents = await User.count({ where: { role: 'student', is_active: true } });
+    
+    // Join Role to count Wardens and Students
+    const totalWardens = await User.count({ 
+      where: { status: 'Active' },
+      include: [{ model: Role, as: 'role', where: { roleName: 'Warden' } }]
+    });
+    
+    const totalStudents = await User.count({ 
+      where: { status: 'Active' },
+      include: [{ model: Role, as: 'role', where: { roleName: 'Student' } }]
+    });
+
     const totalRooms = await HostelRoom.count({ where: { is_active: true } });
     const occupiedRooms = await HostelRoom.count({ where: { is_occupied: true, is_active: true } });
     const totalSuppliers = await Supplier.count({ where: { is_active: true } });
@@ -1072,16 +1219,17 @@ export const getAdminChartData = async (req, res) => {
     const chartData = {};
 
     const userRoleCounts = await User.findAll({
-      attributes: ['role', [fn('COUNT', col('id')), 'count']],
-      where: { is_active: true },
-      group: ['role'],
+      attributes: [[fn('COUNT', col('User.userId')), 'count']], // Changed to userId
+      where: { status: 'Active' }, // Changed to status
+      include: [{ model: Role, as: 'role', attributes: ['roleName'] }],
+      group: ['role.roleId', 'role.roleName'],
       raw: true
     });
 
     const labels = [];
     const counts = [];
     userRoleCounts.forEach(item => {
-      labels.push(item.role.charAt(0).toUpperCase() + item.role.slice(1));
+      labels.push(item['role.roleName']);
       counts.push(parseInt(item.count, 10));
     });
 
@@ -1149,9 +1297,9 @@ export const getDayReductionRequestsForAdmin = async (req, res) => {
     const requests = await DayReductionRequest.findAll({
       where: whereClause,
       include: [
-        { model: User, as: 'Student', attributes: ['id', 'username', 'email', 'roll_number'] },
-        { model: User, as: 'AdminProcessor', attributes: ['id', 'username'], required: false },
-        { model: User, as: 'WardenProcessor', attributes: ['id', 'username'], required: false },
+        { model: User, as: 'Student', attributes: ['userId', 'userName', 'userMail', 'roll_number'] }, // Changed attributes
+        { model: User, as: 'AdminProcessor', attributes: ['userId', 'userName'], required: false }, // Changed attributes
+        { model: User, as: 'WardenProcessor', attributes: ['userId', 'userName'], required: false }, // Changed attributes
         { model: Hostel, as: 'Hostel', attributes: ['id', 'name'] }
       ],
       order: [['createdAt', 'DESC']]
@@ -1168,7 +1316,7 @@ export const updateDayReductionRequestStatusByAdmin = async (req, res) => {
   try {
     const { id } = req.params;
     const { action, admin_remarks } = req.body;
-    const admin_id = req.user.id;
+    const admin_id = req.user.userId; // Changed to userId
 
     const request = await DayReductionRequest.findByPk(id, { transaction });
     if (!request || request.status !== 'pending_admin') {

@@ -1,5 +1,5 @@
-import { 
-  User, HostelRoom, RoomType, MessBill, MessCharge, DailyMessCharge, MenuSchedule, MessDailyExpense, ExpenseType,
+﻿import { 
+  User, HostelRoom, RoomType, MessBill, DailyMessCharge, MenuSchedule, MessDailyExpense, ExpenseType,
   Leave, Complaint, Transaction, Attendance, Token, Rebate,
   HostelFacilityRegister, HostelFacility, HostelFacilityType, Hostel, HostelLayout, RoomRequest,
   SpecialFoodItem, FoodOrder, FoodOrderItem, RoomAllotment, DailyConsumption, IncomeType, AdditionalIncome, StudentFee,
@@ -28,7 +28,7 @@ function customRounding(amount) {
 
 export const getProfile = async (req, res) => {
   try {
-    const student = await User.findByPk(req.user.id, {
+    const student = await User.findByPk(req.user.userId, {
       attributes: { exclude: ['password'] },
       include: [
         {
@@ -64,7 +64,7 @@ export const getProfile = async (req, res) => {
 
 export const getRoommates = async (req, res) => {
   try {
-    const studentId = req.user.id;
+    const studentId = req.user.userId;
 
     const studentAllotment = await RoomAllotment.findOne({
       where: { 
@@ -94,7 +94,7 @@ export const getRoommates = async (req, res) => {
         {
           model: User,
           as: 'AllotmentStudent',
-          attributes: ['id', 'username', 'email', 'profile_picture', 'roll_number']
+          attributes: ['userId', 'userName', 'userMail', 'profile_picture', 'roll_number']
         }
       ]
     });
@@ -113,24 +113,24 @@ export const getRoommates = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const { username, email } = req.body;
-    const student = await User.findByPk(req.user.id);
+    const student = await User.findByPk(req.user.userId);
     
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student not found' });
     }
 
-    if (username && username !== student.username) {
+    if (username && username !== student.userName) {
       const existingUser = await User.findOne({
-        where: { username, id: { [Op.ne]: req.user.id } }
+        where: { userName: username, userId: { [Op.ne]: req.user.userId } }
       });
       if (existingUser) {
         return res.status(400).json({ success: false, message: 'Username already exists' });
       }
     }
 
-    if (email && email !== student.email) {
+    if (email && email !== student.userMail) {
       const existingUser = await User.findOne({
-        where: { email, id: { [Op.ne]: req.user.id } }
+        where: { userMail: email, userId: { [Op.ne]: req.user.userId } }
       });
       if (existingUser) {
         return res.status(400).json({ success: false, message: 'Email already exists' });
@@ -138,12 +138,12 @@ export const updateProfile = async (req, res) => {
     }
 
     const updateData = {};
-    if (username) updateData.username = username;
-    if (email) updateData.email = email;
+    if (username) updateData.userName = username;
+    if (email) updateData.userMail = email;
 
     await student.update(updateData);
 
-    const updatedStudent = await User.findByPk(req.user.id, {
+    const updatedStudent = await User.findByPk(req.user.userId, {
       attributes: { exclude: ['password'] }
     });
 
@@ -162,7 +162,7 @@ export const updateProfile = async (req, res) => {
 
 export const getMessBills = async (req, res) => {
   try {
-    const student_id = req.user.id;
+    const student_id = req.user.userId;
     const { status, month, year } = req.query;
 
     let whereClause = { student_id };
@@ -177,7 +177,7 @@ export const getMessBills = async (req, res) => {
         {
           model: User,
           as: 'MessBillStudent',
-          attributes: ['id', 'username'],
+          attributes: ['userId', 'userName'],
         },
       ],
     });
@@ -193,7 +193,7 @@ export const getMessBillById = async (req, res) => {
   try {
     const { id } = req.params;
     const bill = await MessBill.findOne({
-      where: { id, student_id: req.user.id }
+      where: { id, student_id: req.user.userId }
     });
     
     if (!bill) {
@@ -208,7 +208,7 @@ export const getMessBillById = async (req, res) => {
 
 export const getMyMessCharges = async (req, res) => {
   try {
-    const student_id = req.user.id;
+    const student_id = req.user.userId;
     const { month, year } = req.query;
     const currentMonth = month || new Date().getMonth() + 1;
     const currentYear = year || new Date().getFullYear();
@@ -246,7 +246,7 @@ export const applyLeave = async (req, res) => {
     }
 
     const leave = await Leave.create({
-      student_id: req.user.id,
+      student_id: req.user.userId,
       leave_type,
       from_date,
       to_date,
@@ -255,7 +255,7 @@ export const applyLeave = async (req, res) => {
     });
 
     const createdLeave = await Leave.findByPk(leave.id, {
-      include: [{ model: User, as: 'Student', attributes: ['id', 'username', 'email'] }]
+      include: [{ model: User, as: 'Student', attributes: ['userId', 'userName', 'userMail'] }]
     });
 
     res.status(201).json({ success: true, data: createdLeave, message: 'Leave application submitted successfully' });
@@ -268,13 +268,13 @@ export const applyLeave = async (req, res) => {
 export const getMyLeaves = async (req, res) => {
   try {
     const { status, from_date, to_date } = req.query;
-    let whereClause = { student_id: req.user.id };
+    let whereClause = { student_id: req.user.userId };
     if (status && status !== 'all') whereClause.status = status;
     if (from_date && to_date) whereClause.createdAt = { [Op.between]: [from_date, to_date] };
 
     const leaves = await Leave.findAll({
       where: whereClause,
-      include: [{ model: User, as: 'ApprovedBy', attributes: ['id', 'username'], required: false }],
+      include: [{ model: User, as: 'ApprovedBy', attributes: ['userId', 'userName'], required: false }],
       order: [['createdAt', 'DESC']]
     });
 
@@ -289,8 +289,8 @@ export const getLeaveById = async (req, res) => {
   try {
     const { id } = req.params;
     const leave = await Leave.findOne({
-      where: { id, student_id: req.user.id },
-      include: [{ model: User, as: 'ApprovedBy', attributes: ['id', 'username'], required: false }]
+      where: { id, student_id: req.user.userId },
+      include: [{ model: User, as: 'ApprovedBy', attributes: ['userId', 'userName'], required: false }]
     });
     if (!leave) return res.status(404).json({ success: false, message: 'Leave request not found' });
     res.json({ success: true, data: leave });
@@ -304,7 +304,7 @@ export const updateLeave = async (req, res) => {
   try {
     const { id } = req.params;
     const { leave_type, from_date, to_date, reason } = req.body;
-    const leave = await Leave.findOne({ where: { id, student_id: req.user.id } });
+    const leave = await Leave.findOne({ where: { id, student_id: req.user.userId } });
     
     if (!leave) return res.status(404).json({ success: false, message: 'Leave request not found' });
     if (leave.status !== 'pending') return res.status(400).json({ success: false, message: 'Cannot update processed leave' });
@@ -317,7 +317,7 @@ export const updateLeave = async (req, res) => {
 
     await leave.update({ leave_type, from_date, to_date, reason });
     const updatedLeave = await Leave.findByPk(id, {
-      include: [{ model: User, as: 'ApprovedBy', attributes: ['id', 'username'], required: false }]
+      include: [{ model: User, as: 'ApprovedBy', attributes: ['userId', 'userName'], required: false }]
     });
 
     res.json({ success: true, data: updatedLeave, message: 'Leave request updated successfully' });
@@ -330,7 +330,7 @@ export const updateLeave = async (req, res) => {
 export const deleteLeave = async (req, res) => {
   try {
     const { id } = req.params;
-    const leave = await Leave.findOne({ where: { id, student_id: req.user.id } });
+    const leave = await Leave.findOne({ where: { id, student_id: req.user.userId } });
     if (!leave) return res.status(404).json({ success: false, message: 'Leave request not found' });
     if (leave.status !== 'pending') return res.status(400).json({ success: false, message: 'Cannot delete processed leave' });
 
@@ -352,7 +352,7 @@ export const createComplaint = async (req, res) => {
     }
 
     const complaint = await Complaint.create({
-      student_id: req.user.id,
+      student_id: req.user.userId,
       subject,
       description,
       category,
@@ -361,7 +361,7 @@ export const createComplaint = async (req, res) => {
     });
 
     const createdComplaint = await Complaint.findByPk(complaint.id, {
-      include: [{ model: User, as: 'Student', attributes: ['id', 'username', 'email'] }]
+      include: [{ model: User, as: 'Student', attributes: ['userId', 'userName', 'userMail'] }]
     });
 
     res.status(201).json({ success: true, data: createdComplaint, message: 'Complaint submitted successfully' });
@@ -374,7 +374,7 @@ export const createComplaint = async (req, res) => {
 export const getMyComplaints = async (req, res) => {
   try {
     const { status, category, priority, from_date, to_date } = req.query;
-    let whereClause = { student_id: req.user.id };
+    let whereClause = { student_id: req.user.userId };
     if (status && status !== 'all') whereClause.status = status;
     if (category && category !== 'all') whereClause.category = category;
     if (priority && priority !== 'all') whereClause.priority = priority;
@@ -382,7 +382,7 @@ export const getMyComplaints = async (req, res) => {
 
     const complaints = await Complaint.findAll({
       where: whereClause,
-      include: [{ model: User, as: 'AssignedTo', attributes: ['id', 'username'], required: false }],
+      include: [{ model: User, as: 'AssignedTo', attributes: ['userId', 'userName'], required: false }],
       order: [['createdAt', 'DESC']]
     });
 
@@ -397,8 +397,8 @@ export const getComplaintById = async (req, res) => {
   try {
     const { id } = req.params;
     const complaint = await Complaint.findOne({
-      where: { id, student_id: req.user.id },
-      include: [{ model: User, as: 'AssignedTo', attributes: ['id', 'username'], required: false }]
+      where: { id, student_id: req.user.userId },
+      include: [{ model: User, as: 'AssignedTo', attributes: ['userId', 'userName'], required: false }]
     });
     if (!complaint) return res.status(404).json({ success: false, message: 'Complaint not found' });
     res.json({ success: true, data: complaint });
@@ -412,13 +412,13 @@ export const updateComplaint = async (req, res) => {
   try {
     const { id } = req.params;
     const { subject, description, category, priority } = req.body;
-    const complaint = await Complaint.findOne({ where: { id, student_id: req.user.id } });
+    const complaint = await Complaint.findOne({ where: { id, student_id: req.user.userId } });
     if (!complaint) return res.status(404).json({ success: false, message: 'Complaint not found' });
     if (complaint.status !== 'submitted') return res.status(400).json({ success: false, message: 'Processing complaint cannot be updated' });
 
     await complaint.update({ subject, description, category, priority });
     const updatedComplaint = await Complaint.findByPk(id, {
-      include: [{ model: User, as: 'AssignedTo', attributes: ['id', 'username'], required: false }]
+      include: [{ model: User, as: 'AssignedTo', attributes: ['userId', 'userName'], required: false }]
     });
 
     res.json({ success: true, data: updatedComplaint, message: 'Complaint updated' });
@@ -431,7 +431,7 @@ export const updateComplaint = async (req, res) => {
 export const deleteComplaint = async (req, res) => {
   try {
     const { id } = req.params;
-    const complaint = await Complaint.findOne({ where: { id, student_id: req.user.id } });
+    const complaint = await Complaint.findOne({ where: { id, student_id: req.user.userId } });
     if (!complaint) return res.status(404).json({ success: false, message: 'Complaint not found' });
     if (complaint.status !== 'submitted') return res.status(400).json({ success: false, message: 'Processing complaint cannot be deleted' });
 
@@ -448,14 +448,14 @@ export const deleteComplaint = async (req, res) => {
 export const getTransactions = async (req, res) => {
   try {
     const { transaction_type, status, from_date, to_date } = req.query;
-    let whereClause = { student_id: req.user.id };
+    let whereClause = { student_id: req.user.userId };
     if (transaction_type && transaction_type !== 'all') whereClause.transaction_type = transaction_type;
     if (status && status !== 'all') whereClause.status = status;
     if (from_date && to_date) whereClause.createdAt = { [Op.between]: [from_date, to_date] };
 
     const transactions = await Transaction.findAll({
       where: whereClause,
-      include: [{ model: User, as: 'ProcessedBy', attributes: ['id', 'username'], required: false }],
+      include: [{ model: User, as: 'ProcessedBy', attributes: ['userId', 'userName'], required: false }],
       order: [['createdAt', 'DESC']]
     });
     res.json({ success: true, data: transactions });
@@ -469,8 +469,8 @@ export const getTransactionById = async (req, res) => {
   try {
     const { id } = req.params;
     const transaction = await Transaction.findOne({
-      where: { id, student_id: req.user.id },
-      include: [{ model: User, as: 'ProcessedBy', attributes: ['id', 'username'], required: false }]
+      where: { id, student_id: req.user.userId },
+      include: [{ model: User, as: 'ProcessedBy', attributes: ['userId', 'userName'], required: false }]
     });
     if (!transaction) return res.status(404).json({ success: false, message: 'Transaction not found' });
     res.json({ success: true, data: transaction });
@@ -485,13 +485,13 @@ export const getTransactionById = async (req, res) => {
 export const getMyAttendance = async (req, res) => {
   try {
     const { from_date, to_date, status } = req.query;
-    let whereClause = { student_id: req.user.id };
+    let whereClause = { student_id: req.user.userId };
     if (status && status !== 'all') whereClause.status = status;
     if (from_date && to_date) whereClause.date = { [Op.between]: [from_date, to_date] };
 
     const attendance = await Attendance.findAll({
       where: whereClause,
-      include: [{ model: User, as: 'MarkedBy', attributes: ['id', 'username'] }],
+      include: [{ model: User, as: 'MarkedBy', attributes: ['userId', 'userName'] }],
       order: [['date', 'DESC']]
     });
     res.json({ success: true, data: attendance });
@@ -534,7 +534,7 @@ export const useFacility = async (req, res) => {
     const cost = (facility.cost_per_use * (duration_minutes / 60)) || facility.cost_per_use || 0;
     const facilityUsage = await HostelFacilityRegister.create({
       facility_id,
-      student_id: req.user.id,
+      student_id: req.user.userId,
       duration_minutes,
       cost: cost.toFixed(2),
       remarks
@@ -558,7 +558,7 @@ export const useFacility = async (req, res) => {
 
 export const getMyFacilityUsage = async (req, res) => {
   try {
-    let whereClause = { student_id: req.user.id };
+    let whereClause = { student_id: req.user.userId };
     const { facility_id, from_date, to_date } = req.query;
     if (facility_id && facility_id !== 'all') whereClause.facility_id = facility_id;
     if (from_date && to_date) whereClause.usage_date = { [Op.between]: [from_date, to_date] };
@@ -584,7 +584,7 @@ export const getFacilityUsageById = async (req, res) => {
   try {
     const { id } = req.params;
     const usage = await HostelFacilityRegister.findOne({
-      where: { id, student_id: req.user.id },
+      where: { id, student_id: req.user.userId },
       include: [{
         model: HostelFacility,
         as: 'facility',
@@ -604,7 +604,7 @@ export const updateFacilityUsage = async (req, res) => {
   try {
     const { id } = req.params;
     const { duration_minutes, remarks } = req.body;
-    const usage = await HostelFacilityRegister.findOne({ where: { id, student_id: req.user.id } });
+    const usage = await HostelFacilityRegister.findOne({ where: { id, student_id: req.user.userId } });
     if (!usage) return res.status(404).json({ success: false, message: 'Record not found' });
 
     const hoursDiff = (new Date() - new Date(usage.usage_date)) / (1000 * 60 * 60);
@@ -637,7 +637,7 @@ export const updateFacilityUsage = async (req, res) => {
 export const deleteFacilityUsage = async (req, res) => {
   try {
     const { id } = req.params;
-    const usage = await HostelFacilityRegister.findOne({ where: { id, student_id: req.user.id } });
+    const usage = await HostelFacilityRegister.findOne({ where: { id, student_id: req.user.userId } });
     if (!usage) return res.status(404).json({ success: false, message: 'Record not found' });
 
     const hoursDiff = (new Date() - new Date(usage.usage_date)) / (1000 * 60 * 60);
@@ -656,7 +656,7 @@ export const deleteFacilityUsage = async (req, res) => {
 export const getMyTokens = async (req, res) => {
   try {
     const { meal_type, status, from_date, to_date } = req.query;
-    let whereClause = { student_id: req.user.id };
+    let whereClause = { student_id: req.user.userId };
     if (meal_type && meal_type !== 'all') whereClause.meal_type = meal_type;
     if (status && status !== 'all') whereClause.status = status;
     if (from_date && to_date) whereClause.token_date = { [Op.between]: [from_date, to_date] };
@@ -672,7 +672,7 @@ export const getMyTokens = async (req, res) => {
 export const getTokenById = async (req, res) => {
   try {
     const { id } = req.params;
-    const token = await Token.findOne({ where: { id, student_id: req.user.id } });
+    const token = await Token.findOne({ where: { id, student_id: req.user.userId } });
     if (!token) return res.status(404).json({ success: false, message: 'Token not found' });
     res.json({ success: true, data: token });
   } catch (error) {
@@ -685,7 +685,7 @@ export const getTokenById = async (req, res) => {
 
 export const getDashboardStats = async (req, res) => {
   try {
-    const student_id = req.user.id;
+    const student_id = req.user.userId;
     const stats = {
       totalLeaves: await Leave.count({ where: { student_id } }),
       pendingLeaves: await Leave.count({ where: { student_id, status: 'pending' } }),
@@ -734,7 +734,7 @@ export const getSpecialFoodItemCategories = async (req, res) => {
 export const getMyDailyMessCharges = async (req, res) => {
   try {
     const { month, year } = req.query;
-    const student_id = req.user.id;
+    const student_id = req.user.userId;
     const hostel_id = req.user.hostel_id;
 
     if (!month || !year) return res.status(400).json({ success: false, message: 'Month and year required' });
@@ -807,7 +807,7 @@ export const getMyDailyMessCharges = async (req, res) => {
 
 export const getMonthlyMessExpensesChartData = async (req, res) => {
   try {
-    const student_id = req.user.id;
+    const student_id = req.user.userId;
     const twelveMonthsAgo = moment().subtract(11, 'months').startOf('month');
     const monthlyExpenses = await MessBill.findAll({
       attributes: ['year', 'month', [sequelize.fn('SUM', sequelize.col('amount')), 'total_amount']],
@@ -831,7 +831,7 @@ export const getMonthlyMessExpensesChartData = async (req, res) => {
 
 export const getMonthlyAttendanceChartData = async (req, res) => {
   try {
-    const student_id = req.user.id;
+    const student_id = req.user.userId;
     const twelveMonthsAgo = moment().subtract(11, 'months').startOf('month');
     const monthlyAttendance = await Attendance.findAll({
       attributes: [
@@ -901,12 +901,12 @@ export const getStudentRoomOccupants = async (req, res) => {
     const { id } = req.params;
     const allotments = await RoomAllotment.findAll({
       where: { room_id: id, is_active: true },
-      include: [{ model: User, as: "AllotmentStudent", attributes: ["id", "username", "email", "roll_number", "profile_picture"] }]
+      include: [{ model: User, as: "AllotmentStudent", attributes: ["userId", "userName", "userMail", "roll_number", "profile_picture"] }]
     });
     const occupants = allotments.map((row) => ({
       user_id: row.student_id,
-      username: row.AllotmentStudent.username,
-      email: row.AllotmentStudent.email,
+      username: row.AllotmentStudent.userName,
+      email: row.AllotmentStudent.userMail,
       roll_number: row.AllotmentStudent.roll_number,
       profile_picture: row.AllotmentStudent.profile_picture
     }));
@@ -918,7 +918,7 @@ export const getStudentRoomOccupants = async (req, res) => {
 
 export const getMyRoomRequests = async (req, res) => {
   try {
-    const requests = await RoomRequest.findAll({ where: { student_id: req.user.id }, order: [["createdAt", "DESC"]] });
+    const requests = await RoomRequest.findAll({ where: { student_id: req.user.userId }, order: [["createdAt", "DESC"]] });
     res.json({ success: true, data: requests });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
@@ -929,7 +929,7 @@ export const requestRoomBooking = async (req, res) => {
   try {
     const hostel_id = ensureStudentHostel(req);
     const { room_id } = req.body;
-    const student_id = req.user.id;
+    const student_id = req.user.userId;
 
     const existingAllotment = await RoomAllotment.findOne({ where: { student_id, is_active: true } });
     if (existingAllotment) return res.status(400).json({ success: false, message: "Active allotment exists" });
@@ -950,7 +950,7 @@ export const requestRoomBooking = async (req, res) => {
 export const cancelRoomRequest = async (req, res) => {
   try {
     const { id } = req.params;
-    const request = await RoomRequest.findOne({ where: { id, student_id: req.user.id } });
+    const request = await RoomRequest.findOne({ where: { id, student_id: req.user.userId } });
     if (!request || request.status !== "pending") throw new Error("Invalid cancellation");
     await request.update({ status: "cancelled" });
     res.json({ success: true, message: "Cancelled" });
@@ -964,7 +964,7 @@ export const cancelRoomRequest = async (req, res) => {
 export const applyDayReduction = async (req, res) => {
   try {
     const { from_date, to_date, reason } = req.body;
-    const student_id = req.user.id;
+    const student_id = req.user.userId;
     const hostel_id = req.user.hostel_id;
     if (!hostel_id) return res.status(400).json({ success: false, message: 'No hostel assigned' });
 
@@ -977,11 +977,11 @@ export const applyDayReduction = async (req, res) => {
 
 export const getMyDayReductionRequests = async (req, res) => {
   try {
-    const student_id = req.user.id;
+    const student_id = req.user.userId;
     const requests = await DayReductionRequest.findAll({
       where: { student_id },
       include: [
-        { model: User, as: 'AdminProcessor', attributes: ['username'], required: false },
+        { model: User, as: 'AdminProcessor', attributes: ['userName'], required: false },
         { model: Hostel, as: 'Hostel', attributes: ['name'], required: false }
       ],
       order: [['createdAt', 'DESC']]
@@ -994,7 +994,7 @@ export const getMyDayReductionRequests = async (req, res) => {
 
 export const applyRebate = async (req, res) => {
   try {
-    const student_id = req.user.id;
+    const student_id = req.user.userId;
     const { rebate_type, from_date, to_date, reason } = req.body;
     const rebate = await Rebate.create({ student_id, rebate_type, from_date, to_date, reason, amount: 0.00, status: 'pending' });
     res.status(201).json({ success: true, message: 'Submitted', data: rebate });
@@ -1005,9 +1005,10 @@ export const applyRebate = async (req, res) => {
 
 export const getMyRebates = async (req, res) => {
   try {
-    const rebates = await Rebate.findAll({ where: { student_id: req.user.id }, order: [['createdAt', 'DESC']] });
+    const rebates = await Rebate.findAll({ where: { student_id: req.user.userId }, order: [['createdAt', 'DESC']] });
     res.json({ success: true, data: rebates });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+

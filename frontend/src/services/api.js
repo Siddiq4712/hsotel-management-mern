@@ -59,6 +59,8 @@ export const adminAPI = {
   deleteHostel: (id) => api.delete(`/admin/hostels/${id}`),
 
   // User Management - Complete CRUD
+  getRoles: () => api.get('/admin/roles'),
+  createRole: (data) => api.post('/admin/roles', data),
   createUser: (data) => api.post('/admin/users', data),
   getUsers: (params) => api.get('/admin/users', { params }),
   updateUser: (id, data) => api.put(`/admin/users/${id}`, data),

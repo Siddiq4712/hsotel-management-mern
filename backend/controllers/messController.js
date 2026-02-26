@@ -1,4 +1,4 @@
-import ExcelJS from 'exceljs';
+﻿import ExcelJS from 'exceljs';
 import {
   Menu, Item, ItemCategory, User, MenuItem, Hostel, Attendance, Enrollment, DailyMessCharge,
   MenuSchedule, UOM, ItemStock, DailyConsumption, MessBill, Session, CreditToken, Concern, Holiday,
@@ -1190,7 +1190,7 @@ if (totalQty > 0) {
     console.log(`[scheduleMenu] Total estimated cost (weighted avg): ${total_cost.toFixed(2)}`);
 
 
-    console.log(`[scheduleMenu] Total estimated FIFO cost: ₹${total_cost.toFixed(2)}`);
+    console.log(`[scheduleMenu] Total estimated FIFO cost: â‚¹${total_cost.toFixed(2)}`);
 
     // Cost per serving (raw, unrounded)
     const initial_raw_cost_per_serving = total_cost / menuEstimatedServings;
@@ -1221,7 +1221,7 @@ if (totalQty > 0) {
 // getMenuSchedule
 export const getMenuSchedule = async (req, res) => {
   try {
-    const { start_date, end_date, meal_time } = req.query; // ← ADD meal_time
+    const { start_date, end_date, meal_time } = req.query; // â† ADD meal_time
     const hostel_id = req.user.hostel_id;
 
     let whereClause = { hostel_id };
@@ -1610,7 +1610,7 @@ export const getMonthlyExpensesChartData = async (req, res) => {
       data: {
         labels,
         datasets: [{
-          label: 'Monthly Expenses (₹)',
+          label: 'Monthly Expenses (â‚¹)',
           data,
           backgroundColor: [
             'rgba(255, 99, 132, 0.6)', 'rgba(54, 162, 235, 0.6)', 'rgba(255, 206, 86, 0.6)',
@@ -1893,7 +1893,7 @@ export const getDailyConsumption = async (req, res) => {
         {
           model: User,
           as: 'ConsumptionRecordedBy',
-          attributes: ['id', 'username']
+          attributes: ['userId', 'userName']
         },
         {
           model: ConsumptionLog,
@@ -1930,7 +1930,7 @@ export const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_
 
   for (const payload of consumptions) {
     const { item_id, quantity_consumed, unit, consumption_date, meal_type } = payload;
-    console.log(`\n[WEIGHTED-AVG] → Item ${item_id} | Requested qty: ${quantity_consumed}`);
+    console.log(`\n[WEIGHTED-AVG] â†’ Item ${item_id} | Requested qty: ${quantity_consumed}`);
 
     if (!item_id || !quantity_consumed || parseFloat(quantity_consumed) <= 0) {
       throw new Error("Invalid consumption data: item_id and a positive quantity_consumed are required.");
@@ -2039,7 +2039,7 @@ if (!created) {
 
     console.log(`[WEIGHTED-AVG] DailyConsumption #${dailyConsumption.id}: total_cost=${totalCost.toFixed(4)}, quantity=${requiredQty}`);
     batchBreakdown.forEach((entry, idx) => {
-      console.log(`  └─ Batch ${entry.batch_id}: qty ${entry.quantity_used}, cost ${entry.cost.toFixed(4)}`);
+      console.log(`  â””â”€ Batch ${entry.batch_id}: qty ${entry.quantity_used}, cost ${entry.cost.toFixed(4)}`);
     });
 
     // Record breakdown logs
@@ -2065,7 +2065,7 @@ if (!created) {
     stock.last_updated = new Date();
     await stock.save({ transaction });
 
-    console.log(`[WEIGHTED-AVG] Updated ItemStock → New balance: ${stock.current_stock}`);
+    console.log(`[WEIGHTED-AVG] Updated ItemStock â†’ New balance: ${stock.current_stock}`);
 
     if (stock.current_stock <= parseFloat(stock.minimum_stock)) {
       const info = await Item.findByPk(item_id, {
@@ -2262,7 +2262,7 @@ export const updateMenuItems = (updatedItems) => {
       let batchDetails = null;
       if (item.multi_batch_breakdown && item.multi_batch_breakdown.length > 0) {
         batchDetails = item.multi_batch_breakdown.map(b =>
-          `${b.quantity} × ₹${b.unit_price} = ₹${b.cost}`
+          `${b.quantity} Ã— â‚¹${b.unit_price} = â‚¹${b.cost}`
         ).join(', ');
       }
 
@@ -2292,7 +2292,7 @@ export const updateMenuItems = (updatedItems) => {
 export const recordBulkConsumption = async (req, res) => {
   const { consumptions } = req.body;
   const hostel_id = req.user.hostel_id;
-  const user_id = req.user.id;
+  const user_id = req.user.userId;
   const transaction = await sequelize.transaction();
 
   try {
@@ -2468,7 +2468,7 @@ export const getInventoryTransactions = async (req, res) => {
         {
           model: User,
           as: 'RecordedBy',
-          attributes: ['id', 'username']
+          attributes: ['userId', 'userName']
         }
       ],
       order: [['transaction_date', 'DESC'], ['createdAt', 'DESC']]
@@ -2872,7 +2872,7 @@ export const deleteSpecialFoodItem = async (req, res) => {
 export const createFoodOrder = async (req, res) => {
   try {
     const { items, requested_time, notes } = req.body;
-    const student_id = req.user.id;
+    const student_id = req.user.userId;
     const hostel_id = req.user.hostel_id;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -2962,7 +2962,7 @@ export const createFoodOrder = async (req, res) => {
         }, {
           model: User,
           as: 'Student',
-          attributes: ['id', 'username', 'email']
+          attributes: ['userId', 'userName', 'userMail']
         }]
       });
 
@@ -2990,7 +2990,7 @@ export const getFoodOrders = async (req, res) => {
 
     // If student, show only their orders
     if (user.role === 'student') {
-      whereClause.student_id = user.id;
+      whereClause.student_id = user.userId;
     } else {
       // For mess staff, show orders from their hostel
       whereClause.hostel_id = user.hostel_id;
@@ -3024,7 +3024,7 @@ export const getFoodOrders = async (req, res) => {
       }, {
         model: User,
         as: 'Student',
-        attributes: ['id', 'username', 'email']
+        attributes: ['userId', 'userName', 'userMail']
       }],
       order: [['order_date', 'DESC']]
     });
@@ -3048,7 +3048,7 @@ export const getFoodOrderById = async (req, res) => {
 
     // If student, ensure they can only view their own orders
     if (user.role === 'student') {
-      whereClause.student_id = user.id;
+      whereClause.student_id = user.userId;
     }
 
     const order = await FoodOrder.findOne({
@@ -3061,7 +3061,7 @@ export const getFoodOrderById = async (req, res) => {
       }, {
         model: User,
         as: 'Student',
-        attributes: ['id', 'username', 'email']
+        attributes: ['userId', 'userName', 'userMail']
       }]
     });
 
@@ -3122,7 +3122,7 @@ export const updateFoodOrderStatus = async (req, res) => {
       }, {
         model: User,
         as: 'Student',
-        attributes: ['id', 'username', 'email']
+        attributes: ['userId', 'userName', 'userMail']
       }]
     });
 
@@ -3187,7 +3187,7 @@ export const cancelFoodOrder = async (req, res) => {
 
     // If student, ensure they can only cancel their own orders
     if (user.role === 'student') {
-      whereClause.student_id = user.id;
+      whereClause.student_id = user.userId;
       whereClause.status = 'pending'; // Students can only cancel pending orders
     } else {
       // For mess staff, they should be from the correct hostel
@@ -3262,7 +3262,7 @@ export const getMonthlyFoodOrderReport = async (req, res) => {
       }, {
         model: User,
         as: 'Student',
-        attributes: ['id', 'username', 'email']
+        attributes: ['userId', 'userName', 'userMail']
       }]
     });
 
@@ -3273,8 +3273,8 @@ export const getMonthlyFoodOrderReport = async (req, res) => {
       if (!studentSummary[studentId]) {
         studentSummary[studentId] = {
           student_id: studentId,
-          student_name: order.Student.username,
-          student_email: order.Student.email,
+          student_name: order.Student.userName,
+          student_email: order.Student.userMail,
           orders: [],
           total_amount: 0
         };
@@ -3608,7 +3608,7 @@ if (finalDailyCharges.length > 0) {
     
     res.status(200).json({
       success: true,
-      message: `Menu served. Cost per serving of ₹${costPerServing.toFixed(2)} recorded for ${studentsToChargeCount} present students. Skipped ${invalidStatuses.length} due to invalid status.`,
+      message: `Menu served. Cost per serving of â‚¹${costPerServing.toFixed(2)} recorded for ${studentsToChargeCount} present students. Skipped ${invalidStatuses.length} due to invalid status.`,
       data: { lowStockItems, invalidStatuses } // Include for frontend debugging if needed
     });
 
@@ -3632,7 +3632,7 @@ export const createMessDailyExpense = async (req, res) => {
   try {
     const { expense_type_id, amount, expense_date, description } = req.body;
     const hostel_id = req.user.hostel_id;
-    const recorded_by = req.user.id; // User recording the expense
+    const recorded_by = req.user.userId; // User recording the expense
 
     if (!expense_type_id || !amount || parseFloat(amount) <= 0 || !expense_date) {
       return res.status(400).json({
@@ -3701,7 +3701,7 @@ export const getMessDailyExpenses = async (req, res) => {
         {
           model: User,
           as: 'RecordedBy',
-          attributes: ['id', 'username']
+          attributes: ['userId', 'userName']
         }
       ],
       order: [['expense_date', 'DESC'], ['createdAt', 'DESC']]
@@ -3730,7 +3730,7 @@ export const getMessDailyExpenseById = async (req, res) => {
         {
           model: User,
           as: 'RecordedBy',
-          attributes: ['id', 'username']
+          attributes: ['userId', 'userName']
         }
       ]
     });
@@ -3971,7 +3971,7 @@ export const calculateMultiBatchPrice = async (itemId, requestedQuantity) => {
 export const createSpecialConsumption = async (req, res) => {
   const { name, description, consumption_date, items } = req.body;
   const hostel_id = req.user.hostel_id;
-  const user_id = req.user.id;
+  const user_id = req.user.userId;
   const transaction = await sequelize.transaction();
 
   try {
@@ -4035,7 +4035,7 @@ export const createSpecialConsumption = async (req, res) => {
       const hostel = await Hostel.findByPk(hostel_id, { attributes: ['name'] });
       
       // Get user (mess staff) name
-      const messUser = await User.findByPk(user_id, { attributes: ['username', 'email'] });
+      const messUser = await User.findByPk(user_id, { attributes: ['userName', 'userMail'] });
       
       // Get item details for email
       const itemIds = createdDailyConsumptions.map(dc => dc.item_id);
@@ -4065,20 +4065,20 @@ export const createSpecialConsumption = async (req, res) => {
         description: description || '',
         items: emailItems,
         totalCost: totalCost,
-        recordedBy: messUser ? messUser.username : 'Mess Staff',
+        recordedBy: messUser ? messUser.userName : 'Mess Staff',
         hostelName: hostel ? hostel.name : 'Hostel',
         lowStockItems: lowStockItems || []
       });
 
       if (emailResult.success) {
-        console.log(`[SpecialConsumption] ✅ Admin notification email sent successfully for "${name}"`);
+        console.log(`[SpecialConsumption] âœ… Admin notification email sent successfully for "${name}"`);
       } else {
-        console.warn(`[SpecialConsumption] ⚠️ Failed to send admin notification email: ${emailResult.error}`);
+        console.warn(`[SpecialConsumption] âš ï¸ Failed to send admin notification email: ${emailResult.error}`);
       }
 
     } catch (emailError) {
       // Don't fail the main operation if email fails - just log the error
-      console.error('[SpecialConsumption] ❌ Error sending email notification:', emailError.message);
+      console.error('[SpecialConsumption] âŒ Error sending email notification:', emailError.message);
     }
     // ============ END EMAIL NOTIFICATION ============
 
@@ -4117,7 +4117,7 @@ export const getSpecialConsumptions = async (req, res) => {
     const consumptions = await SpecialConsumption.findAll({
       where: whereClause,
       include: [
-        { model: User, as: 'RecordedBy', attributes: ['id', 'username'] }
+        { model: User, as: 'RecordedBy', attributes: ['userId', 'userName'] }
       ],
       order: [['consumption_date', 'DESC'], ['createdAt', 'DESC']],
     });
@@ -4137,7 +4137,7 @@ export const getSpecialConsumptionById = async (req, res) => {
     const consumption = await SpecialConsumption.findOne({
       where: { id, hostel_id },
       include: [
-        { model: User, as: 'RecordedBy', attributes: ['id', 'username'] },
+        { model: User, as: 'RecordedBy', attributes: ['userId', 'userName'] },
         {
           model: SpecialConsumptionItem,
           as: 'ItemsConsumed',
@@ -4189,7 +4189,7 @@ export const getMenuRoundingAdjustments = async (req, res) => {
     const adjustments = await AdditionalIncome.findAll({
       where: whereClause,
       include: [
-        { model: User, as: 'IncomeReceivedBy', attributes: ['id', 'username'] },
+        { model: User, as: 'IncomeReceivedBy', attributes: ['userId', 'userName'] },
         { model: IncomeType, as: 'IncomeType', attributes: ['id', 'name'] }
       ],
       order: [['received_date', 'DESC']],
@@ -4231,7 +4231,7 @@ export const getDailyChargeRoundingAdjustments = async (req, res) => {
     const adjustments = await AdditionalIncome.findAll({
       where: whereClause,
       include: [
-        { model: User, as: 'IncomeReceivedBy', attributes: ['id', 'username'] },
+        { model: User, as: 'IncomeReceivedBy', attributes: ['userId', 'userName'] },
         { model: IncomeType, as: 'IncomeType', attributes: ['id', 'name'] }
       ],
       order: [['received_date', 'DESC']],
@@ -4285,7 +4285,7 @@ export const getRoundingAdjustments = async (req, res) => {
     const adjustments = await AdditionalIncome.findAll({
       where: whereClause,
       include: [
-        { model: User, as: 'IncomeReceivedBy', attributes: ['id', 'username'] },
+        { model: User, as: 'IncomeReceivedBy', attributes: ['userId', 'userName'] },
         { model: IncomeType, as: 'IncomeType', attributes: ['id', 'name'] }
       ],
       order: [['received_date', 'DESC']],
@@ -4452,11 +4452,10 @@ export const getMessFeeSummary = async (req, res) => {
     const students = await User.findAll({
       where: {
         hostel_id,
-        role: 'student',
-        is_active: true
+        roleId: 2, status: 'Active'
       },
-      attributes: ['id', 'username', 'email'],
-      order: [['username', 'ASC']]
+      attributes: ['userId', 'userName', 'userMail'],
+      order: [['userName', 'ASC']]
     });
 
     if (students.length === 0) {
@@ -4488,7 +4487,7 @@ export const getMessFeeSummary = async (req, res) => {
 
     const studentsWithFees = students.map(student => {
       const studentJSON = student.toJSON();
-      const bill = billMap.get(student.id);
+      const bill = billMap.get(student.userId);
 
       if (bill) {
         totalAmount += parseFloat(bill.amount);
@@ -4554,8 +4553,8 @@ export const getStudentFeeBreakdown = async (req, res) => {
 
     // 1. Get all active students
     const students = await User.findAll({
-      where: { hostel_id, role: 'student', is_active: true },
-      attributes: ['id', 'username', 'email'],
+      where: { hostel_id, roleId: 2, status: 'Active' },
+      attributes: ['userId', 'userName', 'userMail'],
       raw: true,
     });
 
@@ -4600,10 +4599,10 @@ export const getStudentFeeBreakdown = async (req, res) => {
 
     // 6. Combine all data
     const feeBreakdown = students.map(student => {
-      const mess_bill = messChargeMap.get(student.id) || 0;
-      const special_food_cost = foodOrderMap.get(student.id) || 0;
-      const water_bill = waterBillMap.get(student.id) || 0;
-      const other_expenses = otherExpenseMap.get(student.id) || 0;
+      const mess_bill = messChargeMap.get(student.userId) || 0;
+      const special_food_cost = foodOrderMap.get(student.userId) || 0;
+      const water_bill = waterBillMap.get(student.userId) || 0;
+      const other_expenses = otherExpenseMap.get(student.userId) || 0;
       const total = mess_bill + special_food_cost + water_bill + other_expenses;
 
       return {
@@ -4703,7 +4702,7 @@ export const createBulkStudentFee = async (req, res) => {
           hostel_id,
           status: 'active',
           requires_bed: true,
-          remaining_dues: { [Op.gt]: 0 }
+          // remaining_dues: { [Op.gt]: 0 } // Temporarily disabled until migration is run
         },
         transaction
       });
@@ -4788,24 +4787,23 @@ export const getStudents = async (req, res) => {
 
     if (requires_bed === 'true') {
       enrollmentWhereClause.requires_bed = true;
-      enrollmentWhereClause.remaining_dues = { [Op.gt]: 0 }; 
+      // enrollmentWhereClause.remaining_dues = { [Op.gt]: 0 }; // Temporarily disabled until migration is run
     }
 
     const students = await User.findAll({
       where: {
         hostel_id,
-        role: 'student',
-        is_active: true
+        roleId: 2, status: 'Active'
       },
-      attributes: ['id', 'username', 'roll_number'],
+      attributes: ['userId', 'userName', 'roll_number'],
       include: [{
         model: Enrollment,
         as: 'tbl_Enrollment', // <--- CHANGED FROM tbl_Enrollments TO tbl_Enrollment
         where: enrollmentWhereClause,
         required: true, 
-        attributes: ['id', 'session_id', 'requires_bed', 'remaining_dues']
+        attributes: ['id', 'session_id', 'requires_bed']
       }],
-      order: [['username', 'ASC']]
+      order: [['userName', 'ASC']]
     });
 
     const formattedStudents = students.map(student => {
@@ -4818,10 +4816,10 @@ export const getStudents = async (req, res) => {
 
       return {
         id: studentData.id,
-        username: studentData.username,
+        username: studentData.userName,
         roll_number: studentData.roll_number,
         requires_bed: activeEnrollment?.requires_bed,
-        remaining_dues: activeEnrollment?.remaining_dues
+        remaining_dues: activeEnrollment?.remaining_dues || (activeEnrollment?.requires_bed ? 6 : 0)
       };
     });
 
@@ -4845,8 +4843,8 @@ export const getStudentFees = async (req, res) => {
         const fees = await StudentFee.findAll({
             where: whereClause,
             include: [
-                { model: User, as: 'Student', attributes: ['id', 'username'] },
-                { model: User, as: 'IssuedBy', attributes: ['id', 'username'] }
+                { model: User, as: 'Student', attributes: ['userId', 'userName'] },
+                { model: User, as: 'IssuedBy', attributes: ['userId', 'userName'] }
             ],
             order: [['createdAt', 'DESC']],
             // limit: 100
@@ -4908,7 +4906,7 @@ export const getIncomeEntries = async (req, res) => {
     // Find the IDs for the two specific types
     const incomeTypes = await IncomeType.findAll({
         where: { name: { [Op.in]: ['Sister Concern Bill', 'Cash Token'] } },
-        attributes: ['id']
+        attributes: ['userId']
     });
     const typeIds = incomeTypes.map(t => t.id);
 
@@ -4919,7 +4917,7 @@ export const getIncomeEntries = async (req, res) => {
       },
       include: [
         { model: IncomeType, as: 'IncomeType' },
-        { model: User, as: 'IncomeReceivedBy', attributes: ['id', 'username'] }
+        { model: User, as: 'IncomeReceivedBy', attributes: ['userId', 'userName'] }
       ],
       order: [['received_date', 'DESC']],
       limit: 200,
@@ -4984,12 +4982,12 @@ export const generateMonthlyMessReport = async (req, res) => {
     const dailyRate = totalHostelManDays > 0 ? (netMessCost / totalHostelManDays) : 0;
 
     // 3. Fetch all required student data in bulk
-    let studentWhereClause = { role: 'student', hostel_id, is_active: true };
+    let studentWhereClause = { roleId: 2, hostel_id, status: 'Active' };
     let studentInclude = [];
     if (college && college !== 'all') {
       studentInclude.push({
         model: Enrollment,
-        as: 'tbl_Enrollments',
+        as: 'tbl_Enrollment',
         where: { college },
         required: true // Ensures only students from the selected college are returned
       });
@@ -4998,14 +4996,14 @@ export const generateMonthlyMessReport = async (req, res) => {
     const students = await User.findAll({
       where: studentWhereClause,
       include: studentInclude,
-      attributes: ['id', 'username', 'roll_number'],
+      attributes: ['userId', 'userName', 'roll_number'],
     });
 
     if (students.length === 0) {
       return res.json({ success: true, data: [], summary: { operationalDays, daysInMonth, holidayCount } });
     }
 
-    const studentIds = students.map(s => s.id);
+    const studentIds = students.map(s => s.userId);
 
     // Get attendance in a map for quick lookup
     const attendanceData = await Attendance.findAll({
@@ -5033,8 +5031,8 @@ export const generateMonthlyMessReport = async (req, res) => {
 
     // 4. Process each student and build the report
     const reportData = students.map(student => {
-        const messDays = studentAttendanceMap.get(student.id) || 0;
-        const studentFees = studentFeesMap.get(student.id) || {};
+        const messDays = studentAttendanceMap.get(student.userId) || 0;
+        const studentFees = studentFeesMap.get(student.userId) || {};
         
         const messAmount = messDays * dailyRate;
         const bedCharges = studentFees.bed_charge || 0;
@@ -5051,8 +5049,8 @@ export const generateMonthlyMessReport = async (req, res) => {
         const roundingUp = finalAmount - netAmount;
 
         return {
-            studentId: student.id,
-            name: student.username,
+            studentId: student.userId,
+            name: student.userName,
             regNo: student.roll_number || 'N/A',
             messDays,
             dailyRate: parseFloat(dailyRate.toFixed(2)),
@@ -5300,7 +5298,7 @@ export const bulkDeleteStudentFees = async (req, res) => {
 export const exportStockToExcel = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
-    console.log(`[Export] User ${req.user.id} from Hostel ${hostel_id} is requesting stock export.`);
+    console.log(`[Export] User ${req.user.userId} from Hostel ${hostel_id} is requesting stock export.`);
 
     const hostel = await Hostel.findByPk(hostel_id);
     if (!hostel) {
@@ -5611,7 +5609,7 @@ export const saveDailyRate = async (req, res) => {
         total_deductions: totalDeductions,
         total_man_days: totalManDays,
         daily_rate: dailyRate,
-        saved_by: req.user.id
+        saved_by: req.user.userId
       }
     });
 
@@ -5621,7 +5619,7 @@ export const saveDailyRate = async (req, res) => {
         total_deductions: totalDeductions,
         total_man_days: totalManDays,
         daily_rate: dailyRate,
-        saved_by: req.user.id
+        saved_by: req.user.userId
       });
     }
 
@@ -5996,7 +5994,7 @@ export const getCreditTokens = async (req, res) => {
       where: { hostel_id },
       include: [
         { model: Concern, as: 'Concern' },
-        { model: User, as: 'RecordedBy', attributes: ['id', 'username'] }
+        { model: User, as: 'RecordedBy', attributes: ['userId', 'userName'] }
       ],
       order: [['date', 'DESC']],
       limit: 200, // Increased limit to show more recent history
@@ -6081,11 +6079,11 @@ export const generateDailyRateReport = async (req, res) => {
 
     // 0. Fetch all active students and their IDs
     const students = await User.findAll({
-      where: { hostel_id, role: 'student', is_active: true },
-      attributes: ['id', 'username', 'roll_number'],
+      where: { hostel_id, roleId: 2, status: 'Active' },
+      attributes: ['userId', 'userName', 'roll_number'],
       raw: true
     });
-    const studentIds = students.map(s => s.id);
+    const studentIds = students.map(s => s.userId);
 
     if (studentIds.length === 0) {
       return res.json({ success: true, data: { expenses: [], totalManDays: 0, dailyRate: 0 }, message: 'No students found' });
@@ -6134,7 +6132,7 @@ export const generateDailyRateReport = async (req, res) => {
           amount: waterAmount,
           expense_date: startDate,
           description: `Water charges for ${moment(startDate).format('MMMM YYYY')}`,
-          recorded_by: req.user.id
+          recorded_by: req.user.userId
         });
         console.log(`[Water Charges] Created new entry for ${moment(startDate).format('MMMM YYYY')} with amount: ${waterAmount}`);
       }
@@ -6306,7 +6304,7 @@ export const recordStaffRecordedSpecialFoodConsumption = async (req, res) => {
   try {
     const { student_id, consumption_date, items, description } = req.body;
     const hostel_id = req.user.hostel_id;
-    const recorded_by = req.user.id; // The mess staff user recording this
+    const recorded_by = req.user.userId; // The mess staff user recording this
 
     // Input validation
     if (!student_id || !consumption_date || !items || !Array.isArray(items) || items.length === 0) {
@@ -6318,7 +6316,7 @@ export const recordStaffRecordedSpecialFoodConsumption = async (req, res) => {
     }
 
     // 1. Validate student and special food items
-    const student = await User.findOne({ where: { id: student_id, hostel_id, role: 'student' }, transaction });
+    const student = await User.findOne({ where: { userId: student_id, hostel_id, roleId: 2 }, transaction });
     if (!student) {
       await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Student not found or not associated with this hostel.' });
@@ -6448,15 +6446,15 @@ export const generateMessBills = async (req, res) => {
     const dueDate = moment(endDate).add(7, 'days').toDate();
 
     // 1. Fetch target students including email
-    let studentWhereClause = { hostel_id, role: 'student', is_active: true };
+    let studentWhereClause = { hostel_id, roleId: 2, status: 'Active' };
     if (college && college !== 'all') {
       const enrolls = await Enrollment.findAll({ where: { hostel_id, college, status: 'active' }, attributes: ['student_id'], raw: true, transaction });
-      studentWhereClause.id = { [Op.in]: enrolls.map(e => e.student_id) };
+      studentWhereClause.userId = { [Op.in]: enrolls.map(e => e.student_id) };
     }
 
     const students = await User.findAll({ 
       where: studentWhereClause, 
-      attributes: ['id', 'username', 'roll_number', 'email'], 
+      attributes: ['userId', 'userName', 'roll_number', 'userMail'], 
       raw: true, 
       transaction 
     });
@@ -6466,7 +6464,7 @@ export const generateMessBills = async (req, res) => {
       return res.json({ success: true, message: 'No students found.' });
     }
 
-    const studentIds = students.map(s => s.id);
+    const studentIds = students.map(s => s.userId);
 
     // 2. Calculate Global Daily Rate (Simplified logic for brevity)
     const totalManDays = (await Attendance.sum('totalManDays', { where: { hostel_id, date: { [Op.between]: [startDate, endDate] } }, transaction })) || 0;
@@ -6493,11 +6491,11 @@ export const generateMessBills = async (req, res) => {
     // 4. Generate Bills Loop
     const billsForEmail = [];
     for (const student of students) {
-      const days = manDaysMap.get(student.id) || 0;
+      const days = manDaysMap.get(student.userId) || 0;
       const messAmt = days * dailyRate;
       
       // Aggregate other fees (Bed, Newspaper, etc.)
-      const fees = studentFees.filter(f => f.student_id === student.id);
+      const fees = studentFees.filter(f => f.student_id === student.userId);
       const bed = fees.filter(f => f.fee_type === 'bed_charge').reduce((s, f) => s + parseFloat(f.amount), 0);
       const news = (days > 0) ? fees.filter(f => f.fee_type === 'newspaper').reduce((s, f) => s + parseFloat(f.amount), 0) : 0;
       const extra = fees.filter(f => !['bed_charge', 'newspaper'].includes(f.fee_type)).reduce((s, f) => s + parseFloat(f.amount), 0);
@@ -6506,13 +6504,13 @@ export const generateMessBills = async (req, res) => {
       const finalAmount = (totalRaw - Math.floor(totalRaw) <= 0.20) ? Math.floor(totalRaw) : Math.ceil(totalRaw);
 
       await MessBill.upsert({
-        student_id: student.id, hostel_id, month, year, amount: finalAmount, 
-        status: 'pending', due_date: dueDate, description: `Mess: ₹${messAmt.toFixed(2)} | Days: ${days}`
+        student_id: student.userId, hostel_id, month, year, amount: finalAmount, 
+        status: 'pending', due_date: dueDate, description: `Mess: â‚¹${messAmt.toFixed(2)} | Days: ${days}`
       }, { transaction });
 
       // Queue for email
       billsForEmail.push({
-        email: student.email, name: student.username, roll: student.roll_number,
+        userMail: student.userMail, name: student.userName, roll: student.roll_number,
         finalAmount, monthName: moment(startDate).format('MMMM'), year,
         breakdown: { messDays: days, messAmount: messAmt.toFixed(2), additionalAmount: extra.toFixed(2), bedCharges: bed.toFixed(2), newspaperAmount: news.toFixed(2) }
       });
@@ -6526,10 +6524,10 @@ export const generateMessBills = async (req, res) => {
       let count = 0;
       for (let i = 0; i < billsForEmail.length; i++) {
         const data = billsForEmail[i];
-        if (!data.email) continue;
+        if (!data.userMail) continue;
 
         const result = await sendMessBillToStudent({
-          studentEmail: data.email, studentName: data.name, rollNumber: data.roll,
+          studentEmail: data.userMail, studentName: data.name, rollNumber: data.roll,
           month: data.monthName, year: data.year, amount: data.finalAmount, breakdown: data.breakdown
         });
 
@@ -6658,12 +6656,12 @@ export const getStudentBedFees = async (req, res) => {
         {
           model: User,
           as: 'Student',
-          attributes: ['id', 'username', 'email']
+          attributes: ['userId', 'userName', 'userMail']
         },
         {
           model: User,
           as: 'IssuedBy',
-          attributes: ['id', 'username']
+          attributes: ['userId', 'userName']
         }
       ],
       order: [['year', 'DESC'], ['month', 'DESC']]
@@ -6795,10 +6793,10 @@ export const getAllBedFees = async (req, res) => {
     let query = `
       SELECT 
         sf.id, sf.student_id, sf.amount, sf.month, sf.year, sf.description, sf.createdAt,
-        u.username as student_name, u.email as student_email, u.roll_number,
+        u.userName as student_name, u.userMail as student_email, u.roll_number,
         e.college, e.requires_bed,
         s.name as session_name,
-        ib.username as issued_by_name
+        ib.userName as issued_by_name
       FROM tbl_StudentFee sf
       JOIN tbl_User u ON sf.student_id = u.id
       LEFT JOIN tbl_Enrollment e ON sf.student_id = e.student_id AND e.status = 'active'
@@ -6824,7 +6822,7 @@ export const getAllBedFees = async (req, res) => {
       replacements.session_id = session_id;
     }
 
-    query += ` ORDER BY sf.year DESC, sf.month DESC, u.username ASC`;
+    query += ` ORDER BY sf.year DESC, sf.month DESC, u.userName ASC`;
 
     const bedFees = await sequelize.query(query, {
       replacements,
@@ -7099,3 +7097,6 @@ export const deleteRecipe = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+
+

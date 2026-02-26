@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Table, Button, Space, message, Modal, Form, Input,
-  Select, Popconfirm, Typography, Tag, ConfigProvider, theme, Skeleton, Divider
+  Select, Typography, Tag, ConfigProvider, theme, Skeleton, Divider
 } from 'antd';
 import {
-  Ruler, Plus, Search, Edit2, Trash2, Info, 
+  Ruler, Plus, Search, Edit2, Info, 
   Scale, Filter, RefreshCw, Box, Layers, Weight, Droplets, Hash
 } from 'lucide-react';
 import { messAPI } from '../../services/api';
@@ -159,16 +159,6 @@ const UOMManagement = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    try {
-      await messAPI.deleteUOM(id);
-      message.success('Unit removed');
-      fetchUOMs();
-    } catch (error) {
-      message.error(error.response?.data?.message || 'Delete failed');
-    }
-  };
-
   const stats = useMemo(() => {
     return {
       total: uoms.length,
@@ -200,9 +190,6 @@ const UOMManagement = () => {
       render: (_, record) => (
         <Space>
           <ActionBtn icon={<Edit2 size={13}/>} onClick={() => { setEditingUOM(record); form.setFieldsValue(record); setModalVisible(true); }}>Edit</ActionBtn>
-          <Popconfirm title="Delete this unit?" onConfirm={() => handleDelete(record.id)}>
-            <ActionBtn icon={<Trash2 size={13}/>} variant="danger" />
-          </Popconfirm>
         </Space>
       ),
     },

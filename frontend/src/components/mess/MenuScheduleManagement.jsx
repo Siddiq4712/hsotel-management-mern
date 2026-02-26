@@ -6,7 +6,7 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import { 
-  Search, Eye, Trash2, CheckCircle2, Calendar, 
+  Search, Eye, CheckCircle2, Calendar, 
   Filter, Utensils, AlertTriangle, Plus, X, ClipboardList, 
   Clock, DollarSign, LayoutGrid, CheckCircle
 } from 'lucide-react';
@@ -167,16 +167,6 @@ const MenuScheduleManagement = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    try {
-      await messAPI.deleteMenuSchedule(id);
-      message.success('Schedule removed');
-      fetchSchedules();
-    } catch (error) {
-      message.error('Delete failed');
-    }
-  };
-
   const stats = useMemo(() => {
     const upcoming = schedules.filter(s => s.status === 'scheduled').length;
     const served = schedules.filter(s => s.status === 'served').length;
@@ -238,14 +228,9 @@ const MenuScheduleManagement = () => {
         <Space>
           <ActionBtn icon={<Eye size={13}/>} onClick={() => { setSelectedSchedule(record); setDetailsModalVisible(true); }} />
           {record.status === 'scheduled' && (
-            <>
-              <Popconfirm title="Mark as served?" onConfirm={() => handleMarkAsServed(record.id)}>
-                <ActionBtn icon={<CheckCircle2 size={13}/>} variant="success">Serve</ActionBtn>
-              </Popconfirm>
-              <Popconfirm title="Delete schedule?" onConfirm={() => handleDelete(record.id)}>
-                <ActionBtn icon={<Trash2 size={13}/>} variant="danger" />
-              </Popconfirm>
-            </>
+            <Popconfirm title="Mark as served?" onConfirm={() => handleMarkAsServed(record.id)}>
+              <ActionBtn icon={<CheckCircle2 size={13}/>} variant="success">Serve</ActionBtn>
+            </Popconfirm>
           )}
         </Space>
       )
