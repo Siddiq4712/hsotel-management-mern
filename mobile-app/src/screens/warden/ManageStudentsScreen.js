@@ -63,7 +63,7 @@ const ManageStudentsScreen = () => {
             <User size={20} color="#3B82F6" />
           </View>
           <View>
-            <Text className="font-bold text-gray-900">{item.username}</Text>
+            <Text className="font-bold text-gray-900">{item.userName}</Text>
             <Text className="text-gray-500 text-sm">
               Roll: {item.roll_number || 'N/A'}
             </Text>
@@ -91,7 +91,7 @@ const ManageStudentsScreen = () => {
 
   const filteredStudents = students.filter(
     (s) =>
-      s.username?.toLowerCase().includes(search.toLowerCase()) ||
+      s.userName?.toLowerCase().includes(search.toLowerCase()) ||
       s.roll_number?.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -147,7 +147,7 @@ const ManageStudentsScreen = () => {
             {selectedStudent && (
               <>
                 <Text className="text-2xl font-bold">
-                  {selectedStudent.username}
+                  {selectedStudent.userName}
                 </Text>
                 <Text className="text-gray-500 mb-4">
                   Roll: {selectedStudent.roll_number || 'N/A'}

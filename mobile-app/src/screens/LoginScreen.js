@@ -16,7 +16,7 @@ import * as Linking from 'expo-linking';
 WebBrowser.maybeCompleteAuthSession();
 
 const LoginScreen = () => {
-  const [credentials, setCredentials] = useState({ username: '', password: '' });
+  const [credentials, setCredentials] = useState({ userName: '', password: '' });
   const [showError, setShowError] = useState('');
   const [showLoading, setShowLoading] = useState(false);
   
@@ -27,8 +27,8 @@ const LoginScreen = () => {
     Keyboard.dismiss();
     setShowError('');
 
-    if (!credentials.username.trim() || !credentials.password.trim()) {
-      setShowError('Please enter both username and password');
+    if (!credentials.userName.trim() || !credentials.password.trim()) {
+      setShowError('Please enter both userName and password');
       return;
     }
 
@@ -117,14 +117,14 @@ const LoginScreen = () => {
                 ) : null}
 
                 <View className="mb-4">
-                  <Text className="text-sm font-semibold text-gray-700 mb-2">Username</Text>
+                  <Text className="text-sm font-semibold text-gray-700 mb-2">userName</Text>
                   <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-lg px-4 h-12">
                     <User size={20} color="#374151" />
                     <TextInput
                       className="flex-1 ml-3 text-base"
-                      placeholder="Username or Roll Number"
-                      value={credentials.username}
-                      onChangeText={(v) => handleInputChange('username', v)}
+                      placeholder="userName or Roll Number"
+                      value={credentials.userName}
+                      onChangeText={(v) => handleInputChange('userName', v)}
                       autoCapitalize="none"
                     />
                   </View>

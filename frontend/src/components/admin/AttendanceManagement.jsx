@@ -235,9 +235,9 @@ const AttendanceManagement = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {students.map((student) => {
-                const studentAttendance = getAttendanceForStudent(student.id);
+                const studentAttendance = getAttendanceForStudent(student.userId);
                 return (
-                  <tr key={student.id} className="hover:bg-gray-50">
+                  <tr key={student.userId} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="bg-blue-100 p-2 rounded-full">
@@ -245,7 +245,7 @@ const AttendanceManagement = () => {
                         </div>
                         <div className="ml-3">
                           <div className="text-sm font-medium text-gray-900">
-                            {student.username}
+                            {student.userName}
                           </div>
                         </div>
                       </div>
@@ -272,19 +272,19 @@ const AttendanceManagement = () => {
                       {!studentAttendance && (
                         <>
                           <button
-                            onClick={() => handleMarkAttendance(student.id, 'present')}
+                            onClick={() => handleMarkAttendance(student.userId, 'present')}
                             className="text-green-600 hover:text-green-900"
                           >
                             Present
                           </button>
                           <button
-                            onClick={() => handleMarkAttendance(student.id, 'absent')}
+                            onClick={() => handleMarkAttendance(student.userId, 'absent')}
                             className="text-red-600 hover:text-red-900"
                           >
                             Absent
                           </button>
                           <button
-                            onClick={() => handleMarkAttendance(student.id, 'late')}
+                            onClick={() => handleMarkAttendance(student.userId, 'late')}
                             className="text-yellow-600 hover:text-yellow-900"
                           >
                             Late
@@ -334,20 +334,20 @@ const AttendanceManagement = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {students.filter(student => !getAttendanceForStudent(student.id)).map((student) => (
-                      <tr key={student.id}>
+                    {students.filter(student => !getAttendanceForStudent(student.userId)).map((student) => (
+                      <tr key={student.userId}>
                         <td className="px-4 py-2 text-sm text-gray-900">
-                          {student.username}
+                          {student.userName}
                         </td>
                         <td className="px-4 py-2">
                           <input
                             type="radio"
-                            name={`attendance-${student.id}`}
+                            name={`attendance-${student.userId}`}
                             value="present"
-                            checked={selectedStudents[student.id] === 'present'}
+                            checked={selectedStudents[student.userId] === 'present'}
                             onChange={(e) => setSelectedStudents({
                               ...selectedStudents,
-                              [student.id]: e.target.value
+                              [student.userId]: e.target.value
                             })}
                             className="text-green-600"
                           />
@@ -355,12 +355,12 @@ const AttendanceManagement = () => {
                         <td className="px-4 py-2">
                           <input
                             type="radio"
-                            name={`attendance-${student.id}`}
+                            name={`attendance-${student.userId}`}
                             value="absent"
-                            checked={selectedStudents[student.id] === 'absent'}
+                            checked={selectedStudents[student.userId] === 'absent'}
                             onChange={(e) => setSelectedStudents({
                               ...selectedStudents,
-                              [student.id]: e.target.value
+                              [student.userId]: e.target.value
                             })}
                             className="text-red-600"
                           />
@@ -368,12 +368,12 @@ const AttendanceManagement = () => {
                         <td className="px-4 py-2">
                           <input
                             type="radio"
-                            name={`attendance-${student.id}`}
+                            name={`attendance-${student.userId}`}
                             value="late"
-                            checked={selectedStudents[student.id] === 'late'}
+                            checked={selectedStudents[student.userId] === 'late'}
                             onChange={(e) => setSelectedStudents({
                               ...selectedStudents,
-                              [student.id]: e.target.value
+                              [student.userId]: e.target.value
                             })}
                             className="text-yellow-600"
                           />
@@ -381,12 +381,12 @@ const AttendanceManagement = () => {
                         <td className="px-4 py-2">
                           <input
                             type="radio"
-                            name={`attendance-${student.id}`}
+                            name={`attendance-${student.userId}`}
                             value="excused"
-                            checked={selectedStudents[student.id] === 'excused'}
+                            checked={selectedStudents[student.userId] === 'excused'}
                             onChange={(e) => setSelectedStudents({
                               ...selectedStudents,
-                              [student.id]: e.target.value
+                              [student.userId]: e.target.value
                             })}
                             className="text-blue-600"
                           />

@@ -272,10 +272,10 @@ function OccupantTooltip({ occupants, pos, roomNumber }) {
               occupants.map((occ) => (
                 <div key={occ.user_id} className="flex items-center gap-2">
                   <div className="w-5 h-5 rounded-full bg-blue-700 flex items-center justify-center text-[8px] font-bold text-white overflow-hidden">
-                    {occ.profile_picture ? <img src={occ.profile_picture} alt="" className="w-full h-full object-cover"/> : occ.username.charAt(0)}
+                    {occ.profileImage ? <img src={occ.profileImage} alt="" className="w-full h-full object-cover"/> : occ.userName.charAt(0)}
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-white uppercase">{occ.username}</span>
+                    <span className="text-[10px] font-bold text-white uppercase">{occ.userName}</span>
                     <span className="text-[7px] text-blue-300 uppercase leading-none">{occ.roll_number}</span>
                   </div>
                 </div>
@@ -300,10 +300,10 @@ function RoomInteractionModal({ room, occupants, occupantsLoading, request, isRe
                   occupants.map(occ => (
                     <div key={occ.user_id} className="bg-white p-3 border border-slate-200 flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-900 overflow-hidden">
-                            {occ.profile_picture ? <img src={occ.profile_picture} alt="" className="w-full h-full object-cover"/> : <UserIcon size={14}/>}
+                            {occ.profileImage ? <img src={occ.profileImage} alt="" className="w-full h-full object-cover"/> : <UserIcon size={14}/>}
                         </div>
                         <div>
-                            <p className="text-[10px] font-black text-blue-900 uppercase leading-none">{occ.username}</p>
+                            <p className="text-[10px] font-black text-blue-900 uppercase leading-none">{occ.userName}</p>
                             <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase">Roll: {occ.roll_number || 'N/A'}</p>
                         </div>
                     </div>

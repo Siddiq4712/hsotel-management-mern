@@ -261,10 +261,10 @@ const RoomModal = ({ visible, room, occupants, loading, isRequesting, hasRequest
               occupants.map(occ => (
                 <View key={occ.user_id} style={styles.occCard}>
                   <View style={styles.occAvatar}>
-                    {occ.profile_picture ? <Image source={{uri: occ.profile_picture}} style={styles.fullImg} /> : <UserIcon size={14} color="#1e3a8a" />}
+                    {occ.profileImage ? <Image source={{uri: occ.profileImage}} style={styles.fullImg} /> : <UserIcon size={14} color="#1e3a8a" />}
                   </View>
                   <View>
-                    <Text style={styles.occName}>{occ.username.toUpperCase()}</Text>
+                    <Text style={styles.occName}>{occ.userName.toUpperCase()}</Text>
                     <Text style={styles.occRoll}>ROLL: {occ.roll_number || 'N/A'}</Text>
                   </View>
                 </View>

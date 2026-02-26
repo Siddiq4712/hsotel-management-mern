@@ -153,7 +153,7 @@ const OAuthCallback = () => {
               {userData ? (
                 <Avatar 
                   size={80} 
-                  src={userData.profile_picture} 
+                  src={userData.profileImage} 
                   icon={<UserOutlined />}
                   style={{ border: '2px solid #1890ff' }}
                 />
@@ -166,7 +166,7 @@ const OAuthCallback = () => {
               )}
             </div>
             <h2 style={{ marginBottom: '20px', fontWeight: 500 }}>
-              {userData ? `Welcome, ${userData.first_name || userData.username}!` : 'Verifying your account...'}
+              {userData ? `Welcome, ${userData.first_name || userData.userName}!` : 'Verifying your account...'}
             </h2>
             <Spin size="large" />
             <p style={{ marginTop: '20px', color: '#666' }}>
@@ -185,14 +185,14 @@ const OAuthCallback = () => {
               ) : (
                 <Avatar 
                   size={80} 
-                  src={userData?.profile_picture} 
+                  src={userData?.profileImage} 
                   icon={<UserOutlined />}
                   style={{ border: '2px solid #52c41a' }}
                 />
               )}
             </div>
             <h2 style={{ marginBottom: '20px', fontWeight: 500 }}>
-              {errorMsg ? 'Authentication Failed' : `Welcome, ${userData?.first_name || userData?.username}!`}
+              {errorMsg ? 'Authentication Failed' : `Welcome, ${userData?.first_name || userData?.userName}!`}
             </h2>
             <p style={{ color: errorMsg ? '#ff4d4f' : '#52c41a' }}>
               {errorMsg || 'Authentication successful! Redirecting...'}

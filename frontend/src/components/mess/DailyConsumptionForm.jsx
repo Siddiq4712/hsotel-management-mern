@@ -116,8 +116,8 @@ const DailyConsumptionForm = ({ onSuccess }) => {
     const searchValue = input.toLowerCase();
     return (
       student.roll_number.toLowerCase().includes(searchValue) ||
-      student.username.toLowerCase().includes(searchValue) ||
-      student.username.toLowerCase().includes(searchValue) // Optional: include username if available
+      student.userName.toLowerCase().includes(searchValue) ||
+      student.userName.toLowerCase().includes(searchValue) // Optional: include userName if available
     );
   };
 
@@ -125,7 +125,7 @@ const DailyConsumptionForm = ({ onSuccess }) => {
   const studentOptionRender = (option) => {
     const student = students.find(s => s.id === option.key);
     if (!student) return option.label;
-    return `${student.roll_number} - ${student.username}`;
+    return `${student.roll_number} - ${student.userName}`;
   };
 
   return (
@@ -158,8 +158,8 @@ const DailyConsumptionForm = ({ onSuccess }) => {
                 style={{ width: '100%' }}
               >
                 {students.map(student => (
-                  <Option key={student.id} value={student.id}>
-                    {`${student.roll_number} - ${student.username}`} // Fallback for display
+                  <Option key={student.userId} value={student.userId}>
+                    {`${student.roll_number} - ${student.userName}`} // Fallback for display
                   </Option>
                 ))}
               </Select>

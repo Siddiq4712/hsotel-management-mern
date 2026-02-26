@@ -43,7 +43,7 @@ const RoomRequestsScreen = () => {
   const renderRequest = ({ item }) => (
     <View className="bg-white p-4 rounded-xl mb-3 border border-gray-100">
       <View className="flex-row justify-between">
-        <Text className="font-bold text-gray-900">{item.Student?.username}</Text>
+        <Text className="font-bold text-gray-900">{item.Student?.userName}</Text>
         <StatusBadge status={item.status} type="leave" />
       </View>
       <Text className="text-gray-600">Room {item.Room?.room_number}</Text>

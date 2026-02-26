@@ -151,7 +151,7 @@ const BedFeeManagement = () => {
       key: 'student',
       render: (_, r) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{r.Student?.username}</Text>
+          <Text strong>{r.Student?.userName}</Text>
           <Text className="text-[10px] text-slate-400 font-bold uppercase">{r.Student?.roll_number}</Text>
         </Space>
       )
@@ -287,7 +287,7 @@ const BedFeeManagement = () => {
                     <Checkbox.Group className="w-full" value={selectedStudentIds} onChange={setSelectedStudentIds}>
                       <Row gutter={[0, 8]}>
                         {studentsForSelection.map(s => (
-                          <Col span={12} key={s.id}><Checkbox value={s.id}>{s.username}</Checkbox></Col>
+                          <Col span={12} key={s.id}><Checkbox value={s.id}>{s.userName}</Checkbox></Col>
                         ))}
                       </Row>
                     </Checkbox.Group>

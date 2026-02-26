@@ -94,7 +94,7 @@ const SuspensionManagement = () => {
 
   const filteredSuspensions = useMemo(() => {
     return suspensions.filter(s => 
-      s.Student?.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.Student?.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.reason.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [suspensions, searchTerm]);
@@ -113,7 +113,7 @@ const SuspensionManagement = () => {
         <Space gap={3}>
           <div className="p-2 bg-rose-50 rounded-xl text-rose-600"><User size={18} /></div>
           <Space direction="vertical" size={0}>
-            <Text strong className="text-slate-700">{r.Student?.username}</Text>
+            <Text strong className="text-slate-700">{r.Student?.userName}</Text>
             <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
               Roll: {r.Student?.roll_number || 'UNSET'}
             </Text>
@@ -252,8 +252,8 @@ const SuspensionManagement = () => {
             >
               <Select placeholder="Select a student" showSearch optionFilterProp="children">
                 {students.map((student) => (
-                  <Select.Option key={student.id} value={student.id}>
-                    {student.username} - Roll: {student.roll_number || 'UNSET'}
+                  <Select.Option key={student.userId} value={student.userId}>
+                    {student.userName} - Roll: {student.roll_number || 'UNSET'}
                   </Select.Option>
                 ))}
               </Select>

@@ -137,7 +137,7 @@ const ManageBedCharges = () => {
       key: 'student',
       render: (_, record) => {
         const student = students.find(s => s.id === record.student_id) || {};
-        return <span>{student.username || record.student_id}</span>;
+        return <span>{student.userName || record.student_id}</span>;
       }
     },
     {
@@ -247,8 +247,8 @@ const ManageBedCharges = () => {
             >
               <Select placeholder="Select a student">
                 {students.map(student => (
-                  <Option key={student.id} value={student.id}>
-                    {student.username} ({student.email})
+                  <Option key={student.userId} value={student.userId}>
+                    {student.userName} ({student.email})
                   </Option>
                 ))}
               </Select>

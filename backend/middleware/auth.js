@@ -40,7 +40,7 @@ export const auth = async (req, res, next) => {
       attributes: { exclude: ['password'] }
     });
 
-    console.log('Auth middleware - User found:', user ? user.username : 'Not found');
+    console.log('Auth middleware - User found:', user ? user.userName : 'Not found');
 
     if (!user) {
       return res.status(401).json({ message: 'Token is not valid' });

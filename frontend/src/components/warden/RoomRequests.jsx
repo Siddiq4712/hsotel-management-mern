@@ -114,7 +114,7 @@ const RoomRequests = () => {
         <Space gap={3}>
            <div className="p-2 bg-blue-50 rounded-xl text-blue-600"><User size={18} /></div>
            <Space direction="vertical" size={0}>
-              <Text strong className="text-slate-700">{record.Student?.username}</Text>
+              <Text strong className="text-slate-700">{record.Student?.userName}</Text>
               <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
                 Roll No: {record.Student?.roll_number || "UNSET"}
               </Text>
@@ -313,7 +313,7 @@ const RoomRequests = () => {
           {selectedRequest && (
             <div className="mt-6 space-y-6">
               <Descriptions bordered column={1} className="bg-slate-50/50 rounded-2xl overflow-hidden">
-                <Descriptions.Item label="Student Name">{selectedRequest.Student?.username}</Descriptions.Item>
+                <Descriptions.Item label="Student Name">{selectedRequest.Student?.userName}</Descriptions.Item>
                 <Descriptions.Item label="Room Requested">Room {selectedRequest.Room?.room_number} ({selectedRequest.Room?.RoomType?.name})</Descriptions.Item>
               </Descriptions>
 

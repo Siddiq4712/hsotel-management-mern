@@ -88,16 +88,16 @@ const StudentProfile = () => {
           <div className="flex items-center gap-6">
             <div className="relative group">
               <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-white text-4xl font-bold shadow-xl shadow-blue-100 border-4 border-white overflow-hidden">
-                {profile?.profile_picture ? (
-                  <img src={profile.profile_picture} className="w-full h-full object-cover" alt="Avatar" />
+                {profile?.profileImage ? (
+                  <img src={profile.profileImage} className="w-full h-full object-cover" alt="Avatar" />
                 ) : (
-                  profile?.username?.charAt(0).toUpperCase()
+                  profile?.userName?.charAt(0).toUpperCase()
                 )}
               </div>
               <div className="absolute -bottom-1 -right-1 bg-emerald-500 w-6 h-6 rounded-full border-4 border-white" />
             </div>
             <div>
-              <Title level={2} style={{ margin: 0 }}>{profile?.username}</Title>
+              <Title level={2} style={{ margin: 0 }}>{profile?.userName}</Title>
               <Space split={<Divider type="vertical" />}>
                 <Text className="text-slate-400 font-medium">#{profile?.roll_number || 'STU-ID'}</Text>
                 <Tag bordered={false} color="blue" className="rounded-full px-4 font-bold uppercase text-[10px]">Student Member</Tag>
@@ -180,10 +180,10 @@ const StudentProfile = () => {
                 <Col lg={8} md={12} xs={24} key={mate.id}>
                   <div className="p-5 rounded-[24px] bg-white border border-slate-100 shadow-sm hover:border-blue-200 transition-all group flex items-center gap-4">
                     <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                      {mate.username?.charAt(0)}
+                      {mate.userName?.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <Text strong className="block truncate text-slate-700">{mate.username}</Text>
+                      <Text strong className="block truncate text-slate-700">{mate.userName}</Text>
                       <Text className="text-[10px] font-bold text-blue-500 uppercase">{mate.roll_number || 'STU'}</Text>
                     </div>
                   </div>
