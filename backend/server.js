@@ -62,8 +62,8 @@ const createDefaultAdmin = async () => {
       const hashedPassword = await bcrypt.hash('admin123', 10);
 
       await User.create({
-        username: 'admin',
-        email: 'admin@example.com',
+        userName: 'admin',
+        userMail 'admin@example.com',
         password: hashedPassword,
         role: 'admin',
         is_active: true

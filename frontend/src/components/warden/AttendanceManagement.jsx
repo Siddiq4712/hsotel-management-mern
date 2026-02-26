@@ -88,7 +88,7 @@ const AttendanceManagement = () => {
   const filteredStudents = useMemo(() => {
     return students.filter(s => {
       const matchesCollege = selectedCollege === 'All' || s.college === selectedCollege;
-      const matchesSearch = s.username.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      const matchesSearch = s.userName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             (s.roll_number && s.roll_number.toLowerCase().includes(searchTerm.toLowerCase()));
       return matchesCollege && matchesSearch;
     });
@@ -140,7 +140,7 @@ const AttendanceManagement = () => {
         <Space gap={3}>
           <div className="p-2 bg-blue-50 rounded-xl text-blue-600"><Users size={18} /></div>
           <Space direction="vertical" size={0}>
-            <Text strong className="text-slate-700">{r.username}</Text>
+            <Text strong className="text-slate-700">{r.userName}</Text>
             <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
               Roll: {r.roll_number || 'UNSET'} • {r.college}
             </Text>

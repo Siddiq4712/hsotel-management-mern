@@ -60,7 +60,7 @@ const ManageStudents = () => {
 
   const filteredStudents = useMemo(() => {
     return students.filter(s =>
-      s.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (s.roll_number && s.roll_number.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [students, searchTerm]);
@@ -76,7 +76,7 @@ const ManageStudents = () => {
       
       if (roomId) {
         const response = await wardenAPI.getRoomOccupants(roomId);
-        setRoommates(response.data.data?.filter(m => m.id !== student.id) || []);
+        setRoommates(response.data.data?.filter(m => m.id !== student.userId) || []);
       } else {
         setRoommates([]);
       }
@@ -97,7 +97,7 @@ const ManageStudents = () => {
             <User size={20} />
           </div>
           <Space direction="vertical" size={0}>
-            <Text strong className="text-slate-700">{r.username}</Text>
+            <Text strong className="text-slate-700">{r.userName}</Text>
             <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
               Roll: {r.roll_number || 'Not Set'}
             </Text>
@@ -244,7 +244,7 @@ const ManageStudents = () => {
                     <User size={40} className="text-white" />
                   </div>
                   <div>
-                    <Title level={3} style={{ color: 'white', margin: 0 }}>{selectedStudent.username}</Title>
+                    <Title level={3} style={{ color: 'white', margin: 0 }}>{selectedStudent.userName}</Title>
                     <Text style={{ color: 'rgba(255,255,255,0.7)' }} className="uppercase font-bold text-xs tracking-widest">
                       {selectedStudent.roll_number || 'NO ROLL NUMBER'}
                     </Text>
@@ -255,7 +255,7 @@ const ManageStudents = () => {
 
               <Descriptions bordered column={2} className="rounded-2xl overflow-hidden shadow-sm border-slate-100">
                 <Descriptions.Item label={<Space><Hash size={14}/> Student ID</Space>}>
-                  {selectedStudent.id}
+                  {selectedstudent.userId}
                 </Descriptions.Item>
                 <Descriptions.Item label={<Space><BookOpen size={14}/> Batch</Space>}>
                   {selectedStudent.session || 'N/A'}
@@ -285,7 +285,7 @@ const ManageStudents = () => {
                       >
                         <Space>
                           <User size={14} className="text-blue-500"/>
-                          <Text strong className="text-slate-600">{mate.username}</Text>
+                          <Text strong className="text-slate-600">{mate.userName}</Text>
                         </Space>
                         <Text className="text-[10px] text-slate-400 font-bold uppercase">
                           {mate.roll_number}

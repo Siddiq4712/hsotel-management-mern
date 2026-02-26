@@ -167,7 +167,7 @@ const StudentDashboard = ({ setCurrentView }) => {
         <div className="flex justify-between items-center">
           <div>
             <Title level={2} style={{ margin: 0 }}>Dashboard</Title>
-            <Text type="secondary">Welcome back, {profile?.username}👋</Text>
+            <Text type="secondary">Welcome back, {profile?.userName}👋</Text>
           </div>
           <Button icon={<RefreshCw size={16}/>} onClick={() => fetchDashboardData()} className="rounded-xl h-11">Refresh</Button>
         </div>

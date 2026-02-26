@@ -8,7 +8,7 @@ module.exports = {
       unique: true
     });
     
-    await queryInterface.addColumn('tbl_users', 'profile_picture', {
+    await queryInterface.addColumn('tbl_users', 'profileImage', {
       type: Sequelize.TEXT,
       allowNull: true
     });
@@ -16,6 +16,6 @@ module.exports = {
 
   async down(queryInterface, Sequelize) {
     await queryInterface.removeColumn('tbl_users', 'google_id');
-    await queryInterface.removeColumn('tbl_users', 'profile_picture');
+    await queryInterface.removeColumn('tbl_users', 'profileImage');
   }
 };

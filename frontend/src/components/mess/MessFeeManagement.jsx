@@ -333,7 +333,7 @@ const MessFeeManagement = () => {
           <Form form={form} layout="vertical" onFinish={handleManualFeeSubmit} className="mt-4">
             <Form.Item name="student_id" label="Student Beneficiary" rules={[{ required: true }]}>
               <Select showSearch placeholder="Search student name or roll..." optionFilterProp="children">
-                {students.map(s => <Option key={s.id} value={s.id}>{s.username} ({s.roll_number})</Option>)}
+                {students.map(s => <Option key={s.id} value={s.id}>{s.userName} ({s.roll_number})</Option>)}
               </Select>
             </Form.Item>
             <Row gutter={16}>

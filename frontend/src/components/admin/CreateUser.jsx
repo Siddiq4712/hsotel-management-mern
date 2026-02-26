@@ -132,8 +132,8 @@ const CreateUser = () => {
                     <Row gutter={16}>
                       <Col span={12}>
                         <Form.Item 
-                          name="username" 
-                          label={<Text strong>Unique Username</Text>} 
+                          name="userName" 
+                          label={<Text strong>Unique userName</Text>} 
                           rules={[{ required: true, message: 'Identity handle required' }]}
                         >
                           <Input 

@@ -24,20 +24,20 @@ const RoommatesList = ({ roommates, currentUserId }) => {
 
         return (
           <View key={mate.id} className="flex-row items-center p-3 bg-blue-50 rounded-lg">
-            {mate.profile_picture ? (
+            {mate.profileImage ? (
               <Image
-                source={{ uri: mate.profile_picture }}
-                alt={mate.username}
+                source={{ uri: mate.profileImage }}
+                alt={mate.userName}
                 className="w-8 h-8 rounded-full mr-3 object-cover border border-blue-200"
-                onError={() => console.log("Image load error for", mate.username)} // Simple error handling for now
+                onError={() => console.log("Image load error for", mate.userName)} // Simple error handling for now
               />
             ) : (
               <View className="w-8 h-8 rounded-full mr-3 bg-blue-500 text-white font-bold flex items-center justify-center">
-                <Text className="text-white text-sm font-bold">{getInitials(mate.username)}</Text>
+                <Text className="text-white text-sm font-bold">{getInitials(mate.userName)}</Text>
               </View>
             )}
             <View>
-              <Text className="font-medium text-gray-900">{mate.username}</Text>
+              <Text className="font-medium text-gray-900">{mate.userName}</Text>
               <Text className="text-xs text-gray-500">{mate.email || 'No email'}</Text>
             </View>
           </View>

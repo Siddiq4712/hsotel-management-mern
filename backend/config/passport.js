@@ -19,7 +19,7 @@ passport.use(
         if (!user) {
           // Step 2: Look for existing user by email (Gmail)
           user = await User.findOne({ 
-            where: { email: profile.emails[0].value, is_active: true } 
+            where: { userMail profile.emails[0].value, is_active: true } 
           });
 
           if (user) {
@@ -33,7 +33,7 @@ passport.use(
             await user.update({
               google_id: profile.id,
               // Update profile picture only if user doesn't have one already
-              profile_picture: user.profile_picture || profilePicture,
+              profileImage: user.profileImage || profilePicture,
             });
           }
         }
@@ -46,8 +46,8 @@ passport.use(
         }
 
         // Add the profile picture to user object for the callback
-        if (!user.profile_picture && profile.photos && profile.photos.length > 0) {
-          user.dataValues.profile_picture = profile.photos[0].value;
+        if (!user.profileImage && profile.photos && profile.photos.length > 0) {
+          user.dataValues.profileImage = profile.photos[0].value;
         }
 
         return done(null, user);
@@ -60,7 +60,7 @@ passport.use(
 );
 
 passport.serializeUser((user, done) => {
-  done(null, user.id);
+  done(null, user.userId);
 });
 
 passport.deserializeUser(async (id, done) => {

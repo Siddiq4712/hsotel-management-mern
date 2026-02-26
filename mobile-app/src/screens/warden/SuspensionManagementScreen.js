@@ -40,7 +40,7 @@ const SuspensionManagementScreen = () => {
 
   const renderSuspension = ({ item }) => (
     <View className="bg-white p-4 rounded-xl mb-3 border border-gray-100">
-      <Text className="font-bold text-gray-900">{item.Student?.username}</Text>
+      <Text className="font-bold text-gray-900">{item.Student?.userName}</Text>
       <Text className="text-gray-600 text-sm">{item.reason}</Text>
       <Text className="text-gray-500 text-xs">{moment(item.start_date).format('MMM DD')} - {item.end_date ? moment(item.end_date).format('MMM DD') : 'Indefinite'}</Text>
     </View>
@@ -59,7 +59,7 @@ const SuspensionManagementScreen = () => {
         <View className="flex-1 bg-white p-6">
           <Text className="text-xl font-bold mb-4">New Suspension</Text>
           <Picker selectedValue={formData.student_id} onValueChange={(v) => setFormData({...formData, student_id: v})} className="mb-3">
-            {students.map(s => <Picker.Item key={s.id} label={s.username} value={s.id} />)}
+            {students.map(s => <Picker.Item key={s.id} label={s.userName} value={s.id} />)}
           </Picker>
           <TextInput placeholder="Reason" value={formData.reason} onChangeText={(v) => setFormData({...formData, reason: v})} className="border p-3 rounded mb-3" />
           <TextInput placeholder="Start Date (YYYY-MM-DD)" value={formData.start_date} onChangeText={(v) => setFormData({...formData, start_date: v})} className="border p-3 rounded mb-3" />

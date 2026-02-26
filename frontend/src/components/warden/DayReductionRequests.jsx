@@ -73,7 +73,7 @@ const DayReductionRequestsWarden = () => {
   }, [fetchRequests]);
 
   const filteredData = requests.filter(req => 
-    req.Student?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    req.Student?.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     req.reason?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -87,7 +87,7 @@ const DayReductionRequestsWarden = () => {
             <User size={18} />
           </div>
           <Space direction="vertical" size={0}>
-            <Text strong className="text-slate-700">{record.Student?.username || 'Unknown'}</Text>
+            <Text strong className="text-slate-700">{record.Student?.userName || 'Unknown'}</Text>
             <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
               {record.Hostel?.name || 'N/A'}
             </Text>
@@ -267,7 +267,7 @@ const DayReductionRequestsWarden = () => {
                 <Row gutter={[16, 16]}>
                   <Col span={12}>
                     <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest block mb-1">Student</Text>
-                    <Text strong className="text-lg">{selectedRequest.Student?.username}</Text>
+                    <Text strong className="text-lg">{selectedRequest.Student?.userName}</Text>
                   </Col>
                   <Col span={12}>
                     <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest block mb-1">Status</Text>

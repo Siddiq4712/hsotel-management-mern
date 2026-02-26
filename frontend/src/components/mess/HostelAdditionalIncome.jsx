@@ -99,7 +99,7 @@ const HostelAdditionalIncome = () => {
     },
     {
       title: 'Recorded By',
-      dataIndex: ['IncomeReceivedBy', 'username'], // Accessing nested User username
+      dataIndex: ['IncomeReceivedBy', 'userName'], // Accessing nested User userName
       key: 'recorded_by',
       render: (text) => text || 'N/A'
     },
