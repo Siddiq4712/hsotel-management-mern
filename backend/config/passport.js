@@ -18,8 +18,8 @@ passport.use(
 
         if (!user) {
           // Step 2: Look for existing user by email (Gmail)
-          user = await User.findOne({ 
-            where: { email: profile.emails[0].value, is_active: true } 
+          user = await User.findOne({
+            where: { userMail: profile.emails[0].value, status: 'Active' }
           });
 
           if (user) {
@@ -60,7 +60,7 @@ passport.use(
 );
 
 passport.serializeUser((user, done) => {
-  done(null, user.id);
+  done(null, user.userId);
 });
 
 passport.deserializeUser(async (id, done) => {

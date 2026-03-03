@@ -21,7 +21,17 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    const backendMessage = String(error.response?.data?.message || '').toLowerCase();
+    const requestUrl = String(error.config?.url || '');
+    const isLoginCall = requestUrl.includes('/auth/login');
+    const isTokenProblem =
+      backendMessage.includes('token') ||
+      backendMessage.includes('unauthorized') ||
+      backendMessage.includes('jwt') ||
+      backendMessage.includes('please log in again');
+
+    if (status === 401 && !isLoginCall && isTokenProblem) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';

@@ -40,19 +40,26 @@ export const auth = async (req, res, next) => {
       attributes: { exclude: ['password'] }
     });
 
-    console.log('Auth middleware - User found:', user ? user.username : 'Not found');
+    console.log('Auth middleware - User found:', user ? user.userName : 'Not found');
 
     if (!user) {
       return res.status(401).json({ message: 'Token is not valid' });
     }
 
     const roleFromToken = normalizeRole(decoded.role);
-    const roleFromUser = normalizeRole(user.role || user.roleName || user.roleId);
-    const resolvedRole = roleFromToken || roleFromUser;
+    const roleFromUser = normalizeRole(user.role?.roleName || user.roleName || user.roleId);
+
+    // Trust DB role over token role; reject if token role is stale/tampered.
+    if (roleFromToken && roleFromUser && roleFromToken !== roleFromUser) {
+      return res.status(401).json({ message: 'Token role mismatch. Please login again.' });
+    }
+
+    const resolvedRole = roleFromUser || roleFromToken;
 
     req.user = {
       ...user.toJSON(),
-      role: resolvedRole
+      role: resolvedRole,
+      hostel_id: user.hostel_id ?? decoded.hostelId ?? null
     };
 
     next();

@@ -161,7 +161,8 @@ const PurchaseByStore = ({ setCurrentView }) => {
         store_id: selectedStore.id,
         quantity: parseFloat(values[`quantity_${item.item_id}`]),
         unit_price: parseFloat(values[`price_${item.item_id}`]),
-        unit: item.unit
+        unit: item.unit,
+        unit_id: item.unit_id
       }));
 
     if (purchasedItems.length === 0) {
