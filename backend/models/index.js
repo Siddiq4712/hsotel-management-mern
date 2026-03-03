@@ -110,8 +110,7 @@ export const RoomAllotment = sequelize.define('RoomAllotment', {
   room_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_HostelRoom', key: 'id' } },
   allotment_date: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
   vacation_date: { type: DataTypes.DATE, allowNull: true },
-  is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
-  remaining_dues: { type: DataTypes.INTEGER, defaultValue: 0 }
+  is_active: { type: DataTypes.BOOLEAN, defaultValue: true }
 }, { tableName: 'tbl_RoomAllotment', timestamps: true });
 
 export const RoomRequest = sequelize.define('RoomRequest', {

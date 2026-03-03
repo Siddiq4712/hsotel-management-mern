@@ -125,6 +125,19 @@ const DailyConsumption = () => {
       onFilter: (value, record) => record.Item.tbl_ItemCategory?.name === value,
     },
     {
+      title: 'Per Student',
+      dataIndex: 'qty_per_serving',
+      key: 'qty_per_serving',
+      render: (val, record) => val ? `${val} ${record.unit}` : '-',
+      sorter: (a, b) => (a.qty_per_serving || 0) - (b.qty_per_serving || 0)
+    },
+    {
+      title: 'Servings',
+      dataIndex: 'servings',
+      key: 'servings',
+      sorter: (a, b) => (a.servings || 0) - (b.servings || 0)
+    },
+    {
       title: 'Quantity',
       dataIndex: 'quantity_consumed',
       key: 'quantity_consumed',

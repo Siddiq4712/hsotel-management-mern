@@ -238,7 +238,7 @@ export const getRoomOccupants = async (req, res) => {
       const roomAllotments = await RoomAllotment.findAll({
          where: { 
             room_id: id, 
-            status: 'Active' 
+            is_active: true
          },
          include: [
             {
@@ -249,7 +249,18 @@ export const getRoomOccupants = async (req, res) => {
          ]
       });
 
-      const occupants = roomAllotments.map(allotment => allotment.AllotmentStudent);
+      const occupants = roomAllotments
+         .map((allotment) => allotment.AllotmentStudent)
+         .filter(Boolean)
+         .map((student) => {
+            const plain = student.get ? student.get({ plain: true }) : student;
+            return {
+               ...plain,
+               id: plain.id ?? plain.userId,
+               username: plain.username ?? plain.userName ?? '',
+               email: plain.email ?? plain.userMail ?? null
+            };
+         });
 
       res.json({ 
          success: true, 
@@ -1985,13 +1996,16 @@ export const getStudents = async (req, res) => {
          ],
          order: [
             [{ model: RoomAllotment, as: 'tbl_RoomAllotments' }, 'HostelRoom', 'room_number', 'ASC'],   // FIXED: Use correct nested path for order
-            ['username', 'ASC']
+            ['userName', 'ASC']
          ]
       });
 
       // Convert to plain objects to prevent circular reference errors
       const students = studentsWithModels.map(instance => {
          const plain = instance.get({ plain: true });
+         plain.id = plain.id ?? plain.userId;
+         plain.username = plain.username ?? plain.userName ?? '';
+         plain.email = plain.email ?? plain.userMail ?? null;
          // FIXED: Extract session name from nested Session
          plain.session = plain.tbl_Enrollment?.[0]?.Session?.name || 'N/A';
          // Existing college extraction

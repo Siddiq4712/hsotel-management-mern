@@ -1929,14 +1929,22 @@ export const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_
   const createdDailyConsumptions = [];
 
   for (const payload of consumptions) {
-    const { item_id, quantity_consumed, unit, consumption_date, meal_type } = payload;
-    console.log(`\n[WEIGHTED-AVG] â†’ Item ${item_id} | Requested qty: ${quantity_consumed}`);
+    // payload may specify total quantity_consumed or provide per-student and servings
+    const { item_id, quantity_consumed, unit, consumption_date, meal_type, qty_per_serving, servings } = payload;
 
-    if (!item_id || !quantity_consumed || parseFloat(quantity_consumed) <= 0) {
+    // compute requested quantity
+    let requestedQty = parseFloat(quantity_consumed || 0);
+    if ((!requestedQty || requestedQty <= 0) && qty_per_serving && servings) {
+      requestedQty = parseFloat(qty_per_serving) * parseFloat(servings);
+    }
+
+    console.log(`\n[WEIGHTED-AVG] â†’ Item ${item_id} | Requested qty: ${requestedQty} (raw ${quantity_consumed} perStudent ${qty_per_serving} servings ${servings})`);
+
+    if (!item_id || !requestedQty || requestedQty <= 0) {
       throw new Error("Invalid consumption data: item_id and a positive quantity_consumed are required.");
     }
 
-    const requiredQty = parseFloat(quantity_consumed);
+    const requiredQty = requestedQty;
 
     // Determine unit id
     let unitId = unit;
@@ -2301,7 +2309,7 @@ export const recordBulkConsumption = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Consumptions array is required' });
     }
 
-    const { createdConsumptions, lowStockItems } = await _recordBulkConsumptionLogic(
+    const { lowStockItems, createdDailyConsumptions } = await _recordBulkConsumptionLogic(
       consumptions,
       hostel_id,
       user_id,
@@ -2314,7 +2322,7 @@ export const recordBulkConsumption = async (req, res) => {
       success: true,
       message: 'Consumptions recorded successfully',
       data: {
-        consumptions: createdConsumptions,
+        consumptions: createdDailyConsumptions,
         lowStockItems,
       }
     });
