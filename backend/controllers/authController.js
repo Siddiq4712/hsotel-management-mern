@@ -21,14 +21,19 @@ const resolveUserRole = (roleValue) => {
 
 export const login = async (req, res) => {
   try {
-    const { username, password } = req.body;
+    // Accept both field names (React sends userName, some calls may send username)
+    const identifier = req.body.username || req.body.userName || req.body.roll_number;
+    const { password } = req.body;
 
-    // Find user by username OR roll_number
+    if (!identifier || !password) {
+      return res.status(400).json({ message: 'Username/Roll number and password are required' });
+    }
+
     const user = await User.findOne({
       where: {
         [Op.or]: [
-          { userName: username },
-          { roll_number: username }
+          { userName: identifier },     // use Sequelize attribute name
+          { roll_number: identifier }
         ]
       },
       include: [{ model: Hostel, attributes: ['id', 'name'] }]
@@ -38,7 +43,6 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: 'Invalid user' });
     }
 
-    // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid pass' });
@@ -46,7 +50,6 @@ export const login = async (req, res) => {
 
     const resolvedRole = resolveUserRole(user.roleId);
 
-    // Generate JWT
     const payload = {
       userId: user.userId,
       role: resolvedRole,
@@ -66,7 +69,7 @@ export const login = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error(error);
+    console.error('Login error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -165,4 +168,3 @@ export const changePassword = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-
