@@ -50,14 +50,26 @@ const ItemStoreMapping = () => {
   const fetchInitialData = async () => {
     setLoading(true);
     try {
-      const [itms, strs, maps] = await Promise.all([
+      const [itms, strs, maps] = await Promise.allSettled([
         messAPI.getItems(),
         messAPI.getStores(),
         messAPI.getItemStores()
       ]);
-      setItems(itms.data.data || []);
-      setStores(strs.data.data || []);
-      setItemStores(maps.data.data || []);
+
+      if (itms.status === 'fulfilled') setItems(itms.value.data.data || []);
+      else setItems([]);
+
+      if (strs.status === 'fulfilled') setStores(strs.value.data.data || []);
+      else setStores([]);
+
+      if (maps.status === 'fulfilled') setItemStores(maps.value.data.data || []);
+      else setItemStores([]);
+
+      if (itms.status === 'rejected' || strs.status === 'rejected' || maps.status === 'rejected') {
+        message.error('Some mapping data failed to load. Please refresh.');
+      }
+    } catch (error) {
+      message.error('Failed to load mapping data.');
     } finally {
       setTimeout(() => setLoading(false), 800);
     }

@@ -2,7 +2,22 @@
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
 import { Op } from 'sequelize';
-import { User, Hostel, Role } from '../models/index.js'; // Ensure the .js extension
+import { User, Hostel } from '../models/index.js'; // Ensure the .js extension
+
+const resolveUserRole = (roleValue) => {
+  if (roleValue === null || roleValue === undefined) return null;
+
+  const raw = String(roleValue).trim().toLowerCase();
+  const numericRoleMap = {
+    1: 'admin',
+    2: 'mess',
+    3: 'warden',
+    4: 'student'
+  };
+
+  if (numericRoleMap[raw]) return numericRoleMap[raw];
+  return raw;
+};
 
 export const login = async (req, res) => {
   try {
@@ -16,7 +31,7 @@ export const login = async (req, res) => {
           { roll_number: username }
         ]
       },
-      include: [{ model: Hostel, attributes: ['id', 'name'] }, { model: Role, as: 'role', attributes: ['roleName'] }]
+      include: [{ model: Hostel, attributes: ['id', 'name'] }]
     });
 
     if (!user) {
@@ -29,10 +44,12 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: 'Invalid pass' });
     }
 
+    const resolvedRole = resolveUserRole(user.roleId);
+
     // Generate JWT
     const payload = {
       userId: user.userId,
-      role: user.role?.roleName || user.roleId,
+      role: resolvedRole,
       hostelId: user.hostel_id
     };
 
@@ -43,7 +60,7 @@ export const login = async (req, res) => {
       user: {
         id: user.userId,
         username: user.userName,
-        role: user.role?.roleName || user.roleId,
+        role: resolvedRole,
         hostel_id: user.hostel_id,
         hostel: user.Hostel
       }
@@ -58,14 +75,16 @@ export const getProfile = async (req, res) => {
   try {
     const user = await User.findByPk(req.user.userId, {
       attributes: { exclude: ['password'] },
-      include: [{ model: Hostel, attributes: ['id', 'name'] }, { model: Role, as: 'role', attributes: ['roleName'] }]
+      include: [{ model: Hostel, attributes: ['id', 'name'] }]
     });
 
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json(user);
+    const plainUser = user.toJSON();
+    plainUser.role = resolveUserRole(user.roleId);
+    res.json(plainUser);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });
@@ -105,7 +124,7 @@ export const googleCallback = (req, res, next) => {
       username: user.userName,
       first_name: user.first_name,
       last_name: user.last_name,
-      role: user.role?.roleName || user.roleId,
+      role: resolveUserRole(user.roleId),
       hostel_id: user.hostel_id,
       profile_picture: user.profile_picture || user.dataValues.profile_picture
     };

@@ -1929,14 +1929,22 @@ export const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_
   const createdDailyConsumptions = [];
 
   for (const payload of consumptions) {
-    const { item_id, quantity_consumed, unit, consumption_date, meal_type } = payload;
-    console.log(`\n[WEIGHTED-AVG] â†’ Item ${item_id} | Requested qty: ${quantity_consumed}`);
+    // payload may specify total quantity_consumed or provide per-student and servings
+    const { item_id, quantity_consumed, unit, consumption_date, meal_type, qty_per_serving, servings } = payload;
 
-    if (!item_id || !quantity_consumed || parseFloat(quantity_consumed) <= 0) {
+    // compute requested quantity
+    let requestedQty = parseFloat(quantity_consumed || 0);
+    if ((!requestedQty || requestedQty <= 0) && qty_per_serving && servings) {
+      requestedQty = parseFloat(qty_per_serving) * parseFloat(servings);
+    }
+
+    console.log(`\n[WEIGHTED-AVG] â†’ Item ${item_id} | Requested qty: ${requestedQty} (raw ${quantity_consumed} perStudent ${qty_per_serving} servings ${servings})`);
+
+    if (!item_id || !requestedQty || requestedQty <= 0) {
       throw new Error("Invalid consumption data: item_id and a positive quantity_consumed are required.");
     }
 
-    const requiredQty = parseFloat(quantity_consumed);
+    const requiredQty = requestedQty;
 
     // Determine unit id
     let unitId = unit;
@@ -2301,7 +2309,7 @@ export const recordBulkConsumption = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Consumptions array is required' });
     }
 
-    const { createdConsumptions, lowStockItems } = await _recordBulkConsumptionLogic(
+    const { lowStockItems, createdDailyConsumptions } = await _recordBulkConsumptionLogic(
       consumptions,
       hostel_id,
       user_id,
@@ -2314,7 +2322,7 @@ export const recordBulkConsumption = async (req, res) => {
       success: true,
       message: 'Consumptions recorded successfully',
       data: {
-        consumptions: createdConsumptions,
+        consumptions: createdDailyConsumptions,
         lowStockItems,
       }
     });
@@ -2329,7 +2337,7 @@ export const recordBulkConsumption = async (req, res) => {
 };
 export const recordInventoryPurchase = async (req, res) => {
   const { items } = req.body;
-  const { hostel_id, id: user_id } = req.user;
+  const { hostel_id, userId: user_id } = req.user;
   console.log('[API] recordInventoryPurchase CALLED at', new Date().toISOString());
   console.log('[API] User:', { hostel_id, user_id });
   console.log('[API] Received items:', JSON.stringify(items, null, 2));
@@ -2346,17 +2354,20 @@ export const recordInventoryPurchase = async (req, res) => {
       console.log(`[API LOOP] --- Processing item_id: ${item.item_id} ---`);
 
       // 1. Validate Item Data
-      if (!item.item_id || !item.quantity || item.unit_price === undefined || !item.store_id || !item.unit) {
+      if (!item.item_id || !item.quantity || item.unit_price === undefined || !item.store_id) {
         throw new Error(`Missing required fields in item: ${JSON.stringify(item)}`);
       }
       console.log('[API LOOP] Step 1: Basic validation passed.');
 
-      // 2. Validate Item Exists
-      const itemRecord = await Item.findByPk(item.item_id, { transaction });
+      // 2. Validate Item Exists with its UOM
+      const itemRecord = await Item.findByPk(item.item_id, { 
+        include: [{ model: UOM, as: 'UOM', required: false }],
+        transaction 
+      });
       if (!itemRecord) {
         throw new Error(`Item with ID ${item.item_id} not found.`);
       }
-      console.log(`[API LOOP] Step 2: Found item "${itemRecord.name}" in DB.`);
+      console.log(`[API LOOP] Step 2: Found item "${itemRecord.name}" in DB with unit_id=${itemRecord.unit_id}.`);
 
       // 3. Validate Store Exists
       const storeRecord = await Store.findByPk(item.store_id, { transaction });
@@ -2365,15 +2376,21 @@ export const recordInventoryPurchase = async (req, res) => {
       }
       console.log(`[API LOOP] Step 3: Found store "${storeRecord.name}" in DB.`);
 
-      // 4. Validate Unit (UOM)
-      console.log(`[API LOOP] Step 4: Validating unit. Searching for abbreviation: "${item.unit}"`);
-      const uomRecord = await UOM.findOne({ where: { abbreviation: item.unit }, transaction });
-      if (!uomRecord) {
-        throw new Error(`Unit with abbreviation "${item.unit}" NOT FOUND in tbl_UOM.`);
-      }
-      console.log(`[API LOOP] Found UOM record: ID=${uomRecord.id}, Name=${uomRecord.name}. Item's required unit_id is ${itemRecord.unit_id}.`);
-      if (itemRecord.unit_id !== uomRecord.id) {
-        throw new Error(`Unit mismatch for item "${itemRecord.name}". Item requires unit_id ${itemRecord.unit_id}, but received unit "${item.unit}" which is ID ${uomRecord.id}.`);
+      // 4. Validate Unit (UOM) - Use item's unit_id if available
+      console.log(`[API LOOP] Step 4: Validating unit. Item unit_id=${itemRecord.unit_id}, received unit="${item.unit}".`);
+      let uomRecord;
+      if (itemRecord.unit_id) {
+        uomRecord = await UOM.findByPk(itemRecord.unit_id, { transaction });
+        if (!uomRecord) {
+          throw new Error(`Item's unit (ID ${itemRecord.unit_id}) not found in UOM table.`);
+        }
+        console.log(`[API LOOP] Found UOM record for item: ID=${uomRecord.id}, abbreviation="${uomRecord.abbreviation}".`);
+      } else {
+        // Fallback: try to match received unit abbreviation
+        uomRecord = await UOM.findOne({ where: { abbreviation: item.unit }, transaction });
+        if (!uomRecord) {
+          console.warn(`[API LOOP] Unit abbreviation "${item.unit}" NOT FOUND. This may cause issues.`);
+        }
       }
       console.log('[API LOOP] Unit validation passed.');
 
@@ -2388,9 +2405,10 @@ export const recordInventoryPurchase = async (req, res) => {
 
       // 6. Create Inventory Transaction
       console.log('[API LOOP] Step 6: Creating InventoryTransaction...');
+      const unitAbbreviation = uomRecord?.abbreviation || item.unit || 'unit';
       await InventoryTransaction.create({
         item_id: item.item_id, hostel_id, store_id: item.store_id, transaction_date: batch.purchase_date,
-        quantity: batch.quantity_purchased, unit: item.unit, unit_price: batch.unit_price,
+        quantity: batch.quantity_purchased, unit: unitAbbreviation, unit_price: batch.unit_price,
         transaction_type: 'purchase', recorded_by: user_id,
       }, { transaction });
       console.log('[API LOOP] Created InventoryTransaction.');
@@ -4906,7 +4924,7 @@ export const getIncomeEntries = async (req, res) => {
     // Find the IDs for the two specific types
     const incomeTypes = await IncomeType.findAll({
         where: { name: { [Op.in]: ['Sister Concern Bill', 'Cash Token'] } },
-        attributes: ['userId']
+        attributes: ['id']
     });
     const typeIds = incomeTypes.map(t => t.id);
 

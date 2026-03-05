@@ -1183,15 +1183,19 @@ export const getDashboardStats = async (req, res) => {
   try {
     const totalHostels = await Hostel.count({ where: { is_active: true } });
     
-    // Join Role to count Wardens and Students
-    const totalWardens = await User.count({ 
-      where: { status: 'Active' },
-      include: [{ model: Role, as: 'role', where: { roleName: 'Warden' } }]
+    // Use user.role directly; role-table join is unreliable with current schema.
+    const totalWardens = await User.count({
+      where: {
+        status: 'Active',
+        roleId: { [Op.in]: ['warden'] }
+      }
     });
-    
-    const totalStudents = await User.count({ 
-      where: { status: 'Active' },
-      include: [{ model: Role, as: 'role', where: { roleName: 'Student' } }]
+
+    const totalStudents = await User.count({
+      where: {
+        status: 'Active',
+        roleId: { [Op.in]: ['student', 'lapc'] }
+      }
     });
 
     const totalRooms = await HostelRoom.count({ where: { is_active: true } });
@@ -1219,17 +1223,17 @@ export const getAdminChartData = async (req, res) => {
     const chartData = {};
 
     const userRoleCounts = await User.findAll({
-      attributes: [[fn('COUNT', col('User.userId')), 'count']], // Changed to userId
-      where: { status: 'Active' }, // Changed to status
-      include: [{ model: Role, as: 'role', attributes: ['roleName'] }],
-      group: ['role.roleId', 'role.roleName'],
+      attributes: ['roleId', [fn('COUNT', col('id')), 'count']],
+      where: { status: 'Active' },
+      group: ['roleId'],
       raw: true
     });
 
     const labels = [];
     const counts = [];
     userRoleCounts.forEach(item => {
-      labels.push(item['role.roleName']);
+      const roleName = String(item.roleId || '').trim();
+      labels.push(roleName ? roleName.charAt(0).toUpperCase() + roleName.slice(1).toLowerCase() : 'Unknown');
       counts.push(parseInt(item.count, 10));
     });
 

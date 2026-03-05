@@ -70,15 +70,26 @@ const DailyConsumptionForm = ({ onSuccess }) => {
       const consumption_date = values.consumption_date.format('YYYY-MM-DD');
       const meal_type = values.meal_type;
       const student_id = values.student_id; // New: Include student_id
-      
-      const consumptionsToSubmit = values.consumptions.map(consumption => ({
-        item_id: consumption.item_id,
-        quantity_consumed: consumption.quantity,
-        unit: consumption.unit || getUnitForItem(consumption.item_id),
-        consumption_date,
-        meal_type,
-        student_id // New: Add student_id to each consumption if needed; adjust based on API
-      }));
+
+      const consumptionsToSubmit = values.consumptions.map(consumption => {
+        // compute total quantity using either explicit quantity or per-student * servings
+        let totalQty = parseFloat(consumption.quantity || 0);
+        const perStudent = parseFloat(consumption.qty_per_serving || 0);
+        const servings = parseFloat(consumption.servings || 0);
+        if ((!totalQty || totalQty <= 0) && perStudent > 0 && servings > 0) {
+          totalQty = perStudent * servings;
+        }
+        return {
+          item_id: consumption.item_id,
+          quantity_consumed: totalQty,
+          unit: consumption.unit || getUnitForItem(consumption.item_id),
+          consumption_date,
+          meal_type,
+          student_id,
+          qty_per_serving: consumption.qty_per_serving,
+          servings: consumption.servings
+        };
+      });
 
       await messAPI.recordBulkConsumption({ 
         student_id, // New: Pass student_id at top level if API expects it
@@ -213,7 +224,7 @@ const DailyConsumptionForm = ({ onSuccess }) => {
             <>
               {fields.map(({ key, name, ...restField }, index) => (
                 <Row key={key} gutter={16} align="middle" style={{ marginBottom: 8 }}>
-                  <Col xs={24} sm={10}>
+                  <Col xs={24} sm={8}>
                     <Form.Item
                       {...restField}
                       name={[name, 'item_id']}
@@ -233,27 +244,49 @@ const DailyConsumptionForm = ({ onSuccess }) => {
                       </Select>
                     </Form.Item>
                   </Col>
-                  <Col xs={16} sm={8}>
+                  <Col xs={12} sm={4}>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'qty_per_serving']}
+                      rules={[{ required: false }]}
+                    >
+                      <InputNumber
+                        placeholder="Per student" 
+                        style={{ width: '100%' }}
+                        min={0}
+                        step={0.1}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={12} sm={4}>
+                    <Form.Item
+                      {...restField}
+                      name={[name, 'servings']}
+                      rules={[{ required: false }]}
+                    >
+                      <InputNumber
+                        placeholder="Servings" 
+                        style={{ width: '100%' }}
+                        min={0}
+                        step={1}
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col xs={16} sm={4}>
                     <Form.Item
                       {...restField}
                       name={[name, 'quantity']}
-                      rules={[{ required: true, message: 'Enter quantity' }]}
+                      rules={[{ required: true, message: 'Enter total quantity' }]}
                     >
                       <InputNumber 
-                        placeholder="Quantity" 
+                        placeholder="Total qty" 
                         style={{ width: '100%' }} 
                         min={0.01} 
                         step={0.1} 
                       />
                     </Form.Item>
                   </Col>
-                  <Col xs={8} sm={4}>
-                    <Form.Item
-                      {...restField}
-                      name={[name, 'unit']}
-                    >
-                      <Tag color="blue">Unit</Tag>
-                    </Form.Item>
+                  <Col xs={8} sm={2}>
                   </Col>
                   <Col xs={24} sm={2} style={{ textAlign: 'right' }}>
                     <MinusCircleOutlined onClick={() => remove(name)} style={{ color: 'red' }} />
