@@ -1230,6 +1230,13 @@ export const initAssociations = () => {
   DailyRateLog.belongsTo(Hostel, { foreignKey: 'hostel_id' });
   DailyRateLog.belongsTo(User, { foreignKey: 'saved_by', as: 'SavedBy', targetKey: 'userId' });
 
+  MessDailyExpense.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+  Hostel.hasMany(MessDailyExpense, { foreignKey: 'hostel_id' });
+  MessDailyExpense.belongsTo(ExpenseType, { foreignKey: 'expense_type_id', as: 'ExpenseType' });
+  ExpenseType.hasMany(MessDailyExpense, { foreignKey: 'expense_type_id', as: 'MessDailyExpenses' });
+  MessDailyExpense.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy', targetKey: 'userId' });
+  User.hasMany(MessDailyExpense, { foreignKey: 'recorded_by', as: 'RecordedMessExpenses', sourceKey: 'userId' });
+
   Transaction.belongsTo(User, { foreignKey: 'student_id', as: 'TransactionStudent', targetKey: 'userId' });
   Transaction.belongsTo(User, { foreignKey: 'processed_by', as: 'ProcessedBy', targetKey: 'userId' });
 
@@ -1246,6 +1253,20 @@ export const initAssociations = () => {
   // ==========================================
   // 7. FACILITY MANAGEMENT
   // ==========================================
+  HostelFacility.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+  Hostel.hasMany(HostelFacility, { foreignKey: 'hostel_id' });
+  HostelFacility.belongsTo(HostelFacilityType, { foreignKey: 'facility_type_id' });
+  HostelFacilityType.hasMany(HostelFacility, { foreignKey: 'facility_type_id' });
+
+  HostelMaintenance.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+  Hostel.hasMany(HostelMaintenance, { foreignKey: 'hostel_id' });
+  HostelMaintenance.belongsTo(HostelRoom, { foreignKey: 'room_id' });
+  HostelRoom.hasMany(HostelMaintenance, { foreignKey: 'room_id' });
+  HostelMaintenance.belongsTo(HostelFacility, { foreignKey: 'facility_id' });
+  HostelFacility.hasMany(HostelMaintenance, { foreignKey: 'facility_id' });
+  HostelMaintenance.belongsTo(User, { foreignKey: 'reported_by', as: 'ReportedBy', targetKey: 'userId' });
+  User.hasMany(HostelMaintenance, { foreignKey: 'reported_by', as: 'ReportedMaintenance', sourceKey: 'userId' });
+
   HostelFacilityRegister.belongsTo(HostelFacility, { foreignKey: 'facility_id', as: 'facility' });
   HostelFacilityRegister.belongsTo(User, { foreignKey: 'student_id', as: 'FacilityRegisterStudent', targetKey: 'userId' });
   User.hasMany(HostelFacilityRegister, { foreignKey: 'student_id', as: 'FacilityRegisters', sourceKey: 'userId' });

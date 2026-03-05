@@ -4924,7 +4924,7 @@ export const getIncomeEntries = async (req, res) => {
     // Find the IDs for the two specific types
     const incomeTypes = await IncomeType.findAll({
         where: { name: { [Op.in]: ['Sister Concern Bill', 'Cash Token'] } },
-        attributes: ['userId']
+        attributes: ['id']
     });
     const typeIds = incomeTypes.map(t => t.id);
 
