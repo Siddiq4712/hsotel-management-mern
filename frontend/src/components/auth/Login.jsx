@@ -8,7 +8,7 @@ import { authAPI } from '../../services/api';
 import './Login.css'; // Import the CSS file
 
 const Login = () => {
-  const [credentials, setCredentials] = useState({ username: '', password: '' });
+  const [credentials, setCredentials] = useState({ userName: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [oauthError, setOauthError] = useState('');
@@ -164,20 +164,20 @@ const Login = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Username Field */}
+            {/* userName Field */}
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <User className="h-5 w-5 text-blue-500 group-focus-within:text-blue-700 transition-colors" />
               </div>
               <input
-                id="username"
-                name="username"
+                id="userName"
+                name="userName"
                 type="text"
                 required
-                value={credentials.username}
+                value={credentials.userName}
                 onChange={handleChange}
                 className="block w-full pl-10 pr-3 py-2.5 border-2 border-gray-300 rounded-lg placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 hover:border-blue-300 group-focus-within:shadow-lg group-focus-within:shadow-blue-200"
-                placeholder="Username or Roll Number"
+                placeholder="userName or Roll Number"
               />
             </div>
 
@@ -278,7 +278,7 @@ const Login = () => {
 
           {/* Additional Info */}
           <div className="mt-6 p-3 bg-blue-50 rounded-lg border border-blue-200 text-center text-xs text-gray-600">
-            💡 <strong>Tip:</strong> You can use either your username or roll number to log in.
+            💡 <strong>Tip:</strong> You can use either your userName or roll number to log in.
           </div>
         </div>
       </main>

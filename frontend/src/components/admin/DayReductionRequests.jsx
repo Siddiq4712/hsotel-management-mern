@@ -100,7 +100,7 @@ const DayReductionRequestsAdmin = () => {
 
   const filteredData = useMemo(() => {
     return requests.filter(req => 
-      req.Student?.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      req.Student?.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       req.Hostel?.name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [requests, searchTerm]);
@@ -113,7 +113,7 @@ const DayReductionRequestsAdmin = () => {
         <Space gap={3}>
           <div className="p-2 bg-blue-50 rounded-xl text-blue-600"><User size={18} /></div>
           <Space direction="vertical" size={0}>
-            <Text strong className="text-slate-700" style={{ fontWeight: 500 }}>{record.Student?.username || 'Unknown'}</Text>
+            <Text strong className="text-slate-700" style={{ fontWeight: 500 }}>{record.Student?.userName || 'Unknown'}</Text>
             <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
               {record.Hostel?.name || 'N/A'}
             </Text>
@@ -290,7 +290,7 @@ const DayReductionRequestsAdmin = () => {
                 <Row gutter={[16, 16]}>
                   <Col span={12}>
                     <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest block mb-1">Applicant</Text>
-                    <Text strong className="text-lg" style={{ fontWeight: 500 }}>{selectedRequest.Student?.username}</Text>
+                    <Text strong className="text-lg" style={{ fontWeight: 500 }}>{selectedRequest.Student?.userName}</Text>
                   </Col>
                   <Col span={12}>
                     <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest block mb-1">Status</Text>

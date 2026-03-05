@@ -206,7 +206,7 @@ const ComplaintManagement = () => {
                       <div className="flex flex-wrap items-center gap-3 mb-5">
                         <div className="p-2.5 bg-blue-50 rounded-2xl text-blue-600"><User size={20} /></div>
                         <Space direction="vertical" size={0}>
-                           <Text strong className="text-slate-700 text-base">{c.Student?.username}</Text>
+                           <Text strong className="text-slate-700 text-base">{c.Student?.userName}</Text>
                            <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Ref ID: #CMP-{c.id} • {moment(c.createdAt).format('DD MMM, hh:mm A')}</Text>
                         </Space>
                         <Divider type="vertical" className="h-8 border-slate-200 mx-2" />

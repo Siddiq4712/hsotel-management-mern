@@ -154,7 +154,7 @@ const DailyConsumption = () => {
     },
     {
       title: 'Recorded By',
-      dataIndex: ['ConsumptionRecordedBy', 'username'],
+      dataIndex: ['ConsumptionRecordedBy', 'userName'],
       key: 'recorded_by',
       render: text => text || 'System'
     }

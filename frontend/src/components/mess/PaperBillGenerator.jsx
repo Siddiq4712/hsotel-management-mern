@@ -63,7 +63,7 @@ const PaperBillGenerator = () => {
           description: fee.description,
           amount: parseFloat(fee.amount),
           createdAt: fee.createdAt,
-          issuedBy: fee.IssuedBy?.username,
+          issuedBy: fee.IssuedBy?.userName,
           ids: [], // Store all individual record IDs for deletion
           studentCount: 0,
           totalValue: 0,

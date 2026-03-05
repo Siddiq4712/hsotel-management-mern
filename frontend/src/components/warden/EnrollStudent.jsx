@@ -64,7 +64,7 @@ const EnrollStudent = () => {
     const finalUsername = `${baseName} ${init}`;
 
     const payload = {
-      username: finalUsername,
+      userName: finalUsername,
       password: allValues.password,
       email: allValues.email || `${baseName.toLowerCase()}@hostel.com`,
       session_id: parseInt(allValues.session_id),

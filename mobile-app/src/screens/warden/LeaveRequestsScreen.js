@@ -51,7 +51,7 @@ const LeaveRequestsScreen = () => {
             <User size={18} color="#4F46E5" />
           </View>
           <View>
-            <Text className="font-bold text-gray-900 text-base">{item.Student?.username}</Text>
+            <Text className="font-bold text-gray-900 text-base">{item.Student?.userName}</Text>
             <Text className="text-gray-500 text-xs">Type: {item.leave_type}</Text>
           </View>
         </View>

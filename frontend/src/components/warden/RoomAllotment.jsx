@@ -95,7 +95,7 @@ const RoomAllotment = () => {
     availableRooms.find(r => r.id === selectedRoomId), [availableRooms, selectedRoomId]);
 
   const filteredStudents = useMemo(() => students.filter(s =>
-    s.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    s.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (s.roll_number && s.roll_number.toLowerCase().includes(searchTerm.toLowerCase()))
   ), [students, searchTerm]);
 
@@ -226,11 +226,11 @@ const RoomAllotment = () => {
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                         {filteredStudents.map(student => {
-                          const isSelected = selectedStudentIds.includes(student.id);
+                          const isSelected = selectedStudentIds.includes(student.userId);
                           return (
                             <div 
-                              key={student.id} 
-                              onClick={() => handleToggleStudent(student.id)}
+                              key={student.userId} 
+                              onClick={() => handleToggleStudent(student.userId)}
                               className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-slate-100 bg-white hover:border-slate-300'}`}
                             >
                               <div className="flex items-center gap-3">
@@ -238,7 +238,7 @@ const RoomAllotment = () => {
                                   <User size={18} />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <Text strong className="block truncate">{student.username}</Text>
+                                  <Text strong className="block truncate">{student.userName}</Text>
                                   <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{student.roll_number || 'No Roll Set'}</Text>
                                 </div>
                                 {isSelected && <CheckCircle2 size={20} className="text-blue-600" />}
@@ -277,7 +277,7 @@ const RoomAllotment = () => {
                 <div className="max-h-[300px] overflow-y-auto space-y-2">
                   {students.slice(0, 5).map(s => (
                     <div key={s.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-                      <Space size={3}><User size={12} className="text-slate-400"/><Text className="text-xs font-medium">{s.username}</Text></Space>
+                      <Space size={3}><User size={12} className="text-slate-400"/><Text className="text-xs font-medium">{s.userName}</Text></Space>
                       <Text className="text-[9px] font-bold text-slate-400">{s.roll_number}</Text>
                     </div>
                   ))}
@@ -334,7 +334,7 @@ const RoomAllotment = () => {
                 return (
                   <div key={id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
                     <div className="p-1.5 bg-white rounded-lg shadow-sm"><User size={12} className="text-blue-500"/></div>
-                    <Text strong className="text-xs truncate">{s?.username}</Text>
+                    <Text strong className="text-xs truncate">{s?.userName}</Text>
                   </div>
                 );
               })}

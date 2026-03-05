@@ -72,7 +72,7 @@ const DailyConsumptionReport = () => {
     {
       key: 'recorded_by',
       label: 'Recorded By',
-      render: (item) => item.ConsumptionRecordedBy?.username
+      render: (item) => item.ConsumptionRecordedBy?.userName
     }
   ];
 

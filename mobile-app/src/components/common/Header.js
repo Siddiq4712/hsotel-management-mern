@@ -56,14 +56,8 @@ const Header = () => {
             <Text className="text-xs md:text-sm text-gray-500" numberOfLines={1}>
               @{user.hostel.name}
             </Text>
-            {user?.hostel && (
-              <Text style={{ fontSize: 9, color: '#64748b' }} numberOfLines={1}>
-                @{user.hostel.name}
-              </Text>
-            )}
-          </View>
-          
-          {renderAvatar()}
+          )}
+        </View>
 
         <TouchableOpacity
           onPress={handleLogout}

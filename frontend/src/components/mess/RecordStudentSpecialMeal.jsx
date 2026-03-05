@@ -161,7 +161,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
                       className="ssm-select"
                       suffixIcon={<User size={14} />}
                     >
-                      {students.map(s => <Option key={s.id} value={s.id}>{s.username}</Option>)}
+                      {students.map(s => <Option key={s.id} value={s.id}>{s.userName}</Option>)}
                     </Select>
                   </Form.Item>
 

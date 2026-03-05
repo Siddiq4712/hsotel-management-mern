@@ -130,7 +130,7 @@ const IncomeEntryManager = () => {
       render: (_, r) => (
         <Tooltip title="Recorded by">
           <Tag bordered={false} icon={<User size={10} className="mr-1"/>} className="rounded-full px-3 text-[10px] uppercase font-bold bg-slate-100">
-            {r.IncomeReceivedBy?.username || 'Admin'}
+            {r.IncomeReceivedBy?.userName || 'Admin'}
           </Tag>
         </Tooltip>
       )

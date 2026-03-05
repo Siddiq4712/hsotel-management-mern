@@ -50,7 +50,7 @@ const LeaveDetailsModal = ({ leave, onClose }) => {
               </View>
               {leave.ApprovedBy && (
                 <Text className="text-xs text-gray-500 mt-1">
-                  Processed by: {leave.ApprovedBy.username}
+                  Processed by: {leave.ApprovedBy.userName}
                 </Text>
               )}
             </View>

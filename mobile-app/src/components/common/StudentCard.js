@@ -11,7 +11,7 @@ const StudentCard = ({ student, onPress, selected }) => {
           <User size={16} color="#3B82F6" />
         </View>
         <View className="flex-1">
-          <Text className="font-bold text-gray-900">{student.username}</Text>
+          <Text className="font-bold text-gray-900">{student.userName}</Text>
           <Text className="text-gray-500 text-xs">Roll: {student.roll_number}</Text>
         </View>
         {roomInfo ? (
