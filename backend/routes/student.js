@@ -1,6 +1,6 @@
-// In studentRoutes.js
-const express = require('express');
-const {
+import express from 'express';
+import rateLimit from 'express-rate-limit';
+import {
   getProfile,
   updateProfile,
   getMessBills,
@@ -31,8 +31,8 @@ const {
   getAvailableSpecialFoodItems,
   getSpecialFoodItemCategories,
   getMyDailyMessCharges,
-  getMonthlyMessExpensesChartData, // Add this
-  getMonthlyAttendanceChartData,   // Add this
+  getMonthlyMessExpensesChartData,
+  getMonthlyAttendanceChartData,
   getRoommates,
   getStudentHostelLayout,
   getStudentRooms,
@@ -45,57 +45,65 @@ const {
   getMyDayReductionRequests,
   applyRebate,
   getMyRebates
-} = require('../controllers/studentController');
-const {
+} from '../controllers/studentController.js'; // Added .js extension
+
+import {
   createFoodOrder,
-  getFoodOrders,       // <-- The powerful function
+  getFoodOrders,
   getFoodOrderById,
   cancelFoodOrder,
-} = require('../controllers/messController'); // <-- Point to messController
-const { auth, authorize } = require('../middleware/auth');
+} from '../controllers/messController.js'; // Added .js extension
+
+import { auth, authorize } from '../middleware/auth.js'; // Added .js extension
 
 const router = express.Router();
-const rateLimit = require('express-rate-limit');
-router.use(auth);
-router.use(authorize(['student','lapc']));
+
+// Rate limiting configuration
 const createOrderLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // Limit each user to 10 food order creations per window
   message: 'Too many food order requests, please try again later.'
 });
-// Dashboard Statistics
-router.get('/dashboard-stats', getDashboardStats);
 
-// Profile Management Routes
+// Apply global auth for all student routes
+router.use(auth);
+router.use(authorize(['student', 'lapc']));
+
+/* ---------- DASHBOARD & CHARTS ---------- */
+router.get('/dashboard-stats', getDashboardStats);
+router.get('/daily-mess-charges', getMyDailyMessCharges);
+router.get('/chart-data/mess-expenses', getMonthlyMessExpensesChartData);
+router.get('/chart-data/attendance', getMonthlyAttendanceChartData);
+
+/* ---------- PROFILE MANAGEMENT ---------- */
 router.get('/profile', getProfile);
 router.put('/profile', updateProfile);
+router.get('/roommates', getRoommates);
 
-// Mess Bills Management Routes
-router.get('/mess-bills', getMessBills); // Already correctly defined
+/* ---------- MESS & BILLS ---------- */
+router.get('/mess-bills', getMessBills);
 router.get('/mess-bills/:id', getMessBillById);
 
-// Leave Management Routes
+/* ---------- LEAVE MANAGEMENT ---------- */
 router.post('/leave-requests', applyLeave);
 router.get('/leave-requests', getMyLeaves);
 router.get('/leave-requests/:id', getLeaveById);
 router.put('/leave-requests/:id', updateLeave);
 router.delete('/leave-requests/:id', deleteLeave);
 
-// Complaint Management Routes
+/* ---------- COMPLAINT MANAGEMENT ---------- */
 router.post('/complaints', createComplaint);
 router.get('/complaints', getMyComplaints);
 router.get('/complaints/:id', getComplaintById);
 router.put('/complaints/:id', updateComplaint);
 router.delete('/complaints/:id', deleteComplaint);
 
-// Transaction History Routes
+/* ---------- TRANSACTIONS & ATTENDANCE ---------- */
 router.get('/transactions', getTransactions);
 router.get('/transactions/:id', getTransactionById);
-
-// Attendance Routes
 router.get('/attendance', getMyAttendance);
 
-// Facility Usage Routes
+/* ---------- FACILITY USAGE ---------- */
 router.get('/facilities', getFacilities);
 router.post('/facility-usage', useFacility);
 router.get('/facility-usage', getMyFacilityUsage);
@@ -103,27 +111,19 @@ router.get('/facility-usage/:id', getFacilityUsageById);
 router.put('/facility-usage/:id', updateFacilityUsage);
 router.delete('/facility-usage/:id', deleteFacilityUsage);
 
-// Meal Tokens Routes
+/* ---------- MEAL TOKENS ---------- */
 router.get('/tokens', getMyTokens);
 router.get('/tokens/:id', getTokenById);
 
-
-// NEW: Special Food Items and Orders Routes for students/lapc
-router.get('/special-food-items',getAvailableSpecialFoodItems);
-router.get('/special-food-item-categories',getSpecialFoodItemCategories);
-
-// These routes now use the CENTRALIZED controller logic from messController
+/* ---------- SPECIAL FOOD & ORDERS ---------- */
+router.get('/special-food-items', getAvailableSpecialFoodItems);
+router.get('/special-food-item-categories', getSpecialFoodItemCategories);
 router.post('/food-orders', createOrderLimiter, createFoodOrder);
-router.get('/food-orders', getFoodOrders); // <-- This now calls the correct function
+router.get('/food-orders', getFoodOrders);
 router.get('/food-orders/:id', getFoodOrderById);
 router.put('/food-orders/:id/cancel', cancelFoodOrder);
-// KEEP THIS LINE
-router.get('/daily-mess-charges', auth, getMyDailyMessCharges);
-router.get('/chart-data/mess-expenses', auth, authorize(['student', 'lapc']), getMonthlyMessExpensesChartData);
-router.get('/chart-data/attendance', auth, authorize(['student', 'lapc']), getMonthlyAttendanceChartData);
 
-router.get('/roommates', getRoommates);
-
+/* ---------- HOSTEL LAYOUT & ROOM BOOKING ---------- */
 router.get('/hostel-layout', getStudentHostelLayout);
 router.get('/rooms', getStudentRooms);
 router.get('/room-types', getStudentRoomTypes);
@@ -131,9 +131,11 @@ router.get('/rooms/:id/occupants', getStudentRoomOccupants);
 router.get('/room-requests', getMyRoomRequests);
 router.post('/room-requests', requestRoomBooking);
 router.delete('/room-requests/:id', cancelRoomRequest);
-router.post('/day-reduction-requests', applyDayReduction);
-router.get('/day-reduction-requests', getMyDayReductionRequests); // To allow students to view their own requests
 
+/* ---------- REDUCTIONS & REBATES ---------- */
+router.post('/day-reduction-requests', applyDayReduction);
+router.get('/day-reduction-requests', getMyDayReductionRequests);
 router.post('/rebates', applyRebate);
 router.get('/rebates', getMyRebates);
-module.exports = router;
+
+export default router;

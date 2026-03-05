@@ -5,7 +5,7 @@
  * @param {Array} items - Array of items with quantity and unit_price properties
  * @returns {number} Total cost
  */
-const calculateTotalCost = (items) => {
+export const calculateTotalCost = (items) => {
   if (!items || !Array.isArray(items)) return 0;
   
   return items.reduce((total, item) => {
@@ -21,7 +21,7 @@ const calculateTotalCost = (items) => {
  * @param {number} numberOfPeople - Number of people
  * @returns {number} Per person cost
  */
-const calculatePerPersonCost = (totalCost, numberOfPeople) => {
+export const calculatePerPersonCost = (totalCost, numberOfPeople) => {
   if (!numberOfPeople || numberOfPeople <= 0) return 0;
   return totalCost / numberOfPeople;
 };
@@ -31,7 +31,7 @@ const calculatePerPersonCost = (totalCost, numberOfPeople) => {
  * @param {number} value - Value to round
  * @returns {number} Rounded value
  */
-const roundToTwoDecimal = (value) => {
+export const roundToTwoDecimal = (value) => {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 };
 
@@ -41,7 +41,7 @@ const roundToTwoDecimal = (value) => {
  * @param {number} total - Total value
  * @returns {number} Percentage
  */
-const calculatePercentage = (part, total) => {
+export const calculatePercentage = (part, total) => {
   if (!total || total <= 0) return 0;
   return (part / total) * 100;
 };
@@ -52,7 +52,7 @@ const calculatePercentage = (part, total) => {
  * @param {number} minimumStock - Minimum required stock level
  * @returns {boolean} True if stock is low
  */
-const isStockLow = (currentStock, minimumStock) => {
+export const isStockLow = (currentStock, minimumStock) => {
   return currentStock <= minimumStock;
 };
 
@@ -62,7 +62,7 @@ const isStockLow = (currentStock, minimumStock) => {
  * @param {number} initialStock - Initial stock level
  * @returns {number} Percentage of stock remaining
  */
-const stockPercentageRemaining = (currentStock, initialStock) => {
+export const stockPercentageRemaining = (currentStock, initialStock) => {
   if (!initialStock || initialStock <= 0) return 0;
   return (currentStock / initialStock) * 100;
 };
@@ -73,17 +73,7 @@ const stockPercentageRemaining = (currentStock, initialStock) => {
  * @param {number} days - Number of days
  * @returns {number} Daily average consumption
  */
-const calculateDailyAverage = (totalConsumption, days) => {
+export const calculateDailyAverage = (totalConsumption, days) => {
   if (!days || days <= 0) return 0;
   return totalConsumption / days;
-};
-
-module.exports = {
-  calculateTotalCost,
-  calculatePerPersonCost,
-  roundToTwoDecimal,
-  calculatePercentage,
-  isStockLow,
-  stockPercentageRemaining,
-  calculateDailyAverage
 };

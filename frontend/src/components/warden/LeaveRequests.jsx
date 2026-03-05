@@ -108,7 +108,7 @@ const LeaveRequests = () => {
             <User size={18} />
           </div>
           <Space direction="vertical" size={0}>
-            <Text strong className="text-slate-700">{r.Student?.username}</Text>
+            <Text strong className="text-slate-700">{r.Student?.userName}</Text>
             <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
               Roll: {r.Student?.roll_number || 'N/A'}
             </Text>
@@ -297,7 +297,7 @@ const LeaveRequests = () => {
                   Leave Details
                 </Text>
                 <div className="flex items-center justify-between mb-2">
-                  <Text strong className="text-lg">{selectedLeave.Student?.username}</Text>
+                  <Text strong className="text-lg">{selectedLeave.Student?.userName}</Text>
                   <Tag color="blue" className="m-0 rounded-lg">{selectedLeave.leave_type}</Tag>
                 </div>
                 <Paragraph className="text-xs text-slate-500 m-0 italic bg-white p-3 rounded-xl border border-slate-100">

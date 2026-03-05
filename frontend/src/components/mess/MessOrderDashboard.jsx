@@ -105,7 +105,7 @@ const MessOrderDashboard = () => {
     },
     {
       title: 'Student',
-      dataIndex: ['Student', 'username'],
+      dataIndex: ['Student', 'userName'],
       key: 'student',
       render: (name) => (
         <Space>

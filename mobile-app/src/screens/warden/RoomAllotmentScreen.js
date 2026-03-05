@@ -124,7 +124,7 @@ const RoomAllotmentScreen = () => {
       />
 
       <FlatList
-        data={students.filter(s => s.username.toLowerCase().includes(search.toLowerCase()))}
+        data={students.filter(s => s.userName.toLowerCase().includes(search.toLowerCase()))}
         keyExtractor={item => item.id.toString()}
         renderItem={({ item }) => (
           <TouchableOpacity 
@@ -137,7 +137,7 @@ const RoomAllotmentScreen = () => {
               <User size={20} color={selectedStudents.includes(item.id) ? "#4F46E5" : "#9CA3AF"} />
               <View className="ml-3">
                 <Text className={`font-bold ${selectedStudents.includes(item.id) ? 'text-indigo-900' : 'text-gray-900'}`}>
-                  {item.username}
+                  {item.userName}
                 </Text>
                 <Text className="text-gray-500 text-xs">Roll: {item.roll_number || 'N/A'}</Text>
               </View>
@@ -181,7 +181,7 @@ const RoomAllotmentScreen = () => {
           return (
             <View key={id} className="flex-row items-center bg-gray-50 p-3 rounded-xl mb-2">
               <User size={16} color="#6B7280" />
-              <Text className="ml-3 font-medium text-gray-800">{student?.username}</Text>
+              <Text className="ml-3 font-medium text-gray-800">{student?.userName}</Text>
             </View>
           );
         })}

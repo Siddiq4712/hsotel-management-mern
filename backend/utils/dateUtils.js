@@ -1,5 +1,5 @@
 // utils/dateUtils.js
-const moment = require('moment');
+import moment from 'moment';
 
 /**
  * Get the first and last day of a month
@@ -7,7 +7,7 @@ const moment = require('moment');
  * @param {number} year - Year (e.g., 2023)
  * @returns {Object} Object with startDate and endDate
  */
-const getMonthDateRange = (month, year) => {
+export const getMonthDateRange = (month, year) => {
   const startDate = moment(`${year}-${month}-01`).startOf('month').format('YYYY-MM-DD');
   const endDate = moment(`${year}-${month}-01`).endOf('month').format('YYYY-MM-DD');
   return { startDate, endDate };
@@ -19,7 +19,7 @@ const getMonthDateRange = (month, year) => {
  * @param {string} endDate - End date in YYYY-MM-DD format
  * @returns {Array} Array of dates in YYYY-MM-DD format
  */
-const getDatesBetween = (startDate, endDate) => {
+export const getDatesBetween = (startDate, endDate) => {
   const dates = [];
   let currentDate = moment(startDate);
   const lastDate = moment(endDate);
@@ -38,7 +38,7 @@ const getDatesBetween = (startDate, endDate) => {
  * @param {string} format - Desired format (default: 'YYYY-MM-DD')
  * @returns {string} Formatted date string
  */
-const formatDate = (date, format = 'YYYY-MM-DD') => {
+export const formatDate = (date, format = 'YYYY-MM-DD') => {
   if (!date) return '';
   return moment(date).format(format);
 };
@@ -47,7 +47,7 @@ const formatDate = (date, format = 'YYYY-MM-DD') => {
  * Get current date in YYYY-MM-DD format
  * @returns {string} Current date
  */
-const getCurrentDate = () => {
+export const getCurrentDate = () => {
   return moment().format('YYYY-MM-DD');
 };
 
@@ -56,7 +56,7 @@ const getCurrentDate = () => {
  * @param {string} date - Date to check
  * @returns {boolean} True if date is in the past
  */
-const isPastDate = (date) => {
+export const isPastDate = (date) => {
   return moment(date).isBefore(moment(), 'day');
 };
 
@@ -65,15 +65,6 @@ const isPastDate = (date) => {
  * @param {number} month - Month number (1-12)
  * @returns {string} Month name
  */
-const getMonthName = (month) => {
+export const getMonthName = (month) => {
   return moment().month(month - 1).format('MMMM');
-};
-
-module.exports = {
-  getMonthDateRange,
-  getDatesBetween,
-  formatDate,
-  getCurrentDate,
-  isPastDate,
-  getMonthName
 };

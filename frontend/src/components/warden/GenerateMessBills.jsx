@@ -93,7 +93,7 @@ const GenerateMessBills = () => {
       title: 'Student Name',
       dataIndex: 'MessBillStudent',
       key: 'student',
-      render: (student) => <span>{student?.username}</span>
+      render: (student) => <span>{student?.userName}</span>
     },
     {
       title: 'Total Fee',

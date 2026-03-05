@@ -64,7 +64,7 @@ const EnrollStudent = () => {
     const finalUsername = `${baseName} ${init}`;
 
     const payload = {
-      username: finalUsername,
+      userName: finalUsername,
       password: allValues.password,
       email: allValues.email || `${baseName.toLowerCase()}@hostel.com`,
       session_id: parseInt(allValues.session_id),
@@ -195,7 +195,7 @@ const EnrollStudent = () => {
                           </div>
                           <div className="p-6">
                             <Descriptions column={1} bordered size="small" className="bg-white">
-                              <Descriptions.Item label={<Text type="secondary" small>Student Name</Text>}>
+                              <Descriptions.Item label={<Text type="secondary" style={{ fontSize: '12px' }}>Student Name</Text>}>
                                 <Text strong className="text-blue-900 uppercase">{form.getFieldValue('baseUsername')} {form.getFieldValue('initial')}</Text>
                               </Descriptions.Item>
                               <Descriptions.Item label={<Text type="secondary">Roll No</Text>}>

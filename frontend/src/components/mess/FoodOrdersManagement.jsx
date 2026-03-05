@@ -148,9 +148,9 @@ const FoodOrdersManagement = () => {
     },
     {
       title: 'Student',
-      dataIndex: ['Student', 'username'],
+      dataIndex: ['Student', 'userName'],
       key: 'student',
-      render: (text, record) => record.Student?.username || 'Unknown'
+      render: (text, record) => record.Student?.userName || 'Unknown'
     },
     {
       title: 'Order Date',
@@ -324,7 +324,7 @@ const FoodOrdersManagement = () => {
           <>
             <Descriptions bordered column={1}>
               <Descriptions.Item label="Student">
-                {currentOrder.Student?.username}
+                {currentOrder.Student?.userName}
               </Descriptions.Item>
               <Descriptions.Item label="Order Date">
                 {moment(currentOrder.order_date).format('DD MMM YYYY, HH:mm')}

@@ -113,18 +113,32 @@ const FoodOrderForm = () => {
       return;
     }
 
+    if (!values.requested_time) {
+      message.error('Please select a time for your order');
+      return;
+    }
+
     setSubmitting(true);
     try {
+      // Handle both moment objects and strings
+      let requestedTimeISO = values.requested_time;
+      if (values.requested_time.toISOString) {
+        requestedTimeISO = values.requested_time.toISOString();
+      } else if (typeof values.requested_time === 'string') {
+        requestedTimeISO = new Date(values.requested_time).toISOString();
+      }
+
       const orderData = {
         items: cartItems.map(item => ({
           food_item_id: item.id,
           quantity: item.quantity,
           special_instructions: item.special_instructions
         })),
-        requested_time: values.requested_time.toISOString(),
-        notes: values.notes
+        requested_time: requestedTimeISO,
+        notes: values.notes || ''
       };
 
+      console.log('Submitting food order:', orderData);
       const response = await studentAPI.createFoodOrder(orderData); // USE studentAPI
       
       if (response.data.success) {
@@ -134,10 +148,13 @@ const FoodOrderForm = () => {
         setShowCart(false);
       } else {
         setError('Failed to place order: ' + (response.data.message || 'Unknown error'));
+        message.error('Failed to place order: ' + (response.data.message || 'Unknown error'));
       }
     } catch (error) {
       console.error('Failed to place order:', error);
+      console.error('Error response:', error.response?.data);
       setError('Failed to place order. Please try again later.');
+      message.error('Failed to place order: ' + (error.response?.data?.message || error.message || 'Unknown error'));
     } finally {
       setSubmitting(false);
     }
@@ -273,34 +290,20 @@ const FoodOrderForm = () => {
               <DatePicker 
                 showTime 
                 format="YYYY-MM-DD HH:mm" 
-                // Ensure the date is not in the past and time is at least 30 minutes from now
                 disabledDate={(current) => current && current < moment().startOf('day')}
-                disabledTime={(current) => {
+                disabledTime={() => {
                   const now = moment();
-                  const selectedDate = current || now;
                   const disabledHours = [];
                   const disabledMinutes = [];
                   
-                  if (selectedDate.isSame(now, 'day')) {
-                    const currentHour = now.hour();
-                    const currentMinute = now.minute();
-                    
-                    // Disable hours before the current hour
-                    for (let i = 0; i < currentHour; i++) {
-                      disabledHours.push(i);
-                    }
-                    
-                    // If it's the current hour, disable minutes up to (currentMinute + 30)
-                    if (selectedDate.hour() === currentHour) {
-                      for (let i = 0; i < currentMinute + 30; i++) {
-                        disabledMinutes.push(i);
-                      }
-                    }
+                  // Disable hours and minutes in the past
+                  for (let i = 0; i < now.hour(); i++) {
+                    disabledHours.push(i);
                   }
                   
                   return {
                     disabledHours: () => disabledHours,
-                    disabledMinutes: () => disabledMinutes,
+                    disabledMinutes: () => [],
                   };
                 }}
                 style={{ width: '100%' }}

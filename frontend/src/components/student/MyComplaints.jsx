@@ -273,7 +273,7 @@ const ComplaintManagement = () => {
                         <div className="flex flex-wrap items-center gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                           <Space><Calendar size={12}/> Reported: {moment(c.createdAt).format('DD MMM YYYY')}</Space>
                           {c.resolved_date && <Space className="text-emerald-500"><CheckCircle2 size={12}/> Resolved: {moment(c.resolved_date).format('DD MMM')}</Space>}
-                          {c.AssignedTo && <Space><User size={12}/> Assigned: {c.AssignedTo.username}</Space>}
+                          {c.AssignedTo && <Space><User size={12}/> Assigned: {c.AssignedTo.userName}</Space>}
                         </div>
 
                         {c.resolution && (

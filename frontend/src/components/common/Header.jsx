@@ -64,8 +64,8 @@ const Header = ({ onMenuClick }) => {
           {/* User Profile - Now treated as a clickable Menu trigger */}
           <button className="flex items-center gap-3 p-1 pr-3 hover:bg-slate-50 rounded-xl transition-all group">
             <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-sm overflow-hidden">
-              {user?.profile_picture ? (
-                <img src={user.profile_picture} alt="profile" className="w-full h-full object-cover" />
+              {user?.profileImage ? (
+                <img src={user.profileImage} alt="profile" className="w-full h-full object-cover" />
               ) : (
                 <User size={18} />
               )}
@@ -73,7 +73,7 @@ const Header = ({ onMenuClick }) => {
             
             <div className="text-left hidden lg:block">
               <p className="text-xs font-bold text-slate-800 leading-none">
-                {user?.username || 'Guest User'}
+                {user?.userName || 'Guest User'}
               </p>
               <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-tighter font-semibold">
                 Account Settings

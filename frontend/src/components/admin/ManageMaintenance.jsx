@@ -7,7 +7,7 @@ import {
 import { 
   Wrench, Plus, CheckCircle2, AlertCircle, Calendar,XCircle,ClipboardList, 
   User, RefreshCw, Filter, Search, ShieldAlert,Info, 
-  Clock, Tools, MapPin, Inbox, Send, Activity
+  Clock, MapPin, Inbox, Send, Activity
 } from 'lucide-react';
 import { adminAPI } from '../../services/api';
 import moment from 'moment';
@@ -152,7 +152,7 @@ const ManageMaintenance = () => {
       key: 'reporter',
       render: (_, r) => (
         <div className="flex flex-col">
-          <Space size={4} className="text-xs text-slate-600"><User size={12} strokeWidth={1.5}/> {r.ReportedBy?.username || 'System'}</Space>
+          <Space size={4} className="text-xs text-slate-600"><User size={12} strokeWidth={1.5}/> {r.ReportedBy?.userName || 'System'}</Space>
           <Text className="text-[9px] text-slate-400 font-bold uppercase">{moment(r.createdAt).fromNow()}</Text>
         </div>
       )

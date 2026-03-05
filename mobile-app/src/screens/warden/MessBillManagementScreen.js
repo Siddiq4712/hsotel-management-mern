@@ -60,7 +60,7 @@ const MessBillManagementScreen = () => {
   const renderBill = ({ item }) => (
     <View className="bg-white p-4 rounded-xl mb-3 border border-gray-100">
       <View className="flex-row justify-between items-center mb-2">
-        <Text className="font-bold text-gray-900">{item.MessBillStudent?.username}</Text>
+        <Text className="font-bold text-gray-900">{item.MessBillStudent?.userName}</Text>
         <StatusBadge status={item.status} type="bill" />
       </View>
       <Text className="text-gray-600">₹{parseFloat(item.amount).toFixed(2)}</Text>

@@ -125,7 +125,7 @@ const CreditTokenManager = () => {
     { title: 'Date', dataIndex: 'date', render: (date) => moment(date).format('YYYY-MM-DD'), sorter: (a, b) => moment(a.date).unix() - moment(b.date).unix() },
     { title: 'Concern Name', dataIndex: ['Concern', 'name'], sorter: (a, b) => a.Concern.name.localeCompare(b.Concern.name) },
     { title: 'Amount (₹)', dataIndex: 'amount', align: 'right', render: (amt) => parseFloat(amt).toFixed(2), sorter: (a, b) => a.amount - b.amount },
-    { title: 'Recorded By', dataIndex: ['RecordedBy', 'username'] },
+    { title: 'Recorded By', dataIndex: ['RecordedBy', 'userName'] },
     { title: 'Actions', key: 'actions', align: 'center', render: (_, record) => (
         <Space>
             <Button icon={<EditOutlined />} onClick={() => openEntryModal(record)} size="small" />

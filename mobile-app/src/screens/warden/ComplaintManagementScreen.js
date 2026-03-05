@@ -54,7 +54,7 @@ const ComplaintManagementScreen = () => {
       </View>
 
       <Text className="text-lg font-bold text-gray-900 mb-1">{item.subject}</Text>
-      <Text className="text-gray-500 text-xs mb-3">By: {item.Student?.username}</Text>
+      <Text className="text-gray-500 text-xs mb-3">By: {item.Student?.userName}</Text>
 
       <View className="bg-orange-50 self-start px-2 py-1 rounded-md flex-row items-center mb-4">
         <AlertTriangle size={12} color="#F97316" />

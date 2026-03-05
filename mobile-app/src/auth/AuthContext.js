@@ -28,7 +28,7 @@ export const AuthProvider = ({ children }) => {
     loadUser();
   }, []);
 
-  // Standard Login (Username/Password)
+  // Standard Login (userName/Password)
   const login = async (credentials) => {
     try {
       setLoading(true);

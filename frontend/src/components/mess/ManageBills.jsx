@@ -128,7 +128,7 @@ const ManageBills = () => {
     csvContent += 'Student,Month,Year,Amount,Status,Due Date\n';
     
     messBills.forEach(bill => {
-      csvContent += `"${bill.MessBillStudent?.username || 'Unknown'}",${getMonthName(bill.month)},${bill.year},${bill.amount},${bill.status},"${moment(bill.due_date).format('YYYY-MM-DD')}"\n`;
+      csvContent += `"${bill.MessBillStudent?.userName || 'Unknown'}",${getMonthName(bill.month)},${bill.year},${bill.amount},${bill.status},"${moment(bill.due_date).format('YYYY-MM-DD')}"\n`;
     });
     
     const encodedUri = encodeURI(csvContent);
@@ -143,9 +143,9 @@ const ManageBills = () => {
   const billColumns = [
     {
       title: 'Student',
-      dataIndex: ['MessBillStudent', 'username'],
+      dataIndex: ['MessBillStudent', 'userName'],
       key: 'student',
-      sorter: (a, b) => a.MessBillStudent?.username.localeCompare(b.MessBillStudent?.username),
+      sorter: (a, b) => a.MessBillStudent?.userName.localeCompare(b.MessBillStudent?.userName),
     },
     {
       title: 'Month',
@@ -205,7 +205,7 @@ const ManageBills = () => {
   const allocationColumns = [
     {
       title: 'Student',
-      dataIndex: ['Student', 'username'],
+      dataIndex: ['Student', 'userName'],
       key: 'student',
     },
     {

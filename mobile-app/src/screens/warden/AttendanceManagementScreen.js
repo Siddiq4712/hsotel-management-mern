@@ -121,7 +121,7 @@ const AttendanceManagementScreen = () => {
     return (
       <View className="bg-white p-4 rounded-xl mb-3 border border-gray-100">
         <View className="flex-row justify-between items-center mb-2">
-          <Text className="font-bold text-gray-900">{item.username}</Text>
+          <Text className="font-bold text-gray-900">{item.userName}</Text>
           <Text className="text-gray-500 text-sm">
             Roll: {item.roll_number || 'N/A'}
           </Text>
@@ -160,7 +160,7 @@ const AttendanceManagementScreen = () => {
   };
 
   const filteredStudents = students.filter((s) =>
-    s.username.toLowerCase().includes(search.toLowerCase())
+    s.userName.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -270,7 +270,7 @@ const AttendanceManagementScreen = () => {
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
               <View className="flex-row justify-between items-center p-3 border-b">
-                <Text>{item.username}</Text>
+                <Text>{item.userName}</Text>
                 <TextInput
                   placeholder="0"
                   value={studentReductions[item.id]?.toString() || ''}

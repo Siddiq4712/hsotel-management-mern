@@ -55,7 +55,7 @@ const ManageRebates = () => {
         <Space>
           <div className="p-2 bg-blue-50 rounded-xl text-blue-600"><User size={18} /></div>
           <div className="flex flex-col">
-            <Text strong className="text-slate-700">{r.RebateStudent?.username}</Text>
+            <Text strong className="text-slate-700">{r.RebateStudent?.userName}</Text>
             <Text className="text-[10px] text-slate-400 font-bold uppercase">Roll: {r.RebateStudent?.roll_number}</Text>
           </div>
         </Space>
@@ -205,7 +205,7 @@ const ManageRebates = () => {
                       <div>
                         <Text className="text-slate-500 text-[9px] font-bold block uppercase">Student Name</Text>
                         <Text className="text-white text-xs font-bold uppercase">
-                          {selectedRebate.RebateStudent?.username}
+                          {selectedRebate.RebateStudent?.userName}
                         </Text>
                       </div>
                       <div>
