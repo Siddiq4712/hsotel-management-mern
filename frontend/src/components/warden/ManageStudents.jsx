@@ -255,7 +255,7 @@ const ManageStudents = () => {
 
               <Descriptions bordered column={2} className="rounded-2xl overflow-hidden shadow-sm border-slate-100">
                 <Descriptions.Item label={<Space><Hash size={14}/> Student ID</Space>}>
-                  {selectedstudent.userId}
+                  {selectedStudent.userId}
                 </Descriptions.Item>
                 <Descriptions.Item label={<Space><BookOpen size={14}/> Batch</Space>}>
                   {selectedStudent.session || 'N/A'}
