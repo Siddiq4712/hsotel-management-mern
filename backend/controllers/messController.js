@@ -2968,21 +2968,21 @@ export const createFoodOrder = async (req, res) => {
         }, { transaction })
       ));
 
-      await transaction.commit();
-
-      // Fetch the complete order with items
+      // 1. Move the fetch BEFORE the commit
       const completeOrder = await FoodOrder.findByPk(foodOrder.id, {
         include: [{
           model: FoodOrderItem,
-          include: [{
-            model: SpecialFoodItem
-          }]
+          // Note: Ensure the alias or model name matches your association
+          include: [{ model: SpecialFoodItem }]
         }, {
           model: User,
           as: 'Student',
           attributes: ['userId', 'userName', 'userMail']
         }]
-      });
+      }, { transaction });
+
+      // 2. Commit only after everything (including the fetch) is successful
+      await transaction.commit();
 
       res.status(201).json({
         success: true,
@@ -2990,7 +2990,10 @@ export const createFoodOrder = async (req, res) => {
         message: 'Food order created successfully'
       });
     } catch (error) {
-      await transaction.rollback();
+      // 3. Only rollback if the transaction hasn't been committed yet
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
       throw error;
     }
   } catch (error) {
