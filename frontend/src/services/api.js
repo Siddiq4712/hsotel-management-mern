@@ -38,6 +38,10 @@ api.interceptors.response.use(
       return Promise.reject(new Error('Unauthorized: Please log in again'));
     }
     const message = error.response?.data?.message || error.message || 'An unexpected error occurred';
+    // Don't add "API Error:" prefix if it's just a 404 (Not Found)
+    if (status === 404) {
+        return Promise.reject(new Error(message)); 
+    }
     return Promise.reject(new Error(`API Error: ${message}`));
   }
 );
