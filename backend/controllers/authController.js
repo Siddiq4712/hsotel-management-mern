@@ -2,21 +2,24 @@
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
 import { Op } from 'sequelize';
-import { User, Hostel } from '../models/index.js'; // Ensure the .js extension
+import { User, Hostel, Role } from '../models/index.js'; // Ensure the .js extension
 
 const resolveUserRole = (roleValue) => {
   if (roleValue === null || roleValue === undefined) return null;
 
   const raw = String(roleValue).trim().toLowerCase();
-  const numericRoleMap = {
-    1: 'admin',
-    2: 'mess',
-    3: 'warden',
-    4: 'student'
+  const roleMap = {
+    admin: 'admin',
+    administrator: 'admin',
+    warden: 'warden',
+    student: 'student',
+    lapc: 'lapc',
+    mess: 'mess',
+    messstaff: 'mess',
+    'mess staff': 'mess'
   };
 
-  if (numericRoleMap[raw]) return numericRoleMap[raw];
-  return raw;
+  return roleMap[raw] || raw;
 };
 
 export const login = async (req, res) => {
@@ -36,7 +39,10 @@ export const login = async (req, res) => {
           { roll_number: identifier }
         ]
       },
-      include: [{ model: Hostel, attributes: ['id', 'name'] }]
+      include: [
+        { model: Hostel, attributes: ['id', 'name'] },
+        { model: Role, as: 'role', attributes: ['roleName'] }
+      ]
     });
 
     if (!user) {
@@ -48,7 +54,7 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: 'Invalid pass' });
     }
 
-    const resolvedRole = resolveUserRole(user.roleId);
+    const resolvedRole = resolveUserRole(user.role?.roleName || user.roleId);
 
     const payload = {
       userId: user.userId,
@@ -78,7 +84,10 @@ export const getProfile = async (req, res) => {
   try {
     const user = await User.findByPk(req.user.userId, {
       attributes: { exclude: ['password'] },
-      include: [{ model: Hostel, attributes: ['id', 'name'] }]
+      include: [
+        { model: Hostel, attributes: ['id', 'name'] },
+        { model: Role, as: 'role', attributes: ['roleName'] }
+      ]
     });
 
     if (!user) {
@@ -86,7 +95,7 @@ export const getProfile = async (req, res) => {
     }
 
     const plainUser = user.toJSON();
-    plainUser.role = resolveUserRole(user.roleId);
+    plainUser.role = resolveUserRole(user.role?.roleName || user.roleId);
     res.json(plainUser);
   } catch (error) {
     console.error(error);
@@ -127,7 +136,7 @@ export const googleCallback = (req, res, next) => {
       username: user.userName,
       first_name: user.first_name,
       last_name: user.last_name,
-      role: resolveUserRole(user.roleId),
+      role: resolveUserRole(user.role?.roleName || user.roleName || user.roleId),
       hostel_id: user.hostel_id,
       profile_picture: user.profile_picture || user.dataValues.profile_picture
     };

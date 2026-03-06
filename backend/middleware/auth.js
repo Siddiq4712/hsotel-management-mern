@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { User } from '../models/index.js'; // Ensure the .js extension
+import { User, Role } from '../models/index.js'; // Ensure the .js extension
 
 const normalizeRole = (role) => {
   if (role === null || role === undefined) return null;
@@ -8,16 +8,12 @@ const normalizeRole = (role) => {
   const roleMap = {
     admin: 'admin',
     administrator: 'admin',
-    1: 'admin',
     warden: 'warden',
-    3: 'warden',
     student: 'student',
-    2: 'student',
     lapc: 'lapc',
     mess: 'mess',
     messstaff: 'mess',
-    'mess staff': 'mess',
-    4: 'mess'
+    'mess staff': 'mess'
   };
 
   return roleMap[normalized] || normalized;
@@ -37,7 +33,8 @@ export const auth = async (req, res, next) => {
     console.log('Auth middleware - Decoded token:', decoded);
     
     const user = await User.findByPk(decoded.userId, {
-      attributes: { exclude: ['password'] }
+      attributes: { exclude: ['password'] },
+      include: [{ model: Role, as: 'role', attributes: ['roleName'] }]
     });
 
     console.log('Auth middleware - User found:', user ? user.userName : 'Not found');
@@ -47,7 +44,7 @@ export const auth = async (req, res, next) => {
     }
 
     const roleFromToken = normalizeRole(decoded.role);
-    const roleFromUser = normalizeRole(user.role?.roleName || user.roleName || user.roleId);
+    const roleFromUser = normalizeRole(user.role?.roleName || user.roleName);
 
     // Trust DB role over token role; reject if token role is stale/tampered.
     if (roleFromToken && roleFromUser && roleFromToken !== roleFromUser) {
