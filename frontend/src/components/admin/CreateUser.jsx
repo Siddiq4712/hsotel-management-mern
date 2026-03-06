@@ -83,6 +83,7 @@ const CreateUser = () => {
 
       await adminAPI.createUser({
         ...values,
+        username: values.userName,
         role: selectedRole?.roleName,
         hostel_id: isAdminRole ? null : parseInt(values.hostel_id, 10)
       });
