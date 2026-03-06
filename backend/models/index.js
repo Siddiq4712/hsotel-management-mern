@@ -1206,6 +1206,7 @@ export const initAssociations = () => {
   Token.belongsTo(User, { foreignKey: 'student_id', as: 'TokenStudent', targetKey: 'userId' });
   User.hasMany(Token, { foreignKey: 'student_id', as: 'Tokens', sourceKey: 'userId' });
 
+
   // ==========================================
   // 6. FINANCE & BILLING MODULE
   // ==========================================
@@ -1273,6 +1274,21 @@ export const initAssociations = () => {
 
   Guest.belongsTo(Hostel, { foreignKey: 'hostel_id' });
   Guest.belongsTo(User, { foreignKey: 'visiting_student_id', as: 'VisitingStudent', targetKey: 'userId' });
+
+  // ==========================================
+  // 8. SPECIAL FOOD ORDER SYSTEM (Add this)
+  // ==========================================
+  FoodOrder.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
+  User.hasMany(FoodOrder, { foreignKey: 'student_id' });
+
+  FoodOrder.hasMany(FoodOrderItem, { foreignKey: 'food_order_id' });
+  FoodOrderItem.belongsTo(FoodOrder, { foreignKey: 'food_order_id' });
+
+  // THIS LINE FIXES YOUR SPECIFIC ERROR:
+  FoodOrderItem.belongsTo(SpecialFoodItem, { foreignKey: 'food_item_id' });
+  SpecialFoodItem.hasMany(FoodOrderItem, { foreignKey: 'food_item_id' });
+
+  FoodOrder.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 };
 
 // Export sequelize instance
