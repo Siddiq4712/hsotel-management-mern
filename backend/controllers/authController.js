@@ -1,13 +1,21 @@
 ﻿import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
-import { Op } from 'sequelize';
+import { Op, fn, col, where } from 'sequelize';
 import { User, Hostel, Role } from '../models/index.js'; // Ensure the .js extension
 
 const resolveUserRole = (roleValue) => {
   if (roleValue === null || roleValue === undefined) return null;
 
   const raw = String(roleValue).trim().toLowerCase();
+  const roleIdMap = {
+    '1': 'admin',
+    '2': 'student',
+    '3': 'warden',
+    '4': 'mess',
+    '5': 'lapc'
+  };
+  if (roleIdMap[raw]) return roleIdMap[raw];
   const roleMap = {
     admin: 'admin',
     administrator: 'admin',
@@ -25,7 +33,15 @@ const resolveUserRole = (roleValue) => {
 export const login = async (req, res) => {
   try {
     // Accept both field names (React sends userName, some calls may send username)
-    const identifier = req.body.username || req.body.userName || req.body.roll_number;
+    const rawIdentifier =
+      req.body.username ||
+      req.body.userName ||
+      req.body.roll_number ||
+      req.body.rollNumber ||
+      req.body.email ||
+      req.body.userMail;
+    const identifier = rawIdentifier ? String(rawIdentifier).trim() : '';
+    const identifierLower = identifier.toLowerCase();
     const { password } = req.body;
 
     if (!identifier || !password) {
@@ -35,8 +51,9 @@ export const login = async (req, res) => {
     const user = await User.findOne({
       where: {
         [Op.or]: [
-          { userName: identifier },     // use Sequelize attribute name
-          { roll_number: identifier }
+          where(fn('LOWER', col('User.username')), identifierLower),
+          where(fn('LOWER', col('User.roll_number')), identifierLower),
+          where(fn('LOWER', col('User.email')), identifierLower)
         ]
       },
       include: [
@@ -70,6 +87,7 @@ export const login = async (req, res) => {
         id: user.userId,
         username: user.userName,
         role: resolvedRole,
+        roleId: user.roleId,
         hostel_id: user.hostel_id,
         hostel: user.Hostel
       }

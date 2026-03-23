@@ -4,6 +4,7 @@ import {
   Home,
   Users,
   CheckSquare,
+  MapPin,
   FileText,
   MessageCircle,
   Bed,
@@ -15,6 +16,7 @@ import Header from '../components/common/Header';
 import WardenDashboardScreen from '../screens/warden/WardenDashboardScreen';
 import ManageStudentsScreen from '../screens/warden/ManageStudentsScreen';
 import AttendanceManagementScreen from '../screens/warden/AttendanceManagementScreen';
+import GPSAttendanceScreen from '../screens/warden/GPSAttendanceScreen';
 import LeaveRequestsScreen from '../screens/warden/LeaveRequestsScreen';
 import ComplaintManagementScreen from '../screens/warden/ComplaintManagementScreen';
 import RoomAllotmentScreen from '../screens/warden/RoomAllotmentScreen';
@@ -69,6 +71,16 @@ const WardenTabNavigator = () => {
           tabBarLabel: 'Attendance',
           tabBarIcon: ({ color, size }) => (
             <CheckSquare color={color} size={size} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="GPSAttendance"
+        component={GPSAttendanceScreen}
+        options={{
+          tabBarLabel: 'GPS',
+          tabBarIcon: ({ color, size }) => (
+            <MapPin color={color} size={size} />
           ),
         }}
       />

@@ -21,7 +21,8 @@ export const enrollStudent = async (req, res) => {
    const transaction = await sequelize.transaction();
    try {
       const { 
-         userName, 
+         userName: userNameRaw,
+         username,
          email, 
          session_id, 
          requires_bed, 
@@ -31,6 +32,7 @@ export const enrollStudent = async (req, res) => {
          password,
          create_with_default_password 
       } = req.body;
+      const userName = userNameRaw || username;
       
       const hostel_id = getHostelId(req.user);
 
@@ -2106,33 +2108,60 @@ export const getStudents = async (req, res) => {
          return res.status(400).json({ success: false, message: "Hostel binding missing on your account." });
       }
 
-      const studentsWithModels = await User.findAll({
-         where: { 
-            roleId: 2, 
-            hostel_id: hostel_id,
-            status: 'Active' 
+      const { enrollment_year } = req.query;
+      const enrollmentWhere = {};
+      if (enrollment_year) {
+         const yearNum = Number(enrollment_year);
+         if (!Number.isNaN(yearNum)) {
+            const start = new Date(yearNum, 0, 1, 0, 0, 0, 0);
+            const end = new Date(yearNum, 11, 31, 23, 59, 59, 999);
+            enrollmentWhere.enrollment_date = { [Op.between]: [start, end] };
+         }
+      }
+
+      const includeInactive = String(req.query.include_inactive || '').trim() === '1';
+      const baseInclude = [
+         {
+            model: Enrollment,
+            as: 'tbl_Enrollment',
+            required: Boolean(enrollment_year),
+            where: Object.keys(enrollmentWhere).length ? enrollmentWhere : undefined,
+            include: [{ model: Session, attributes: ['name'] }]
          },
+          { // Fetching room allotment info for display
+             model: RoomAllotment,
+             as: 'tbl_RoomAllotments', // Ensure this alias matches your association
+             where: { is_active: true }, // Only active allotments
+             required: false, // Don't exclude students without an allotment
+             include: [{
+                 model: HostelRoom, // Model for the room itself
+                 attributes: ['id', 'room_number'],
+             }]
+         },
+      ];
+
+      const buildWhere = (withStatus) => ({
+         roleId: 2,
+         hostel_id: hostel_id,
+         ...(withStatus ? { status: { [Op.in]: ['Active', 'active'] } } : {})
+      });
+
+      let studentsWithModels = await User.findAll({
+         where: includeInactive ? buildWhere(false) : buildWhere(true),
          attributes: { exclude: ['password'] },
-         include: [
-            {
-               model: Enrollment,
-               as: 'tbl_Enrollment',
-               required: false,
-               include: [{ model: Session, attributes: ['name'] }]
-            },
-             { // Fetching room allotment info for display
-                model: RoomAllotment,
-                as: 'tbl_RoomAllotments', // Ensure this alias matches your association
-                where: { is_active: true }, // Only active allotments
-                required: false, // Don't exclude students without an allotment
-                include: [{
-                    model: HostelRoom, // Model for the room itself
-                    attributes: ['id', 'room_number'],
-                }]
-            },
-         ],
+         include: baseInclude,
          order: [['userName', 'ASC']] 
       });
+
+      // Fallback: if nothing found, retry without status filter
+      if (!includeInactive && studentsWithModels.length === 0) {
+         studentsWithModels = await User.findAll({
+            where: buildWhere(false),
+            attributes: { exclude: ['password'] },
+            include: baseInclude,
+            order: [['userName', 'ASC']] 
+         });
+      }
 
       const students = studentsWithModels.map(instance => {
          const plain = instance.get({ plain: true });
@@ -2142,7 +2171,10 @@ export const getStudents = async (req, res) => {
             id: plain.userId,
             username: plain.userName,
             session: plain.tbl_Enrollment?.[0]?.Session?.name || 'N/A',
-            college: plain.tbl_Enrollment?.[0]?.college || 'N/A'
+            college: plain.tbl_Enrollment?.[0]?.college || 'N/A',
+            enrollment_year: plain.tbl_Enrollment?.[0]?.enrollment_date
+               ? new Date(plain.tbl_Enrollment?.[0]?.enrollment_date).getFullYear()
+               : null
          };
          // Add room details if available
         if (studentData.tbl_RoomAllotments && studentData.tbl_RoomAllotments.length > 0) {

@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Replace with your backend API
-const API_BASE_URL = 'http://192.168.85.1:5001/api';
+export const API_BASE_URL = 'http://10.200.12.153:5001/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -11,6 +11,14 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+export const setAuthToken = (token) => {
+  if (token) {
+    api.defaults.headers.common.Authorization = `Bearer ${token}`;
+  } else {
+    delete api.defaults.headers.common.Authorization;
+  }
+};
 
 // Request interceptor: attach token if exists
 api.interceptors.request.use(
@@ -41,6 +49,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
+      setAuthToken(null);
       console.log('Unauthorized: Token expired or invalid.');
     }
 
@@ -113,7 +122,7 @@ export const studentAPI = {
 export const wardenAPI = {
   // Dashboard & Students
   getDashboardStats: () => api.get('/warden/dashboard-stats'),
-  getStudents: () => api.get('/warden/students'),
+  getStudents: (params) => api.get('/warden/students', params ? { params } : undefined),
   enrollStudent: (data) => api.post('/warden/students', data),
 
   // Attendance
@@ -176,6 +185,17 @@ export const wardenAPI = {
   getSuspensions: () => api.get('/warden/suspensions'),
   updateSuspension: (id, data) =>
     api.put(`/warden/suspensions/${id}`, data),
+};
+
+/* ===========================
+   GPS ATTENDANCE APIs
+=========================== */
+export const gpsAttendanceAPI = {
+  startSession: (data) => api.post('/attendance/gps/session/start', data),
+  getActiveSession: (params) => api.get('/attendance/gps/session/active', { params }),
+  getSessionSummary: (id) => api.get(`/attendance/gps/session/${id}/summary`),
+  closeSession: (id) => api.post(`/attendance/gps/session/${id}/close`),
+  markAttendance: (data) => api.post('/attendance/gps/mark', data),
 };
 
 export default api;

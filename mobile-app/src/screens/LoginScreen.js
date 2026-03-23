@@ -5,6 +5,7 @@ import {
   TouchableWithoutFeedback, Keyboard, StatusBar, Image,
 } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
+import { API_BASE_URL } from '../api/api';
 import { User, Lock, Info, AlertCircle } from 'lucide-react-native';
 import { AntDesign } from '@expo/vector-icons';
 
@@ -47,7 +48,7 @@ const LoginScreen = () => {
 
     try {
       // 1. Define your Backend URL
-      const authUrl = `http://192.168.66.186:5001/api/auth/google`;
+      const authUrl = `${API_BASE_URL}/auth/google`;
 
       // 2. Open Web Browser and wait for the redirect back to 'hostelapp://'
       const result = await WebBrowser.openAuthSessionAsync(authUrl, 'hostelapp://');

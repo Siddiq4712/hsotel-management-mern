@@ -9,6 +9,38 @@ import { View, ActivityIndicator, Text } from 'react-native';
 const AppNavigator = () => {
   const { user, loading } = useAuth();
 
+  const resolveRole = (value) => {
+    if (value === null || value === undefined) return null;
+    const raw = String(value).trim().toLowerCase();
+    const roleIdMap = {
+      '1': 'admin',
+      '2': 'student',
+      '3': 'warden',
+      '4': 'mess',
+      '5': 'lapc'
+    };
+    if (roleIdMap[raw]) return roleIdMap[raw];
+    const roleMap = {
+      admin: 'admin',
+      administrator: 'admin',
+      warden: 'warden',
+      student: 'student',
+      lapc: 'lapc',
+      mess: 'mess',
+      messstaff: 'mess',
+      'mess staff': 'mess'
+    };
+    return roleMap[raw] || raw;
+  };
+
+  const resolvedRole = resolveRole(
+    user?.role ??
+      user?.roleName ??
+      user?.role?.roleName ??
+      user?.role_id ??
+      user?.roleId
+  );
+
   if (loading) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-100">
@@ -21,9 +53,9 @@ const AppNavigator = () => {
   return (
     <NavigationContainer>
       {user ? (
-        user.role === 'student' ? (
+        resolvedRole === 'student' ? (
           <StudentTabNavigator />
-        ) : user.role === 'warden' ? (
+        ) : resolvedRole === 'warden' ? (
           <WardenTabNavigator />
         ) : (
           <AuthNavigator />
