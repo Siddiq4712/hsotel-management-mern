@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authAPI } from '../api/api';
+import { authAPI, setAuthToken } from '../api/api';
 
 export const AuthContext = createContext();
 
@@ -16,6 +16,7 @@ export const AuthProvider = ({ children }) => {
         const savedUser = await AsyncStorage.getItem('user');
 
         if (token && savedUser) {
+          setAuthToken(token);
           setUser(JSON.parse(savedUser));
         }
       } catch (error) {
@@ -37,6 +38,7 @@ export const AuthProvider = ({ children }) => {
 
       await AsyncStorage.setItem('token', token);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
+      setAuthToken(token);
       setUser(userData);
 
       return { success: true };
@@ -53,6 +55,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       await AsyncStorage.setItem('token', token);
       await AsyncStorage.setItem('user', JSON.stringify(userData));
+      setAuthToken(token);
       setUser(userData);
       return { success: true };
     } catch (error) {
@@ -67,6 +70,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
+      setAuthToken(null);
       setUser(null);
     } catch (error) {
       console.error('Failed to logout:', error);

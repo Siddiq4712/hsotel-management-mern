@@ -1,6 +1,7 @@
 ﻿import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
+import { Op, fn, col, where } from 'sequelize';
 import { User, Hostel, Role } from '../models/index.js'; // Ensure the .js extension
 
 import { Op, fn, col } from 'sequelize'; // Ensure these are imported
@@ -10,6 +11,14 @@ import sequelize from '../config/database.js'; // Ensure your sequelize instance
 const resolveUserRole = (roleValue) => {
   if (!roleValue) return 'student';
   const raw = String(roleValue).trim().toLowerCase();
+  const roleIdMap = {
+    '1': 'admin',
+    '2': 'student',
+    '3': 'warden',
+    '4': 'mess',
+    '5': 'lapc'
+  };
+  if (roleIdMap[raw]) return roleIdMap[raw];
   const roleMap = {
     admin: 'admin',
     administrator: 'admin',
@@ -24,6 +33,16 @@ const resolveUserRole = (roleValue) => {
 
 export const login = async (req, res) => {
   try {
+    // Accept both field names (React sends userName, some calls may send username)
+    const rawIdentifier =
+      req.body.username ||
+      req.body.userName ||
+      req.body.roll_number ||
+      req.body.rollNumber ||
+      req.body.email ||
+      req.body.userMail;
+    const identifier = rawIdentifier ? String(rawIdentifier).trim() : '';
+    const identifierLower = identifier.toLowerCase();
     const { password } = req.body;
     // Get identifier from frontend (ramk)
     const identifier = (req.body.userName || req.body.username || req.body.roll_number || '').trim();
@@ -36,12 +55,9 @@ export const login = async (req, res) => {
     const user = await User.findOne({
       where: {
         [Op.or]: [
-          // 1. Case-insensitive search on 'username' column
-          sequelize.where(fn('LOWER', col('username')), {
-            [Op.like]: `${identifier.toLowerCase()}%` // This allows 'ramk' to match 'RAMK J'
-          }),
-          // 2. Exact match on 'roll_number' column
-          { roll_number: identifier }
+          where(fn('LOWER', col('User.username')), identifierLower),
+          where(fn('LOWER', col('User.roll_number')), identifierLower),
+          where(fn('LOWER', col('User.email')), identifierLower)
         ]
       },
       include: [
@@ -80,7 +96,9 @@ export const login = async (req, res) => {
         id: user.userId,
         username: user.userName,
         role: resolvedRole,
-        hostel_id: user.hostel_id
+        roleId: user.roleId,
+        hostel_id: user.hostel_id,
+        hostel: user.Hostel
       }
     });
   } catch (error) {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Home, FileText, MessageCircle, Utensils, CreditCard, DollarSign, Bed } from 'lucide-react-native'; // Removed Wifi, ShoppingBag, Building for simpler tabs
+import { Home, FileText, MessageCircle, Utensils, CreditCard, DollarSign, Bed, CheckSquare } from 'lucide-react-native'; // Removed Wifi, ShoppingBag, Building for simpler tabs
 import StudentDashboardScreen from '../screens/student/StudentDashboardScreen';
 import MyLeavesScreen from '../screens/student/MyLeavesScreen';
 import MyComplaintsScreen from '../screens/student/MyComplaintsScreen';
@@ -8,6 +8,7 @@ import StudentFoodOrderScreen from '../screens/student/StudentFoodOrderScreen';
 import TransactionHistoryScreen from '../screens/student/TransactionHistoryScreen';
 import MyMessChargesScreen from '../screens/student/MyMessChargesScreen';
 import ViewRoomsScreen from '../screens/student/ViewRoomsScreen'; // New tab for rooms
+import GPSAttendanceScreen from '../screens/student/GPSAttendanceScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -49,6 +50,14 @@ const StudentTabNavigator = () => {
         options={{
           tabBarLabel: 'Leaves',
           tabBarIcon: ({ color, size }) => <FileText color={color} size={size} />,
+        }}
+      />
+      <Tab.Screen
+        name="Attendance"
+        component={GPSAttendanceScreen}
+        options={{
+          tabBarLabel: 'Attendance',
+          tabBarIcon: ({ color, size }) => <CheckSquare color={color} size={size} />,
         }}
       />
       <Tab.Screen
