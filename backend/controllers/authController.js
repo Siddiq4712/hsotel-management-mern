@@ -4,9 +4,12 @@ import passport from 'passport';
 import { Op, fn, col, where } from 'sequelize';
 import { User, Hostel, Role } from '../models/index.js'; // Ensure the .js extension
 
-const resolveUserRole = (roleValue) => {
-  if (roleValue === null || roleValue === undefined) return null;
+import { Op, fn, col } from 'sequelize'; // Ensure these are imported
+import sequelize from '../config/database.js'; // Ensure your sequelize instance is imported
 
+// Helper to normalize roles for the frontend
+const resolveUserRole = (roleValue) => {
+  if (!roleValue) return 'student';
   const raw = String(roleValue).trim().toLowerCase();
   const roleIdMap = {
     '1': 'admin',
@@ -21,12 +24,10 @@ const resolveUserRole = (roleValue) => {
     administrator: 'admin',
     warden: 'warden',
     student: 'student',
-    lapc: 'lapc',
+    lapc: 'student', // Mapping lapc to student role for dashboard logic
     mess: 'mess',
-    messstaff: 'mess',
-    'mess staff': 'mess'
+    messstaff: 'mess'
   };
-
   return roleMap[raw] || raw;
 };
 
@@ -43,11 +44,14 @@ export const login = async (req, res) => {
     const identifier = rawIdentifier ? String(rawIdentifier).trim() : '';
     const identifierLower = identifier.toLowerCase();
     const { password } = req.body;
+    // Get identifier from frontend (ramk)
+    const identifier = (req.body.userName || req.body.username || req.body.roll_number || '').trim();
 
     if (!identifier || !password) {
       return res.status(400).json({ message: 'Username/Roll number and password are required' });
     }
 
+    // FIND USER: Logic to match 'ramk' with 'RAMK J' or '2312063'
     const user = await User.findOne({
       where: {
         [Op.or]: [
@@ -57,31 +61,36 @@ export const login = async (req, res) => {
         ]
       },
       include: [
-        { model: Hostel, attributes: ['id', 'name'] },
-        { model: Role, as: 'role', attributes: ['roleName'] }
+        { model: Hostel, attributes: ['id', 'name'], required: false },
+        { model: Role, as: 'role', attributes: ['roleName'], required: false }
       ]
     });
 
     if (!user) {
-      return res.status(400).json({ message: 'Invalid user' });
+      console.error(`Login Failed: No record found for "${identifier}" in tbl_users`);
+      return res.status(400).json({ message: 'User not found. Try your Roll Number.' });
     }
 
+    // 3. Verify Password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid pass' });
+      return res.status(400).json({ message: 'Invalid password' });
     }
 
-    const resolvedRole = resolveUserRole(user.role?.roleName || user.roleId);
+    // 4. Resolve Role Name
+    // Your SQL column is 'role' (int), but model maps it to 'roleId'
+    const roleId = user.roleId || user.role;
+    const resolvedRole = (user.role?.roleName || (roleId === 2 ? 'student' : roleId === 1 ? 'admin' : 'warden')).toLowerCase();
 
-    const payload = {
-      userId: user.userId,
-      role: resolvedRole,
-      hostelId: user.hostel_id
-    };
-
-    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
+    // 5. Generate Token
+    const token = jwt.sign(
+      { userId: user.userId, role: resolvedRole, hostelId: user.hostel_id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
     res.json({
+      success: true,
       token,
       user: {
         id: user.userId,
@@ -93,7 +102,7 @@ export const login = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('CRITICAL LOGIN ERROR:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
