@@ -25,55 +25,57 @@ export const Department = sequelize.define('Department', {
 // ✅ FIX: Added `field: 'id'` to map userId attribute to actual DB column 'id'
 // ✅ FIX: Changed tableName back to 'tbl_users' to match actual database
 export const User = sequelize.define('User', {
+  // PHYSICAL COLUMNS (Saved in MySQL)
   userId: { 
     type: DataTypes.INTEGER, 
     primaryKey: true, 
     autoIncrement: true,
-    field: 'id'  // ✅ CRITICAL: Maps Sequelize attribute 'userId' to DB column 'id'
+    field: 'id'  // Maps JS "userId" to SQL "id"
   },
   userName: { type: DataTypes.STRING(255), allowNull: false, field: 'username' },
   userMail: {
     type: DataTypes.STRING(255),
     allowNull: false,
     unique: true,
-    field: 'email',
-    validate: { isEmail: true }
+    field: 'email'
   },
   password: { type: DataTypes.STRING(255), allowNull: false },
   roleId: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    field: 'role',
+    field: 'role', // Maps JS "roleId" to SQL "role"
     references: { model: 'roles', key: 'roleId' }
   },
-  departmentId: { type: DataTypes.VIRTUAL },
   roll_number: { type: DataTypes.STRING(50), allowNull: true, unique: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Hostel', key: 'id' } },
+  google_id: { type: DataTypes.STRING(255), allowNull: true, unique: true },
+  profile_picture: { type: DataTypes.STRING(500), defaultValue: '/uploads/default.jpg' },
+  
+  // STATUS COLUMN (Corrected for Enrollment)
   status: {
     type: DataTypes.BOOLEAN,
     field: 'is_active',
     allowNull: false,
     defaultValue: true,
-    get() {
-      return this.getDataValue('status') ? 'Active' : 'Inactive';
-    },
+    // This allows you to use user.status = 'Active' or true
     set(value) {
       if (typeof value === 'string') {
-        this.setDataValue('status', value.toLowerCase() === 'active');
-        return;
+        this.setDataValue('status', value.toLowerCase() === 'active' || value.toLowerCase() === 'true');
+      } else {
+        this.setDataValue('status', Boolean(value));
       }
-      this.setDataValue('status', Boolean(value));
     }
   },
-  google_id: { type: DataTypes.STRING(255), allowNull: true, unique: true },
+
+  // VIRTUAL FIELDS (Not saved in MySQL, just for JS logic)
+  departmentId: { type: DataTypes.VIRTUAL },
   authProvider: { type: DataTypes.VIRTUAL, defaultValue: 'local' },
-  profile_picture: { type: DataTypes.STRING(500), defaultValue: '/uploads/default.jpg' },
   resetOTP: { type: DataTypes.VIRTUAL },
   resetOTPExpires: { type: DataTypes.VIRTUAL },
   createdBy: { type: DataTypes.VIRTUAL },
   updatedBy: { type: DataTypes.VIRTUAL }
 }, { 
-  tableName: 'tbl_users',  // ✅ CRITICAL: Must match actual database table name
+  tableName: 'tbl_users',
   timestamps: true 
 });
 

@@ -161,6 +161,7 @@ export const wardenAPI = {
   // Student Management
   enrollStudent: (data) => api.post('/warden/students', data),
   getStudents: (params) => api.get('/warden/students', { params }),
+  bulkEnrollStudents: (data) => api.post('/warden/students/bulk-import', data),
 
   // EMI and Fee Management
   getHostelSettings: () => api.get('/warden/hostel-settings'),

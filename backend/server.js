@@ -98,7 +98,7 @@ const PORT = process.env.PORT || 5000;
 initAssociations();
 
 sequelize
-  .sync({alter: true}) // ðŸ”¥ SAFE: DOES NOT DROP DATA
+  .sync()
   .then(async () => {
     console.log('âœ… Database synced safely');
     

@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { 
   Card, Form, Input, Select, Button, Checkbox, 
   Typography, Row, Col, Divider, message, 
-  ConfigProvider, theme, Skeleton, Steps, Tag, Timeline, Descriptions
+  ConfigProvider, theme, Skeleton, Steps, Tag, Timeline, Descriptions, Upload
 } from 'antd';
 import { 
   User, Lock, CheckCircle2, AlertCircle, Bed, School, 
   Hash, Mail, Send, ArrowRight, ArrowLeft, GraduationCap,
-  ShieldCheck, Info
+  ShieldCheck, Info, FileSpreadsheet
 } from 'lucide-react';
 import { wardenAPI } from '../../services/api';
 
@@ -53,6 +54,41 @@ const EnrollStudent = () => {
       setTimeout(() => setSessionsLoading(false), 800);
     }
   };
+
+  const handleExcelImport = (file) => {
+  const sessionId = form.getFieldValue('session_id');
+  if (!sessionId) {
+    message.error("Please select an Academic Year first!");
+    return false;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+    const formatted = json.map(row => ({
+      userName: row.Name,
+      userMail: row.Email,
+      roll_number: String(row.RollNumber),
+      college: row.College || 'nec',
+      requires_bed: String(row.IsHosteller).toLowerCase() === 'yes'
+    }));
+
+    setLoading(true);
+    try {
+      await wardenAPI.bulkEnrollStudents({ students: formatted, session_id: sessionId });
+      message.success(`Imported ${formatted.length} students successfully!`);
+    } catch (err) {
+      message.error("Import failed: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  return false;
+};
 
   // --- FINAL SAVE FUNCTION (Only called on Step 2 Submit) ---
   const onFinish = async () => {
@@ -113,6 +149,12 @@ const EnrollStudent = () => {
             <Text type="secondary">Registering new students to the hostel records</Text>
           </div>
         </div>
+
+        <Upload beforeUpload={handleExcelImport} showUploadList={false} accept=".xlsx, .xls">
+          <Button icon={<FileSpreadsheet size={18} />} className="h-11 rounded-xl">
+            Bulk Import Excel
+          </Button>
+        </Upload>
 
         <Row gutter={[24, 24]}>
           <Col lg={16} xs={24}>
