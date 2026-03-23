@@ -17,114 +17,184 @@ const getHostelId = (user) => {
 // ==========================================
 // STUDENT ENROLLMENT
 // ==========================================
+// 1. ENROLL STUDENT: This creates the login credentials in tbl_users
 export const enrollStudent = async (req, res) => {
    const transaction = await sequelize.transaction();
    try {
-      const { 
-         userName, 
-         email, 
-         session_id, 
-         requires_bed, 
-         paid_initial_emi,
-         college,
-         roll_number,
-         password,
-         create_with_default_password 
-      } = req.body;
-      
-      const hostel_id = getHostelId(req.user);
+      const { userName, email, session_id, requires_bed, roll_number, password, college } = req.body;
+      const warden_hostel_id = req.user.hostelId || req.user.hostel_id;
 
-      if (!hostel_id) {
-         throw new Error("Warden is not assigned to a valid hostel. Please update Warden profile in database.");
-      }
+      if (!warden_hostel_id) throw new Error("Warden's hostel ID not found.");
 
-      if (!userName || !session_id) {
-         throw new Error("Student Name and Session ID are required.");
-      }
+      // DYNAMIC ROLE RETRIEVAL: Find 'student' role ID
+      const studentRole = await Role.findOne({ 
+         where: { roleName: { [Op.like]: 'student' } },
+         transaction 
+      });
+      if (!studentRole) throw new Error("Role 'student' not defined in roles table.");
 
-      // Check for existing user using new model names
-      const existingUser = await User.findOne({ 
-         where: { 
-            [Op.or]: [
-               { userName: userName },
-               { userMail: email || `${userName.replace(/\s+/g, '').toLowerCase()}@hostel.com` }
-            ]
-         },
+      let student = await User.findOne({ 
+         where: { [Op.or]: [{ userMail: email }, { roll_number: roll_number }] },
          transaction
       });
 
-      let student;
-      if (existingUser) {
-         await existingUser.update({ 
-            hostel_id, 
-            roleId: 2, // Student
-            status: 'Active',
-            roll_number: roll_number || existingUser.roll_number
+      if (student) {
+         await student.update({ 
+            hostel_id: warden_hostel_id, 
+            roleId: studentRole.roleId, // Use dynamic ID
+            status: true,
+            roll_number: roll_number
          }, { transaction });
-         student = existingUser;
       } else {
-         let passwordToUse = create_with_default_password || !password ? '12345678' : password;
          const salt = await bcrypt.genSalt(10);
-         const hashedPassword = await bcrypt.hash(passwordToUse, salt);
+         const hashedPassword = await bcrypt.hash(password || '12345678', salt);
 
          student = await User.create({
-            userName: userName,
-            userMail: email || `${userName.replace(/\s+/g, '').toLowerCase()}@hostel.com`,
+            userName,
+            userMail: email,
             password: hashedPassword,
-            roleId: 2, 
-            hostel_id: hostel_id, 
-            roll_number: roll_number || null,
-            status: 'Active'
+            roleId: studentRole.roleId, // Use dynamic ID
+            hostel_id: warden_hostel_id,
+            roll_number,
+            status: true 
          }, { transaction });
       }
 
-      // Check for duplicate enrollment roll number
-      if (roll_number) {
-         const duplicate = await Enrollment.findOne({ where: { roll_number }, transaction });
-         if (duplicate) throw new Error("Roll number already enrolled.");
-      }
-
-      const enrollment = await Enrollment.create({
-         student_id: student.userId, 
-         hostel_id,
+      await Enrollment.create({
+         student_id: student.userId,
+         hostel_id: warden_hostel_id, 
          session_id,
-         requires_bed: requires_bed || false,
+         requires_bed: !!requires_bed,
          college: college || 'nec',
-         roll_number: roll_number || null,
-         remaining_dues: requires_bed ? 6 : 0,
+         roll_number,
          status: 'active'
       }, { transaction });
 
-      // Create EMI records if applicable
-      if (requires_bed && paid_initial_emi) {
-         const today = new Date();
-         for (let i = 0; i < 5; i++) {
-            const dueDate = new Date(today);
-            dueDate.setMonth(dueDate.getMonth() + i);
-            await Fee.create({
-               student_id: student.userId,
-               enrollment_id: enrollment.id,
-               fee_type: 'emi',
-               amount: 5000,
-               due_date: dueDate,
-               status: i === 0 ? 'paid' : 'pending',
-               payment_date: i === 0 ? today : null,
-               emi_month: i + 1
-            }, { transaction });
-         }
-      }
-
       await transaction.commit();
-      res.status(201).json({ 
-         success: true,
-         message: 'Student enrolled successfully',
-         data: { student: { userId: student.userId, userName: student.userName }, enrollment }
-      });
+      res.status(201).json({ success: true, message: 'Student registered successfully' });
    } catch (error) {
       if (transaction) await transaction.rollback();
-      console.error('Enrollment Error:', error.message);
       res.status(400).json({ success: false, message: error.message });
    }
+};
+
+// 2. GET STUDENTS: This ensures the newly enrolled students show up in the Warden list
+export const getStudents = async (req, res) => {
+   try {
+      const warden_hostel_id = req.user.hostelId || req.user.hostel_id;
+      
+      if (!warden_hostel_id) {
+         return res.status(400).json({ success: false, message: "Hostel ID missing." });
+      }
+
+      const studentsWithModels = await User.findAll({
+         where: { 
+            roleId: 2, 
+            hostel_id: warden_hostel_id,
+            status: true // Filters for is_active = 1
+         },
+         attributes: { exclude: ['password'] },
+         include: [
+            {
+               model: Enrollment,
+               as: 'tbl_Enrollment',
+               include: [{ model: Session, attributes: ['name'] }]
+            }
+         ],
+         order: [['userName', 'ASC']] 
+      });
+
+      // Map data for the frontend table
+      const formattedData = studentsWithModels.map(s => {
+         const plain = s.get({ plain: true });
+         return {
+            ...plain,
+            id: plain.userId,
+            username: plain.userName,
+            session: plain.tbl_Enrollment?.[0]?.Session?.name || 'N/A',
+            college: plain.tbl_Enrollment?.[0]?.college || 'N/A'
+         };
+      });
+
+      res.json({ success: true, data: formattedData });
+   } catch (error) {
+      console.error('Fetch Students Error:', error);
+      res.status(500).json({ success: false, message: error.message });
+   }
+};
+
+// backend/controllers/wardenController.js
+
+export const bulkEnrollStudents = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { students, session_id } = req.body;
+    const hostel_id = req.user.hostelId || req.user.hostel_id;
+
+    if (!hostel_id) throw new Error("Hostel binding missing.");
+
+    // DYNAMIC ROLE RETRIEVAL: Fetch once to be efficient
+    const studentRole = await Role.findOne({ 
+       where: { roleName: { [Op.like]: 'student' } },
+       transaction 
+    });
+    if (!studentRole) throw new Error("Role 'student' not found.");
+
+    const results = { successful: 0, skipped: 0, errors: [] };
+    const salt = await bcrypt.genSalt(10);
+    const defaultPassword = await bcrypt.hash('12345678', salt);
+
+    for (const studentData of students) {
+      try {
+        const { userName, userMail, roll_number, college, requires_bed } = studentData;
+
+        let user = await User.findOne({ 
+          where: { [Op.or]: [{ userName }, { userMail }, { roll_number }] },
+          transaction 
+        });
+
+        if (!user) {
+          user = await User.create({
+            userName,
+            userMail: userMail || `${roll_number}@nec.edu.in`,
+            password: defaultPassword,
+            roleId: studentRole.roleId, // Use dynamic ID
+            hostel_id,
+            roll_number,
+            status: true
+          }, { transaction });
+        }
+
+        const existingEnrollment = await Enrollment.findOne({
+          where: { student_id: user.userId, session_id },
+          transaction
+        });
+
+        if (!existingEnrollment) {
+          await Enrollment.create({
+            student_id: user.userId,
+            hostel_id,
+            session_id,
+            roll_number,
+            college: college?.toLowerCase() || 'nec',
+            requires_bed: !!requires_bed,
+            status: 'active'
+          }, { transaction });
+          results.successful++;
+        } else {
+          results.skipped++;
+        }
+      } catch (err) {
+        results.errors.push({ name: studentData.userName, error: err.message });
+      }
+    }
+
+    await transaction.commit();
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 // ==========================================
@@ -2096,76 +2166,6 @@ export const createAdditionalCollection = async (req, res) => {
    }
 };
 
-// ==========================================
-// STUDENTS LIST
-// ==========================================
-export const getStudents = async (req, res) => {
-   try {
-      const hostel_id = getHostelId(req.user);
-      if (!hostel_id) {
-         return res.status(400).json({ success: false, message: "Hostel binding missing on your account." });
-      }
-
-      const studentsWithModels = await User.findAll({
-         where: { 
-            roleId: 2, 
-            hostel_id: hostel_id,
-            status: 'Active' 
-         },
-         attributes: { exclude: ['password'] },
-         include: [
-            {
-               model: Enrollment,
-               as: 'tbl_Enrollment',
-               required: false,
-               include: [{ model: Session, attributes: ['name'] }]
-            },
-             { // Fetching room allotment info for display
-                model: RoomAllotment,
-                as: 'tbl_RoomAllotments', // Ensure this alias matches your association
-                where: { is_active: true }, // Only active allotments
-                required: false, // Don't exclude students without an allotment
-                include: [{
-                    model: HostelRoom, // Model for the room itself
-                    attributes: ['id', 'room_number'],
-                }]
-            },
-         ],
-         order: [['userName', 'ASC']] 
-      });
-
-      const students = studentsWithModels.map(instance => {
-         const plain = instance.get({ plain: true });
-         // MAP TO OLD NAMES FOR FRONTEND COMPATIBILITY
-         const studentData = {
-            ...plain,
-            id: plain.userId,
-            username: plain.userName,
-            session: plain.tbl_Enrollment?.[0]?.Session?.name || 'N/A',
-            college: plain.tbl_Enrollment?.[0]?.college || 'N/A'
-         };
-         // Add room details if available
-        if (studentData.tbl_RoomAllotments && studentData.tbl_RoomAllotments.length > 0) {
-            studentData.room_id = studentData.tbl_RoomAllotments[0].HostelRoom?.id;
-            studentData.room_number = studentData.tbl_RoomAllotments[0].HostelRoom?.room_number;
-        } else {
-            studentData.room_id = null;
-            studentData.room_number = null;
-        }
-
-        // Clean up internal Sequelize association arrays for cleaner output if not needed
-        delete studentData.tbl_Enrollment;
-        delete studentData.tbl_RoomAllotments;
-
-        return studentData;
-      });
-
-      res.json({ success: true, data: students });
-   } catch (error) {
-      console.error('Fetch Students Error:', error.message);
-      res.status(500).json({ success: false, message: error.message });
-   }
-};
 
 export const getAdditionalCollections = async (req, res) => {
    try {
