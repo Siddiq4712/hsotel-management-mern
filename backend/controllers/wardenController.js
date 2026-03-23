@@ -84,14 +84,15 @@ export const getStudents = async (req, res) => {
       const warden_hostel_id = req.user.hostelId || req.user.hostel_id;
       
       if (!warden_hostel_id) {
-         return res.status(400).json({ success: false, message: "Hostel ID missing." });
+         return res.status(400).json({ success: false, message: "Hostel ID missing from session." });
       }
 
+      // Fetch students belonging to this hostel with role 'student' (usually 2)
       const studentsWithModels = await User.findAll({
          where: { 
-            roleId: 2, 
             hostel_id: warden_hostel_id,
-            status: true // Filters for is_active = 1
+            // We search for status: true because it maps to is_active = 1 in SQL
+            status: true 
          },
          attributes: { exclude: ['password'] },
          include: [
@@ -99,26 +100,40 @@ export const getStudents = async (req, res) => {
                model: Enrollment,
                as: 'tbl_Enrollment',
                include: [{ model: Session, attributes: ['name'] }]
+            },
+            {
+                model: RoomAllotment,
+                as: 'tbl_RoomAllotments',
+                where: { is_active: true },
+                required: false,
+                include: [{ model: HostelRoom, attributes: ['id', 'room_number'] }]
             }
          ],
          order: [['userName', 'ASC']] 
       });
 
-      // Map data for the frontend table
+      // Map data to match the format expected by ManageStudents.jsx
       const formattedData = studentsWithModels.map(s => {
          const plain = s.get({ plain: true });
+         
+         // Extract room number from the active allotment if it exists
+         const activeRoom = plain.tbl_RoomAllotments && plain.tbl_RoomAllotments.length > 0 
+            ? plain.tbl_RoomAllotments[0].HostelRoom 
+            : null;
+
          return {
             ...plain,
-            id: plain.userId,
+            id: plain.userId, // Maps SQL 'id' back to 'id' for frontend Table
             username: plain.userName,
             session: plain.tbl_Enrollment?.[0]?.Session?.name || 'N/A',
-            college: plain.tbl_Enrollment?.[0]?.college || 'N/A'
+            college: plain.tbl_Enrollment?.[0]?.college || 'N/A',
+            room_number: activeRoom ? activeRoom.room_number : null
          };
       });
 
       res.json({ success: true, data: formattedData });
    } catch (error) {
-      console.error('Fetch Students Error:', error);
+      console.error('Warden GetStudents Error:', error);
       res.status(500).json({ success: false, message: error.message });
    }
 };
