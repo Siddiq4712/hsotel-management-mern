@@ -56,9 +56,11 @@ const EnrollStudent = () => {
   };
 
   const handleExcelImport = (file) => {
+  // Capture the Batch/Year selected in the Manual Form dropdown
   const sessionId = form.getFieldValue('session_id');
+  
   if (!sessionId) {
-    message.error("Please select an Academic Year first!");
+    message.error("CRITICAL: Select 'Academic Year / Batch' from the dropdown before uploading Excel!");
     return false;
   }
 
@@ -69,17 +71,22 @@ const EnrollStudent = () => {
     const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
     const formatted = json.map(row => ({
-      userName: row.Name,
-      userMail: row.Email,
-      roll_number: String(row.RollNumber),
-      college: row.College || 'nec',
-      requires_bed: String(row.IsHosteller).toLowerCase() === 'yes'
+      userName: row['Name'], 
+      roll_number: String(row['Roll Number']),
+      college: row['College'] || 'nec',
+      // Determines if "Allocate Room/Bed" is checked for this student
+      requires_bed: String(row['Hosteller']).toLowerCase() === 'yes'
     }));
 
     setLoading(true);
     try {
-      await wardenAPI.bulkEnrollStudents({ students: formatted, session_id: sessionId });
-      message.success(`Imported ${formatted.length} students successfully!`);
+      const response = await wardenAPI.bulkEnrollStudents({ 
+        students: formatted, 
+        session_id: sessionId // Passing the batch ID to backend
+      });
+      
+      const { successful, skipped } = response.data.data;
+      message.success(`Import Finished. Enrolled: ${successful}, Skipped: ${skipped}`);
     } catch (err) {
       message.error("Import failed: " + err.message);
     } finally {
@@ -140,21 +147,61 @@ const EnrollStudent = () => {
     <ConfigProvider theme={{ token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
       <div className="p-4 md:p-8 bg-slate-50 min-h-screen">
         
-        <div className="flex items-center gap-4 mb-8">
-          <div className="p-3 bg-blue-600 rounded-2xl shadow-lg text-white">
-            <GraduationCap size={28} />
-          </div>
-          <div>
-            <Title level={2} style={{ margin: 0 }}>Student Admission</Title>
-            <Text type="secondary">Registering new students to the hostel records</Text>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg text-white">
+              <GraduationCap size={28} />
+            </div>
+            <div>
+              <Title level={2} style={{ margin: 0 }}>Student Admission</Title>
+              <Text type="secondary">Registering new students to the hostel records</Text>
+            </div>
           </div>
         </div>
 
-        <Upload beforeUpload={handleExcelImport} showUploadList={false} accept=".xlsx, .xls">
-          <Button icon={<FileSpreadsheet size={18} />} className="h-11 rounded-xl">
-            Bulk Import Excel
-          </Button>
-        </Upload>
+        {/* Updated Top Toolbar for Excel Import */}
+        <Card className="mb-6 border-none shadow-sm rounded-2xl bg-white">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="flex-1 min-w-[250px]">
+              <Text strong className="block mb-2 text-blue-700">Step 1: Choose Batch for this Excel List</Text>
+              <Form form={form} component={false}> {/* Component false prevents layout issues */}
+                <Form.Item name="session_id" noStyle rules={[{ required: true }]}>
+                  <Select 
+                    className="h-12 w-full rounded-xl" 
+                    placeholder="Select Academic Year / Batch"
+                    loading={sessionsLoading}
+                  >
+                    {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
+                  </Select>
+                </Form.Item>
+              </Form>
+            </div>
+            
+            <div>
+              <Text strong className="block mb-2 text-blue-700">Step 2: Upload File</Text>
+              <Upload 
+                beforeUpload={handleExcelImport} 
+                showUploadList={false} 
+                accept=".xlsx, .xls"
+              >
+                <Button 
+                  icon={<FileSpreadsheet size={18} />} 
+                  className="h-12 rounded-xl bg-green-600 text-white hover:bg-green-700 border-none px-6"
+                  loading={loading}
+                >
+                  Bulk Import Students
+                </Button>
+              </Upload>
+            </div>
+            
+            <div className="pb-2">
+               <Text type="secondary" className="text-xs italic">
+                 * Excel must have: Name, Roll Number, College, Hosteller (yes/no)
+               </Text>
+            </div>
+          </div>
+        </Card>
 
         <Row gutter={[24, 24]}>
           <Col lg={16} xs={24}>

@@ -128,17 +128,17 @@ export const getStudents = async (req, res) => {
 export const bulkEnrollStudents = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const { students, session_id } = req.body;
+    const { students, session_id } = req.body; // session_id comes from the UI dropdown
     const hostel_id = req.user.hostelId || req.user.hostel_id;
 
-    if (!hostel_id) throw new Error("Hostel binding missing.");
+    if (!hostel_id) throw new Error("Hostel ID not found. Please re-login.");
+    if (!session_id) throw new Error("Please select an Academic Year/Batch.");
 
-    // DYNAMIC ROLE RETRIEVAL: Fetch once to be efficient
+    // Get Student Role ID dynamically
     const studentRole = await Role.findOne({ 
        where: { roleName: { [Op.like]: 'student' } },
        transaction 
     });
-    if (!studentRole) throw new Error("Role 'student' not found.");
 
     const results = { successful: 0, skipped: 0, errors: [] };
     const salt = await bcrypt.genSalt(10);
@@ -146,25 +146,28 @@ export const bulkEnrollStudents = async (req, res) => {
 
     for (const studentData of students) {
       try {
-        const { userName, userMail, roll_number, college, requires_bed } = studentData;
+        const { userName, roll_number, college, requires_bed } = studentData;
+        const generatedEmail = `${roll_number}@nec.edu.in`.toLowerCase();
 
+        // 1. Create/Update User (Login Credentials)
         let user = await User.findOne({ 
-          where: { [Op.or]: [{ userName }, { userMail }, { roll_number }] },
+          where: { [Op.or]: [{ roll_number }, { userMail: generatedEmail }] },
           transaction 
         });
 
         if (!user) {
           user = await User.create({
-            userName,
-            userMail: userMail || `${roll_number}@nec.edu.in`,
+            userName: userName.toUpperCase(),
+            userMail: generatedEmail,
             password: defaultPassword,
-            roleId: studentRole.roleId, // Use dynamic ID
+            roleId: studentRole.roleId,
             hostel_id,
             roll_number,
-            status: true
+            status: true 
           }, { transaction });
         }
 
+        // 2. Create Enrollment Record (The Batch/Session link)
         const existingEnrollment = await Enrollment.findOne({
           where: { student_id: user.userId, session_id },
           transaction
@@ -174,10 +177,12 @@ export const bulkEnrollStudents = async (req, res) => {
           await Enrollment.create({
             student_id: user.userId,
             hostel_id,
-            session_id,
+            session_id: parseInt(session_id), // Linked to chosen batch
             roll_number,
-            college: college?.toLowerCase() || 'nec',
-            requires_bed: !!requires_bed,
+            college: college || 'nec',
+            requires_bed: !!requires_bed, 
+            // Logical consistency: if hosteller, set dues to 6 (matching manual logic)
+            remaining_dues: requires_bed ? 6 : 0, 
             status: 'active'
           }, { transaction });
           results.successful++;
