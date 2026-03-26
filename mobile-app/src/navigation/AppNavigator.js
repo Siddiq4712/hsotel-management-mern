@@ -5,40 +5,16 @@ import StudentTabNavigator from './StudentTabNavigator';
 import WardenTabNavigator from './WardenTabNavigator';
 import { useAuth } from '../hooks/useAuth';
 import { View, ActivityIndicator, Text } from 'react-native';
+import { normalizeRole } from '../utils/role';
 
 const AppNavigator = () => {
   const { user, loading } = useAuth();
 
-  const resolveRole = (value) => {
-    if (value === null || value === undefined) return null;
-    const raw = String(value).trim().toLowerCase();
-    const roleIdMap = {
-      '1': 'admin',
-      '2': 'student',
-      '3': 'warden',
-      '4': 'mess',
-      '5': 'lapc'
-    };
-    if (roleIdMap[raw]) return roleIdMap[raw];
-    const roleMap = {
-      admin: 'admin',
-      administrator: 'admin',
-      warden: 'warden',
-      student: 'student',
-      lapc: 'lapc',
-      mess: 'mess',
-      messstaff: 'mess',
-      'mess staff': 'mess'
-    };
-    return roleMap[raw] || raw;
-  };
-
-  const resolvedRole = resolveRole(
+  const resolvedRole = normalizeRole(
     user?.role ??
       user?.roleName ??
       user?.role?.roleName ??
-      user?.role_id ??
-      user?.roleId
+      null
   );
 
   if (loading) {
