@@ -3,6 +3,7 @@ import {
   View,
   Text,
   FlatList,
+  SectionList,
   TouchableOpacity,
   Modal,
   TextInput,
@@ -63,6 +64,13 @@ const AttendanceManagementScreen = () => {
   const getAttendanceForStudent = (studentId) =>
     attendance.find((att) => att.student_id === studentId);
 
+  const getStatusMeta = (status) => {
+    if (status === 'P') return { label: 'Present', color: 'text-green-600' };
+    if (status === 'A') return { label: 'Absent', color: 'text-red-600' };
+    if (status === 'OD') return { label: 'On Duty', color: 'text-blue-600' };
+    return { label: 'Not Marked', color: 'text-gray-500' };
+  };
+
   const markAttendance = async (studentId, status, odDetails = null) => {
     try {
       const payload = {
@@ -117,15 +125,19 @@ const AttendanceManagementScreen = () => {
   const renderStudentItem = ({ item }) => {
     const att = getAttendanceForStudent(item.id);
     const status = att?.status;
+    const statusMeta = getStatusMeta(status);
 
     return (
       <View className="bg-white p-4 rounded-xl mb-3 border border-gray-100">
         <View className="flex-row justify-between items-center mb-2">
           <Text className="font-bold text-gray-900">{item.userName}</Text>
-          <Text className="text-gray-500 text-sm">
-            Roll: {item.roll_number || 'N/A'}
+          <Text className={`font-semibold text-sm ${statusMeta.color}`}>
+            {statusMeta.label}
           </Text>
         </View>
+        <Text className="text-gray-500 text-sm mb-2">
+          Roll: {item.roll_number || 'N/A'}
+        </Text>
 
         <View className="flex-row space-x-2">
           <TouchableOpacity
@@ -163,6 +175,20 @@ const AttendanceManagementScreen = () => {
     s.userName.toLowerCase().includes(search.toLowerCase())
   );
 
+  const batchSections = Object.entries(
+    filteredStudents.reduce((acc, student) => {
+      const batch = student.enrollment_year || student.session || 'Unknown';
+      if (!acc[batch]) acc[batch] = [];
+      acc[batch].push(student);
+      return acc;
+    }, {})
+  )
+    .sort(([a], [b]) => String(b).localeCompare(String(a)))
+    .map(([batch, data]) => ({
+      title: `Batch: ${batch}`,
+      data,
+    }));
+
   return (
     <View className="flex-1 bg-gray-50">
       <Header />
@@ -191,10 +217,24 @@ const AttendanceManagementScreen = () => {
         {loading ? (
           <ActivityIndicator color="#4F46E5" />
         ) : (
-          <FlatList
-            data={filteredStudents}
+          <SectionList
+            sections={batchSections}
             renderItem={renderStudentItem}
             keyExtractor={(item) => item.id.toString()}
+            renderSectionHeader={({ section }) => (
+              <View className="py-2">
+                <Text className="text-base font-bold text-indigo-700">
+                  {section.title}
+                </Text>
+              </View>
+            )}
+            ListEmptyComponent={
+              <Text className="text-gray-500 text-center mt-4">
+                No students found for this date.
+              </Text>
+            }
+            contentContainerStyle={{ paddingBottom: 10 }}
+            stickySectionHeadersEnabled={false}
           />
         )}
 

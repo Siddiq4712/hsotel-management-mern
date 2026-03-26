@@ -1,5 +1,5 @@
 import { Op } from 'sequelize';
-import { GPSAttendanceSession, GPSAttendance, User } from '../models/index.js';
+import { GPSAttendanceSession, GPSAttendance, User, Role } from '../models/index.js';
 import { getTimeZoneDateString } from '../utils/dateUtils.js';
 
 const getTodayDate = () => getTimeZoneDateString();
@@ -10,10 +10,29 @@ const normalizeSessionType = (value) => {
   return 'EVENING';
 };
 
+const getStudentRoleIds = async () => {
+  const roles = await Role.findAll({
+    where: {
+      [Op.or]: [
+        { roleName: { [Op.like]: 'student' } },
+        { roleName: { [Op.like]: 'lapc' } }
+      ]
+    },
+    attributes: ['roleId']
+  });
+
+  return roles
+    .map((role) => Number(role.roleId))
+    .filter((roleId) => Number.isFinite(roleId));
+};
+
 const markAbsenteesForSession = async (session) => {
+  const studentRoleIds = await getStudentRoleIds();
+  if (!studentRoleIds.length) return;
+
   const students = await User.findAll({
     where: {
-      roleId: 2,
+      roleId: { [Op.in]: studentRoleIds },
       hostel_id: session.hostel_id,
       status: { [Op.in]: ['Active', 'active'] }
     },
@@ -220,9 +239,18 @@ export const getGpsSessionSummary = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
+    const studentRoleIds = await getStudentRoleIds();
+    if (!studentRoleIds.length) {
+      return res.json({
+        session,
+        summary: [],
+        server_time: new Date()
+      });
+    }
+
     const students = await User.findAll({
       where: {
-        roleId: 2,
+        roleId: { [Op.in]: studentRoleIds },
         hostel_id: session.hostel_id,
         status: { [Op.in]: ['Active', 'active'] }
       },

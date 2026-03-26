@@ -10,18 +10,24 @@ import {
   StyleSheet
 } from 'react-native';
 import * as Location from 'expo-location';
+import Constants from 'expo-constants';
 import Header from '../../components/common/Header';
 import { gpsAttendanceAPI, wardenAPI } from '../../api/api';
 
-const DEFAULT_RADIUS = 150;
+const CONFIG_RADIUS = Number(Constants.expoConfig?.extra?.GEOFENCE_RADIUS_M);
+const DEFAULT_RADIUS = Number.isFinite(CONFIG_RADIUS) ? CONFIG_RADIUS : 150;
 const DEFAULT_DURATION = 20;
-const USE_STATIC_GPS = true;
-const STATIC_GEOFENCE = { latitude: 13.0827, longitude: 80.2707 };
-const USE_FIXED_TEST_DISTANCE = true;
-const FIXED_TEST_DISTANCE_M = 42;
+const CONFIG_GEOFENCE = {
+  latitude: Number(Constants.expoConfig?.extra?.GEOFENCE_LAT),
+  longitude: Number(Constants.expoConfig?.extra?.GEOFENCE_LNG)
+};
+const hasConfiguredGeofence =
+  Number.isFinite(CONFIG_GEOFENCE.latitude) &&
+  Number.isFinite(CONFIG_GEOFENCE.longitude);
 
 const GPSAttendanceScreen = () => {
   const [activeSession, setActiveSession] = useState(null);
+  const [lastClosedSession, setLastClosedSession] = useState(null);
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
   const [summary, setSummary] = useState([]);
   const [students, setStudents] = useState([]);
@@ -35,6 +41,8 @@ const GPSAttendanceScreen = () => {
   const [radius, setRadius] = useState(String(DEFAULT_RADIUS));
   const [duration, setDuration] = useState(String(DEFAULT_DURATION));
   const [nowTick, setNowTick] = useState(0);
+  const sessionForResults = activeSession || lastClosedSession;
+  const isSessionActive = !!activeSession;
 
   const remainingSeconds = useMemo(() => {
     if (!activeSession?.end_time) return 0;
@@ -99,9 +107,9 @@ const GPSAttendanceScreen = () => {
       setServerOffsetMs(serverTime - Date.now());
       if (res.data.active) {
         setActiveSession(res.data.session);
+        setLastClosedSession(null);
       } else {
         setActiveSession(null);
-        setSummary([]);
       }
     } catch (error) {
       Alert.alert('Error', error.message || 'Failed to load session');
@@ -148,9 +156,9 @@ const GPSAttendanceScreen = () => {
           return;
         }
 
-        let geofence_lat = STATIC_GEOFENCE.latitude;
-        let geofence_lng = STATIC_GEOFENCE.longitude;
-        if (!USE_STATIC_GPS) {
+        let geofence_lat = CONFIG_GEOFENCE.latitude;
+        let geofence_lng = CONFIG_GEOFENCE.longitude;
+        if (!hasConfiguredGeofence) {
           const { status } = await Location.requestForegroundPermissionsAsync();
           if (status !== 'granted') {
             Alert.alert('Permission required', 'Location permission is needed to start attendance.');
@@ -171,12 +179,14 @@ const GPSAttendanceScreen = () => {
           duration_minutes,
           geofence_lat,
           geofence_lng,
-          geofence_radius_m
+          geofence_radius_m,
+          enrollment_year: Number(selectedBatch)
         });
 
         const serverTime = new Date(res.data.server_time).getTime();
         setServerOffsetMs(serverTime - Date.now());
         setActiveSession(res.data.session);
+        setLastClosedSession(null);
         setSummary([]);
         setSessionBatch(selectedBatch);
       } catch (error) {
@@ -198,8 +208,16 @@ const GPSAttendanceScreen = () => {
     if (!activeSession?.id) return;
     setClosing(true);
     try {
-      await gpsAttendanceAPI.closeSession(activeSession.id);
-      await refreshActiveSession();
+      const closeRes = await gpsAttendanceAPI.closeSession(activeSession.id);
+      const closedSession = closeRes?.data?.session;
+      const closedSessionId = closedSession?.id || activeSession.id;
+
+      const summaryRes = await gpsAttendanceAPI.getSessionSummary(closedSessionId);
+      const serverTime = new Date(summaryRes.data.server_time).getTime();
+      setServerOffsetMs(serverTime - Date.now());
+      setSummary(summaryRes.data.summary || []);
+      setLastClosedSession(summaryRes.data.session || closedSession || null);
+      setActiveSession(null);
     } catch (error) {
       Alert.alert('Error', error.message || 'Failed to close session');
     } finally {
@@ -210,9 +228,7 @@ const GPSAttendanceScreen = () => {
   const renderStudent = ({ item }) => {
     const statusColor =
       item.status === 'P' ? '#10b981' : item.status === 'A' ? '#ef4444' : '#f59e0b';
-    const displayDistance = USE_FIXED_TEST_DISTANCE
-      ? FIXED_TEST_DISTANCE_M
-      : item.distance;
+    const displayDistance = item.distance;
 
     return (
       <View style={styles.studentCard}>
@@ -306,20 +322,24 @@ const GPSAttendanceScreen = () => {
 
         {loading ? (
           <ActivityIndicator color="#4F46E5" />
-        ) : activeSession ? (
+        ) : sessionForResults ? (
           <>
             <View style={styles.sessionCard}>
-              <Text style={styles.sessionLabel}>Active Session</Text>
+              <Text style={styles.sessionLabel}>
+                {isSessionActive ? 'Active Session' : 'Closed Session Results'}
+              </Text>
               <Text style={styles.sessionMeta}>
-                Date: {activeSession.attendance_date || 'N/A'}
+                Date: {sessionForResults.attendance_date || 'N/A'}
               </Text>
               <Text style={styles.sessionMeta}>Enrollment Year: {activeBatch}</Text>
               <Text style={styles.sessionMeta}>
-                Ends in: {Math.floor(remainingSeconds / 60)}m {remainingSeconds % 60}s
+                Radius: {Math.round(sessionForResults.geofence_radius_m)}m
               </Text>
-              <Text style={styles.sessionMeta}>
-                Radius: {Math.round(activeSession.geofence_radius_m)}m
-              </Text>
+              {isSessionActive && (
+                <Text style={styles.sessionMeta}>
+                  Ends in: {Math.floor(remainingSeconds / 60)}m {remainingSeconds % 60}s
+                </Text>
+              )}
             </View>
 
             <View style={styles.resultCard}>
@@ -345,23 +365,25 @@ const GPSAttendanceScreen = () => {
               stickySectionHeadersEnabled={false}
             />
 
-            <TouchableOpacity
-              onPress={closeSession}
-              disabled={closing}
-              style={[styles.closeBtn, closing && { opacity: 0.6 }]}
-            >
-              <Text style={styles.closeBtnText}>
-                {closing ? 'Closing...' : 'Close Session'}
-              </Text>
-            </TouchableOpacity>
+            {isSessionActive && (
+              <TouchableOpacity
+                onPress={closeSession}
+                disabled={closing}
+                style={[styles.closeBtn, closing && { opacity: 0.6 }]}
+              >
+                <Text style={styles.closeBtnText}>
+                  {closing ? 'Closing...' : 'Close Session'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </>
         ) : (
           <View style={styles.startCard}>
             <Text style={styles.sessionLabel}>Start Evening Attendance</Text>
             <Text style={styles.sessionMeta}>
-              {USE_STATIC_GPS
-                ? 'Using fixed hostel coordinates for geofence center.'
-                : 'Warden location will be used as the geofence center.'}
+              {hasConfiguredGeofence
+                ? 'Using hostel geofence coordinates configured for this app.'
+                : 'Using warden live location as fallback geofence center.'}
             </Text>
 
             {renderBatchSection()}
@@ -528,3 +550,4 @@ const styles = StyleSheet.create({
   emptyText: { textAlign: 'center', color: '#94a3b8', marginTop: 12 },
   refreshText: { color: '#2563eb', fontWeight: '700', fontSize: 12 }
 });
+

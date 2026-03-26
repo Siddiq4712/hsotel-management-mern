@@ -1,24 +1,15 @@
 ﻿import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
-import { Op, fn, col, where } from 'sequelize';
 import { User, Hostel, Role } from '../models/index.js'; // Ensure the .js extension
 
-import { Op, fn, col } from 'sequelize'; // Ensure these are imported
+import { Op, fn, col, where } from 'sequelize'; // Ensure these are imported
 import sequelize from '../config/database.js'; // Ensure your sequelize instance is imported
 
 // Helper to normalize roles for the frontend
 const resolveUserRole = (roleValue) => {
-  if (!roleValue) return 'student';
+  if (!roleValue) return null;
   const raw = String(roleValue).trim().toLowerCase();
-  const roleIdMap = {
-    '1': 'admin',
-    '2': 'student',
-    '3': 'warden',
-    '4': 'mess',
-    '5': 'lapc'
-  };
-  if (roleIdMap[raw]) return roleIdMap[raw];
   const roleMap = {
     admin: 'admin',
     administrator: 'admin',
@@ -29,6 +20,23 @@ const resolveUserRole = (roleValue) => {
     messstaff: 'mess'
   };
   return roleMap[raw] || raw;
+};
+
+const getResolvedRoleForUser = async (user) => {
+  const fromRelation = resolveUserRole(user?.role?.roleName);
+  if (fromRelation) return fromRelation;
+
+  const fromInline = resolveUserRole(user?.roleName);
+  if (fromInline) return fromInline;
+
+  const roleId = user?.roleId || user?.role;
+  if (roleId) {
+    const roleRow = await Role.findByPk(roleId, { attributes: ['roleName'] });
+    const fromRoleTable = resolveUserRole(roleRow?.roleName);
+    if (fromRoleTable) return fromRoleTable;
+  }
+
+  return null;
 };
 
 export const login = async (req, res) => {
@@ -44,9 +52,6 @@ export const login = async (req, res) => {
     const identifier = rawIdentifier ? String(rawIdentifier).trim() : '';
     const identifierLower = identifier.toLowerCase();
     const { password } = req.body;
-    // Get identifier from frontend (ramk)
-    const identifier = (req.body.userName || req.body.username || req.body.roll_number || '').trim();
-
     if (!identifier || !password) {
       return res.status(400).json({ message: 'Username/Roll number and password are required' });
     }
@@ -79,8 +84,10 @@ export const login = async (req, res) => {
 
     // 4. Resolve Role Name
     // Your SQL column is 'role' (int), but model maps it to 'roleId'
-    const roleId = user.roleId || user.role;
-    const resolvedRole = (user.role?.roleName || (roleId === 2 ? 'student' : roleId === 1 ? 'admin' : 'warden')).toLowerCase();
+    const resolvedRole = await getResolvedRoleForUser(user);
+    if (!resolvedRole) {
+      return res.status(403).json({ message: 'Invalid role assigned to this account.' });
+    }
 
     // 5. Generate Token
     const token = jwt.sign(
@@ -122,7 +129,10 @@ export const getProfile = async (req, res) => {
     }
 
     const plainUser = user.toJSON();
-    plainUser.role = resolveUserRole(user.role?.roleName || user.roleId);
+    plainUser.role = await getResolvedRoleForUser(user);
+    if (!plainUser.role) {
+      return res.status(403).json({ message: 'Invalid role assigned to this account.' });
+    }
     res.json(plainUser);
   } catch (error) {
     console.error(error);
@@ -157,13 +167,18 @@ export const googleCallback = (req, res, next) => {
     );
 
     // Prepare user data to send to frontend
+    const resolvedRole = await getResolvedRoleForUser(user);
+    if (!resolvedRole) {
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=invalid_role`);
+    }
+
     const userData = {
       id: user.userId,
       email: user.userMail,
       username: user.userName,
       first_name: user.first_name,
       last_name: user.last_name,
-      role: resolveUserRole(user.role?.roleName || user.roleName || user.roleId),
+      role: resolvedRole,
       hostel_id: user.hostel_id,
       profile_picture: user.profile_picture || user.dataValues.profile_picture
     };

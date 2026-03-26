@@ -122,6 +122,7 @@ export const studentAPI = {
 export const wardenAPI = {
   // Dashboard & Students
   getDashboardStats: () => api.get('/warden/dashboard-stats'),
+  getSessions: () => api.get('/warden/sessions'),
   getStudents: (params) => api.get('/warden/students', params ? { params } : undefined),
   enrollStudent: (data) => api.post('/warden/students', data),
 

@@ -25,8 +25,8 @@ import { LineChart } from 'react-native-chart-kit';
 const screenWidth = Dimensions.get('window').width;
 
 // STATIC HOSTEL COORDS (Change these to your hostel's actual location)
-const HOSTEL_LAT = 12.9716;
-const HOSTEL_LON = 77.5946;
+const HOSTEL_LAT = 9.1474619;
+const HOSTEL_LON = 77.8276993;
 const ALLOWED_RADIUS = 50; // meters
 
 const WardenDashboardScreen = ({ navigation }) => {

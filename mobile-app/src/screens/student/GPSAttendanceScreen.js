@@ -5,17 +5,15 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  StyleSheet
+  StyleSheet,
+  Platform
 } from 'react-native';
 import * as Location from 'expo-location';
 import * as Application from 'expo-application';
+import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Header from '../../components/common/Header';
 import { gpsAttendanceAPI } from '../../api/api';
-
-const USE_STATIC_GPS = true;
-const STATIC_LOCATION = { latitude: 13.0827, longitude: 80.2707 };
-const USE_FIXED_TEST_DISTANCE = true;
-const FIXED_TEST_DISTANCE_M = 42;
 
 const toRad = (value) => (value * Math.PI) / 180;
 const distanceMeters = (a, b) => {
@@ -33,12 +31,61 @@ const distanceMeters = (a, b) => {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 };
 
+const FALLBACK_DEVICE_ID_KEY = 'hostel_device_identifier';
+const FIXED_WARDEN_GEOFENCE = {
+  latitude: Number(Constants.expoConfig?.extra?.GEOFENCE_LAT ?? 9.1474619),
+  longitude: Number(Constants.expoConfig?.extra?.GEOFENCE_LNG ?? 77.8276993)
+};
+
+const getDeviceIdentifier = async () => {
+  let deviceId = null;
+
+  try {
+    if (typeof Application.getInstallationIdAsync === 'function') {
+      deviceId = await Application.getInstallationIdAsync();
+    }
+  } catch (error) {
+    // Continue with other strategies.
+  }
+
+  if (!deviceId && Platform.OS === 'android') {
+    deviceId = Application.androidId || null;
+  }
+
+  if (
+    !deviceId &&
+    Platform.OS === 'ios' &&
+    typeof Application.getIosIdForVendorAsync === 'function'
+  ) {
+    try {
+      deviceId = await Application.getIosIdForVendorAsync();
+    } catch (error) {
+      // Continue with fallback storage ID.
+    }
+  }
+
+  if (!deviceId) {
+    const savedFallback = await AsyncStorage.getItem(FALLBACK_DEVICE_ID_KEY);
+    if (savedFallback) return savedFallback;
+
+    const generated = `hostel-${Platform.OS}-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 10)}`;
+    await AsyncStorage.setItem(FALLBACK_DEVICE_ID_KEY, generated);
+    deviceId = generated;
+  }
+
+  return deviceId;
+};
+
 const GPSAttendanceScreen = () => {
   const [activeSession, setActiveSession] = useState(null);
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
   const [loading, setLoading] = useState(false);
   const [marking, setMarking] = useState(false);
   const [markedStatus, setMarkedStatus] = useState(null);
+  const [lastDistance, setLastDistance] = useState(null);
+  const [localStatus, setLocalStatus] = useState(null);
   const [nowTick, setNowTick] = useState(0);
 
   const remainingSeconds = useMemo(() => {
@@ -55,6 +102,8 @@ const GPSAttendanceScreen = () => {
   useEffect(() => {
     if (activeSession?.id) {
       setMarkedStatus(null);
+      setLastDistance(null);
+      setLocalStatus(null);
     }
   }, [activeSession?.id]);
 
@@ -77,6 +126,8 @@ const GPSAttendanceScreen = () => {
       } else {
         setActiveSession(null);
         setMarkedStatus(null);
+        setLastDistance(null);
+        setLocalStatus(null);
       }
     } catch (error) {
       Alert.alert('Error', error.message || 'Failed to load session');
@@ -91,51 +142,48 @@ const GPSAttendanceScreen = () => {
 
     (async () => {
       try {
-        const device_id = Application.getInstallationIdAsync
-          ? await Application.getInstallationIdAsync()
-          : Application.androidId || null;
+        const device_id = await getDeviceIdentifier();
 
         if (!device_id) {
           Alert.alert('Device ID unavailable', 'Unable to read a device identifier.');
           return;
         }
-        let current = { ...STATIC_LOCATION };
-        if (!USE_STATIC_GPS) {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status !== 'granted') {
-            Alert.alert('Permission required', 'Location permission is needed to mark attendance.');
-            return;
-          }
-
-          const pos = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High
-          });
-
-          current = {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude
-          };
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission required', 'Location permission is needed to mark attendance.');
+          return;
         }
+
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High
+        });
+
+        const current = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude
+        };
 
         const geofenceLat = Number(activeSession?.geofence_lat);
         const geofenceLng = Number(activeSession?.geofence_lng);
         const geofenceRadius = Number(activeSession?.geofence_radius_m);
+        const hasSessionGeofence =
+          Number.isFinite(geofenceLat) && Number.isFinite(geofenceLng);
+        const center = hasSessionGeofence
+          ? { latitude: geofenceLat, longitude: geofenceLng }
+          : FIXED_WARDEN_GEOFENCE;
 
-        if (
-          Number.isFinite(geofenceLat) &&
-          Number.isFinite(geofenceLng) &&
-          Number.isFinite(geofenceRadius)
-        ) {
-          const distance = distanceMeters(current, {
-            latitude: geofenceLat,
-            longitude: geofenceLng
-          });
-          if (distance > geofenceRadius) {
-            Alert.alert(
-              'Outside hostel area',
-              `You are about ${Math.round(distance)}m away from the hostel geofence.`
-            );
-          }
+        const distance = distanceMeters(current, center);
+        setLastDistance(distance);
+
+        if (Number.isFinite(geofenceRadius) && geofenceRadius > 0) {
+          const computedStatus = distance <= geofenceRadius ? 'P' : 'A';
+          setLocalStatus(computedStatus);
+          Alert.alert(
+            computedStatus === 'P' ? 'Present' : 'Absent',
+            `Distance from warden location: ${Math.round(distance)}m`
+          );
+        } else {
+          setLocalStatus(null);
         }
 
         const res = await gpsAttendanceAPI.markAttendance({
@@ -178,9 +226,14 @@ const GPSAttendanceScreen = () => {
             <Text style={styles.meta}>
               Radius: {Math.round(activeSession.geofence_radius_m)}m
             </Text>
-            {USE_FIXED_TEST_DISTANCE && (
+            {lastDistance != null && (
               <Text style={styles.meta}>
-                Test Distance: {FIXED_TEST_DISTANCE_M}m
+                Distance from warden location: {Math.round(lastDistance)}m
+              </Text>
+            )}
+            {localStatus && (
+              <Text style={styles.meta}>
+                Local status: {localStatus === 'A' ? 'Absent' : 'Present'}
               </Text>
             )}
 
