@@ -155,7 +155,8 @@ import {
   deleteStudentFee,
   bulkDeleteStudentFees,
 
-  getLatestDailyRate
+  getLatestDailyRate,
+  recordItemReturn
 } from '../controllers/messController.js'; // Added .js extension
 
 import { auth, authorize } from '../middleware/auth.js'; // Added .js extension
@@ -276,6 +277,7 @@ router.post('/inventory-purchase', authorize(['mess', 'admin']), recordInventory
 router.get('/inventory-transactions', authorize(['mess', 'warden', 'admin']), getInventoryTransactions);
 router.get('/items/:id/fifo-price', authorize(['mess', 'admin']), getItemFIFOPrice);
 router.post('/inventory/correct-last-purchase', authorize(['mess', 'admin']), correctLastPurchase);
+router.post('/consumption/return', authorize(['mess', 'admin']), recordItemReturn);
 
 /* ---------- DAILY RATE & BILLING ---------- */
 router.post('/daily-rate/save', authorize(['mess', 'admin']), saveDailyRate);

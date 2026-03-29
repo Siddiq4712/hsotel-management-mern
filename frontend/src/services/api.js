@@ -365,6 +365,7 @@ export const messAPI = {
   // Expected data: { items: [{ item_id, quantity, unit_price, transaction_date, expiry_date }] }
   recordInventoryPurchase: (data) => api.post('/mess/inventory-purchase', data),
   getInventoryTransactions: (params) => api.get('/mess/inventory-transactions', { params }), // params: { transaction_type, item_id, store_id, from_date, to_date }
+  recordItemReturn: (data) => api.post('/mess/consumption/return', data),
 
   // Store Management - Complete CRUD
   // Expected data: { name, address, contact_number }

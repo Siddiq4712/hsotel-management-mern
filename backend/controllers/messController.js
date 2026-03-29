@@ -3067,6 +3067,77 @@ export const getFoodOrders = async (req, res) => {
   }
 };
 
+export const recordItemReturn = async (req, res) => {
+  const { items, return_date, reason } = req.body;
+  const hostel_id = req.user.hostel_id;
+  const user_id = req.user.userId;
+  const transaction = await sequelize.transaction();
+
+  try {
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Items array is required.' });
+    }
+
+    const results = [];
+
+    for (const payload of items) {
+      const { item_id, quantity_returned } = payload;
+      const qty = parseFloat(quantity_returned);
+
+      if (!item_id || !qty || qty <= 0) throw new Error('Invalid return data: item_id and positive quantity required.');
+
+      // 1. Find the most recently depleted or active batch for this item/hostel to credit back
+      const latestBatch = await InventoryBatch.findOne({
+        where: { item_id, hostel_id, status: { [Op.in]: ['active', 'depleted'] } },
+        order: [['purchase_date', 'DESC'], ['id', 'DESC']],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!latestBatch) throw new Error(`No inventory batch found for item_id ${item_id}.`);
+
+      // 2. Add returned qty back to the batch
+      latestBatch.quantity_remaining = parseFloat(latestBatch.quantity_remaining) + qty;
+      if (latestBatch.status === 'depleted') latestBatch.status = 'active';
+      await latestBatch.save({ transaction });
+
+      // 3. Update ItemStock
+      const stock = await ItemStock.findOne({
+        where: { item_id, hostel_id },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!stock) throw new Error(`ItemStock missing for item ${item_id}.`);
+
+      stock.current_stock = parseFloat(stock.current_stock) + qty;
+      stock.last_updated = new Date();
+      await stock.save({ transaction });
+
+      // 4. Log a negative consumption record (return transaction)
+      const returnRecord = await DailyConsumption.create({
+        hostel_id,
+        item_id,
+        consumption_date: return_date || new Date(),
+        quantity_consumed: -qty,           // negative = return
+        unit: payload.unit_id || latestBatch.item_id, // fallback
+        meal_type: 'snacks',
+        recorded_by: user_id,
+        total_cost: -(qty * parseFloat(latestBatch.unit_price)),
+      }, { transaction });
+
+      results.push(returnRecord);
+    }
+
+    await transaction.commit();
+    res.status(201).json({ success: true, message: 'Items returned to stock successfully.', data: results });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Item return error:', error);
+    res.status(500).json({ success: false, message: `Server error: ${error.message}` });
+  }
+};
+
 export const getFoodOrderById = async (req, res) => {
   try {
     const { id } = req.params;
