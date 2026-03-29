@@ -107,37 +107,76 @@ export const enrollStudent = async (req, res) => {
          }, { transaction });
       }
 
-      const existingEnrollment = await Enrollment.findOne({
-         where: {
-            [Op.or]: [
-               { student_id: student.userId, session_id: normalizedSessionId },
-               { roll_number: normalizedRollNumber }
-            ]
+      await Enrollment.create({
+         student_id: student.userId,
+         hostel_id: warden_hostel_id, 
+         session_id,
+         requires_bed: !!requires_bed,
+         college: college || 'nec',
+         roll_number,
+         status: 'active'
+      }, { transaction });
+
+      await transaction.commit();
+      res.status(201).json({ success: true, message: 'Student registered successfully' });
+   } catch (error) {
+      if (transaction) await transaction.rollback();
+      res.status(400).json({ success: false, message: error.message });
+   }
+};
+
+// 2. GET STUDENTS: This ensures the newly enrolled students show up in the Warden list
+export const getStudents = async (req, res) => {
+   try {
+      const warden_hostel_id = req.user.hostelId || req.user.hostel_id;
+      
+      if (!warden_hostel_id) {
+         return res.status(400).json({ success: false, message: "Hostel ID missing from session." });
+      }
+
+      // Fetch students belonging to this hostel with role 'student' (usually 2)
+      const studentsWithModels = await User.findAll({
+         where: { 
+            hostel_id: warden_hostel_id,
+            // We search for status: true because it maps to is_active = 1 in SQL
+            status: true 
          },
-         transaction
+         attributes: { exclude: ['password'] },
+         include: [
+            {
+               model: Enrollment,
+               as: 'tbl_Enrollment',
+               include: [{ model: Session, attributes: ['name'] }]
+            },
+            {
+                model: RoomAllotment,
+                as: 'tbl_RoomAllotments',
+                where: { is_active: true },
+                required: false,
+                include: [{ model: HostelRoom, attributes: ['id', 'room_number'] }]
+            }
+         ],
+         order: [['userName', 'ASC']] 
       });
 
-      if (existingEnrollment) {
-         await existingEnrollment.update({
-            student_id: student.userId,
-            hostel_id: hostel_id,
-            session_id: normalizedSessionId,
-            requires_bed: !!requires_bed,
-            college: college || 'nec',
-            roll_number: normalizedRollNumber,
-            status: 'active'
-         }, { transaction });
-      } else {
-         await Enrollment.create({
-            student_id: student.userId,
-            hostel_id: hostel_id, 
-            session_id: normalizedSessionId,
-            requires_bed: !!requires_bed,
-            college: college || 'nec',
-            roll_number: normalizedRollNumber,
-            status: 'active'
-         }, { transaction });
-      }
+      // Map data to match the format expected by ManageStudents.jsx
+      const formattedData = studentsWithModels.map(s => {
+         const plain = s.get({ plain: true });
+         
+         // Extract room number from the active allotment if it exists
+         const activeRoom = plain.tbl_RoomAllotments && plain.tbl_RoomAllotments.length > 0 
+            ? plain.tbl_RoomAllotments[0].HostelRoom 
+            : null;
+
+         return {
+            ...plain,
+            id: plain.userId, // Maps SQL 'id' back to 'id' for frontend Table
+            username: plain.userName,
+            session: plain.tbl_Enrollment?.[0]?.Session?.name || 'N/A',
+            college: plain.tbl_Enrollment?.[0]?.college || 'N/A',
+            room_number: activeRoom ? activeRoom.room_number : null
+         };
+      });
 
       await transaction.commit();
       res.status(201).json({
@@ -146,9 +185,8 @@ export const enrollStudent = async (req, res) => {
          data: { id: student.userId, userName: student.userName, email: normalizedEmail }
       });
    } catch (error) {
-      if (transaction) await transaction.rollback();
-      console.error('enrollStudent error:', error);
-      res.status(400).json({ success: false, message: error.message });
+      console.error('Warden GetStudents Error:', error);
+      res.status(500).json({ success: false, message: error.message });
    }
 };
 
