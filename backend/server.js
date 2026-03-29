@@ -5,17 +5,18 @@ import 'dotenv/config';
 import { Op } from 'sequelize';
 
 import session from 'express-session';
-import passport from './config/passport.js'; // Added .js
-import sequelize from './config/database.js'; // Default export from your converted config
-import { User, Role, initAssociations } from './models/index.js'; // Added /index.js
+import passport from './config/passport.js';
+import sequelize from './config/database.js';
+import { User, Role, initAssociations } from './models/index.js';
 
-import authRoutes from './routes/auth.js'; // Added .js
-import adminRoutes from './routes/admin.js'; // Added .js
-import wardenRoutes from './routes/warden.js'; // Added .js
-import studentRoutes from './routes/student.js'; // Added .js
-import messRoutes from './routes/mess.js'; // Added .js
-import { verifyEmailConnection } from './utils/emailUtils.js'; // Added .js
-import attendanceRoutes from './routes/attendanceRoutes.js'; // Added .js
+import authRoutes from './routes/auth.js';
+import adminRoutes from './routes/admin.js';
+import wardenRoutes from './routes/warden.js';
+import studentRoutes from './routes/student.js';
+import messRoutes from './routes/mess.js';
+import attendanceRoutes from './routes/attendanceRoutes.js';
+
+import { verifyEmailConnection } from './utils/emailUtils.js';
 
 const app = express();
 
@@ -34,7 +35,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false // true only if HTTPS
+      secure: false // set true only in HTTPS
     }
   })
 );
@@ -66,10 +67,12 @@ const createDefaultAdmin = async () => {
         roleName: 'Admin',
         status: 'Active'
       });
-      console.log("Created missing 'Admin' role.");
+      console.log("✅ Created 'Admin' role");
     }
 
-    const adminExists = await User.findOne({ where: { roleId: adminRole.roleId } });
+    const adminExists = await User.findOne({
+      where: { roleId: adminRole.roleId }
+    });
 
     if (!adminExists) {
       const hashedPassword = await bcrypt.hash('admin123', 10);
@@ -82,39 +85,40 @@ const createDefaultAdmin = async () => {
         status: 'Active'
       });
 
-      console.log('Default admin created (admin / admin123)');
+      console.log('✅ Default admin created (admin / admin123)');
     }
   } catch (error) {
-    console.error('Admin creation error:', error);
+    console.error('❌ Admin creation error:', error);
   }
 };
 
 /* =======================
-   DATABASE SYNC (SAFE)
+   DATABASE SYNC (FIXED)
 ======================= */
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
-// Initialize all model associations before sync/query usage.
+// Initialize associations FIRST
 initAssociations();
 
 sequelize
   .sync()
   .then(async () => {
-    console.log('âœ… Database synced safely');
-    
-    // Optional: Verify email connection on startup
+    console.log('✅ Database synced successfully');
+
+    // Email check (optional)
     try {
-        await verifyEmailConnection();
+      await verifyEmailConnection();
+      console.log('📧 Email service connected');
     } catch (e) {
-        console.error("ðŸ“§ Email service check failed");
+      console.error('📧 Email service check failed');
     }
 
     await createDefaultAdmin();
 
     app.listen(PORT, () => {
-      console.log(`ðŸš€ Server running on port ${PORT}`);
+      console.log(`🚀 Server running on port ${PORT}`);
     });
   })
   .catch((err) => {
-    console.error('âŒ Database sync failed:', err); 
+    console.error('❌ Database sync failed:', err);
   });

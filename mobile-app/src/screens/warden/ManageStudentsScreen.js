@@ -18,6 +18,7 @@ const ManageStudentsScreen = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
+  const [enrollmentYear, setEnrollmentYear] = useState('');
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
 
@@ -25,10 +26,15 @@ const ManageStudentsScreen = () => {
     fetchStudents();
   }, []);
 
-  const fetchStudents = async () => {
+  const fetchStudents = async (yearOverride) => {
     setLoading(true);
     try {
-      const response = await wardenAPI.getStudents();
+      const yearValue =
+        typeof yearOverride === 'string' ? yearOverride : enrollmentYear;
+      const trimmedYear = yearValue?.trim();
+      const response = await wardenAPI.getStudents(
+        trimmedYear ? { enrollment_year: trimmedYear } : undefined
+      );
       setStudents(response.data.data || []);
     } catch (error) {
       console.error('Error fetching students:', error);
@@ -66,6 +72,9 @@ const ManageStudentsScreen = () => {
             <Text className="font-bold text-gray-900">{item.userName}</Text>
             <Text className="text-gray-500 text-sm">
               Roll: {item.roll_number || 'N/A'}
+            </Text>
+            <Text className="text-gray-500 text-xs">
+              Enrollment Year: {item.enrollment_year || 'N/A'}
             </Text>
           </View>
         </View>
@@ -118,6 +127,37 @@ const ManageStudentsScreen = () => {
           />
         </View>
 
+        <View className="mb-4">
+          <Text className="text-sm font-semibold text-gray-700 mb-2">
+            Filter by Enrollment Year
+          </Text>
+          <View className="flex-row items-center">
+            <TextInput
+              placeholder="e.g. 2025"
+              value={enrollmentYear}
+              onChangeText={setEnrollmentYear}
+              keyboardType="number-pad"
+              maxLength={4}
+              className="flex-1 px-4 py-3 bg-white rounded-xl border border-gray-200"
+            />
+            <TouchableOpacity
+              onPress={() => fetchStudents()}
+              className="ml-3 px-4 py-3 bg-blue-600 rounded-xl"
+            >
+              <Text className="text-white font-semibold">Apply</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                setEnrollmentYear('');
+                fetchStudents('');
+              }}
+              className="ml-2 px-4 py-3 bg-gray-200 rounded-xl"
+            >
+              <Text className="text-gray-700 font-semibold">Clear</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {loading ? (
           <ActivityIndicator size="large" color="#4F46E5" />
         ) : (
@@ -151,6 +191,9 @@ const ManageStudentsScreen = () => {
                 </Text>
                 <Text className="text-gray-500 mb-4">
                   Roll: {selectedStudent.roll_number || 'N/A'}
+                </Text>
+                <Text className="text-gray-500 mb-4">
+                  Enrollment Year: {selectedStudent.enrollment_year || 'N/A'}
                 </Text>
 
                 <Text className="font-bold mb-2">Room Assignment</Text>

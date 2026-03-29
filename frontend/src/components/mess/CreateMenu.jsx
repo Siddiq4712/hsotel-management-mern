@@ -209,7 +209,7 @@ const CreateMenu = () => {
     const lowerSearch = searchText.toLowerCase();
     return recipes.filter(r => 
       r.name.toLowerCase().includes(lowerSearch) || 
-      (r.Ingredients || r.ingredients)?.some(ing => ing.ItemDetail?.name.toLowerCase().includes(lowerSearch))
+      (r.Ingredients || r.ingredients)?.some(ing => ((ing.ItemDetail?.name || '').toLowerCase().includes(lowerSearch)))
     );
   }, [searchText, recipes]);
 
