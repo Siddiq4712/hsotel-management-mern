@@ -9,16 +9,12 @@ const normalizeRole = (role) => {
   const roleMap = {
     admin: 'admin',
     administrator: 'admin',
-    1: 'admin',
     warden: 'warden',
-    3: 'warden',
     student: 'student',
-    2: 'student',
     lapc: 'lapc',
     mess: 'mess',
     messstaff: 'mess',
-    'mess staff': 'mess',
-    4: 'mess'
+    'mess staff': 'mess'
   };
 
   return roleMap[normalized] || normalized;

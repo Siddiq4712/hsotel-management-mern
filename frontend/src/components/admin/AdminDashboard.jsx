@@ -1,18 +1,35 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+
 import { 
   Card, Typography, Row, Col, Statistic, Button, Input, 
   Divider, ConfigProvider, theme, Skeleton, Space, 
-  Switch, message, Tooltip, Badge, Modal, notification 
+  Switch, message, Tooltip, Badge, Modal, notification, Tag
 } from 'antd';
+
 import { 
-  Building, Users, UserCheck, Bed, Receipt, Tag,
+  Building, Users, UserCheck, Bed, Receipt,
   Save, LayoutDashboard, TrendingUp, ArrowUpRight, 
   IndianRupee, RefreshCw, Activity, Monitor
 } from 'lucide-react';
-import { Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend, CategoryScale, LinearScale, BarElement, Title as ChartTitle, PointElement, LineElement } from 'chart.js';
+
+import { 
+  Chart as ChartJS, 
+  ArcElement, 
+  Tooltip as ChartTooltip, 
+  Legend, 
+  CategoryScale, 
+  LinearScale, 
+  BarElement, 
+  Title as ChartTitle, 
+  PointElement, 
+  LineElement 
+} from 'chart.js';
+
 import { Pie, Bar, Doughnut } from 'react-chartjs-2';
+
 import { adminAPI } from '../../services/api';
-import DailyRateReport from '../mess/DailyRateReport'; // Ensure this path is correct
+
+import DailyRateReport from '../mess/DailyRateReport';
 
 ChartJS.register(ArcElement, ChartTooltip, Legend, CategoryScale, LinearScale, BarElement, ChartTitle, PointElement, LineElement);
 
@@ -42,14 +59,17 @@ const AdminDashboard = () => {
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     try {
-      const [statsRes, chartRes, hostelRes] = await Promise.all([
-        adminAPI.getDashboardStats(),
-        adminAPI.getAdminChartData(),
-        adminAPI.getHostelById(1)
-      ]);
+      // Fetch stats (Critical)
+      const statsRes = await adminAPI.getDashboardStats().catch(() => ({ data: { data: {} } }));
       setStats(statsRes.data.data);
+
+      // Fetch charts (Optional - fails silently if no data)
+      const chartRes = await adminAPI.getAdminChartData().catch(() => ({ data: { data: {} } }));
       setChartData(chartRes.data.data);
-      if (hostelRes.data.success) {
+
+      // Fetch hostel (Optional)
+      const hostelRes = await adminAPI.getHostelById(1).catch(() => null);
+      if (hostelRes?.data?.success) {
         setFeeSettings({
           amount: hostelRes.data.data.annual_fee_amount || 0,
           isActive: hostelRes.data.data.show_fee_reminder || false,
@@ -57,9 +77,9 @@ const AdminDashboard = () => {
         });
       }
     } catch (err) {
-      message.error('System sync failed.');
+      console.error('Dashboard partially failed to load', err);
     } finally {
-      setTimeout(() => setLoading(false), 800);
+      setLoading(false);
     }
   }, []);
 
@@ -85,7 +105,10 @@ const AdminDashboard = () => {
         });
       });
     } catch (e) {
-      console.error("Failed to fetch notifications");
+      // Silently log the error only once or if it's not a 404
+      if (!e.message.includes('404')) {
+        console.error("Notification sync issue:", e.message);
+      }
     }
   }, []);
 
@@ -182,7 +205,7 @@ const AdminDashboard = () => {
         </div>
 
         {/* Fee Protocol Panel */}
-        <Card className="border-none shadow-sm rounded-[36px] overflow-hidden bg-white p-1">
+        {/* <Card className="border-none shadow-sm rounded-[36px] overflow-hidden bg-white p-1">
           <div className="bg-gradient-to-r from-blue-50/80 via-indigo-50/40 to-white rounded-[32px] p-8 flex flex-col xl:flex-row items-center justify-between gap-8 relative border border-blue-50/50">
             <div className="relative z-10 flex items-center gap-6">
               <div className="p-5 bg-blue-600 rounded-[24px] shadow-lg shadow-blue-200">
@@ -191,7 +214,8 @@ const AdminDashboard = () => {
               <div className="max-w-md">
                 <div className="flex items-center gap-2 mb-1">
                    <Title level={3} style={{ margin: 0, fontWeight: 700, color: '#1e293b' }}>Fee Protocol</Title>
-                   <Tag color="blue" bordered={false} className="rounded-full px-3 font-bold">Active</Tag>
+                   <Tag color="blue" variant="filled" className="rounded-full px-3 font-bold">Active</Tag>
+
                 </div>
                 <Paragraph className="text-slate-500 m-0 font-medium">Manage student billing cycles and annual fee reminders.</Paragraph>
               </div>
@@ -214,7 +238,7 @@ const AdminDashboard = () => {
                </Button>
             </div>
           </div>
-        </Card>
+        </Card> */}
 
         {/* Statistics Grid */}
         <Row gutter={[24, 24]}>
@@ -228,9 +252,11 @@ const AdminDashboard = () => {
               <Card className="border-none shadow-sm rounded-[32px] hover:shadow-md transition-all group bg-white">
                 <div className="flex justify-between items-start mb-4">
                   <div className={`p-3 rounded-2xl ${card.bg} ${card.color} group-hover:scale-110 transition-transform`}><card.icon size={22} /></div>
-                  <Tag color="success" bordered={false} className="rounded-full font-bold m-0 flex items-center gap-1"><TrendingUp size={12} /> Live</Tag>
+                  <Tag color="success" variant="filled" className="rounded-full font-bold m-0 flex items-center gap-1">
+                    <TrendingUp size={12} /> Live
+                  </Tag>
                 </div>
-                <Statistic title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{card.title}</span>} value={card.value} valueStyle={{ fontWeight: 900, fontSize: '1.8rem', color: '#1e293b' }} />
+                <Statistic title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{card.title}</span>} value={card.value} styles={{ content: { fontWeight: 900, fontSize: '1.8rem', color: '#1e293b' } }}  />
               </Card>
             </Col>
           ))}

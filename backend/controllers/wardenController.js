@@ -4,136 +4,103 @@ import moment from 'moment';
 import { 
   User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,
   Attendance, Leave, Complaint, Suspension, Holiday, Fee, MessBill, Hostel, RoomRequest,
-  DayReductionRequest, Rebate, DailyRateLog, HostelLayout, AdditionalCollection, AdditionalCollectionType, sequelize
+  DayReductionRequest, Rebate, DailyRateLog, HostelLayout, AdditionalCollection, AdditionalCollectionType, Role, sequelize
 } from '../models/index.js';
 
-// ============================================================
-// LINE 12-115: ENROLL STUDENT (FIXED)
-// ============================================================
+// Helper: Safely get hostel ID and prevent the "0" error
+const getHostelId = (user) => {
+  const hId = user?.hostelId || user?.hostel_id;
+  // If ID is 0, undefined, or null, return null (database prefers null over 0)
+  return (hId && hId !== 0) ? hId : null;
+};
+
+// ==========================================
+// STUDENT ENROLLMENT
+// ==========================================
 export const enrollStudent = async (req, res) => {
    const transaction = await sequelize.transaction();
    try {
       const { 
-         username, 
+         userName, 
          email, 
          session_id, 
          requires_bed, 
          paid_initial_emi,
          college,
          roll_number,
+         password,
          create_with_default_password 
       } = req.body;
       
-      const hostel_id = req.user?.hostel_id ?? req.user?.hostelId ?? req.body?.hostel_id ?? null;
-
+      const hostel_id = getHostelId(req.user);
+      
       if (!hostel_id) {
-         await transaction.rollback();
-         return res.status(400).json({
-            success: false,
-            message: 'Hostel is required for enrollment. Please login again or provide hostel_id.'
-         });
+         throw new Error("Warden is not assigned to a valid hostel. Please update Warden profile in database.");
       }
 
-      if (!session_id) {
-         await transaction.rollback();
-         return res.status(400).json({
-            success: false,
-            message: 'session_id is required for enrollment.'
-         });
+      if (!userName || !session_id) {
+         throw new Error("Student Name and Session ID are required.");
       }
 
-      // Check if username or email already exists
+      // Check for existing user using new model names
       const existingUser = await User.findOne({ 
          where: { 
             [Op.or]: [
-               { userName: username },
-               { userMail: email || `${username}@hostel.com` }
+               { userName: userName },
+               { userMail: email || `${userName.replace(/\s+/g, '').toLowerCase()}@hostel.com` }
             ]
          },
          transaction
       });
 
       let student;
-      
       if (existingUser) {
-         if (existingUser.hostel_id !== hostel_id) {
-            await existingUser.update({ 
-               hostel_id, 
-               roleId: 2,
-               status: 'Active',
-               roll_number: roll_number || existingUser.roll_number
-            }, { transaction });
-         }
-         if (roll_number && existingUser.roll_number !== roll_number) {
-            await existingUser.update({ roll_number }, { transaction });
-         }
+         await existingUser.update({ 
+            hostel_id, 
+            roleId: 2, // Student
+            status: 'Active',
+            roll_number: roll_number || existingUser.roll_number
+         }, { transaction });
          student = existingUser;
       } else {
-         let passwordToUse;
-         
-         if (create_with_default_password || !req.body.password) {
-            passwordToUse = '12345678';
-         } else {
-            passwordToUse = req.body.password;
-         }
-         
+         let passwordToUse = create_with_default_password || !password ? '12345678' : password;
          const salt = await bcrypt.genSalt(10);
          const hashedPassword = await bcrypt.hash(passwordToUse, salt);
 
          student = await User.create({
-            userName: username,
-            userMail: email || `${username}@hostel.com`,
+            userName: userName,
+            userMail: email || `${userName.replace(/\s+/g, '').toLowerCase()}@hostel.com`,
             password: hashedPassword,
-            roleId: 2,
-            hostel_id,
+            roleId: 2, 
+            hostel_id: hostel_id, 
             roll_number: roll_number || null,
             status: 'Active'
          }, { transaction });
-
-         // ✅ FIX LINE 85: Reload to ensure userId is populated
-         await student.reload({ transaction });
       }
 
-      // ✅ FIX LINE 88-92: Validate student.userId exists
-      if (!student || !student.userId) {
-         await transaction.rollback();
-         return res.status(500).json({ 
-            success: false, 
-            message: 'Failed to create or retrieve student user ID' 
-         });
-      }
-
-      // Check if roll_number already exists in enrollment
+      // Check for duplicate enrollment roll number
       if (roll_number) {
-         const existingEnrollment = await Enrollment.findOne({
-            where: { roll_number: roll_number },
-            transaction
-         });
-         if (existingEnrollment) {
-            await transaction.rollback();
-            return res.status(400).json({ error: 'Roll number already exists in enrollment' });
-         }
+         const duplicate = await Enrollment.findOne({ where: { roll_number }, transaction });
+         if (duplicate) throw new Error("Roll number already enrolled.");
       }
 
-      // ✅ FIX LINE 106: Use student.userId (Sequelize attribute, maps to DB 'id' column)
       const enrollment = await Enrollment.create({
-         student_id: student.userId,  // This maps to tbl_users.id
+         student_id: student.userId, 
          hostel_id,
          session_id,
          requires_bed: requires_bed || false,
          college: college || 'nec',
          roll_number: roll_number || null,
          remaining_dues: requires_bed ? 6 : 0,
+         status: 'active'
       }, { transaction });
 
-      // If bed is required and initial EMI is paid, create fee records
+      // Create EMI records if applicable
       if (requires_bed && paid_initial_emi) {
          const today = new Date();
-         
          for (let i = 0; i < 5; i++) {
             const dueDate = new Date(today);
             dueDate.setMonth(dueDate.getMonth() + i);
-            
             await Fee.create({
                student_id: student.userId,
                enrollment_id: enrollment.id,
@@ -148,65 +115,68 @@ export const enrollStudent = async (req, res) => {
       }
 
       await transaction.commit();
-
-      const createdWithDefaultPassword = create_with_default_password || !req.body.password;
-      const responseMessage = existingUser 
-         ? 'Student already exists. Enrollment created.'
-         : createdWithDefaultPassword 
-            ? 'Student enrolled successfully with default password (12345678)'
-            : 'Student enrolled successfully';
-
       res.status(201).json({ 
          success: true,
-         data: { 
-            student: { 
-               ...student.toJSON(), 
-               password: undefined 
-            }, 
-            enrollment,
-            default_password_used: !existingUser && createdWithDefaultPassword
-         },
-         message: responseMessage
+         message: 'Student enrolled successfully',
+         data: { student: { userId: student.userId, userName: student.userName }, enrollment }
       });
    } catch (error) {
-      await transaction.rollback();
-      console.error('Student enrollment error:', error);
-      res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+      if (transaction) await transaction.rollback();
+      console.error('Enrollment Error:', error.message);
+      res.status(400).json({ success: false, message: error.message });
    }
 };
 
-// ============================================================
-// LINE 160-175: GET ATTENDANCE SUMMARY
-// ============================================================
+// ==========================================
+// ATTENDANCE SUMMARY
+// ==========================================
 export const getAttendanceSummary = async (req, res) => {
-  const date = req.query.date;
+  try {
+    const date = req.query.date;
+    const hostel_id = getHostelId(req.user);
 
-  const totalStudents = await User.count({
-    where: { roleId: 2 }
-  });
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
 
-  const presentCount = await Attendance.count({
-    where: { date, status: 'P' }
-  });
+    const totalStudents = await User.count({
+      where: { roleId: 2, hostel_id, status: 'Active' }
+    });
 
-  res.json({
-    date,
-    totalStudents,
-    present: presentCount,
-    absent: totalStudents - presentCount
-  });
+    const presentCount = await Attendance.count({
+      where: { date, status: 'P', hostel_id }
+    });
+
+    res.json({
+      success: true,
+      data: {
+        date,
+        totalStudents,
+        present: presentCount,
+        absent: Math.max(0, totalStudents - presentCount)
+      }
+    });
+  } catch (error) {
+    console.error('Attendance summary error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
 
-// ============================================================
-// LINE 178-205: GET AVAILABLE ROOMS (FIXED - was using wrong column)
-// ============================================================
+// ==========================================
+// ROOM MANAGEMENT
+// ==========================================
 export const getAvailableRooms = async (req, res) => {
    try {
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+      
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
+
       const rooms = await HostelRoom.findAll({
          where: {
             hostel_id,
-            is_active: true,  // ✅ FIX: Changed from 'status: Active' to 'is_active: true'
+            is_active: true,
             [Op.where]: sequelize.where(
                sequelize.col('occupancy_count'),
                Op.lt,
@@ -219,29 +189,37 @@ export const getAvailableRooms = async (req, res) => {
             required: true
          }],
          order: [
-            [sequelize.literal('`occupancy_count` > 0'), 'DESC'],
+            [sequelize.literal('`HostelRoom`.`occupancy_count` > 0'), 'DESC'], // Use direct column reference for literal
             ['room_number', 'ASC']
          ]
       });
       res.json({ success: true, data: rooms });
    } catch (error) {
       console.error('Error fetching rooms for allotment:', error);
-      res.status(500).json({ success: false, message: 'Server error' });
+      res.status(500).json({ success: false, message: 'Server error: ' + error.message });
    }
 };
 
-// ============================================================
-// LINE 208-245: ALLOT ROOM
-// ============================================================
 export const allotRoom = async (req, res) => {
    const transaction = await sequelize.transaction();
    try {
       const { student_id, room_id } = req.body;
-      const hostel_id = req.user.hostel_id;
-      const student = await User.findOne({ where: { userId: student_id, hostel_id } });
+      const hostel_id = getHostelId(req.user);
+      
+      if (!hostel_id) {
+        throw new Error('Hostel binding missing.');
+      }
+
+      const student = await User.findOne({ 
+         where: { userId: student_id, hostel_id, roleId: 2, status: 'Active' } 
+      });
       if (!student) throw new Error('Student not found in this hostel.');
-      const existingAllotment = await RoomAllotment.findOne({ where: { student_id, is_active: true } });
+      
+      const existingAllotment = await RoomAllotment.findOne({ 
+         where: { student_id, is_active: true } 
+      });
       if (existingAllotment) throw new Error('Student already has an active room allotment.');
+      
       const room = await HostelRoom.findOne({
          where: { id: room_id, hostel_id },
          include: [{ model: RoomType, attributes: ['capacity'] }],
@@ -252,20 +230,19 @@ export const allotRoom = async (req, res) => {
       if (room.occupancy_count >= room.RoomType.capacity) {
          throw new Error('This room is already at full capacity.');
       }
+      
       await RoomAllotment.create({ student_id, room_id, is_active: true }, { transaction });
       await room.increment('occupancy_count', { by: 1, transaction });
+      
       await transaction.commit();
       res.status(201).json({ success: true, message: 'Room allotted successfully.' });
    } catch (error) {
-      await transaction.rollback();
+      if (transaction) await transaction.rollback();
       console.error('Error in room allotment:', error);
       res.status(400).json({ success: false, message: error.message });
    }
 };
 
-// ============================================================
-// LINE 248-280: GET ROOM OCCUPANTS
-// ============================================================
 export const getRoomOccupants = async (req, res) => {
    try {
       const { id } = req.params;
@@ -273,7 +250,7 @@ export const getRoomOccupants = async (req, res) => {
       const roomAllotments = await RoomAllotment.findAll({
          where: { 
             room_id: id, 
-            is_active: true
+            is_active: true 
          },
          include: [
             {
@@ -284,18 +261,7 @@ export const getRoomOccupants = async (req, res) => {
          ]
       });
 
-      const occupants = roomAllotments
-         .map((allotment) => allotment.AllotmentStudent)
-         .filter(Boolean)
-         .map((student) => {
-            const plain = student.get ? student.get({ plain: true }) : student;
-            return {
-               ...plain,
-               id: plain.id ?? plain.userId,
-               username: plain.username ?? plain.userName ?? '',
-               email: plain.email ?? plain.userMail ?? null
-            };
-         });
+      const occupants = roomAllotments.map(allotment => allotment.AllotmentStudent);
 
       res.json({ 
          success: true, 
@@ -310,17 +276,72 @@ export const getRoomOccupants = async (req, res) => {
    }
 };
 
-// ❌ REMOVED: fetchAvailableRooms (was FRONTEND code at lines 283-330)
-// This function uses React state setters (setRoomsLoading, setAvailableRooms, setMessage)
-// and frontend API calls (wardenAPI) - move to frontend component
+export const fetchAvailableRooms = async () => {
+   // This function appears to be client-side code, not a backend controller.
+   // Assuming `wardenAPI` and `setRoomsLoading`/`setAvailableRooms`/`setMessage` are defined in the frontend context.
+   // If this is intended to be run in Node.js, these external dependencies would need to be mocked or replaced.
+   try {
+      // Assuming setRoomsLoading is defined in the calling context
+      // setRoomsLoading(true); 
+      // const response = await wardenAPI.getAvailableRooms();
+      // console.log('Available rooms from API:', response.data.data);
+      
+      // const roomsData = response.data.data || [];
+      
+      // const roomsWithOccupants = await Promise.all(
+      //    roomsData.map(async (room) => {
+      //       try {
+      //          const occupantsResponse = await wardenAPI.getRoomOccupants(room.id);
+      //          const occupants = occupantsResponse.data.data || [];
+               
+      //          const capacity = room.RoomType?.capacity || 0;
+      //          const occupantCount = occupants.length;
+               
+      //          return {
+      //             ...room,
+      //             current_occupants: occupantCount,
+      //             spacesLeft: Math.max(0, capacity - occupantCount),
+      //             occupants
+      //          };
+      //       } catch (error) {
+      //          console.error(`Error fetching occupants for room ${room.id}:`, error);
+      //          return {
+      //             ...room,
+      //             current_occupants: room.occupancy_count || 0,
+      //             spacesLeft: Math.max(0, (room.RoomType?.capacity || 0) - (room.occupancy_count || 0)),
+      //             occupants: []
+      //          };
+      //       }
+      //    })
+      // );
 
-// ============================================================
-// LINE 285-335: CREATE ROOM TYPE WARDEN
-// ============================================================
+      // console.log('Rooms with occupants data:', roomsWithOccupants);
+      // setAvailableRooms(roomsWithOccupants);
+      console.warn("fetchAvailableRooms is a client-side function and cannot be executed on the server.");
+   } catch (error) {
+      console.error('Error fetching available rooms:', error);
+      // Assuming setMessage is defined in the calling context
+      // setMessage({ 
+      //    type: 'error', 
+      //    text: 'Failed to fetch available rooms. Please try again.' 
+      // });
+   } finally {
+      // Assuming setRoomsLoading is defined in the calling context
+      // setRoomsLoading(false);
+   }
+};
+
+// ==========================================
+// ROOM TYPE MANAGEMENT
+// ==========================================
 export const createRoomTypeWarden = async (req, res) => {
   try {
     const { name, capacity, description } = req.body;
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
+
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
 
     if (!name || !capacity) {
       return res.status(400).json({
@@ -356,13 +377,16 @@ export const createRoomTypeWarden = async (req, res) => {
   }
 };
 
-// ============================================================
-// LINE 338-360: LAYOUT FUNCTIONS
-// ============================================================
 export const getLayout = async (req, res) => {
   try {
+    const hostel_id = getHostelId(req.user);
+    
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
+
     const layout = await HostelLayout.findOne({
-      where: { hostel_id: req.user.hostel_id }
+      where: { hostel_id }
     });
     res.json({ success: true, data: layout });
   } catch (err) {
@@ -372,7 +396,12 @@ export const getLayout = async (req, res) => {
 
 export const saveLayout = async (req, res) => {
   try {
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
+    
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
+
     const body = { ...req.body, hostel_id };
 
     let row = await HostelLayout.findOne({ where: { hostel_id } });
@@ -389,18 +418,18 @@ export const saveLayout = async (req, res) => {
   }
 };
 
-// ============================================================
-// LINE 375-400: GET ROOM TYPES WARDEN (FIXED - Op.iLike not supported in MySQL)
-// ============================================================
 export const getRoomTypesWarden = async (req, res) => {
   try {
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
     const { search } = req.query;
+
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
 
     let whereClause = { hostel_id };
 
     if (search) {
-      // ✅ FIX: Use Op.like for MySQL (Op.iLike is PostgreSQL only)
       whereClause.name = { [Op.like]: `%${search}%` };
     }
 
@@ -416,14 +445,15 @@ export const getRoomTypesWarden = async (req, res) => {
   }
 };
 
-// ============================================================
-// LINE 403-430: UPDATE ROOM TYPE WARDEN
-// ============================================================
 export const updateRoomTypeWarden = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, capacity, description } = req.body;
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
+
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
 
     const roomType = await RoomType.findOne({ where: { id, hostel_id } });
     if (!roomType) {
@@ -450,13 +480,14 @@ export const updateRoomTypeWarden = async (req, res) => {
   }
 };
 
-// ============================================================
-// LINE 433-475: DELETE ROOM TYPE WARDEN
-// ============================================================
 export const deleteRoomTypeWarden = async (req, res) => {
   try {
     const { id } = req.params;
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
+
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
 
     const roomType = await RoomType.findOne({ where: { id, hostel_id } });
     if (!roomType) {
@@ -483,11 +514,12 @@ export const deleteRoomTypeWarden = async (req, res) => {
       if (error.name === "SequelizeForeignKeyConstraintError") {
         return res.status(400).json({
           success: false,
-          message: "Cannot delete this room type because rooms still reference it.",
+          message: "Cannot delete this room type because rooms still reference it. Remove or reassign those rooms first.",
         });
       }
       throw error;
     }
+    
     res.json({
       success: true,
       message: 'Room type deleted successfully'
@@ -498,13 +530,17 @@ export const deleteRoomTypeWarden = async (req, res) => {
   }
 };
 
-// ============================================================
-// LINE 478-545: CREATE ROOM WARDEN
-// ============================================================
+// ==========================================
+// ROOM CRUD (WARDEN)
+// ==========================================
 export const createRoomWarden = async (req, res) => {
   try {
     const { room_type_id, room_number, floor, layout_slot, is_active } = req.body;
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
+
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
 
     if (!room_type_id || !room_number) {
       return res.status(400).json({
@@ -512,6 +548,7 @@ export const createRoomWarden = async (req, res) => {
         message: 'Room type and room number are required'
       });
     }
+    
     if (layout_slot) {
       const conflict = await HostelRoom.findOne({
         where: { hostel_id, layout_slot }
@@ -570,26 +607,18 @@ export const createRoomWarden = async (req, res) => {
   }
 };
 
-// ============================================================
-// LINE 548-590: GET ROOMS WARDEN (FIXED - Op.iLike)
-// ============================================================
 export const getRoomsWarden = async (req, res) => {
   try {
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
     const { room_type_id, search, is_occupied } = req.query;
+
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
 
     let whereClause = { hostel_id };
 
-    if (room_type_id && room_type_id !== 'all') {
-      whereClause.room_type_id = room_type_id;
-    }
-
-    if (is_occupied !== undefined && is_occupied !== 'all') {
-      whereClause.is_occupied = is_occupied === 'true';
-    }
-
     if (search) {
-      // ✅ FIX: Use Op.like for MySQL
       whereClause.room_number = { [Op.like]: `%${search}%` };
     }
 
@@ -609,14 +638,15 @@ export const getRoomsWarden = async (req, res) => {
   }
 };
 
-// ============================================================
-// LINE 593-665: UPDATE ROOM WARDEN
-// ============================================================
 export const updateRoomWarden = async (req, res) => {
   try {
     const { id } = req.params;
     const { room_type_id, room_number, floor, layout_slot, is_active } = req.body;
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
+
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
 
     const room = await HostelRoom.findOne({ where: { id, hostel_id } });
 
@@ -627,6 +657,7 @@ export const updateRoomWarden = async (req, res) => {
       });
     }
 
+    // Reactivate if inactive
     if (!room.is_active) {
       await room.update({ is_active: true });
     }
@@ -652,6 +683,7 @@ export const updateRoomWarden = async (req, res) => {
         });
       }
     }
+    
     if (layout_slot) {
       const conflict = await HostelRoom.findOne({
         where: {
@@ -694,13 +726,14 @@ export const updateRoomWarden = async (req, res) => {
   }
 };
 
-// ============================================================
-// LINE 668-700: DELETE ROOM WARDEN
-// ============================================================
 export const deleteRoomWarden = async (req, res) => {
   try {
     const { id } = req.params;
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
+
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
 
     const room = await HostelRoom.findOne({ where: { id, hostel_id } });
 
@@ -730,33 +763,40 @@ export const deleteRoomWarden = async (req, res) => {
   }
 };
 
-// ============================================================
-// LINE 703-830: DASHBOARD STATISTICS
-// ============================================================
+// ==========================================
+// DASHBOARD STATISTICS
+// ==========================================
 export const getDashboardStats = async (req, res) => {
    try {
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
       
-      const totalStudents = await User.count({ where: { roleId: 2, hostel_id, status: 'Active' } });
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
+      // Total Students - Use roleId: 2 and status: 'Active'
+      const totalStudents = await User.count({ 
+         where: { roleId: 2, hostel_id, status: 'Active' } 
+      });
+
+      // Room Occupancy Stats
       const totalCapacityResult = await HostelRoom.findOne({
-            attributes: [[sequelize.fn('SUM', sequelize.col('RoomType.capacity')), 'totalCapacity']],
-            include: [{ model: RoomType, attributes: [], required: true }],
-            where: { hostel_id, is_active: true },
-            raw: true
+         attributes: [[sequelize.fn('SUM', sequelize.col('RoomType.capacity')), 'totalCapacity']],
+         include: [{ model: RoomType, attributes: [], required: true }],
+         where: { hostel_id, is_active: true },
+         raw: true
       });
       const totalCapacity = totalCapacityResult ? Number(totalCapacityResult.totalCapacity) : 0;
       const occupiedBeds = await HostelRoom.sum('occupancy_count', { where: { hostel_id, is_active: true } }) || 0;
       const availableBeds = totalCapacity - occupiedBeds;
 
+      // Leave Request Stats for Chart
       const leaveCounts = await Leave.findAll({
          attributes: ['status', [sequelize.fn('COUNT', sequelize.col('Leave.id')), 'count']],
-         where: {
-            '$Student.hostel_id$': hostel_id
-         },
          include: [{
             model: User,
             as: 'Student',
+            where: { hostel_id },
             attributes: [],
             required: true
          }],
@@ -764,19 +804,18 @@ export const getDashboardStats = async (req, res) => {
          raw: true
       });
       const leaveStatus = leaveCounts.reduce((acc, curr) => {
-         acc[curr.status] = curr.count;
+         acc[curr.status] = parseInt(curr.count) || 0;
          return acc;
       }, { pending: 0, approved: 0, rejected: 0 });
-      const totalLeaves = leaveCounts.reduce((sum, curr) => sum + curr.count, 0);
+      const totalLeaves = leaveCounts.reduce((sum, curr) => sum + (parseInt(curr.count) || 0), 0);
 
+      // Complaint Status Stats for Chart
       const complaintCounts = await Complaint.findAll({
          attributes: ['status', [sequelize.fn('COUNT', sequelize.col('Complaint.id')), 'count']],
-         where: {
-            '$Student.hostel_id$': hostel_id
-         },
          include: [{
             model: User,
             as: 'Student',
+            where: { hostel_id },
             attributes: [],
             required: true
          }],
@@ -784,44 +823,58 @@ export const getDashboardStats = async (req, res) => {
          raw: true
       });
       const complaintStatus = complaintCounts.reduce((acc, curr) => {
-         acc[curr.status] = curr.count;
+         acc[curr.status] = parseInt(curr.count) || 0;
          return acc;
       }, { submitted: 0, in_progress: 0, resolved: 0, closed: 0 });
-      const totalComplaints = complaintCounts.reduce((sum, curr) => sum + curr.count, 0);
+      const totalComplaints = complaintCounts.reduce((sum, curr) => sum + (parseInt(curr.count) || 0), 0);
 
-      const pendingLeaves = leaveStatus.pending;
-      const pendingComplaints = complaintStatus.submitted + complaintStatus.in_progress;
+      // Quick Actions
+      const pendingLeaves = leaveStatus.pending || 0;
+      const pendingComplaints = (complaintStatus.submitted || 0) + (complaintStatus.in_progress || 0);
 
       const recentLeaves = await Leave.findAll({
          where: { 
-            createdAt: { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-            '$Student.hostel_id$': hostel_id
+            createdAt: { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
          },
-         include: [{ model: User, as: 'Student', attributes: ['userId', 'userName'], required: true }],
+         include: [{ 
+            model: User, 
+            as: 'Student', 
+            where: { hostel_id },
+            attributes: ['userId', 'userName'], 
+            required: true 
+         }],
          order: [['createdAt', 'DESC']],
          limit: 5
       });
+      
       const recentComplaints = await Complaint.findAll({
          where: { 
-            createdAt: { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-            '$Student.hostel_id$': hostel_id
+            createdAt: { [Op.gte]: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
          },
-         include: [{ model: User, as: 'Student', attributes: ['userId', 'userName'], required: true }],
+         include: [{ 
+            model: User, 
+            as: 'Student', 
+            where: { hostel_id },
+            attributes: ['userId', 'userName'], 
+            required: true 
+         }],
          order: [['createdAt', 'DESC']],
          limit: 5
       });
 
+      // Today's Attendance Stats for Chart
       const today = new Date().toISOString().split('T')[0];
 
       const attendanceCounts = await Attendance.findAll({
          attributes: ['status', [sequelize.fn('COUNT', sequelize.col('Attendance.id')), 'count']],
          where: {
             date: today,
-            '$Student.hostel_id$': hostel_id
+            hostel_id
          },
          include: [{
             model: User,
             as: 'Student',
+            where: { hostel_id },
             attributes: [],
             required: true
          }],
@@ -830,11 +883,11 @@ export const getDashboardStats = async (req, res) => {
       });
 
       const attendanceStatus = attendanceCounts.reduce((acc, curr) => {
-         acc[curr.status] = curr.count;
+         acc[curr.status] = parseInt(curr.count) || 0;
          return acc;
       }, { P: 0, A: 0, OD: 0 });
 
-      const totalTodayAttendance = attendanceCounts.reduce((sum, curr) => sum + curr.count, 0);
+      const totalTodayAttendance = attendanceCounts.reduce((sum, curr) => sum + (parseInt(curr.count) || 0), 0);
 
       res.json({
          success: true,
@@ -843,14 +896,18 @@ export const getDashboardStats = async (req, res) => {
             totalCapacity,
             occupiedBeds,
             availableBeds: Math.max(0, availableBeds),
+            
             pendingLeaves,
             totalLeaves,
             leaveStatus,
+
             pendingComplaints,
             totalComplaints,
             complaintStatus,
+
             recentLeaves,
             recentComplaints,
+
             attendanceStatus,
             totalTodayAttendance
          }
@@ -861,15 +918,19 @@ export const getDashboardStats = async (req, res) => {
    }
 };
 
-// ============================================================
-// LINE 833-920: BULK MONTH END MANDAYS
-// ============================================================
+// ==========================================
+// BULK MONTH-END MANDAYS
+// ==========================================
 export const bulkMonthEndMandays = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { month, year, total_operational_days, student_reductions = [] } = req.body;
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
     const marked_by = req.user.userId;
+
+    if (!hostel_id) {
+      throw new Error('Hostel binding missing.');
+    }
 
     if (!month || !year || total_operational_days === undefined) {
       throw new Error('Month, year, and total_operational_days are required');
@@ -884,6 +945,7 @@ export const bulkMonthEndMandays = async (req, res) => {
     const startDate = new Date(yearNum, monthNum - 1, 1);
     const endDate = new Date(yearNum, monthNum, 0);
 
+    // Get all active students in the hostel
     const students = await User.findAll({
       where: { 
         hostel_id,
@@ -898,11 +960,13 @@ export const bulkMonthEndMandays = async (req, res) => {
       throw new Error('No active students found in this hostel');
     }
 
+    // Create a map for quick lookup of reductions
     const reductionMap = {};
     student_reductions.forEach(({ student_id, reduction_days }) => {
       reductionMap[student_id] = parseInt(reduction_days) || 0;
     });
 
+    // Delete existing attendance records for this month for all students
     await Attendance.destroy({
       where: {
         student_id: { [Op.in]: students.map(s => s.userId) },
@@ -913,6 +977,7 @@ export const bulkMonthEndMandays = async (req, res) => {
       transaction
     });
 
+    // Create monthly summary record for each student
     const createdRecords = [];
     for (const student of students) {
       const reduction = reductionMap[student.userId] || 0;
@@ -945,26 +1010,33 @@ export const bulkMonthEndMandays = async (req, res) => {
       }
     });
   } catch (error) {
-    await transaction.rollback();
+    if (transaction) await transaction.rollback();
     console.error('Bulk month-end mandays error:', error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// ============================================================
-// LINE 923-1000: GET MONTHLY ATTENDANCE
-// ============================================================
+// ==========================================
+// MONTHLY ATTENDANCE
+// ==========================================
 export const getMonthlyAttendance = async (req, res) => {
   try {
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
     const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
-    const totalStudents = await User.count({ where: { roleId: 2, hostel_id, status: 'Active' } });
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
+
+    const totalStudents = await User.count({ 
+      where: { roleId: 2, hostel_id, status: 'Active' } 
+    });
     
     if (totalStudents === 0) {
       return res.json({ success: true, data: [] });
     }
 
+    // Fetch holidays in the period to calculate operational days per month
     const holidays = await Holiday.findAll({
       where: {
         hostel_id,
@@ -973,6 +1045,7 @@ export const getMonthlyAttendance = async (req, res) => {
       raw: true
     });
 
+    // Group holiday counts by year-month
     const holidayCounts = {};
     holidays.forEach(holiday => {
       const date = new Date(holiday.date);
@@ -982,6 +1055,7 @@ export const getMonthlyAttendance = async (req, res) => {
       holidayCounts[key] = (holidayCounts[key] || 0) + 1;
     });
 
+    // Retrieve attendance counts per month
     const monthlyAttendanceRaw = await Attendance.findAll({
       attributes: [
         [sequelize.fn('YEAR', sequelize.col('date')), 'year'],
@@ -990,10 +1064,10 @@ export const getMonthlyAttendance = async (req, res) => {
       ],
       where: {
         date: { [Op.gte]: threeMonthsAgo },
-        '$Student.hostel_id$': hostel_id,
+        hostel_id,
         totalManDays: { [Op.ne]: null } 
       },
-      include: [{ model: User, as: 'Student', attributes: [], required: true }],
+      include: [{ model: User, as: 'Student', where: { hostel_id }, attributes: [], required: true }],
       group: ['year', 'month'],
       order: [['year', 'ASC'], ['month', 'ASC']],
       raw: true
@@ -1031,13 +1105,14 @@ export const getMonthlyAttendance = async (req, res) => {
   }
 };
 
-// ============================================================
-// LINE 1003-1040: GET MONTHLY COMPLAINTS
-// ============================================================
 export const getMonthlyComplaints = async (req, res) => {
    try {
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
       const threeMonthsAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       const monthlyComplaintsRaw = await Complaint.findAll({
          attributes: [
@@ -1046,10 +1121,9 @@ export const getMonthlyComplaints = async (req, res) => {
             [sequelize.fn('COUNT', sequelize.col('Complaint.id')), 'total']
          ],
          where: {
-            createdAt: { [Op.gte]: threeMonthsAgo },
-            '$Student.hostel_id$': hostel_id
+            createdAt: { [Op.gte]: threeMonthsAgo }
          },
-         include: [{ model: User, as: 'Student', attributes: [], required: true }],
+         include: [{ model: User, as: 'Student', where: { hostel_id }, attributes: [], required: true }],
          group: ['year', 'month'],
          order: [['year', 'ASC'], ['month', 'ASC']],
          raw: true
@@ -1059,7 +1133,7 @@ export const getMonthlyComplaints = async (req, res) => {
          const monthName = new Date(record.year, record.month - 1, 1).toLocaleString('default', { month: 'short' });
          return {
             month: monthName,
-            total: Number(record.total)
+            total: Number(record.total) || 0
          };
       });
 
@@ -1070,12 +1144,15 @@ export const getMonthlyComplaints = async (req, res) => {
    }
 };
 
-// ============================================================
-// LINE 1043-1055: GET SESSIONS
-// ============================================================
+// ==========================================
+// SESSIONS
+// ==========================================
 export const getSessions = async (req, res) => {
    try {
-      const sessions = await Session.findAll({ where: { is_active: true }, order: [['createdAt', 'DESC']] });
+      const sessions = await Session.findAll({ 
+         where: { is_active: true }, 
+         order: [['createdAt', 'DESC']] 
+      });
       res.json({ success: true, data: sessions });
    } catch (error) {
       console.error('Sessions fetch error:', error);
@@ -1083,16 +1160,21 @@ export const getSessions = async (req, res) => {
    }
 };
 
-// ============================================================
-// LINE 1058-1140: MARK ATTENDANCE
-// ============================================================
+// ==========================================
+// ATTENDANCE MANAGEMENT
+// ==========================================
 export const markAttendance = async (req, res) => {
    const transaction = await sequelize.transaction();
    try {
       const { student_id, date, status, from_date, to_date, reason, remarks } = req.body;
-      const marked_by = req.user?.userId;  // ✅ FIX: Changed from req.user?.id to req.user?.userId
-      const hostel_id = req.user.hostel_id;
+      const marked_by = req.user.userId;
+      const hostel_id = getHostelId(req.user);
 
+      if (!hostel_id) {
+        throw new Error('Hostel binding missing.');
+      }
+
+      // Validate inputs
       if (!student_id || !date || !status) {
          throw new Error('Missing required fields: student_id, date, and status are required');
       }
@@ -1103,6 +1185,7 @@ export const markAttendance = async (req, res) => {
          throw new Error('from_date and to_date are required for OD status');
       }
 
+      // Validate student
       const student = await User.findOne({
          where: { userId: student_id, roleId: 2, hostel_id, status: 'Active' },
          transaction
@@ -1111,10 +1194,12 @@ export const markAttendance = async (req, res) => {
          throw new Error('Student not found in this hostel');
       }
 
+      // Validate marked_by
       if (!marked_by) {
          throw new Error('Invalid user authentication');
       }
 
+      // Validate dates
       const parsedDate = new Date(date);
       if (isNaN(parsedDate)) {
          throw new Error('Invalid date format. Use YYYY-MM-DD');
@@ -1151,47 +1236,55 @@ export const markAttendance = async (req, res) => {
       });
       if (!created) await attendance.update(attendanceData, { transaction });
 
+      // Handle OD ranges
       if (status === 'OD' && from_date && to_date) {
-         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-            const currentDate = d.toISOString().split('T')[0];
-            if (currentDate === date) continue;
-            await Attendance.upsert(
-               { 
+         let curr = moment(from_date);
+         let end = moment(to_date);
+         while (curr.isSameOrBefore(end)) {
+            const dStr = curr.format('YYYY-MM-DD');
+            if (dStr !== date) {
+               await Attendance.upsert({ 
                   student_id, 
-                  date: currentDate, 
+                  date: dStr, 
                   status: 'OD', 
                   from_date, 
                   to_date, 
                   marked_by, 
-                  hostel_id,
+                  hostel_id, 
                   reason, 
-                  remarks,
-                  totalManDays: 1
-               },
-               { transaction }
-            );
+                  remarks, 
+                  totalManDays: 1 
+               }, { transaction });
+            }
+            curr.add(1, 'days');
          }
       }
 
       await transaction.commit();
       res.json({ success: true, data: attendance, message: 'Attendance marked successfully' });
    } catch (error) {
-      await transaction.rollback();
-      console.error('Attendance marking error:', error);
+      if (transaction) await transaction.rollback();
+      console.error('Attendance marking error:', {
+         message: error.message,
+         stack: error.stack,
+         requestBody: req.body,
+         user: req.user
+      });
       res.status(error.message.includes('not found') ? 404 : 400).json({ success: false, message: error.message });
    }
 };
 
-// ============================================================
-// LINE 1143-1230: UPDATE ATTENDANCE
-// ============================================================
 export const updateAttendance = async (req, res) => {
    const transaction = await sequelize.transaction();
    try {
       const { id } = req.params;
       const { status, reason, remarks, from_date, to_date } = req.body;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
       const marked_by = req.user.userId;
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       if (!['P', 'A', 'OD'].includes(status)) {
          return res.status(400).json({ success: false, message: 'Invalid status. Must be P, A, or OD' });
@@ -1223,6 +1316,7 @@ export const updateAttendance = async (req, res) => {
          totalManDays: status === 'A' ? 0 : 1
       };
 
+      // Validate dates for OD
       if (status === 'OD') {
          if (!from_date || !to_date) {
             await transaction.rollback();
@@ -1236,6 +1330,7 @@ export const updateAttendance = async (req, res) => {
          }
       }
 
+      // Handle range cleanup/creation
       if (oldStatus === 'OD' && status !== 'OD') {
          const oldStart = new Date(oldAttendance.from_date);
          const oldEnd = new Date(oldAttendance.to_date);
@@ -1270,10 +1365,12 @@ export const updateAttendance = async (req, res) => {
          }
       }
 
+      // Update the current record
       await oldAttendance.update(updateData, { transaction });
 
       await transaction.commit();
 
+      // Refetch the updated record for response
       const updatedAttendance = await Attendance.findByPk(id, {
          include: [
             { model: User, as: 'Student', attributes: ['userId', 'userName', 'userMail'] },
@@ -1283,106 +1380,116 @@ export const updateAttendance = async (req, res) => {
 
       res.json({ success: true, data: updatedAttendance, message: 'Attendance updated successfully' });
    } catch (error) {
-      await transaction.rollback();
+      if (transaction) await transaction.rollback();
       console.error('Attendance update error:', error);
       res.status(500).json({ success: false, message: 'Server error: ' + error.message });
    }
 };
 
-// ============================================================
-// LINE 1233-1310: BULK MARK ATTENDANCE
-// ============================================================
 export const bulkMarkAttendance = async (req, res) => {
-      const { date, attendanceData } = req.body;
-      const marked_by = req.user.userId;
-      const hostel_id = req.user.hostel_id;
-      const transaction = await sequelize.transaction();
-      try {
-            if (!date || !Array.isArray(attendanceData)) throw new Error("Date and attendance data are required.");
-            
-            const studentIds = attendanceData.map(record => record.student_id);
-            const students = await User.findAll({
-                  where: { 
-                        userId: { [Op.in]: studentIds },
-                        roleId: 2,
-                        hostel_id,
-                        status: 'Active'
-                  },
-                  attributes: ['userId']
-            });
-            if (students.length !== studentIds.length) {
-                  throw new Error('One or more students not found in this hostel');
-            }
-
-            for (const record of attendanceData) {
-                  const { student_id, status, from_date, to_date, reason, remarks } = record;
-
-                  if (!['P', 'A', 'OD'].includes(status)) {
-                        throw new Error(`Invalid status for student ${student_id}: ${status}`);
-                  }
-
-                  const upsertData = {
-                        student_id,
-                        date,
-                        status,
-                        marked_by,
-                        hostel_id,
-                        reason: status === 'OD' ? (reason || null) : null,
-                        remarks: status === 'OD' ? (remarks || null) : null,
-                        from_date: status === 'OD' ? (from_date || null) : null,
-                        to_date: status === 'OD' ? (to_date || null) : null,
-                        totalManDays: status === 'A' ? 0 : 1
-                  };
-
-                  await Attendance.upsert(upsertData, { transaction });
-
-                  if (status === 'OD' && from_date && to_date) {
-                        const startDate = new Date(from_date);
-                        const endDate = new Date(to_date);
-                        if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) {
-                              throw new Error(`Invalid OD date range for student ${student_id}`);
-                        }
-                        if (!reason) {
-                              throw new Error(`Reason required for OD for student ${student_id}`);
-                        }
-
-                        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-                              const rangeDate = d.toISOString().split('T')[0];
-                              if (rangeDate === date) continue;
-                              await Attendance.upsert({
-                                    student_id,
-                                    date: rangeDate,
-                                    status: 'OD',
-                                    from_date,
-                                    to_date,
-                                    marked_by,
-                                    hostel_id,
-                                    reason,
-                                    remarks,
-                                    totalManDays: 1
-                              }, { transaction });
-                        }
-                  }
-            }
-            await transaction.commit();
-            res.json({ success: true, message: 'Attendance saved successfully.' });
-      } catch (error) {
-            await transaction.rollback();
-            console.error('Bulk attendance marking error:', error);
-            res.status(400).json({ success: false, message: error.message });
+   const { date, attendanceData } = req.body;
+   const marked_by = req.user.userId;
+   const hostel_id = getHostelId(req.user);
+   const transaction = await sequelize.transaction();
+   try {
+      if (!hostel_id) {
+        throw new Error('Hostel binding missing.');
       }
+
+      if (!date || !Array.isArray(attendanceData)) throw new Error("Date and attendance data are required.");
+      
+      // Validate all students belong to the hostel
+      const studentIds = attendanceData.map(record => record.student_id);
+      const students = await User.findAll({
+         where: { 
+            userId: { [Op.in]: studentIds },
+            roleId: 2,
+            hostel_id,
+            status: 'Active'
+         },
+         attributes: ['userId']
+      });
+      if (students.length !== studentIds.length) {
+         throw new Error('One or more students not found in this hostel');
+      }
+
+      for (const record of attendanceData) {
+         const { student_id, status, from_date, to_date, reason, remarks } = record;
+
+         if (!['P', 'A', 'OD'].includes(status)) {
+            throw new Error(`Invalid status for student ${student_id}: ${status}`);
+         }
+
+         const upsertData = {
+            student_id,
+            date,
+            status,
+            marked_by,
+            hostel_id,
+            reason: status === 'OD' ? (reason || null) : null,
+            remarks: status === 'OD' ? (remarks || null) : null,
+            from_date: status === 'OD' ? (from_date || null) : null,
+            to_date: status === 'OD' ? (to_date || null) : null,
+            totalManDays: status === 'A' ? 0 : 1
+         };
+
+         await Attendance.upsert(upsertData, { transaction });
+
+         // If OD, create range entries
+         if (status === 'OD' && from_date && to_date) {
+            const startDate = new Date(from_date);
+            const endDate = new Date(to_date);
+            if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) {
+               throw new Error(`Invalid OD date range for student ${student_id}`);
+            }
+            if (!reason) {
+               throw new Error(`Reason required for OD for student ${student_id}`);
+            }
+
+            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+               const rangeDate = d.toISOString().split('T')[0];
+               if (rangeDate === date) continue;
+               await Attendance.upsert({
+                  student_id,
+                  date: rangeDate,
+                  status: 'OD',
+                  from_date,
+                  to_date,
+                  marked_by,
+                  hostel_id,
+                  reason,
+                  remarks,
+                  totalManDays: 1
+               }, { transaction });
+            }
+         }
+      }
+      await transaction.commit();
+      res.json({ success: true, message: 'Attendance saved successfully.' });
+   } catch (error) {
+      if (transaction) await transaction.rollback();
+      console.error('Bulk attendance marking error:', error);
+      res.status(400).json({ success: false, message: error.message });
+   }
 };
 
-// ============================================================
-// LINE 1313-1328: GET ATTENDANCE
-// ============================================================
 export const getAttendance = async (req, res) => {
    try {
       const { date } = req.query;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
+
       const attendance = await Attendance.findAll({
-         where: { date },
-         include: [{ model: User, as: 'Student', where: { hostel_id }, attributes: ['userId'] }],
+         where: { date, hostel_id },
+         include: [{ 
+            model: User, 
+            as: 'Student', 
+            where: { hostel_id }, 
+            attributes: ['userId', 'userName'] 
+         }],
       });
       res.json({ success: true, data: attendance });
    } catch (error) {
@@ -1391,13 +1498,17 @@ export const getAttendance = async (req, res) => {
    }
 };
 
-// ============================================================
-// LINE 1331-1480: LEAVE & COMPLAINT MANAGEMENT (unchanged - no issues)
-// ============================================================
+// ==========================================
+// LEAVE MANAGEMENT
+// ==========================================
 export const getLeaveRequests = async (req, res) => {
    try {
       const { status, from_date, to_date } = req.query;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       let whereClause = {};
       if (status && status !== 'all') {
@@ -1440,7 +1551,11 @@ export const getLeaveRequests = async (req, res) => {
 
 export const getPendingLeaves = async (req, res) => {
    try {
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       const leaves = await Leave.findAll({
          where: { status: 'pending' },
@@ -1466,7 +1581,11 @@ export const approveLeave = async (req, res) => {
    try {
       const { id } = req.params;
       const { status, remarks } = req.body;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       if (!['approved', 'rejected'].includes(status)) {
          return res.status(400).json({ 
@@ -1533,10 +1652,17 @@ export const approveLeave = async (req, res) => {
    }
 };
 
+// ==========================================
+// COMPLAINT MANAGEMENT
+// ==========================================
 export const getComplaints = async (req, res) => {
    try {
       const { status, category, priority, from_date, to_date } = req.query;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       let whereClause = {};
       if (status && status !== 'all') {
@@ -1585,7 +1711,11 @@ export const getComplaints = async (req, res) => {
 
 export const getPendingComplaints = async (req, res) => {
    try {
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       const complaints = await Complaint.findAll({
          where: { 
@@ -1622,7 +1752,11 @@ export const updateComplaint = async (req, res) => {
    try {
       const { id } = req.params;
       const { status, resolution, assigned_to } = req.body;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       const complaint = await Complaint.findOne({
          where: { id },
@@ -1682,13 +1816,17 @@ export const updateComplaint = async (req, res) => {
    }
 };
 
-// ============================================================
-// LINE 1580-1750: SUSPENSION, HOLIDAY, STUDENT MANAGEMENT (unchanged)
-// ============================================================
+// ==========================================
+// SUSPENSION MANAGEMENT
+// ==========================================
 export const createSuspension = async (req, res) => {
    try {
       const { student_id, reason, start_date, end_date, remarks } = req.body;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       const student = await User.findOne({
          where: { userId: student_id, roleId: 2, hostel_id, status: 'Active' }
@@ -1723,7 +1861,11 @@ export const createSuspension = async (req, res) => {
 
 export const getSuspensions = async (req, res) => {
   try {
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
+
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
 
     const suspensions = await Suspension.findAll({
       include: [
@@ -1753,7 +1895,11 @@ export const updateSuspension = async (req, res) => {
    try {
       const { id } = req.params;
       const { status, remarks } = req.body;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       const suspension = await Suspension.findOne({
          where: { id },
@@ -1787,10 +1933,17 @@ export const updateSuspension = async (req, res) => {
    }
 };
 
+// ==========================================
+// HOLIDAY MANAGEMENT
+// ==========================================
 export const createHoliday = async (req, res) => {
    try {
       const { name, date, type, description } = req.body;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       const holiday = await Holiday.create({
          hostel_id,
@@ -1813,7 +1966,11 @@ export const createHoliday = async (req, res) => {
 
 export const getHolidays = async (req, res) => {
    try {
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       const holidays = await Holiday.findAll({
          where: { hostel_id },
@@ -1831,7 +1988,11 @@ export const updateHoliday = async (req, res) => {
    try {
       const { id } = req.params;
       const { name, date, type, description } = req.body;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       const holiday = await Holiday.findOne({
          where: { id, hostel_id }
@@ -1865,7 +2026,11 @@ export const updateHoliday = async (req, res) => {
 export const deleteHoliday = async (req, res) => {
    try {
       const { id } = req.params;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       const holiday = await Holiday.findOne({
          where: { id, hostel_id }
@@ -1889,10 +2054,17 @@ export const deleteHoliday = async (req, res) => {
    }
 };
 
+// ==========================================
+// ADDITIONAL COLLECTIONS
+// ==========================================
 export const createAdditionalCollection = async (req, res) => {
    try {
       const { student_id, collection_type_id, amount, reason } = req.body;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       const student = await User.findOne({
          where: { userId: student_id, roleId: 2, hostel_id, status: 'Active' }
@@ -1924,78 +2096,90 @@ export const createAdditionalCollection = async (req, res) => {
    }
 };
 
+// ==========================================
+// STUDENTS LIST
+// ==========================================
 export const getStudents = async (req, res) => {
    try {
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
       if (!hostel_id) {
-         return res.status(400).json({ success: false, message: "Warden is not assigned to a hostel." });
+         return res.status(400).json({ success: false, message: "Hostel binding missing on your account." });
       }
 
       const studentsWithModels = await User.findAll({
          where: { 
-            roleId: 2,
-            hostel_id,
+            roleId: 2, 
+            hostel_id: hostel_id,
             status: 'Active' 
          },
          attributes: { exclude: ['password'] },
          include: [
             {
-               model: RoomAllotment,
-               as: 'tbl_RoomAllotments',
-               where: { is_active: true },
-               required: false,
-               include: [{
-                  model: HostelRoom,
-                  attributes: ['id', 'room_number'],
-                  include: [{
-                     model: RoomType,
-                     attributes: ['name']
-                  }]
-               }]
-            },
-            {
                model: Enrollment,
                as: 'tbl_Enrollment',
                required: false,
-               include: [{
-                  model: Session,
-                  attributes: ['name']
-               }],
-               attributes: ['college']
-            }
+               include: [{ model: Session, attributes: ['name'] }]
+            },
+             { // Fetching room allotment info for display
+                model: RoomAllotment,
+                as: 'tbl_RoomAllotments', // Ensure this alias matches your association
+                where: { is_active: true }, // Only active allotments
+                required: false, // Don't exclude students without an allotment
+                include: [{
+                    model: HostelRoom, // Model for the room itself
+                    attributes: ['id', 'room_number'],
+                }]
+            },
          ],
-         order: [
-            ['userName', 'ASC']
-         ]
+         order: [['userName', 'ASC']] 
       });
 
       const students = studentsWithModels.map(instance => {
          const plain = instance.get({ plain: true });
-         plain.id = plain.id ?? plain.userId;
-         plain.username = plain.username ?? plain.userName ?? '';
-         plain.email = plain.email ?? plain.userMail ?? null;
-         plain.session = plain.tbl_Enrollment?.[0]?.Session?.name || 'N/A';
-         plain.college = plain.tbl_Enrollment?.[0]?.college || 'N/A';
-         delete plain.tbl_Enrollment;
-         return plain;
+         // MAP TO OLD NAMES FOR FRONTEND COMPATIBILITY
+         const studentData = {
+            ...plain,
+            id: plain.userId,
+            username: plain.userName,
+            session: plain.tbl_Enrollment?.[0]?.Session?.name || 'N/A',
+            college: plain.tbl_Enrollment?.[0]?.college || 'N/A'
+         };
+         // Add room details if available
+        if (studentData.tbl_RoomAllotments && studentData.tbl_RoomAllotments.length > 0) {
+            studentData.room_id = studentData.tbl_RoomAllotments[0].HostelRoom?.id;
+            studentData.room_number = studentData.tbl_RoomAllotments[0].HostelRoom?.room_number;
+        } else {
+            studentData.room_id = null;
+            studentData.room_number = null;
+        }
+
+        // Clean up internal Sequelize association arrays for cleaner output if not needed
+        delete studentData.tbl_Enrollment;
+        delete studentData.tbl_RoomAllotments;
+
+        return studentData;
       });
 
       res.json({ success: true, data: students });
    } catch (error) {
-      console.error('Error fetching students:', error);
-      res.status(500).json({ success: false, message: 'Server error', error: error.message });
+      console.error('Fetch Students Error:', error.message);
+      res.status(500).json({ success: false, message: error.message });
    }
 };
 
 export const getAdditionalCollections = async (req, res) => {
    try {
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
+
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
 
       const collections = await AdditionalCollection.findAll({
          include: [
             {
                model: User,
-               as: 'Student',
+               as: 'CollectionStudent',
                where: { hostel_id },
                attributes: ['userId', 'userName']
             },
@@ -2019,15 +2203,20 @@ export const getAdditionalCollections = async (req, res) => {
    }
 };
 
-// ============================================================
-// LINE 1850-2050: MESS BILLS, ROOM REQUESTS, DAY REDUCTION (unchanged)
-// ============================================================
+// ==========================================
+// MESS BILL MANAGEMENT
+// ==========================================
 export const generateMessBills = async (req, res) => {
    const transaction = await sequelize.transaction();
    try {
       const { month, year, amount_per_day } = req.body;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
       
+      if (!hostel_id) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
+
       if (!month || !year || !amount_per_day) {
          await transaction.rollback();
          return res.status(400).json({ 
@@ -2050,6 +2239,7 @@ export const generateMessBills = async (req, res) => {
       const startDate = new Date(yearNum, monthNum - 1, 1);
       const endDate = new Date(yearNum, monthNum, 0);
       
+      // Get all students in the hostel
       const students = await User.findAll({
          where: { 
             hostel_id,
@@ -2067,6 +2257,7 @@ export const generateMessBills = async (req, res) => {
          });
       }
       
+      // Get all attendance records for this month
       const attendanceRecords = await Attendance.findAll({
          where: {
             date: {
@@ -2079,6 +2270,7 @@ export const generateMessBills = async (req, res) => {
          transaction
       });
       
+      // Create a map to track attendance for each student
       const studentAttendance = {};
       
       students.forEach(student => {
@@ -2102,7 +2294,6 @@ export const generateMessBills = async (req, res) => {
       for (const student of students) {
          const odDays = studentAttendance[student.userId].odDays || 0;
          const chargeableDays = daysInMonth - odDays;
-         
          const totalAmount = chargeableDays * amount_per_day;
          
          const dueMonth = monthNum === 12 ? 1 : monthNum + 1;
@@ -2147,7 +2338,7 @@ export const generateMessBills = async (req, res) => {
       });
       
    } catch (error) {
-      await transaction.rollback();
+      if (transaction) await transaction.rollback();
       console.error('Mess bill generation error:', error);
       res.status(500).json({ 
          success: false, 
@@ -2159,8 +2350,12 @@ export const generateMessBills = async (req, res) => {
 export const getMessBills = async (req, res) => {
    try {
       const { month, year } = req.query;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
       
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
+
       if (!month || !year) {
          return res.status(400).json({ 
             success: false, 
@@ -2183,15 +2378,15 @@ export const getMessBills = async (req, res) => {
       });
       
       const totalBills = bills.length;
-      const totalAmount = bills.reduce((sum, bill) => sum + parseFloat(bill.amount), 0);
+      const totalAmount = bills.reduce((sum, bill) => sum + parseFloat(bill.amount || 0), 0);
       const pendingBills = bills.filter(bill => bill.status === 'pending').length;
       const pendingAmount = bills
          .filter(bill => bill.status === 'pending')
-         .reduce((sum, bill) => sum + parseFloat(bill.amount), 0);
+         .reduce((sum, bill) => sum + parseFloat(bill.amount || 0), 0);
       const paidBills = bills.filter(bill => bill.status === 'paid').length;
       const paidAmount = bills
          .filter(bill => bill.status === 'paid')
-         .reduce((sum, bill) => sum + parseFloat(bill.amount), 0);
+         .reduce((sum, bill) => sum + parseFloat(bill.amount || 0), 0);
       
       res.json({
          success: true,
@@ -2221,8 +2416,12 @@ export const updateMessBillStatus = async (req, res) => {
    try {
       const { id } = req.params;
       const { status, payment_date } = req.body;
-      const hostel_id = req.user.hostel_id;
+      const hostel_id = getHostelId(req.user);
       
+      if (!hostel_id) {
+        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+      }
+
       if (!status || !['pending', 'paid', 'overdue'].includes(status)) {
          return res.status(400).json({ 
             success: false, 
@@ -2269,13 +2468,86 @@ export const updateMessBillStatus = async (req, res) => {
    }
 };
 
-// ❌ REMOVED: fetchDailyCosts (was FRONTEND code at lines 2065-2120)
-// This function uses React state setters and frontend API calls - move to frontend component
+export const fetchDailyCosts = async (month, year) => {
+   // This function appears to be client-side code, not a backend controller.
+   // Assuming `messAPI` and `setCalculatingCosts`/`setDailyCosts`/`setSummary`/`message` are defined in the frontend context.
+   // If this is intended to be run in Node.js, these external dependencies would need to be mocked or replaced.
+   try {
+      // Assuming setCalculatingCosts is defined in the calling context
+      // setCalculatingCosts(true);
+      // const startDate = moment({ year, month: month - 1, day: 1 }).format('YYYY-MM-DD');
+      // const endDate = moment({ year, month: month - 1, day: 1 }).endOf('month').format('YYYY-MM-DD');
+      
+      // const response = await messAPI.getMenuSchedule({ start_date: startDate, end_date: endDate });
+      
+      // const servedMenus = response.data.data.filter(schedule => schedule.status === 'served');
+      
+      // const dailyCostsMap = {};
+      
+      // const daysInMonth = moment({ year, month: month - 1 }).daysInMonth();
+      // for (let day = 1; day <= daysInMonth; day++) {
+      //    const dateString = moment({ year, month: month - 1, day }).format('YYYY-MM-DD');
+      //    dailyCostsMap[dateString] = {
+      //       total: 0,
+      //       meals: []
+      //    };
+      // }
+      
+      // servedMenus.forEach(menu => {
+      //    const dateString = moment(menu.scheduled_date).format('YYYY-MM-DD');
+      //    const costPerServing = parseFloat(menu.cost_per_serving || 0);
+         
+      //    if (dailyCostsMap[dateString]) {
+      //       dailyCostsMap[dateString].total += costPerServing;
+      //       dailyCostsMap[dateString].meals.push({
+      //          meal_time: menu.meal_time,
+      //          cost: costPerServing,
+      //          menu_name: menu.Menu?.name || 'Unknown menu'
+      //       });
+      //    }
+      // });
+      
+      // const dailyCostsArray = Object.keys(dailyCostsMap).map(date => ({
+      //    date,
+      //    total_cost: dailyCostsMap[date].total,
+      //    meals: dailyCostsMap[date].meals
+      // })).sort((a, b) => moment(a.date).diff(moment(b.date)));
+      
+      // setDailyCosts(dailyCostsArray);
+      
+      // const daysWithMeals = dailyCostsArray.filter(day => day.total_cost > 0).length;
+      // const totalMonthCost = dailyCostsArray.reduce((sum, item) => sum + item.total_cost, 0);
+      // const averageDailyCost = daysWithMeals > 0 ? totalMonthCost / daysWithMeals : 0;
+      
+      // setSummary(prevSummary => ({
+      //    ...prevSummary,
+      //    averageDailyCost,
+      //    daysWithMeals,
+      //    totalMonthCost
+      // }));
+      
+      console.warn("fetchDailyCosts is a client-side function and cannot be executed on the server.");
+   } catch (error) {
+      console.error('Error fetching daily costs:', error);
+      // Assuming message is defined in the calling context
+      // message.error('Failed to calculate daily costs');
+   } finally {
+      // Assuming setCalculatingCosts is defined in the calling context
+      // setCalculatingCosts(false);
+   }
+};
 
+// ==========================================
+// ROOM REQUESTS
+// ==========================================
 export const getRoomRequestsWarden = async (req, res) => {
   try {
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
     const { status } = req.query;
+
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
 
     const whereClause = { hostel_id };
     if (status && status !== "all") whereClause.status = status;
@@ -2322,9 +2594,13 @@ export const getRoomRequestsWarden = async (req, res) => {
 export const decideRoomRequest = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
     const { id } = req.params;
     const { decision, remarks } = req.body;
+
+    if (!hostel_id) {
+      throw new Error('Hostel binding missing.');
+    }
 
     if (!["approved", "rejected", "cancelled"].includes(decision)) {
       throw new Error("Invalid decision. Use approved, rejected, or cancelled.");
@@ -2405,15 +2681,18 @@ export const decideRoomRequest = async (req, res) => {
     await transaction.commit();
     res.json({ success: true, message: `Request ${decision}.`, data: request });
   } catch (error) {
-    await transaction.rollback();
+    if (transaction) await transaction.rollback();
     console.error("Room request decision error:", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
 
+// ==========================================
+// DAY REDUCTION REQUESTS
+// ==========================================
 export const getDayReductionRequestsForWarden = async (req, res) => {
   try {
-    const wardenHostelId = req.user.hostel_id;
+    const wardenHostelId = getHostelId(req.user);
     if (!wardenHostelId) {
       return res.status(403).json({ success: false, message: 'Warden is not assigned to a hostel.' });
     }
@@ -2462,7 +2741,12 @@ export const updateDayReductionRequestStatusByWarden = async (req, res) => {
     const { id } = req.params;
     const { action, warden_remarks } = req.body;
     const warden_id = req.user.userId;
-    const wardenHostelId = req.user.hostel_id;
+    const wardenHostelId = getHostelId(req.user);
+
+    if (!wardenHostelId) {
+      await transaction.rollback();
+      return res.status(403).json({ success: false, message: 'Warden is not assigned to a hostel.' });
+    }
 
     const request = await DayReductionRequest.findByPk(id, { transaction });
 
@@ -2543,20 +2827,24 @@ export const updateDayReductionRequestStatusByWarden = async (req, res) => {
     res.json({ success: true, data: request, message: `Day reduction request ${newStatus.replace('_', ' ')} successfully.` });
 
   } catch (error) {
-    await transaction.rollback();
+    if (transaction) await transaction.rollback();
     console.error('Error updating day reduction request status by warden:', error);
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
 };
 
-// ============================================================
-// LINE 2280-2380: REBATES (FIXED - Need to add association in models)
-// ============================================================
+// ==========================================
+// REBATES
+// ==========================================
 export const getRebates = async (req, res) => {
   try {
-    const hostel_id = req.user.hostel_id;
+    const hostel_id = getHostelId(req.user);
     const { status } = req.query;
     
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
+
     let whereClause = {};
     if (status && status !== 'all') whereClause.status = status;
 
@@ -2564,7 +2852,7 @@ export const getRebates = async (req, res) => {
       where: whereClause,
       include: [{
         model: User,
-        as: 'RebateStudent',  // ✅ This alias must be defined in models/index.js
+        as: 'RebateStudent',
         where: { hostel_id },
         attributes: ['userId', 'userName', 'roll_number']
       }],
@@ -2622,6 +2910,7 @@ export const getRebates = async (req, res) => {
 
     res.json({ success: true, data: processedRebates });
   } catch (error) {
+    console.error('Rebates fetch error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -2660,8 +2949,14 @@ export const updateRebateStatus = async (req, res) => {
 
 export const getLatestDailyRate = async (req, res) => {
   try {
+    const hostel_id = getHostelId(req.user);
+
+    if (!hostel_id) {
+      return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
+    }
+
     const latest = await DailyRateLog.findOne({
-      where: { hostel_id: req.user.hostel_id },
+      where: { hostel_id },
       order: [['year', 'DESC'], ['month', 'DESC']]
     });
     res.json({ success: true, data: latest });
