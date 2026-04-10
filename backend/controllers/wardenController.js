@@ -3,7 +3,7 @@ import { Op } from 'sequelize';
 import moment from 'moment';
 import { 
   User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,
-  Attendance, Leave, Complaint, Suspension, Holiday, Fee, MessBill, Hostel, RoomRequest,
+  Attendance, GPSAttendance, Leave, Complaint, Suspension, Holiday, Fee, MessBill, Hostel, RoomRequest,
   DayReductionRequest, Rebate, DailyRateLog, HostelLayout, AdditionalCollection, AdditionalCollectionType, Role, sequelize
 } from '../models/index.js';
 
@@ -14,14 +14,30 @@ const getHostelId = (user) => {
   return (hId && hId !== 0) ? hId : null;
 };
 
+const getStudentRoleIds = async (transaction = null) => {
+  const roleRows = await Role.findAll({
+    where: {
+      [Op.or]: [
+        { roleName: { [Op.like]: 'student' } },
+        { roleName: { [Op.like]: 'lapc' } }
+      ]
+    },
+    attributes: ['roleId'],
+    transaction: transaction || undefined
+  });
+  return roleRows.map((r) => Number(r.roleId)).filter((id) => Number.isFinite(id));
+};
+
 // ==========================================
 // STUDENT ENROLLMENT
 // ==========================================
+// 1. ENROLL STUDENT: This creates the login credentials in tbl_users
 export const enrollStudent = async (req, res) => {
    const transaction = await sequelize.transaction();
    try {
       const { 
-         userName, 
+         userName: userNameRaw,
+         username,
          email, 
          session_id, 
          requires_bed, 
@@ -31,100 +47,232 @@ export const enrollStudent = async (req, res) => {
          password,
          create_with_default_password 
       } = req.body;
+      const userName = userNameRaw || username;
       
       const hostel_id = getHostelId(req.user);
-      
-      if (!hostel_id) {
-         throw new Error("Warden is not assigned to a valid hostel. Please update Warden profile in database.");
-      }
+      const normalizedRollNumber = String(roll_number || '').trim();
+      const defaultDomain = String(college || 'nec').toLowerCase() === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in';
+      const generatedEmail = normalizedRollNumber ? `${normalizedRollNumber}@${defaultDomain}` : '';
+      const normalizedEmail = String(email || generatedEmail).trim().toLowerCase();
+      const normalizedSessionId = Number(session_id);
 
-      if (!userName || !session_id) {
-         throw new Error("Student Name and Session ID are required.");
-      }
+      if (!hostel_id) throw new Error("Warden's hostel ID not found.");
+      if (!userName) throw new Error("Student name is required.");
+      if (!normalizedEmail) throw new Error("Email is required (or provide roll number for auto-email).");
+      if (!session_id) throw new Error("Academic year / batch is required.");
+      if (!Number.isFinite(normalizedSessionId)) throw new Error("Invalid session_id.");
+      if (!normalizedRollNumber) throw new Error("Roll number is required.");
 
-      // Check for existing user using new model names
-      const existingUser = await User.findOne({ 
-         where: { 
-            [Op.or]: [
-               { userName: userName },
-               { userMail: email || `${userName.replace(/\s+/g, '').toLowerCase()}@hostel.com` }
-            ]
-         },
+      // DYNAMIC ROLE RETRIEVAL: Find 'student' role ID
+      const studentRole = await Role.findOne({ 
+         where: { roleName: { [Op.like]: 'student' } },
+         transaction 
+      });
+      if (!studentRole) throw new Error("Role 'student' not defined in roles table.");
+
+      const studentRoleIds = await getStudentRoleIds(transaction);
+      if (studentRoleIds.length === 0) throw new Error("Student/LAPC roles not defined in roles table.");
+
+      let student = await User.findOne({ 
+         where: { [Op.or]: [{ userMail: normalizedEmail }, { roll_number: normalizedRollNumber }] },
          transaction
       });
 
-      let student;
-      if (existingUser) {
-         await existingUser.update({ 
-            hostel_id, 
-            roleId: 2, // Student
-            status: 'Active',
-            roll_number: roll_number || existingUser.roll_number
+      if (student) {
+         if (!studentRoleIds.includes(Number(student.roleId))) {
+            throw new Error('This email/roll belongs to a non-student account. Use a different email/roll number.');
+         }
+         await student.update({ 
+            hostel_id: hostel_id, 
+            roleId: studentRole.roleId, // Use dynamic ID
+            status: true,
+            roll_number: normalizedRollNumber
          }, { transaction });
-         student = existingUser;
       } else {
-         let passwordToUse = create_with_default_password || !password ? '12345678' : password;
          const salt = await bcrypt.genSalt(10);
-         const hashedPassword = await bcrypt.hash(passwordToUse, salt);
+         const defaultPassword =
+            create_with_default_password === false && password
+               ? password
+               : (password || '12345678');
+         const hashedPassword = await bcrypt.hash(defaultPassword, salt);
 
          student = await User.create({
-            userName: userName,
-            userMail: email || `${userName.replace(/\s+/g, '').toLowerCase()}@hostel.com`,
+            userName,
+            userMail: normalizedEmail,
             password: hashedPassword,
-            roleId: 2, 
-            hostel_id: hostel_id, 
-            roll_number: roll_number || null,
-            status: 'Active'
+            roleId: studentRole.roleId, // Use dynamic ID
+            hostel_id: hostel_id,
+            roll_number: normalizedRollNumber,
+            status: true 
          }, { transaction });
       }
 
-      // Check for duplicate enrollment roll number
-      if (roll_number) {
-         const duplicate = await Enrollment.findOne({ where: { roll_number }, transaction });
-         if (duplicate) throw new Error("Roll number already enrolled.");
-      }
-
-      const enrollment = await Enrollment.create({
-         student_id: student.userId, 
-         hostel_id,
+      await Enrollment.create({
+         student_id: student.userId,
+         hostel_id: warden_hostel_id, 
          session_id,
-         requires_bed: requires_bed || false,
+         requires_bed: !!requires_bed,
          college: college || 'nec',
-         roll_number: roll_number || null,
-         remaining_dues: requires_bed ? 6 : 0,
+         roll_number,
          status: 'active'
       }, { transaction });
 
-      // Create EMI records if applicable
-      if (requires_bed && paid_initial_emi) {
-         const today = new Date();
-         for (let i = 0; i < 5; i++) {
-            const dueDate = new Date(today);
-            dueDate.setMonth(dueDate.getMonth() + i);
-            await Fee.create({
-               student_id: student.userId,
-               enrollment_id: enrollment.id,
-               fee_type: 'emi',
-               amount: 5000,
-               due_date: dueDate,
-               status: i === 0 ? 'paid' : 'pending',
-               payment_date: i === 0 ? today : null,
-               emi_month: i + 1
-            }, { transaction });
-         }
-      }
-
       await transaction.commit();
-      res.status(201).json({ 
-         success: true,
-         message: 'Student enrolled successfully',
-         data: { student: { userId: student.userId, userName: student.userName }, enrollment }
-      });
+      res.status(201).json({ success: true, message: 'Student registered successfully' });
    } catch (error) {
       if (transaction) await transaction.rollback();
-      console.error('Enrollment Error:', error.message);
       res.status(400).json({ success: false, message: error.message });
    }
+};
+
+// 2. GET STUDENTS: This ensures the newly enrolled students show up in the Warden list
+export const getStudents = async (req, res) => {
+   try {
+      const warden_hostel_id = req.user.hostelId || req.user.hostel_id;
+      
+      if (!warden_hostel_id) {
+         return res.status(400).json({ success: false, message: "Hostel ID missing from session." });
+      }
+
+      // Fetch students belonging to this hostel with role 'student' (usually 2)
+      const studentsWithModels = await User.findAll({
+         where: { 
+            hostel_id: warden_hostel_id,
+            // We search for status: true because it maps to is_active = 1 in SQL
+            status: true 
+         },
+         attributes: { exclude: ['password'] },
+         include: [
+            {
+               model: Enrollment,
+               as: 'tbl_Enrollment',
+               include: [{ model: Session, attributes: ['name'] }]
+            },
+            {
+                model: RoomAllotment,
+                as: 'tbl_RoomAllotments',
+                where: { is_active: true },
+                required: false,
+                include: [{ model: HostelRoom, attributes: ['id', 'room_number'] }]
+            }
+         ],
+         order: [['userName', 'ASC']] 
+      });
+
+      // Map data to match the format expected by ManageStudents.jsx
+      const formattedData = studentsWithModels.map(s => {
+         const plain = s.get({ plain: true });
+         
+         // Extract room number from the active allotment if it exists
+         const activeRoom = plain.tbl_RoomAllotments && plain.tbl_RoomAllotments.length > 0 
+            ? plain.tbl_RoomAllotments[0].HostelRoom 
+            : null;
+
+         return {
+            ...plain,
+            id: plain.userId, // Maps SQL 'id' back to 'id' for frontend Table
+            username: plain.userName,
+            session: plain.tbl_Enrollment?.[0]?.Session?.name || 'N/A',
+            college: plain.tbl_Enrollment?.[0]?.college || 'N/A',
+            room_number: activeRoom ? activeRoom.room_number : null
+         };
+      });
+
+      await transaction.commit();
+      res.status(201).json({
+         success: true,
+         message: 'Student registered successfully',
+         data: { id: student.userId, userName: student.userName, email: normalizedEmail }
+      });
+   } catch (error) {
+      console.error('Warden GetStudents Error:', error);
+      res.status(500).json({ success: false, message: error.message });
+   }
+};
+
+// backend/controllers/wardenController.js
+
+export const bulkEnrollStudents = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { students, session_id } = req.body; // session_id comes from the UI dropdown
+    const hostel_id = req.user.hostelId || req.user.hostel_id;
+
+    if (!hostel_id) throw new Error("Hostel ID not found. Please re-login.");
+    if (!session_id) throw new Error("Please select an Academic Year/Batch.");
+
+    // Get Student Role ID dynamically
+    const studentRole = await Role.findOne({ 
+       where: { roleName: { [Op.like]: 'student' } },
+       transaction 
+    });
+    if (!studentRole) throw new Error("Role 'student' not defined in roles table.");
+
+    const studentRoleIds = await getStudentRoleIds(transaction);
+    if (studentRoleIds.length === 0) throw new Error("Student/LAPC roles not defined in roles table.");
+
+    const results = { successful: 0, skipped: 0, errors: [] };
+    const salt = await bcrypt.genSalt(10);
+    const defaultPassword = await bcrypt.hash('12345678', salt);
+
+    for (const studentData of students) {
+      try {
+        const { userName, roll_number, college, requires_bed } = studentData;
+        const generatedEmail = `${roll_number}@nec.edu.in`.toLowerCase();
+
+        // 1. Create/Update User (Login Credentials)
+        let user = await User.findOne({ 
+          where: { [Op.or]: [{ roll_number }, { userMail: generatedEmail }] },
+          transaction 
+        });
+
+        if (!user) {
+          user = await User.create({
+            userName: userName.toUpperCase(),
+            userMail: generatedEmail,
+            password: defaultPassword,
+            roleId: studentRole.roleId,
+            hostel_id,
+            roll_number,
+            status: true 
+          }, { transaction });
+        } else if (!studentRoleIds.includes(Number(user.roleId))) {
+          throw new Error('Existing account is not a student/lapc role');
+        }
+
+        // 2. Create Enrollment Record (The Batch/Session link)
+        const existingEnrollment = await Enrollment.findOne({
+          where: { student_id: user.userId, session_id },
+          transaction
+        });
+
+        if (!existingEnrollment) {
+          await Enrollment.create({
+            student_id: user.userId,
+            hostel_id,
+            session_id: parseInt(session_id), // Linked to chosen batch
+            roll_number,
+            college: college || 'nec',
+            requires_bed: !!requires_bed, 
+            // Logical consistency: if hosteller, set dues to 6 (matching manual logic)
+            remaining_dues: requires_bed ? 6 : 0, 
+            status: 'active'
+          }, { transaction });
+          results.successful++;
+        } else {
+          results.skipped++;
+        }
+      } catch (err) {
+        results.errors.push({ name: studentData.userName, error: err.message });
+      }
+    }
+
+    await transaction.commit();
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  }
 };
 
 // ==========================================
@@ -1185,9 +1333,19 @@ export const markAttendance = async (req, res) => {
          throw new Error('from_date and to_date are required for OD status');
       }
 
+      const studentRoleIds = await getStudentRoleIds();
+      if (!studentRoleIds.length) {
+         throw new Error('Student/LAPC roles are not configured.');
+      }
+
       // Validate student
       const student = await User.findOne({
-         where: { userId: student_id, roleId: 2, hostel_id, status: 'Active' },
+         where: {
+            userId: student_id,
+            roleId: { [Op.in]: studentRoleIds },
+            hostel_id,
+            status: { [Op.in]: ['Active', 'active'] }
+         },
          transaction
       });
       if (!student) {
@@ -1398,14 +1556,19 @@ export const bulkMarkAttendance = async (req, res) => {
 
       if (!date || !Array.isArray(attendanceData)) throw new Error("Date and attendance data are required.");
       
+      const studentRoleIds = await getStudentRoleIds();
+      if (!studentRoleIds.length) {
+         throw new Error('Student/LAPC roles are not configured.');
+      }
+
       // Validate all students belong to the hostel
       const studentIds = attendanceData.map(record => record.student_id);
       const students = await User.findAll({
          where: { 
             userId: { [Op.in]: studentIds },
-            roleId: 2,
+            roleId: { [Op.in]: studentRoleIds },
             hostel_id,
-            status: 'Active'
+            status: { [Op.in]: ['Active', 'active'] }
          },
          attributes: ['userId']
       });
@@ -1491,7 +1654,45 @@ export const getAttendance = async (req, res) => {
             attributes: ['userId', 'userName'] 
          }],
       });
-      res.json({ success: true, data: attendance });
+
+      // Merge GPS attendance records for the same date so mobile Attendance page
+      // reflects GPS session status as well. Manual attendance takes priority.
+      const gpsAttendance = await GPSAttendance.findAll({
+         where: { attendance_date: date, hostel_id },
+         include: [{
+            model: User,
+            where: { hostel_id },
+            attributes: ['userId', 'userName']
+         }]
+      });
+
+      const mergedByStudent = new Map();
+      attendance.forEach((record) => {
+         mergedByStudent.set(Number(record.student_id), record.toJSON ? record.toJSON() : record);
+      });
+
+      gpsAttendance.forEach((record) => {
+         const studentId = Number(record.user_id);
+         if (mergedByStudent.has(studentId)) return;
+
+         const plain = record.toJSON ? record.toJSON() : record;
+         mergedByStudent.set(studentId, {
+            id: `gps-${plain.id}`,
+            student_id: studentId,
+            date: plain.attendance_date,
+            status: plain.status,
+            from_date: null,
+            to_date: null,
+            reason: null,
+            remarks: `GPS ${String(plain.session || '').toLowerCase()} session`,
+            marked_by: null,
+            hostel_id: plain.hostel_id,
+            source: 'GPS',
+            Student: plain.Student || plain.User || null
+         });
+      });
+
+      res.json({ success: true, data: Array.from(mergedByStudent.values()) });
    } catch (error) {
       console.error('Attendance fetch error:', error);
       res.status(500).json({ success: false, message: 'Server error' });
@@ -2096,76 +2297,6 @@ export const createAdditionalCollection = async (req, res) => {
    }
 };
 
-// ==========================================
-// STUDENTS LIST
-// ==========================================
-export const getStudents = async (req, res) => {
-   try {
-      const hostel_id = getHostelId(req.user);
-      if (!hostel_id) {
-         return res.status(400).json({ success: false, message: "Hostel binding missing on your account." });
-      }
-
-      const studentsWithModels = await User.findAll({
-         where: { 
-            roleId: 2, 
-            hostel_id: hostel_id,
-            status: 'Active' 
-         },
-         attributes: { exclude: ['password'] },
-         include: [
-            {
-               model: Enrollment,
-               as: 'tbl_Enrollment',
-               required: false,
-               include: [{ model: Session, attributes: ['name'] }]
-            },
-             { // Fetching room allotment info for display
-                model: RoomAllotment,
-                as: 'tbl_RoomAllotments', // Ensure this alias matches your association
-                where: { is_active: true }, // Only active allotments
-                required: false, // Don't exclude students without an allotment
-                include: [{
-                    model: HostelRoom, // Model for the room itself
-                    attributes: ['id', 'room_number'],
-                }]
-            },
-         ],
-         order: [['userName', 'ASC']] 
-      });
-
-      const students = studentsWithModels.map(instance => {
-         const plain = instance.get({ plain: true });
-         // MAP TO OLD NAMES FOR FRONTEND COMPATIBILITY
-         const studentData = {
-            ...plain,
-            id: plain.userId,
-            username: plain.userName,
-            session: plain.tbl_Enrollment?.[0]?.Session?.name || 'N/A',
-            college: plain.tbl_Enrollment?.[0]?.college || 'N/A'
-         };
-         // Add room details if available
-        if (studentData.tbl_RoomAllotments && studentData.tbl_RoomAllotments.length > 0) {
-            studentData.room_id = studentData.tbl_RoomAllotments[0].HostelRoom?.id;
-            studentData.room_number = studentData.tbl_RoomAllotments[0].HostelRoom?.room_number;
-        } else {
-            studentData.room_id = null;
-            studentData.room_number = null;
-        }
-
-        // Clean up internal Sequelize association arrays for cleaner output if not needed
-        delete studentData.tbl_Enrollment;
-        delete studentData.tbl_RoomAllotments;
-
-        return studentData;
-      });
-
-      res.json({ success: true, data: students });
-   } catch (error) {
-      console.error('Fetch Students Error:', error.message);
-      res.status(500).json({ success: false, message: error.message });
-   }
-};
 
 export const getAdditionalCollections = async (req, res) => {
    try {

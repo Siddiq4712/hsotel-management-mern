@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, Image, Alert } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
-import { LogOut } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const Header = () => {
+import { LogOut } from 'lucide-react-native';const Header = () => {
   const { user, logout } = useAuth();
   const [imageError, setImageError] = useState(false);
-  const insets = useSafeAreaInsets();
+
+  const initials = useMemo(() => {
+    const name =
+      user?.name ||
+      user?.fullName ||
+      user?.username ||
+      user?.email ||
+      '';
+    return name
+      .toString()
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || '?';
+  }, [user]);
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure?', [

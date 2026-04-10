@@ -25,55 +25,57 @@ export const Department = sequelize.define('Department', {
 // ✅ FIX: Added `field: 'id'` to map userId attribute to actual DB column 'id'
 // ✅ FIX: Changed tableName back to 'tbl_users' to match actual database
 export const User = sequelize.define('User', {
+  // PHYSICAL COLUMNS (Saved in MySQL)
   userId: { 
     type: DataTypes.INTEGER, 
     primaryKey: true, 
     autoIncrement: true,
-    field: 'id'  // ✅ CRITICAL: Maps Sequelize attribute 'userId' to DB column 'id'
+    field: 'id'  // Maps JS "userId" to SQL "id"
   },
   userName: { type: DataTypes.STRING(255), allowNull: false, field: 'username' },
   userMail: {
     type: DataTypes.STRING(255),
     allowNull: false,
     unique: true,
-    field: 'email',
-    validate: { isEmail: true }
+    field: 'email'
   },
   password: { type: DataTypes.STRING(255), allowNull: false },
   roleId: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    field: 'role',
+    field: 'role', // Maps JS "roleId" to SQL "role"
     references: { model: 'roles', key: 'roleId' }
   },
-  departmentId: { type: DataTypes.VIRTUAL },
   roll_number: { type: DataTypes.STRING(50), allowNull: true, unique: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Hostel', key: 'id' } },
+  google_id: { type: DataTypes.STRING(255), allowNull: true, unique: true },
+  profile_picture: { type: DataTypes.STRING(500), defaultValue: '/uploads/default.jpg' },
+  
+  // STATUS COLUMN (Corrected for Enrollment)
   status: {
     type: DataTypes.BOOLEAN,
     field: 'is_active',
     allowNull: false,
     defaultValue: true,
-    get() {
-      return this.getDataValue('status') ? 'Active' : 'Inactive';
-    },
+    // This allows you to use user.status = 'Active' or true
     set(value) {
       if (typeof value === 'string') {
-        this.setDataValue('status', value.toLowerCase() === 'active');
-        return;
+        this.setDataValue('status', value.toLowerCase() === 'active' || value.toLowerCase() === 'true');
+      } else {
+        this.setDataValue('status', Boolean(value));
       }
-      this.setDataValue('status', Boolean(value));
     }
   },
-  google_id: { type: DataTypes.STRING(255), allowNull: true, unique: true },
+
+  // VIRTUAL FIELDS (Not saved in MySQL, just for JS logic)
+  departmentId: { type: DataTypes.VIRTUAL },
   authProvider: { type: DataTypes.VIRTUAL, defaultValue: 'local' },
-  profile_picture: { type: DataTypes.STRING(500), defaultValue: '/uploads/default.jpg' },
   resetOTP: { type: DataTypes.VIRTUAL },
   resetOTPExpires: { type: DataTypes.VIRTUAL },
   createdBy: { type: DataTypes.VIRTUAL },
   updatedBy: { type: DataTypes.VIRTUAL }
 }, { 
-  tableName: 'tbl_users',  // ✅ CRITICAL: Must match actual database table name
+  tableName: 'tbl_users',
   timestamps: true 
 });
 
@@ -275,6 +277,29 @@ export const GPSAttendance = sequelize.define('GPSAttendance', {
   tableName: 'tbl_GPS_Attendance',
   timestamps: true,
   indexes: [{ unique: true, fields: ['user_id', 'attendance_date', 'session'] }]
+});
+
+export const GPSAttendanceSession = sequelize.define('GPSAttendanceSession', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
+  attendance_date: { type: DataTypes.DATEONLY, allowNull: false },
+  session: { type: DataTypes.ENUM('MORNING', 'EVENING', 'NIGHT'), allowNull: false },
+  start_time: { type: DataTypes.DATE, allowNull: false },
+  end_time: { type: DataTypes.DATE, allowNull: false },
+  is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+  geofence_lat: { type: DataTypes.DOUBLE, allowNull: false },
+  geofence_lng: { type: DataTypes.DOUBLE, allowNull: false },
+  geofence_radius_m: { type: DataTypes.DOUBLE, allowNull: false, defaultValue: 150 },
+  created_by: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_users', key: 'id' } },
+  closed_at: { type: DataTypes.DATE, allowNull: true }
+}, {
+  tableName: 'tbl_GPS_Attendance_Session',
+  timestamps: true,
+  indexes: [{
+    name: 'uniq_gps_att_sess_hostel_date_session',
+    unique: true,
+    fields: ['hostel_id', 'attendance_date', 'session']
+  }]
 });
 
 export const Leave = sequelize.define('Leave', {
@@ -1121,6 +1146,11 @@ export const initAssociations = () => {
   GPSAttendance.belongsTo(Hostel, { foreignKey: 'hostel_id' });
   User.hasMany(GPSAttendance, { foreignKey: 'user_id', sourceKey: 'userId' });
   Hostel.hasMany(GPSAttendance, { foreignKey: 'hostel_id' });
+
+  GPSAttendanceSession.belongsTo(User, { foreignKey: 'created_by', as: 'CreatedBy', targetKey: 'userId' });
+  GPSAttendanceSession.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+  User.hasMany(GPSAttendanceSession, { foreignKey: 'created_by', as: 'CreatedGpsAttendanceSessions', sourceKey: 'userId' });
+  Hostel.hasMany(GPSAttendanceSession, { foreignKey: 'hostel_id' });
 
   Leave.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
   Leave.belongsTo(User, { foreignKey: 'approved_by', as: 'ApprovedBy', targetKey: 'userId' });

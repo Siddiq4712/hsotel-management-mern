@@ -28,7 +28,10 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "API_BASE_URL": "http://192.168.85.1:5001/api"
+      "API_BASE_URL": "http://10.84.86.153:5001/api",
+      "GEOFENCE_LAT": "9.1474619",
+      "GEOFENCE_LNG": "77.8276993",
+      "GEOFENCE_RADIUS_M": "200"
     },
     "plugins": [
       "expo-web-browser"

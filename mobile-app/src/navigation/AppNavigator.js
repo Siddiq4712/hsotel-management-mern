@@ -5,9 +5,17 @@ import StudentTabNavigator from './StudentTabNavigator';
 import WardenTabNavigator from './WardenTabNavigator';
 import { useAuth } from '../hooks/useAuth';
 import { View, ActivityIndicator, Text } from 'react-native';
+import { normalizeRole } from '../utils/role';
 
 const AppNavigator = () => {
   const { user, loading } = useAuth();
+
+  const resolvedRole = normalizeRole(
+    user?.role ??
+      user?.roleName ??
+      user?.role?.roleName ??
+      null
+  );
 
   if (loading) {
     return (
@@ -21,9 +29,9 @@ const AppNavigator = () => {
   return (
     <NavigationContainer>
       {user ? (
-        user.role === 'student' ? (
+        resolvedRole === 'student' ? (
           <StudentTabNavigator />
-        ) : user.role === 'warden' ? (
+        ) : resolvedRole === 'warden' ? (
           <WardenTabNavigator />
         ) : (
           <AuthNavigator />

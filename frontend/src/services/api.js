@@ -161,6 +161,7 @@ export const wardenAPI = {
   // Student Management
   enrollStudent: (data) => api.post('/warden/students', data),
   getStudents: (params) => api.get('/warden/students', { params }),
+  bulkEnrollStudents: (data) => api.post('/warden/students/bulk-import', data),
 
   // EMI and Fee Management
   getHostelSettings: () => api.get('/warden/hostel-settings'),
@@ -364,6 +365,7 @@ export const messAPI = {
   // Expected data: { items: [{ item_id, quantity, unit_price, transaction_date, expiry_date }] }
   recordInventoryPurchase: (data) => api.post('/mess/inventory-purchase', data),
   getInventoryTransactions: (params) => api.get('/mess/inventory-transactions', { params }), // params: { transaction_type, item_id, store_id, from_date, to_date }
+  recordItemReturn: (data) => api.post('/mess/consumption/return', data),
 
   // Store Management - Complete CRUD
   // Expected data: { name, address, contact_number }

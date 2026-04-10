@@ -6,7 +6,7 @@ import { User, Lock, Hash, Mail, GraduationCap, Bed } from 'lucide-react-native'
 
 const EnrollStudentScreen = () => {
   const [formData, setFormData] = useState({
-    username: '', password: '', roll_number: '', email: '', session_id: '', college: '', requires_bed: false
+    userName: '', password: '', roll_number: '', email: '', session_id: '', college: '', requires_bed: false
   });
   const [sessions, setSessions] = useState([]);
   const [step, setStep] = useState(1); // Multi-step form
@@ -28,7 +28,7 @@ const EnrollStudentScreen = () => {
     try {
       await wardenAPI.enrollStudent(formData);
       Alert.alert('Success', 'Student enrolled');
-      setFormData({ username: '', password: '', roll_number: '', email: '', session_id: '', college: '', requires_bed: false });
+      setFormData({ userName: '', password: '', roll_number: '', email: '', session_id: '', college: '', requires_bed: false });
       setStep(1);
     } catch (error) {
       Alert.alert('Error', error.message);
@@ -42,7 +42,7 @@ const EnrollStudentScreen = () => {
         <Text className="text-2xl font-bold mb-6">Enroll Student</Text>
         {step === 1 && (
           <View>
-            <TextInput placeholder="Username" value={formData.username} onChangeText={(v) => setFormData({...formData, username: v})} className="border p-3 rounded mb-3" />
+            <TextInput placeholder="Username" value={formData.userName} onChangeText={(v) => setFormData({...formData, userName: v})} className="border p-3 rounded mb-3" />
             <TextInput placeholder="Password" value={formData.password} onChangeText={(v) => setFormData({...formData, password: v})} secureTextEntry className="border p-3 rounded mb-3" />
             <TextInput placeholder="Roll Number" value={formData.roll_number} onChangeText={(v) => setFormData({...formData, roll_number: v})} className="border p-3 rounded mb-3" />
             <TouchableOpacity onPress={() => setStep(2)} className="bg-blue-600 p-4 rounded">

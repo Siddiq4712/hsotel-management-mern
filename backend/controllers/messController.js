@@ -13,9 +13,6 @@ import moment from 'moment';
 import { getMonthDateRange } from '../utils/dateUtils.js'; // Added .js extension
 import { sendConsumptionNotificationToAdmin } from '../utils/emailUtils.js'; // Added .js extension
 
-// If you had 'Newspaper' in your require but it wasn't in your models/index.js definition earlier, 
-// make sure it is exported from models/index.js or remove it from this list.
-// Custom rounding function: <= 0.20 rounds down, > 0.20 rounds up
 function customRounding(amount) {
   const num = parseFloat(amount);
   if (isNaN(num)) return 0;
@@ -63,8 +60,8 @@ export const createMenu = async (req, res) => {
 
     // Step 2: If ingredients (items) are provided, create them
     if (items && Array.isArray(items) && items.length > 0) {
-      // Fetch all UOM records to map abbreviations to IDs
-      const uomRecords = await UOM.findAll({}, { transaction });
+      // Fetch all UOM records once to map abbreviations to IDs when needed
+      const uomRecords = await UOM.findAll({ transaction });
       const uomMap = {};
 
       // Create a map of abbreviation to ID for quick lookup
@@ -74,18 +71,21 @@ export const createMenu = async (req, res) => {
 
       // Process the menu items
       const menuItems = items.map(item => {
-        // Convert the unit abbreviation to unit_id
-        let unit_id = null;
+        // Prefer explicit unit_id from frontend; fallback to abbreviation map.
+        let unit_id = item.unit_id || null;
 
-        if (item.unit && typeof item.unit === 'string') {
+        if (!unit_id && item.unit && typeof item.unit === 'string') {
           unit_id = uomMap[item.unit.toLowerCase()];
         }
 
-        // If unit_id wasn't found, use a default (you might want to handle this differently)
+        // Last fallback only if UOM records exist.
         if (!unit_id) {
           console.warn(`No UOM found for abbreviation: ${item.unit}`);
-          // Use the first UOM as a fallback
-          unit_id = uomRecords.length > 0 ? uomRecords[0].id : 1;
+          unit_id = uomRecords.length > 0 ? uomRecords[0].id : null;
+        }
+
+        if (!unit_id) {
+          throw new Error(`Unit is required for item_id ${item.item_id}`);
         }
 
         return {
@@ -256,8 +256,8 @@ export const updateMenu = async (req, res) => {
 
     // Step 3: Handle items (if provided) - similar to createMenu but for updates
     if (items && Array.isArray(items) && items.length > 0) {
-      // Fetch all UOM records to map abbreviations to IDs
-      const uomRecords = await UOM.findAll({}, { transaction });
+      // Fetch all UOM records once to map abbreviations to IDs when needed
+      const uomRecords = await UOM.findAll({ transaction });
       const uomMap = {};
       uomRecords.forEach(uom => {
         uomMap[uom.abbreviation.toLowerCase()] = uom.id;
@@ -268,13 +268,16 @@ export const updateMenu = async (req, res) => {
 
       // Process incoming items
       const incomingItems = items.map(item => {
-        let unit_id = null;
-        if (item.unit && typeof item.unit === 'string') {
+        let unit_id = item.unit_id || null;
+        if (!unit_id && item.unit && typeof item.unit === 'string') {
           unit_id = uomMap[item.unit.toLowerCase()];
         }
         if (!unit_id) {
           console.warn(`No UOM found for abbreviation: ${item.unit}`);
-          unit_id = uomRecords.length > 0 ? uomRecords[0].id : 1;
+          unit_id = uomRecords.length > 0 ? uomRecords[0].id : null;
+        }
+        if (!unit_id) {
+          throw new Error(`Unit is required for item_id ${item.item_id}`);
         }
 
         return {
@@ -3024,7 +3027,11 @@ export const getFoodOrders = async (req, res) => {
 
     // Filter by status
     if (status) {
-      whereClause.status = status;
+      const statusList = String(status)
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+      whereClause.status = statusList.length > 1 ? { [Op.in]: statusList } : statusList[0];
     }
 
     // Filter by date range
@@ -3057,6 +3064,77 @@ export const getFoodOrders = async (req, res) => {
   } catch (error) {
     console.error('Food orders fetch error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const recordItemReturn = async (req, res) => {
+  const { items, return_date, reason } = req.body;
+  const hostel_id = req.user.hostel_id;
+  const user_id = req.user.userId;
+  const transaction = await sequelize.transaction();
+
+  try {
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: 'Items array is required.' });
+    }
+
+    const results = [];
+
+    for (const payload of items) {
+      const { item_id, quantity_returned } = payload;
+      const qty = parseFloat(quantity_returned);
+
+      if (!item_id || !qty || qty <= 0) throw new Error('Invalid return data: item_id and positive quantity required.');
+
+      // 1. Find the most recently depleted or active batch for this item/hostel to credit back
+      const latestBatch = await InventoryBatch.findOne({
+        where: { item_id, hostel_id, status: { [Op.in]: ['active', 'depleted'] } },
+        order: [['purchase_date', 'DESC'], ['id', 'DESC']],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (!latestBatch) throw new Error(`No inventory batch found for item_id ${item_id}.`);
+
+      // 2. Add returned qty back to the batch
+      latestBatch.quantity_remaining = parseFloat(latestBatch.quantity_remaining) + qty;
+      if (latestBatch.status === 'depleted') latestBatch.status = 'active';
+      await latestBatch.save({ transaction });
+
+      // 3. Update ItemStock
+      const stock = await ItemStock.findOne({
+        where: { item_id, hostel_id },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!stock) throw new Error(`ItemStock missing for item ${item_id}.`);
+
+      stock.current_stock = parseFloat(stock.current_stock) + qty;
+      stock.last_updated = new Date();
+      await stock.save({ transaction });
+
+      // 4. Log a negative consumption record (return transaction)
+      const returnRecord = await DailyConsumption.create({
+        hostel_id,
+        item_id,
+        consumption_date: return_date || new Date(),
+        quantity_consumed: -qty,           // negative = return
+        unit: payload.unit_id || latestBatch.item_id, // fallback
+        meal_type: 'snacks',
+        recorded_by: user_id,
+        total_cost: -(qty * parseFloat(latestBatch.unit_price)),
+      }, { transaction });
+
+      results.push(returnRecord);
+    }
+
+    await transaction.commit();
+    res.status(201).json({ success: true, message: 'Items returned to stock successfully.', data: results });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Item return error:', error);
+    res.status(500).json({ success: false, message: `Server error: ${error.message}` });
   }
 };
 
@@ -4656,7 +4734,8 @@ export const getSessions = async (req, res) => {
 export const createStudentFee = async (req, res) => {
   try {
     const { student_id, fee_type, amount, description, month, year } = req.body;
-    const { hostel_id, id: issued_by } = req.user;
+    const { hostel_id } = req.user;
+    const issued_by = req.user.userId || req.user.id;
 
     const fee = await StudentFee.create({
       student_id, hostel_id, fee_type, amount, description, month, year, issued_by
@@ -4675,7 +4754,8 @@ export const createBulkStudentFee = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { session_id, fee_type, amount, month, year, student_ids, description } = req.body;
-    const { hostel_id, id: issued_by } = req.user;
+    const { hostel_id } = req.user;
+    const issued_by = req.user.userId || req.user.id;
 
     let targetStudentIds = [];
 
@@ -6582,7 +6662,8 @@ export const createBedFee = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { student_id, amount, month, year, description } = req.body;
-    const { hostel_id, id: issued_by } = req.user;
+    const { hostel_id } = req.user;
+    const issued_by = req.user.userId || req.user.id;
 
     // Validate input
     if (!student_id || !amount || !month || !year) {
@@ -6706,7 +6787,8 @@ export const createBulkBedFees = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { amount, month, year, session_id } = req.body;
-    const { hostel_id, id: issued_by } = req.user;
+    const { hostel_id } = req.user;
+    const issued_by = req.user.userId || req.user.id;
 
     if (!amount || !month || !year || !session_id) {
       await transaction.rollback();

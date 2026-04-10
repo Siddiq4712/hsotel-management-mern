@@ -1,4 +1,8 @@
-import { Attendance, User, Hostel } from '../models/index.js';
+import { Op } from 'sequelize';
+import { GPSAttendance, GPSAttendanceSession } from '../models/index.js';
+import { getTimeZoneDateString } from '../utils/dateUtils.js';
+
+const getLocalDateString = () => getTimeZoneDateString();
 
 // Helper function remains local to the file
 const getDistance = (lat1, lon1, lat2, lon2) => {
@@ -18,54 +22,96 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
 
 export const markGpsAttendance = async (req, res) => {
   try {
-    const { user_id, latitude, longitude, device_id } = req.body;
+    const { latitude, longitude, device_id } = req.body;
+    const user_id = req.user?.userId || req.user?.id;
+    const hostel_id = req.user?.hostel_id;
 
-    const user = await User.findByPk(user_id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user_id) return res.status(401).json({ message: 'User not authenticated' });
+    if (!hostel_id) return res.status(400).json({ message: 'Hostel binding missing on your account.' });
+    if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude))) {
+      return res.status(400).json({ message: 'Valid latitude and longitude are required.' });
+    }
+    if (!device_id) return res.status(400).json({ message: 'Device ID is required.' });
 
-    // Device binding (student)
-    if (!user.device_id) {
-      user.device_id = device_id;
-      await user.save();
-    } else if (user.device_id !== device_id) {
-      return res.status(403).json({ message: 'Device mismatch' });
+    const sessionType = String(req.body.session || 'EVENING').toUpperCase();
+    const now = new Date();
+    const today = getLocalDateString();
+
+    const activeSession = await GPSAttendanceSession.findOne({
+      where: {
+        hostel_id,
+        session: sessionType,
+        attendance_date: today,
+        is_active: true,
+        start_time: { [Op.lte]: now },
+        end_time: { [Op.gte]: now }
+      },
+      order: [['start_time', 'DESC']]
+    });
+
+    if (!activeSession) {
+      return res.status(404).json({ message: 'No active attendance session' });
     }
 
-    // Assuming the user is linked to a hostel (based on your models/index.js logic)
-    const hostel = await Hostel.findOne({ where: { is_active: true } });
-    
-    // Note: Ensure your Hostel model actually has latitude/longitude fields 
-    // as they weren't in the snippet you provided earlier.
     const distance = getDistance(
-      hostel.latitude,
-      hostel.longitude,
-      latitude,
-      longitude
+      activeSession.geofence_lat,
+      activeSession.geofence_lng,
+      Number(latitude),
+      Number(longitude)
     );
 
-    if (distance > 100) {
-      return res.status(403).json({ message: 'Outside hostel (100m)' });
-    }
-
-    const today = new Date().toISOString().slice(0, 10);
-
-    const exists = await Attendance.findOne({
-      where: { student_id: user_id, date: today }
+    const exists = await GPSAttendance.findOne({
+      where: {
+        user_id,
+        hostel_id,
+        attendance_date: today,
+        session: sessionType
+      }
     });
+
+    const within = distance <= activeSession.geofence_radius_m;
 
     if (exists) {
-      return res.status(409).json({ message: 'Already marked today' });
+      if (within && exists.status !== 'P') {
+        exists.status = 'P';
+        exists.latitude = Number(latitude);
+        exists.longitude = Number(longitude);
+        exists.distance = distance;
+        exists.marked_at = now;
+        exists.device_id = device_id;
+        await exists.save();
+      }
+
+      const statusMessage =
+        exists.status === 'P'
+          ? 'Attendance marked present'
+          : 'Attendance marked absent';
+
+      return res.json({
+        message: statusMessage,
+        status: exists.status,
+        distance,
+        record: exists
+      });
     }
 
-    await Attendance.create({
-      student_id: user_id,
-      hostel_id: user.hostel_id, // Added based on your model requirements
-      date: today,
-      status: 'P',
-      marked_by: user_id
+    const record = await GPSAttendance.create({
+      user_id,
+      hostel_id,
+      attendance_date: today,
+      session: sessionType,
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+      distance,
+      status: within ? 'P' : 'A',
+      device_id
     });
 
-    res.json({ message: 'Attendance marked successfully' });
+    const message = within
+      ? 'Attendance marked present'
+      : 'Outside geofence, marked absent';
+
+    res.json({ message, status: record.status, distance, record });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal server error' });
@@ -73,17 +119,17 @@ export const markGpsAttendance = async (req, res) => {
 };
 
 export const getTodaySummary = async (req, res) => {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDateString();
 
   try {
-    const totalAttendance = await Attendance.count({
-      where: { date: today }
+    const totalAttendance = await GPSAttendance.count({
+      where: { attendance_date: today }
     });
 
     res.json({
       date: today,
       total_attendance: totalAttendance,
-      message: "Today's attendance summary"
+      message: "Today's GPS attendance summary"
     });
   } catch (error) {
     console.error('Error fetching attendance summary:', error);

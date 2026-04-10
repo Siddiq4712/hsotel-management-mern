@@ -1,8 +1,24 @@
 import React, { createContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authAPI } from '../api/api';
+import { authAPI, setAuthToken } from '../api/api';
+import { normalizeRole } from '../utils/role';
 
 export const AuthContext = createContext();
+
+const normalizeUser = (rawUser) => {
+  if (!rawUser) return rawUser;
+  // Prefer explicit role text from backend; numeric role IDs can vary between deployments.
+  const roleSource =
+    rawUser.roleName ??
+    rawUser?.role?.roleName ??
+    rawUser.role ??
+    rawUser.roleId;
+
+  return {
+    ...rawUser,
+    role: normalizeRole(roleSource),
+  };
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -16,7 +32,8 @@ export const AuthProvider = ({ children }) => {
         const savedUser = await AsyncStorage.getItem('user');
 
         if (token && savedUser) {
-          setUser(JSON.parse(savedUser));
+          setAuthToken(token);
+          setUser(normalizeUser(JSON.parse(savedUser)));
         }
       } catch (error) {
         console.error('Failed to load user from storage:', error);
@@ -34,10 +51,12 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       const response = await authAPI.login(credentials);
       const { token, user: userData } = response.data;
+      const normalizedUser = normalizeUser(userData);
 
       await AsyncStorage.setItem('token', token);
-      await AsyncStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
+      await AsyncStorage.setItem('user', JSON.stringify(normalizedUser));
+      setAuthToken(token);
+      setUser(normalizedUser);
 
       return { success: true };
     } catch (error) {
@@ -51,9 +70,11 @@ export const AuthProvider = ({ children }) => {
   const completeExternalLogin = async (token, userData) => {
     try {
       setLoading(true);
+      const normalizedUser = normalizeUser(userData);
       await AsyncStorage.setItem('token', token);
-      await AsyncStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
+      await AsyncStorage.setItem('user', JSON.stringify(normalizedUser));
+      setAuthToken(token);
+      setUser(normalizedUser);
       return { success: true };
     } catch (error) {
       console.error('External login storage error:', error);
@@ -67,6 +88,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
+      setAuthToken(null);
       setUser(null);
     } catch (error) {
       console.error('Failed to logout:', error);
