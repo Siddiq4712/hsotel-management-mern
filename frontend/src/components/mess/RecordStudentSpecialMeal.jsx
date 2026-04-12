@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Card, Form, Button, Select, InputNumber, message, DatePicker,
+  App as AntdApp, Card, Form, Button, Select, InputNumber, DatePicker,
   Row, Col, Typography, Input, ConfigProvider, theme
 } from 'antd';
 import { Plus, Trash2, Save, Utensils, User, Calendar, ClipboardList, CreditCard, Info, ChevronDown } from 'lucide-react';
@@ -50,6 +50,7 @@ const TotalAmount = ({ items, foodMap }) => {
 
 /* ─── Main Component ─── */
 const RecordStudentSpecialMeal = ({ onSuccess }) => {
+  const { message } = AntdApp.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -161,7 +162,14 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
                       className="ssm-select"
                       suffixIcon={<User size={14} />}
                     >
-                      {students.map(s => <Option key={s.id} value={s.id}>{s.userName}</Option>)}
+                      {students.map((s, index) => {
+                        const studentId = s.userId ?? s.id ?? `student-${index}`;
+                        return (
+                          <Option key={studentId} value={studentId}>
+                            {s.userName}
+                          </Option>
+                        );
+                      })}
                     </Select>
                   </Form.Item>
 
