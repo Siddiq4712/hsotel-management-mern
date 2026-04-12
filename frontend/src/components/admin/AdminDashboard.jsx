@@ -205,7 +205,7 @@ const AdminDashboard = () => {
         </div>
 
         {/* Fee Protocol Panel */}
-        <Card className="border-none shadow-sm rounded-[36px] overflow-hidden bg-white p-1">
+        {/* <Card className="border-none shadow-sm rounded-[36px] overflow-hidden bg-white p-1">
           <div className="bg-gradient-to-r from-blue-50/80 via-indigo-50/40 to-white rounded-[32px] p-8 flex flex-col xl:flex-row items-center justify-between gap-8 relative border border-blue-50/50">
             <div className="relative z-10 flex items-center gap-6">
               <div className="p-5 bg-blue-600 rounded-[24px] shadow-lg shadow-blue-200">
@@ -238,7 +238,7 @@ const AdminDashboard = () => {
                </Button>
             </div>
           </div>
-        </Card>
+        </Card> */}
 
         {/* Statistics Grid */}
         <Row gutter={[24, 24]}>

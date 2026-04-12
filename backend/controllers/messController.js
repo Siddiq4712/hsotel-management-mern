@@ -3527,7 +3527,8 @@ export const getSummarizedConsumptionReport = async (req, res) => {
 
 export const markMenuAsServed = async (req, res) => {
   const { id } = req.params; // MenuSchedule ID
-  const { hostel_id, id: userId } = req.user;
+  // FIX 1: Use userId consistently based on your other functions
+  const { hostel_id, userId } = req.user; 
   const transaction = await sequelize.transaction();
 
   try {
@@ -3537,7 +3538,11 @@ export const markMenuAsServed = async (req, res) => {
         include: [{
             model: MenuItem,
             as: 'tbl_Menu_Items',
-            include: [{ model: Item, as: 'tbl_Item', include: [{ model: UOM, as: 'UOM' }] }]
+            include: [{ 
+              model: Item, 
+              as: 'tbl_Item', 
+              include: [{ model: UOM, as: 'UOM' }] // Verify alias matches model
+            }]
         }]
       }],
       transaction,
@@ -3546,8 +3551,9 @@ export const markMenuAsServed = async (req, res) => {
 
     if (!schedule || schedule.hostel_id !== hostel_id) {
       await transaction.rollback();
-      return res.status(404).json({ success: false, message: 'Menu schedule not found or unauthorized' });
+      return res.status(404).json({ success: false, message: 'Menu schedule not found' });
     }
+
     if (schedule.status === 'served') {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Menu is already marked as served' });
@@ -3562,159 +3568,94 @@ export const markMenuAsServed = async (req, res) => {
       meal_type: schedule.meal_time
     }));
 
+    // This calls your FIFO / Weighted Avg logic
     const { lowStockItems } = await _recordBulkConsumptionLogic(consumptions, hostel_id, userId, transaction);
     
-    // Recalculate the exact cost from consumption logs for accuracy (but not used for charging)
-    const totalServedMenuCostForDay = (await DailyConsumption.sum('total_cost', {
-        where: { consumption_date: schedule.scheduled_date, meal_type: schedule.meal_time, hostel_id },
-        transaction
-    })) || 0;
-
-    // --- Step 2: Identify chargeable students (Man-Days) ---
+    // --- Step 2: Identify chargeable students ---
     const activeEnrollments = await Enrollment.findAll({
-      where: { hostel_id },
+      where: { hostel_id, status: 'active' },
       attributes: ['student_id'],
       raw: true,
       transaction
     });
     const allActiveStudentIds = activeEnrollments.map(e => e.student_id);
 
-    if (allActiveStudentIds.length === 0) {
-      await schedule.update({ status: 'served' }, { transaction });
-      await transaction.commit();
-      return res.status(200).json({
-        success: true,
-        message: 'Menu marked as served. No active students found for this day.',
-        data: { lowStockItems }
-      });
-    }
-
     const attendanceRecords = await Attendance.findAll({
-      where: { student_id: { [Op.in]: allActiveStudentIds }, date: schedule.scheduled_date },
+      where: { 
+        student_id: { [Op.in]: allActiveStudentIds }, 
+        date: schedule.scheduled_date 
+      },
       attributes: ['student_id', 'status'],
       raw: true,
       transaction
     });
     const attendanceMap = new Map(attendanceRecords.map(att => [att.student_id, att.status]));
 
-    // FIXED: Correct mapping to full ENUM strings for DailyMessCharge model
-    const mapAttendanceToChargeStatus = (attStatus, studentId, rowIndex) => {
-      // Ensure attStatus is a non-null string
-      let normalizedStatus = (attStatus || '').toString().trim().toUpperCase(); // Uppercase for ENUM match ('P', 'A', 'OD')
-      
-      // Log the raw value for debugging
-      console.log(`[markMenuAsServed] Row ${rowIndex + 1} (Student ${studentId}): Raw attendanceStatus = "${attStatus}" -> Normalized = "${normalizedStatus}"`);
-
-      // Map to exact DailyMessCharge.attendance_status ENUM values (assuming ENUM('present', 'absent', 'on_duty', 'not_marked'))
-      let chargeStatus;
-      switch (normalizedStatus) {
-        case 'P':
-          chargeStatus = 'present';
-          break;
-        case 'A':
-          chargeStatus = 'absent';
-          break;
-        case 'OD':
-          chargeStatus = 'on_duty';
-          break;
-        default:
-          chargeStatus = 'not_marked'; // Safe fallback matching ENUM
-          console.warn(`[markMenuAsServed] Row ${rowIndex + 1} (Student ${studentId}): Unexpected status "${normalizedStatus}". Defaulting to '${chargeStatus}'.`);
-      }
-
-      // Validate length (assuming VARCHAR(20) or ENUM with these values)
-      if (chargeStatus.length > 20) { // Adjust max length based on your schema
-        console.error(`[markMenuAsServed] Row ${rowIndex + 1} (Student ${studentId}): Status "${chargeStatus}" too long. Truncating.`);
-        chargeStatus = chargeStatus.substring(0, 20);
-      }
-
-      // Log final mapped value
-      console.log(`[markMenuAsServed] Row ${rowIndex + 1} (Student ${studentId}): Final chargeStatus = "${chargeStatus}" (length: ${chargeStatus.length})`);
-
-      return chargeStatus;
+    // Helper to map status to DB Enums
+    const mapAttendanceToChargeStatus = (attStatus) => {
+      const status = (attStatus || '').toString().trim().toUpperCase();
+      if (status === 'P') return 'present';
+      if (status === 'A') return 'absent';
+      if (status === 'OD') return 'on_duty';
+      return 'not_marked';
     };
 
-    const dailyChargesToCreate = [];
-    let studentsToChargeCount = 0;
-    const invalidStatuses = []; // Track for summary
-
-    for (let i = 0; i < allActiveStudentIds.length; i++) {
-      const studentId = allActiveStudentIds[i];
-      const attendanceStatus = attendanceMap.get(studentId) || null;
-      const chargeStatus = mapAttendanceToChargeStatus(attendanceStatus, studentId, i); // Pass row index for logging
-      
-      // Double-check against expected ENUM values (exact match for DailyMessCharge)
-      const validStatuses = ['present', 'absent', 'on_duty', 'not_marked']; // Full ENUM values
-      if (!validStatuses.includes(chargeStatus)) {
-        console.error(`[markMenuAsServed] Row ${i + 1} (Student ${studentId}): Invalid final chargeStatus "${chargeStatus}". Skipping this student.`);
-        invalidStatuses.push({ studentId, attendanceStatus, chargeStatus });
-        continue;
-      }
-
-      const is_charged = (attendanceStatus === 'P');
-
-      if (is_charged) {
-        studentsToChargeCount++;
-      }
-      
-      dailyChargesToCreate.push({
-        hostel_id,
-        student_id: studentId,
-        date: schedule.scheduled_date,
-        amount: 0, // This will be updated with the cost per serving
-        attendance_status: chargeStatus, // Now full ENUM string
-        is_charged: is_charged,
-      });
-    }
-
-    // --- Step 3: Record the daily charge with cost per serving ---
     const costPerServing = parseFloat(schedule.cost_per_serving) || 0;
     
-    const finalDailyCharges = dailyChargesToCreate.map(charge => ({
-        ...charge,
-        amount: charge.is_charged ? costPerServing : 0
-    }));
+    // --- Step 3: Accumulate Charges ---
+    // We use a map to ensure we only have ONE entry per student per date
+    const chargesMap = new Map();
 
-    // Log the full array of statuses before bulkCreate for debugging
-    console.log(`[markMenuAsServed] Final statuses for bulkCreate (${finalDailyCharges.length} charges):`, finalDailyCharges.map(c => ({ student: c.student_id, status: c.attendance_status, length: c.attendance_status.length })));
+    for (const studentId of allActiveStudentIds) {
+      const rawStatus = attendanceMap.get(studentId);
+      const chargeStatus = mapAttendanceToChargeStatus(rawStatus);
+      const is_charged = (rawStatus === 'P');
+      const amount = is_charged ? costPerServing : 0;
 
-    // Alternative: Accumulate in markMenuAsServed (single row per student/date)
-
-// After preparing finalDailyCharges...
-if (finalDailyCharges.length > 0) {
-  // Group charges by student_id (since date is same for all)
-  const chargesByStudent = {};
-  finalDailyCharges.forEach(charge => {
-    if (!chargesByStudent[charge.student_id]) {
-      chargesByStudent[charge.student_id] = charge;
-    } else {
-      // Add to existing amount (accumulate meal costs)
-      chargesByStudent[charge.student_id].amount += charge.amount;
+      // Check if student already has a charge record for this date (e.g. from a previous meal)
+      const existingInCurrentBatch = chargesMap.get(studentId);
+      
+      if (existingInCurrentBatch) {
+        existingInCurrentBatch.amount += amount;
+      } else {
+        chargesMap.set(studentId, {
+          hostel_id,
+          student_id: studentId,
+          date: schedule.scheduled_date,
+          amount: amount,
+          attendance_status: chargeStatus,
+          is_charged: is_charged
+        });
+      }
     }
-  });
 
-  const accumulatedCharges = Object.values(chargesByStudent);
+    const accumulatedCharges = Array.from(chargesMap.values());
 
-  // Now bulkCreate with updateOnDuplicate to handle accumulation
-  await DailyMessCharge.bulkCreate(accumulatedCharges, {
-    updateOnDuplicate: ['amount', 'attendance_status', 'is_charged'],  // Overwrites other fields but amount is now summed
-    transaction
-  });
-}
+    if (accumulatedCharges.length > 0) {
+      // FIX 2: updateOnDuplicate requires unique keys in the table 
+      // Ensure student_id and date are part of a Unique Index in your DB
+      await DailyMessCharge.bulkCreate(accumulatedCharges, {
+        updateOnDuplicate: ['amount', 'attendance_status', 'is_charged'],
+        transaction
+      });
+    }
     
     await schedule.update({ status: 'served' }, { transaction });
     await transaction.commit();
     
     res.status(200).json({
       success: true,
-      message: `Menu served. Cost per serving of â‚¹${costPerServing.toFixed(2)} recorded for ${studentsToChargeCount} present students. Skipped ${invalidStatuses.length} due to invalid status.`,
-      data: { lowStockItems, invalidStatuses } // Include for frontend debugging if needed
+      message: `Menu served successfully.`,
+      data: { lowStockItems }
     });
 
   } catch (error) {
-    await transaction.rollback();
-    console.error('[markMenuAsServed] Error:', error.message, error.stack);
-    res.status(500).json({success: false, message: `Server error: ${error.message}` });
+    if (transaction) await transaction.rollback();
+    console.error('[markMenuAsServed] CRITICAL ERROR:', error);
+    res.status(500).json({
+      success: false, 
+      message: error.message.includes('stock') ? error.message : 'Database error during serving' 
+    });
   }
 };
 // DEPRECATED: This function is replaced by the new monthly calculation in generateMonthlyMessReport.
@@ -4961,7 +4902,8 @@ export const getStudentFees = async (req, res) => {
 export const createIncomeEntry = async (req, res) => {
   console.log('--- [START] Create Income Entry (Cash Token/Sister Concern) ---');
   const { type, amount, description, date } = req.body;
-  const { hostel_id, id: recorded_by } = req.user;
+  const { hostel_id } = req.user;
+  const recorded_by = req.user.userId || req.user.id;
 
   try {
     console.log('[LOG] Received payload:', req.body);
@@ -6053,7 +5995,8 @@ export const exportUnitRateCalculation = async (req, res) => {
 export const createCreditToken = async (req, res) => {
   console.log('--- [START] Create Credit Token ---');
   const { concern_id, amount, date } = req.body;
-  const { hostel_id, id: recorded_by } = req.user;
+  const { hostel_id } = req.user;
+  const recorded_by = req.user.userId || req.user.id;
 
   try {
     console.log('[LOG] Received payload for CREATE:', req.body);

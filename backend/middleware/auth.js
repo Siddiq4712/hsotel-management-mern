@@ -35,7 +35,7 @@ export const auth = async (req, res, next) => {
     const user = await User.findByPk(decoded.userId, {
       attributes: { exclude: ['password'] },
       include: [{ model: Role, as: 'role', attributes: ['roleName'] }]
-    });
+    }); 
 
     console.log('Auth middleware - User found:', user ? user.userName : 'Not found');
 

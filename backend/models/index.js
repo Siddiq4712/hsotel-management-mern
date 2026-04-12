@@ -1268,6 +1268,13 @@ export const initAssociations = () => {
   MessDailyExpense.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy', targetKey: 'userId' });
   User.hasMany(MessDailyExpense, { foreignKey: 'recorded_by', as: 'RecordedMessExpenses', sourceKey: 'userId' });
 
+  AdditionalIncome.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+  Hostel.hasMany(AdditionalIncome, { foreignKey: 'hostel_id' });
+  AdditionalIncome.belongsTo(IncomeType, { foreignKey: 'income_type_id', as: 'IncomeType' });
+  IncomeType.hasMany(AdditionalIncome, { foreignKey: 'income_type_id', as: 'AdditionalIncomes' });
+  AdditionalIncome.belongsTo(User, { foreignKey: 'received_by', as: 'IncomeReceivedBy', targetKey: 'userId' });
+  User.hasMany(AdditionalIncome, { foreignKey: 'received_by', as: 'ReceivedAdditionalIncomes', sourceKey: 'userId' });
+
   Transaction.belongsTo(User, { foreignKey: 'student_id', as: 'TransactionStudent', targetKey: 'userId' });
   Transaction.belongsTo(User, { foreignKey: 'processed_by', as: 'ProcessedBy', targetKey: 'userId' });
 
