@@ -7,10 +7,8 @@ import {
   DayReductionRequest, Rebate, DailyRateLog, HostelLayout, AdditionalCollection, AdditionalCollectionType, Role, sequelize
 } from '../models/index.js';
 
-// Helper: Safely get hostel ID and prevent the "0" error
 const getHostelId = (user) => {
   const hId = user?.hostelId || user?.hostel_id;
-  // If ID is 0, undefined, or null, return null (database prefers null over 0)
   return (hId && hId !== 0) ? hId : null;
 };
 
@@ -109,7 +107,7 @@ export const enrollStudent = async (req, res) => {
 
       await Enrollment.create({
          student_id: student.userId,
-         hostel_id: warden_hostel_id, 
+         hostel_id: hostel_id, 
          session_id,
          requires_bed: !!requires_bed,
          college: college || 'nec',
@@ -128,26 +126,43 @@ export const enrollStudent = async (req, res) => {
 // 2. GET STUDENTS: This ensures the newly enrolled students show up in the Warden list
 export const getStudents = async (req, res) => {
    try {
-      const warden_hostel_id = req.user.hostelId || req.user.hostel_id;
+      const warden_hostel_id = getHostelId(req.user);
+      const enrollmentYear = req.query.enrollment_year?.toString().trim();
       
       if (!warden_hostel_id) {
          return res.status(400).json({ success: false, message: "Hostel ID missing from session." });
       }
 
-      // Fetch students belonging to this hostel with role 'student' (usually 2)
+      const studentRoleIds = await getStudentRoleIds();
+
+      const enrollmentInclude = {
+         model: Enrollment,
+         as: 'tbl_Enrollment',
+         where: { status: 'active' },
+         required: Boolean(enrollmentYear),
+         include: [
+            {
+              model: Session,
+              attributes: ['name'],
+              where: enrollmentYear ? { name: enrollmentYear } : undefined,
+              required: Boolean(enrollmentYear)
+            }
+         ]
+      };
+
+      if (!enrollmentYear) {
+         enrollmentInclude.required = false;
+      }
+
       const studentsWithModels = await User.findAll({
          where: { 
             hostel_id: warden_hostel_id,
-            // We search for status: true because it maps to is_active = 1 in SQL
-            status: true 
+            status: true,
+            roleId: { [Op.in]: studentRoleIds } 
          },
          attributes: { exclude: ['password'] },
          include: [
-            {
-               model: Enrollment,
-               as: 'tbl_Enrollment',
-               include: [{ model: Session, attributes: ['name'] }]
-            },
+            enrollmentInclude,
             {
                 model: RoomAllotment,
                 as: 'tbl_RoomAllotments',
@@ -159,31 +174,31 @@ export const getStudents = async (req, res) => {
          order: [['userName', 'ASC']] 
       });
 
-      // Map data to match the format expected by ManageStudents.jsx
       const formattedData = studentsWithModels.map(s => {
          const plain = s.get({ plain: true });
-         
-         // Extract room number from the active allotment if it exists
          const activeRoom = plain.tbl_RoomAllotments && plain.tbl_RoomAllotments.length > 0 
             ? plain.tbl_RoomAllotments[0].HostelRoom 
             : null;
+         const enrollmentSessionName = plain.tbl_Enrollment?.[0]?.Session?.name || null;
 
          return {
             ...plain,
-            id: plain.userId, // Maps SQL 'id' back to 'id' for frontend Table
+            id: plain.userId, 
             username: plain.userName,
-            session: plain.tbl_Enrollment?.[0]?.Session?.name || 'N/A',
+            session: enrollmentSessionName || 'N/A',
+            enrollment_year: enrollmentSessionName,
+            session_id: plain.tbl_Enrollment?.[0]?.session_id || null,
             college: plain.tbl_Enrollment?.[0]?.college || 'N/A',
             room_number: activeRoom ? activeRoom.room_number : null
          };
       });
 
-      await transaction.commit();
-      res.status(201).json({
+      // Send the response
+      return res.status(200).json({
          success: true,
-         message: 'Student registered successfully',
-         data: { id: student.userId, userName: student.userName, email: normalizedEmail }
+         data: formattedData
       });
+
    } catch (error) {
       console.error('Warden GetStudents Error:', error);
       res.status(500).json({ success: false, message: error.message });
