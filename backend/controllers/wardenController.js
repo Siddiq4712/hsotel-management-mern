@@ -7,7 +7,6 @@ import {
   DayReductionRequest, Rebate, DailyRateLog, HostelLayout, AdditionalCollection, AdditionalCollectionType, Role, sequelize
 } from '../models/index.js';
 
-// Helper: Safely get hostel ID and prevent the "0" error
 const getHostelId = (user) => {
   const hId = user?.hostelId || user?.hostel_id;
   return (hId && hId !== 0) ? hId : null;
@@ -107,14 +106,14 @@ export const enrollStudent = async (req, res) => {
       }
 
       await Enrollment.create({
-   student_id: student.userId,
-   hostel_id: hostel_id, // FIXED: Use the correct variable defined at the top
-   session_id,
-   requires_bed: !!requires_bed,
-   college: college || 'nec',
-   roll_number,
-   status: 'active'
-}, { transaction });
+         student_id: student.userId,
+         hostel_id: hostel_id, 
+         session_id,
+         requires_bed: !!requires_bed,
+         college: college || 'nec',
+         roll_number,
+         status: 'active'
+      }, { transaction });
 
       await transaction.commit();
       res.status(201).json({ success: true, message: 'Student registered successfully' });
@@ -128,12 +127,32 @@ export const enrollStudent = async (req, res) => {
 export const getStudents = async (req, res) => {
    try {
       const warden_hostel_id = getHostelId(req.user);
+      const enrollmentYear = req.query.enrollment_year?.toString().trim();
       
       if (!warden_hostel_id) {
          return res.status(400).json({ success: false, message: "Hostel ID missing from session." });
       }
 
       const studentRoleIds = await getStudentRoleIds();
+
+      const enrollmentInclude = {
+         model: Enrollment,
+         as: 'tbl_Enrollment',
+         where: { status: 'active' },
+         required: Boolean(enrollmentYear),
+         include: [
+            {
+              model: Session,
+              attributes: ['name'],
+              where: enrollmentYear ? { name: enrollmentYear } : undefined,
+              required: Boolean(enrollmentYear)
+            }
+         ]
+      };
+
+      if (!enrollmentYear) {
+         enrollmentInclude.required = false;
+      }
 
       const studentsWithModels = await User.findAll({
          where: { 
@@ -143,11 +162,7 @@ export const getStudents = async (req, res) => {
          },
          attributes: { exclude: ['password'] },
          include: [
-            {
-               model: Enrollment,
-               as: 'tbl_Enrollment',
-               include: [{ model: Session, attributes: ['name'] }]
-            },
+            enrollmentInclude,
             {
                 model: RoomAllotment,
                 as: 'tbl_RoomAllotments',
@@ -164,12 +179,15 @@ export const getStudents = async (req, res) => {
          const activeRoom = plain.tbl_RoomAllotments && plain.tbl_RoomAllotments.length > 0 
             ? plain.tbl_RoomAllotments[0].HostelRoom 
             : null;
+         const enrollmentSessionName = plain.tbl_Enrollment?.[0]?.Session?.name || null;
 
          return {
             ...plain,
             id: plain.userId, 
             username: plain.userName,
-            session: plain.tbl_Enrollment?.[0]?.Session?.name || 'N/A',
+            session: enrollmentSessionName || 'N/A',
+            enrollment_year: enrollmentSessionName,
+            session_id: plain.tbl_Enrollment?.[0]?.session_id || null,
             college: plain.tbl_Enrollment?.[0]?.college || 'N/A',
             room_number: activeRoom ? activeRoom.room_number : null
          };
