@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Calendar, Badge, Button, Modal, Form, Select, DatePicker,
-  message, InputNumber, Typography, Space, List, Tag, Popconfirm, Row, Col,
-  Tooltip, Spin, Divider, ConfigProvider, theme, Skeleton
+  InputNumber, Typography, Space, List, Tag, Popconfirm, Row, Col,
+  Tooltip, Spin, Divider, ConfigProvider, theme, Skeleton, App as AntdApp
 } from 'antd';
 // Lucide icons for consistency
 import {
@@ -17,6 +17,7 @@ const { Option } = Select;
 const { Text, Title } = Typography;
 
 const MenuPlanner = () => {
+  const { message } = AntdApp.useApp();
   const [menus, setMenus] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -74,8 +75,9 @@ const MenuPlanner = () => {
   };
 
   // --- Date Cell Rendering ---
-  const dateCellRender = (date) => {
-    const dateStr = date.format('YYYY-MM-DD');
+  const renderDateCell = (date) => {
+    const dateValue = moment.isMoment(date) ? date : moment(date?.toDate?.() || date);
+    const dateStr = dateValue.format('YYYY-MM-DD');
     const schedules = dailySchedules[dateStr] || [];
     
     return (
@@ -105,7 +107,7 @@ const MenuPlanner = () => {
             className="text-[10px] h-6 flex items-center justify-center border-blue-200 text-blue-600 bg-blue-50/50 hover:bg-blue-600 hover:text-white"
             onClick={(e) => {
                 e.stopPropagation();
-                handleDateAction(date);
+                handleDateAction(dateValue);
             }}
           >
             Manage
@@ -185,12 +187,15 @@ const MenuPlanner = () => {
         </div>
 
         {/* Calendar Card */}
-        <Card className="border-none shadow-sm rounded-2xl overflow-hidden" bodyStyle={{ padding: '24px' }}>
+        <Card className="border-none shadow-sm rounded-2xl overflow-hidden" styles={{ body: { padding: '24px' } }}>
           {loading ? (
             <div className="p-20 text-center"><Skeleton active paragraph={{ rows: 10 }} /></div>
           ) : (
             <Calendar
-              dateCellRender={dateCellRender}
+              cellRender={(current, info) => {
+                if (info.type !== 'date') return info.originNode;
+                return renderDateCell(current);
+              }}
               onPanelChange={(date) => setCurrentMonth(date)}
               onSelect={(date) => {
                   // Only trigger if clicking a date, but let the "Manage" button handle specific logic

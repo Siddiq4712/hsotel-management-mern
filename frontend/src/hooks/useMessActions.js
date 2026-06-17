@@ -1,10 +1,12 @@
-import { Modal, message } from 'antd';
+import { App as AntdApp } from 'antd';
 
 /**
  * Custom hook for safe modal confirmations and messages
  * Suppresses Ant Design v5 theme context warnings
  */
 export const useMessActions = () => {
+  const { modal, message } = AntdApp.useApp();
+
   // Suppress theme context warning by wrapping static functions
   const showDeleteConfirm = (config) => {
     const { onOk, onCancel, title, content, okText = 'Delete', cancelText = 'Cancel' } = config;
@@ -26,7 +28,7 @@ export const useMessActions = () => {
       onCancel,
     };
     
-    Modal.confirm(modalContext);
+    modal.confirm(modalContext);
   };
 
   const showSuccess = (msg) => {

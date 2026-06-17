@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { 
   Card, Table, Tag, Button, Select, Space, Typography, 
-  Modal, Input, Badge, Descriptions, Empty, message, ConfigProvider, theme, Tooltip, Skeleton, Row, Col, Statistic 
+  Modal, Input, Badge, Descriptions, Empty, ConfigProvider, theme, Tooltip, Skeleton, Row, Col, Statistic, App as AntdApp 
 } from "antd";
 import { 
   Home, User, Clock, CheckCircle2, XCircle, 
@@ -55,6 +55,7 @@ const TableSkeleton = () => (
 );
 
 const RoomRequests = () => {
+  const { message, modal } = AntdApp.useApp();
   const [requests, setRequests] = useState([]);
   const [statusFilter, setStatusFilter] = useState("pending");
   const [loading, setLoading] = useState(true);
@@ -178,7 +179,7 @@ const RoomRequests = () => {
               <Button 
                 icon={<MessageSquare size={14} />} 
                 className="rounded-lg border-none bg-slate-50"
-                onClick={() => Modal.info({
+                onClick={() => modal.info({
                   title: 'Warden Remarks',
                   content: record.remarks,
                   className: 'rounded-3xl'
@@ -252,7 +253,7 @@ const RoomRequests = () => {
                   <Select 
                     value={statusFilter} 
                     onChange={setStatusFilter} 
-                    bordered={false} 
+                    variant="borderless" 
                     className="w-full font-medium"
                   >
                     <Select.Option value="all">Display All Requests</Select.Option>
@@ -270,7 +271,7 @@ const RoomRequests = () => {
             </Card>
 
             {/* Main Table */}
-            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" styles={{ body: { padding: 0 } }}>
               {requests.length > 0 ? (
                 <Table 
                   dataSource={requests} 
