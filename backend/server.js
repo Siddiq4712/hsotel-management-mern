@@ -101,7 +101,7 @@ const PORT = process.env.PORT || 5001;
 initAssociations();
 
 sequelize
-  .sync({alter: true})
+  .sync({alter: false})
   .then(async () => {
     console.log('✅ Database synced successfully');
 

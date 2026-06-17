@@ -175,7 +175,7 @@ const ManageStudents = () => {
               <Search size={18} className="text-slate-300" />
               <Input 
                 placeholder="Search by Name or Roll Number..." 
-                bordered={false} 
+                variant="borderless" 
                 className="w-full font-medium"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
@@ -190,7 +190,7 @@ const ManageStudents = () => {
         </Card>
 
         {/* Student Table */}
-        <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+        <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" styles={{ body: { padding: 0 } }}>
           {filteredStudents.length > 0 ? (
             <Table 
               dataSource={filteredStudents} 
