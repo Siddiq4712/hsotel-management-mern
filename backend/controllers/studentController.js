@@ -213,7 +213,7 @@ export const getMyMessCharges = async (req, res) => {
     const currentMonth = month || new Date().getMonth() + 1;
     const currentYear = year || new Date().getFullYear();
 
-    const charges = await MessCharge.findAll({
+    const charges = await DailyMessCharge.findAll({
       where: {
         student_id,
         date: {

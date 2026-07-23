@@ -3,13 +3,13 @@ import { Op, fn, col, literal } from 'sequelize';
 import sequelize from '../config/database.js';
 import {
   User, Role, Hostel, RoomType, HostelRoom, Session, Attendance,
-  HostelFacilityType, HostelFacility, HostelMaintenance,
+  HostelFacilityType, HostelFacility, HostelFacilityRegister, HostelMaintenance,
   IncomeType, ExpenseType, UOM, Supplier, PurchaseOrder, SupplierBill, DayReductionRequest,
   Fee,
   AdditionalIncome,
   MessDailyExpense,
   OtherExpense
-} from '../models/index.js'; 
+} from '../models/index.js';
 import moment from 'moment';
 
 const resolveRoleRecord = async ({ roleId, role }) => {
