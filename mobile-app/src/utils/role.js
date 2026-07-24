@@ -6,7 +6,8 @@ const ROLE_ALIASES = {
   lapc: 'student',
   mess: 'mess',
   messstaff: 'mess',
-  'mess staff': 'mess'
+  'mess staff': 'mess',
+  security: 'security'
 };
 
 const extractRoleValue = (value) => {
@@ -36,6 +37,7 @@ export const normalizeRole = (value) => {
   if (raw.includes('admin')) return 'admin';
   if (raw.includes('mess')) return 'mess';
   if (raw.includes('student') || raw === 'lapc') return 'student';
+  if (raw.includes('security')) return 'security';
 
   return ROLE_ALIASES[raw] || raw;
 };

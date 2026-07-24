@@ -2,7 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Replace with your backend API
-export const API_BASE_URL = 'http://10.200.12.153:5001/api';
+export const API_BASE_URL = 'http://10.55.159.186:5001/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -197,6 +197,20 @@ export const gpsAttendanceAPI = {
   getSessionSummary: (id) => api.get(`/attendance/gps/session/${id}/summary`),
   closeSession: (id) => api.post(`/attendance/gps/session/${id}/close`),
   markAttendance: (data) => api.post('/attendance/gps/mark', data),
+};
+
+/* ===========================
+   OUTPASS APIs
+=========================== */
+export const outpassAPI = {
+  createOutpass: (data) => api.post('/outpass', data),
+  getMyOutpasses: () => api.get('/outpass/my'),
+  getCurrentOutpass: () => api.get('/outpass/current'),
+  cancelOutpass: (id) => api.delete(`/outpass/cancel/${id}`),
+  scanOutpassQR: (qrToken) => api.post('/outpass/scan', { qrToken }),
+  getTodayGateActivity: () => api.get('/outpass/today-activity'),
+  getStudentsCurrentlyOutside: () => api.get('/outpass/outside'),
+  getRecentScans: () => api.get('/outpass/recent-scans'),
 };
 
 export default api;

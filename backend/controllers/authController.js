@@ -1,4 +1,4 @@
-﻿import bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
 import { User, Hostel, Role } from '../models/index.js'; // Ensure the .js extension
@@ -17,7 +17,9 @@ const resolveUserRole = (roleValue) => {
     student: 'student',
     lapc: 'student', // Mapping lapc to student role for dashboard logic
     mess: 'mess',
-    messstaff: 'mess'
+    messstaff: 'mess',
+    parent: 'parent',
+    security: 'security'
   };
   return roleMap[raw] || raw;
 };
@@ -142,15 +144,15 @@ export const getProfile = async (req, res) => {
 
 export const googleAuth = (req, res, next) => {
   // This will redirect to Google
-  passport.authenticate('google', { 
-    scope: ['profile', 'email'] 
+  passport.authenticate('google', {
+    scope: ['profile', 'email']
   })(req, res, next);
 };
 
 export const googleCallback = (req, res, next) => {
-  passport.authenticate('google', { 
+  passport.authenticate('google', {
     failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=access_denied`,
-    session: false 
+    session: false
   }, async (err, user, info) => {
     if (err || !user) {
       return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=not_registered`);
@@ -158,8 +160,8 @@ export const googleCallback = (req, res, next) => {
 
     // Generate JWT
     const token = jwt.sign(
-      { 
-        userId: user.userId, 
+      {
+        userId: user.userId,
         email: user.userMail
       },
       process.env.JWT_SECRET,
@@ -193,26 +195,26 @@ export const changePassword = async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
     const userId = req.user.userId;
-    
+
     // Get the user with their current password
     const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    
+
     // Verify the old password
     const isMatch = await bcrypt.compare(oldPassword, user.password);
     if (!isMatch) {
       return res.status(401).json({ message: 'Current password is incorrect' });
     }
-    
+
     // Hash the new password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
-    
+
     // Update the user's password
     await user.update({ password: hashedPassword });
-    
+
     res.json({ message: 'Password updated successfully' });
   } catch (error) {
     console.error('Change password error:', error);

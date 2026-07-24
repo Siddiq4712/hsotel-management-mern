@@ -8,7 +8,9 @@ import {
   Fee,
   AdditionalIncome,
   MessDailyExpense,
-  OtherExpense
+  OtherExpense,
+  ParentStudent,
+  Outpass
 } from '../models/index.js'; 
 import moment from 'moment';
 
@@ -267,7 +269,7 @@ export const createRole = async (req, res) => {
 
 export const createUser = async (req, res) => {
   try {
-    const { username, email, password, roleId, role, hostel_id } = req.body;
+    const { username, email, password, roleId, role, hostel_id, studentRollNumbers } = req.body;
 
     if (!username || !email || !password) {
       return res.status(400).json({
@@ -300,8 +302,9 @@ export const createUser = async (req, res) => {
       });
     }
 
-    const isAdminRole = roleData.roleName?.toLowerCase() === 'admin';
-    if (!isAdminRole && !hostel_id) {
+    const roleNameLower = roleData.roleName?.toLowerCase() || '';
+    const isHostelRequired = ['warden', 'student', 'mess'].includes(roleNameLower);
+    if (isHostelRequired && !hostel_id) {
       return res.status(400).json({
         success: false,
         message: 'Hostel selection is required for this role'
@@ -313,9 +316,27 @@ export const createUser = async (req, res) => {
       userMail: email,
       password: hashedPassword,
       roleId: roleData.roleId,
-      hostel_id: isAdminRole ? null : parseInt(hostel_id, 10),
+      hostel_id: isHostelRequired ? parseInt(hostel_id, 10) : null,
       status: 'Active'
     });
+
+    if (roleNameLower === 'parent' && studentRollNumbers) {
+      const rollNumbers = String(studentRollNumbers)
+        .split(',')
+        .map(r => r.trim())
+        .filter(Boolean);
+
+      const students = await User.findAll({
+        where: { roll_number: { [Op.in]: rollNumbers } }
+      });
+
+      for (const student of students) {
+        await ParentStudent.create({
+          parent_id: user.userId,
+          student_id: student.userId
+        });
+      }
+    }
 
     const userResponse = { ...user.toJSON() };
     delete userResponse.password;
@@ -362,6 +383,12 @@ export const getUsers = async (req, res) => {
           model: Hostel,
           attributes: ['id', 'name'],
           required: false
+        },
+        {
+          model: ParentStudent,
+          as: 'ParentLinks',
+          required: false,
+          include: [{ model: User, as: 'Student', attributes: ['roll_number', 'userName'] }]
         }
       ],
       order: [['createdAt', 'DESC']]
@@ -377,7 +404,7 @@ export const getUsers = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params; // userId from params
-    const { username, email, roleId, role, hostel_id, password } = req.body;
+    const { username, email, roleId, role, hostel_id, password, studentRollNumbers } = req.body;
 
     const user = await User.findByPk(id);
 
@@ -396,8 +423,9 @@ export const updateUser = async (req, res) => {
       });
     }
 
-    const isAdminRole = roleData.roleName?.toLowerCase() === 'admin';
-    if (!isAdminRole && !hostel_id) {
+    const roleNameLower = roleData.roleName?.toLowerCase() || '';
+    const isHostelRequired = ['warden', 'student', 'mess'].includes(roleNameLower);
+    if (isHostelRequired && !hostel_id) {
       return res.status(400).json({
         success: false,
         message: 'Hostel selection is required for this role'
@@ -408,7 +436,7 @@ export const updateUser = async (req, res) => {
       userName: username,
       userMail: email,
       roleId: roleData.roleId,
-      hostel_id: isAdminRole ? null : parseInt(hostel_id, 10)
+      hostel_id: isHostelRequired ? parseInt(hostel_id, 10) : null
     };
 
     if (password && password.trim()) {
@@ -417,6 +445,27 @@ export const updateUser = async (req, res) => {
     }
 
     await user.update(updateData);
+
+    if (roleNameLower === 'parent' && studentRollNumbers !== undefined) {
+      // Clear existing links
+      await ParentStudent.destroy({ where: { parent_id: user.userId } });
+
+      const rollNumbers = String(studentRollNumbers)
+        .split(',')
+        .map(r => r.trim())
+        .filter(Boolean);
+
+      const students = await User.findAll({
+        where: { roll_number: { [Op.in]: rollNumbers } }
+      });
+
+      for (const student of students) {
+        await ParentStudent.create({
+          parent_id: user.userId,
+          student_id: student.userId
+        });
+      }
+    }
 
     const userResponse = { ...user.toJSON() };
     delete userResponse.password;
@@ -1204,12 +1253,28 @@ export const getDashboardStats = async (req, res) => {
     const totalFacilities = await HostelFacility.count();
     const pendingMaintenance = await HostelMaintenance.count({ where: { status: 'reported' } });
 
+    // Outpass statistics
+    const totalOutpasses = await Outpass.count();
+    const pendingOutpasses = await Outpass.count({ where: { status: 'pending' } });
+    const approvedOutpasses = await Outpass.count({ where: { status: 'approved' } });
+    const rejectedOutpasses = await Outpass.count({ where: { status: 'rejected' } });
+    const studentsOutside = await Outpass.count({ where: { status: 'outside' } });
+    const lateReturns = await Outpass.count({ where: { status: 'late_return' } });
+
     res.json({
       success: true,
       data: {
         totalHostels, totalWardens, totalStudents, totalRooms,
         occupiedRooms, availableRooms: totalRooms - occupiedRooms,
-        totalSuppliers, totalFacilities, pendingMaintenance
+        totalSuppliers, totalFacilities, pendingMaintenance,
+        outpasses: {
+          total: totalOutpasses,
+          pending: pendingOutpasses,
+          approved: approvedOutpasses,
+          rejected: rejectedOutpasses,
+          outside: studentsOutside,
+          late: lateReturns
+        }
       }
     });
   } catch (error) {

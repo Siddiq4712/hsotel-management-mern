@@ -5,16 +5,25 @@ const AuthContext = createContext();
 const normalizeRole = (role) => {
   if (role === null || role === undefined) return null;
 
-  const normalized = String(role).trim().toLowerCase();
+  let roleStr = '';
+  if (typeof role === 'object') {
+    roleStr = role.roleName || role.name || role.role || '';
+  } else {
+    roleStr = String(role);
+  }
+
+  const normalized = roleStr.trim().toLowerCase();
   const roleMap = {
     admin: 'admin',
     administrator: 'admin',
     warden: 'warden',
     student: 'student',
-    lapc: 'lapc',
+    lapc: 'student', // Map lapc to student for dashboard
     mess: 'mess',
     messstaff: 'mess',
-    'mess staff': 'mess'
+    'mess staff': 'mess',
+    parent: 'parent',
+    security: 'security'
   };
 
   return roleMap[normalized] || normalized;
@@ -44,7 +53,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
-    
+
     if (token && savedUser) {
       const parsedUser = normalizeUser(JSON.parse(savedUser));
       localStorage.setItem('user', JSON.stringify(parsedUser));
@@ -58,16 +67,16 @@ export const AuthProvider = ({ children }) => {
       const response = await authAPI.login(credentials);
       const { token, user } = response.data;
       const normalizedUser = normalizeUser(user);
-      
+
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(normalizedUser));
       setUser(normalizedUser);
-      
+
       return { success: true };
     } catch (error) {
-      return { 
-        success: false, 
-        message: error.response?.data?.message || 'Login failed' 
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Login failed'
       };
     }
   };

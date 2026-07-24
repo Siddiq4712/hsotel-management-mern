@@ -13,7 +13,9 @@ const normalizeRole = (role) => {
     lapc: 'lapc',
     mess: 'mess',
     messstaff: 'mess',
-    'mess staff': 'mess'
+    'mess staff': 'mess',
+    parent: 'parent',
+    security: 'security'
   };
 
   return roleMap[normalized] || normalized;

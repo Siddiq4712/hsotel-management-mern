@@ -40,7 +40,7 @@ api.interceptors.response.use(
     const message = error.response?.data?.message || error.message || 'An unexpected error occurred';
     // Don't add "API Error:" prefix if it's just a 404 (Not Found)
     if (status === 404) {
-        return Promise.reject(new Error(message)); 
+      return Promise.reject(new Error(message));
     }
     return Promise.reject(new Error(`API Error: ${message}`));
   }
@@ -140,16 +140,16 @@ export const adminAPI = {
   getUOMs: (params) => api.get('/admin/uoms', { params }),
   updateUOM: (id, data) => api.put(`/admin/uoms/${id}`, data),
   deleteUOM: (id) => api.delete(`/admin/uoms/${id}`),
-  getDayReductionRequests: (params) => api.get('/admin/day-reduction-requests', { params }), 
+  getDayReductionRequests: (params) => api.get('/admin/day-reduction-requests', { params }),
   updateDayReductionRequestStatus: (id, data) => api.put(`/admin/day-reduction-requests/${id}/status`, data),
 
   updateHostelFeeSettings: (id, data) => api.put(`/admin/hostels/${id}/fee-settings`, data),
 
   getNotifications: () => api.get('/admin/notifications'),
-markNotificationRead: (id) => api.put(`/admin/notifications/${id}/read`),
+  markNotificationRead: (id) => api.put(`/admin/notifications/${id}/read`),
 
-// Add to messAPI
-notifyAdmin: (data) => api.post('/mess/notify-admin', data),
+  // Add to messAPI
+  notifyAdmin: (data) => api.post('/mess/notify-admin', data),
 };
 
 // Warden API - Updated with complete endpoints
@@ -172,16 +172,16 @@ export const wardenAPI = {
   getStudentEmiStatus: (studentId) => api.get(`/warden/students/${studentId}/emi-status`),
 
   // Room Type Management - Complete CRUD (for warden)
-createRoomType: (data) => api.post('/warden/room-types', data),
-getRoomTypes: (params) => api.get('/warden/room-types', { params }),
-updateRoomType: (id, data) => api.put(`/warden/room-types/${id}`, data),
-deleteRoomType: (id) => api.delete(`/warden/room-types/${id}`),
+  createRoomType: (data) => api.post('/warden/room-types', data),
+  getRoomTypes: (params) => api.get('/warden/room-types', { params }),
+  updateRoomType: (id, data) => api.put(`/warden/room-types/${id}`, data),
+  deleteRoomType: (id) => api.delete(`/warden/room-types/${id}`),
 
-// Room Management - Complete CRUD (for warden)
-createRoom: (data) => api.post('/warden/rooms', data), // data may include layout_slot
-getRooms: (params) => api.get('/warden/rooms', { params }),
-updateRoom: (id, data) => api.put(`/warden/rooms/${id}`, data),
-deleteRoom: (id) => api.delete(`/warden/rooms/${id}`),
+  // Room Management - Complete CRUD (for warden)
+  createRoom: (data) => api.post('/warden/rooms', data), // data may include layout_slot
+  getRooms: (params) => api.get('/warden/rooms', { params }),
+  updateRoom: (id, data) => api.put(`/warden/rooms/${id}`, data),
+  deleteRoom: (id) => api.delete(`/warden/rooms/${id}`),
   // Room Management
   getAvailableRooms: () => api.get('/warden/available-rooms'),
   allotRoom: (data) => api.post('/warden/room-allotment', data),
@@ -223,21 +223,21 @@ deleteRoom: (id) => api.delete(`/warden/rooms/${id}`),
   updateMessBillStatus: (id, data) => api.put(`/warden/mess-bills/${id}/status`, data),
   // Add this to export const wardenAPI in src/services/api.js
 
-getRoomOccupants: (roomId) => api.get(`/warden/rooms/${roomId}/occupants`),
-bulkMonthEndMandays: (data) => api.post('/warden/attendance/bulks', data),
+  getRoomOccupants: (roomId) => api.get(`/warden/rooms/${roomId}/occupants`),
+  bulkMonthEndMandays: (data) => api.post('/warden/attendance/bulks', data),
 
-getLayout: () => api.get('/warden/layout'),
-saveLayout: (data) => api.post('/warden/layout', data),
+  getLayout: () => api.get('/warden/layout'),
+  saveLayout: (data) => api.post('/warden/layout', data),
 
- getRoomRequests: (params) => api.get('/warden/room-requests', { params }),
- updateRoomRequest: (id, data) => api.put(`/warden/room-requests/${id}`, data),
+  getRoomRequests: (params) => api.get('/warden/room-requests', { params }),
+  updateRoomRequest: (id, data) => api.put(`/warden/room-requests/${id}`, data),
   getDayReductionRequests: (params) => api.get('/warden/day-reduction-requests', { params }),
   updateDayReductionRequestStatus: (id, data) => api.put(`/warden/day-reduction-requests/${id}/status`, data),
 
   getRebates: (params) => api.get('/warden/rebates', { params }),
   updateRebateStatus: (id, data) => api.put(`/warden/rebates/${id}/status`, data),
 
-   getLatestDailyRate: () => api.get('/mess/daily-rate/latest'), 
+  getLatestDailyRate: () => api.get('/mess/daily-rate/latest'),
 };
 export const studentAPI = {
   // Profile
@@ -246,11 +246,11 @@ export const studentAPI = {
   getRooms: () => api.get('/student/rooms'),
   getRoomTypes: () => api.get('/student/room-types'),
   getRoomOccupants: (roomId) => api.get(`/student/rooms/${roomId}/occupants`),
- getRoomRequests: () => api.get('/student/room-requests'),
- getMyRoomRequests() {
-   return this.getRoomRequests();
- },
-   applyDayReduction: (data) => api.post('/student/day-reduction-requests', data),
+  getRoomRequests: () => api.get('/student/room-requests'),
+  getMyRoomRequests() {
+    return this.getRoomRequests();
+  },
+  applyDayReduction: (data) => api.post('/student/day-reduction-requests', data),
   getMyDayReductionRequests: (params) => api.get('/student/day-reduction-requests', { params }),
   requestRoom: (data) => api.post('/student/room-requests', data),
   cancelRoomRequest: (id) => api.delete(`/student/room-requests/${id}`),
@@ -280,7 +280,7 @@ export const studentAPI = {
   useFacility: (data) => api.post('/student/facility-usage', data),
   getMyFacilityUsage: () => api.get('/student/facility-usage'),
 
-   getSpecialFoodItems: (params) => api.get('/student/special-food-items', { params }),
+  getSpecialFoodItems: (params) => api.get('/student/special-food-items', { params }),
   getSpecialFoodItemCategories: () => api.get('/student/special-food-item-categories'),
   createFoodOrder: (data) => api.post('/student/food-orders', data),
   getFoodOrders: (params) => api.get('/student/food-orders', { params }),
@@ -302,7 +302,7 @@ export const studentAPI = {
 export const messAPI = {
   // Dashboard
   getMessDashboardStats: () => api.get('/mess/dashboard-stats'),
-   getMonthlyExpensesChartData: (params) => api.get('/mess/chart-data/monthly-expenses', { params }),
+  getMonthlyExpensesChartData: (params) => api.get('/mess/chart-data/monthly-expenses', { params }),
   getItemStockChartData: () => api.get('/mess/chart-data/item-stock'),
 
   // Menu Management - Complete CRUD
@@ -328,7 +328,7 @@ export const messAPI = {
   updateItemCategory: (id, data) => api.put(`/mess/item-categories/${id}`, data), // Expected data: { name, description }
   deleteItemCategory: (id) => api.delete(`/mess/item-categories/${id}`),
 
-    saveDailyRate: (data) => api.post('/mess/daily-rate/save', data),
+  saveDailyRate: (data) => api.post('/mess/daily-rate/save', data),
 
   // Menu Item Management - Complete CRUD
   // Expected data: { items: [{ item_id, quantity, unit, preparation_notes }] }
@@ -385,7 +385,7 @@ export const messAPI = {
 
   // Special Food Items - Complete CRUD
 
-    getItemFIFOPrice: (itemId) => api.get(`/mess/items/${itemId}/fifo-price`),
+  getItemFIFOPrice: (itemId) => api.get(`/mess/items/${itemId}/fifo-price`),
 
   // Expected data: { name, description, price, preparation_time_minutes, category, image_url }
   createSpecialFoodItem: (data) => api.post('/mess/special-food-items', data),
@@ -422,7 +422,7 @@ export const messAPI = {
   deleteExpenseType: (id) => api.delete(`/mess/expenses-types/${id}`),
 
   bulkDeleteStudentFees: (ids) => api.delete('/mess/student-fees/bulk', { data: { ids } }),
-  
+
   recordAdhocConsumption: (data) => api.post('/mess/special-consumption', data),
   getAdhocConsumptions: (params) => api.get('/mess/special-consumption', { params }),
   getAdhocConsumptionById: (id) => api.get(`/mess/special-consumption/${id}`),
@@ -431,7 +431,7 @@ export const messAPI = {
   // getSpecialConsumptionById:(id) => api.get(`/mess/special-consumption/${id}`),
   calculateDailyCharges: (data) => api.post('/mess/daily-charges/calculate', data),
   getRoundingAdjustments: (params) => api.get('/mess/additional-income/rounding', { params }),
-  getLatestPurchaseReport:(params) => api.get('/mess/reports/latest-purchase', { params }),
+  getLatestPurchaseReport: (params) => api.get('/mess/reports/latest-purchase', { params }),
   correctLastPurchase: (payload) => api.post('/mess/inventory/correct-last-purchase', payload),
   getStudentFeeBreakdown: (params) => api.get('/mess/reports/student-fee-breakdown', { params }),
   createStudentFee: (data) => api.post('/mess/student-fees', data),
@@ -470,16 +470,38 @@ export const messAPI = {
   deleteBedFee: (id) => api.delete(`/bed-fees/${id}`),
   // Add this to the messAPI object
   deleteStudentFee: (id) => api.delete(`/mess/student-fees/${id}`),
-// In src/services/api.js (in the messAPI object)
+  // In src/services/api.js (in the messAPI object)
   getStudents: (params) => api.get('/mess/students', { params }), // Add support for params
 
- getPurchaseOrders: (params) => api.get('/mess/purchase-orders', { params }),
- clearPurchaseOrders: (ids) => api.put('/mess/purchase-orders/clear', { ids }),
+  getPurchaseOrders: (params) => api.get('/mess/purchase-orders', { params }),
+  clearPurchaseOrders: (ids) => api.put('/mess/purchase-orders/clear', { ids }),
 
   getRecipes: () => api.get('/mess/recipes'),
   createRecipe: (data) => api.post('/mess/recipes', data),
   updateRecipe: (id, data) => api.put(`/mess/recipes/${id}`, data),
   deleteRecipe: (id) => api.delete(`/mess/recipes/${id}`),
+};
+
+// Outpass API
+export const outpassAPI = {
+  createOutpass: (data) => api.post('/outpass', data),
+  getMyOutpasses: () => api.get('/outpass/my'),
+  getCurrentOutpass: () => api.get('/outpass/current'),
+  cancelOutpass: (id) => api.delete(`/outpass/cancel/${id}`),
+  getWardenOutpasses: (params) => api.get('/outpass/warden', { params }),
+  approveOutpass: (id, remarks) => api.put(`/outpass/approve/${id}`, { remarks }),
+  rejectOutpass: (id, remarks) => api.put(`/outpass/reject/${id}`, { remarks }),
+  getAllOutpasses: (params) => api.get('/outpass/admin/all', { params }),
+  toggleParentApproval: (data) => api.post('/outpass/admin/toggle-approval', data)
+};
+
+// Parent API
+export const parentAPI = {
+  getStudents: () => api.get('/parent/students'),
+  getStudentDashboard: (studentId) => api.get(`/parent/dashboard/${studentId}`),
+  updateProfile: (data) => api.put('/parent/profile', data),
+  getNotifications: () => api.get('/parent/notifications'),
+  markNotificationRead: (id) => api.put(`/parent/notifications/${id}/read`)
 };
 
 export default api;

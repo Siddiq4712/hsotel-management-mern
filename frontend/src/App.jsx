@@ -91,6 +91,12 @@ import RecipeManagement from './components/mess/RecipeManagement';
 import RecordStudentSpecialMeal from './components/mess/RecordStudentSpecialMeal';
 import MyHostelFee from './components/student/MyHostelFee';
 
+// Outpass & Parent Modules
+import OutpassLogs from './components/admin/OutpassLogs';
+import OutpassApproval from './components/warden/OutpassApproval';
+import ParentDashboard from './components/parent/ParentDashboard';
+import StudentOutpass from './components/student/StudentOutpass';
+
 // Lazy load CreateRoom
 const LazyCreateRoom = React.lazy(() => import('./components/warden/CreateRoom'));
 
@@ -153,6 +159,8 @@ const DashboardRouter = () => {
             return <ManageExpenseTypes />;
           case 'uoms':
             return <UOMManagement />;
+          case 'outpass-logs':
+            return <OutpassLogs />;
           default:
             return <AdminDashboard />;
         }
@@ -194,6 +202,8 @@ const DashboardRouter = () => {
             return <RoomRequests hostelId={user?.hostel_id} />;
           case 'view-layout':
             return <ViewLayout hostelId={user?.hostel_id} />;
+          case 'outpass-approval':
+            return <OutpassApproval />;
           default:
             return <WardenDashboard />;
         }
@@ -237,6 +247,8 @@ const DashboardRouter = () => {
             return <StudentMessHistory />;
           case 'profile':
             return <StudentProfile />;
+          case 'outpass':
+            return <StudentOutpass />;
           default:
             return <StudentDashboard />;
         }
@@ -309,6 +321,10 @@ const DashboardRouter = () => {
           default:
             return <MessDashboard setCurrentView={setCurrentView} />;
         }
+
+      // ================= PARENT =================
+      case 'parent':
+        return <ParentDashboard />;
 
       default:
         return <div>Unknown role</div>;
