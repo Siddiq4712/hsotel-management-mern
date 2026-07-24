@@ -1,5 +1,5 @@
-import React, { useState, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, Suspense, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { StockProvider } from './context/StockContext';
 import { App as AntdApp } from 'antd';
@@ -116,7 +116,16 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
 const DashboardRouter = () => {
   const { user } = useAuth();
-  const [currentView, setCurrentView] = useState('dashboard');
+  const location = useLocation();
+  const [currentView, setCurrentView] = useState(() => {
+    const path = location.pathname.replace(/^\/+/, '');
+    return path || 'dashboard';
+  });
+
+  useEffect(() => {
+    const path = location.pathname.replace(/^\/+/, '');
+    setCurrentView(path || 'dashboard');
+  }, [location.pathname]);
 
   const renderComponent = () => {
     switch (user?.role) {
