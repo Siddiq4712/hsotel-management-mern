@@ -79,13 +79,13 @@ const CreateUser = () => {
     setLoading(true);
     try {
       const selectedRole = roles.find((r) => r.roleId === values.roleId);
-      const isAdminRole = selectedRole?.roleName?.toLowerCase() === 'admin';
+      const isHostelRequired = ['warden', 'student', 'mess'].includes(selectedRole?.roleName?.toLowerCase());
 
       await adminAPI.createUser({
         ...values,
         username: values.userName,
         role: selectedRole?.roleName,
-        hostel_id: isAdminRole ? null : parseInt(values.hostel_id, 10)
+        hostel_id: isHostelRequired ? parseInt(values.hostel_id, 10) : null
       });
       
       message.success('System identity provisioned successfully!');
@@ -118,6 +118,8 @@ const CreateUser = () => {
 
   const selectedRole = roles.find((r) => r.roleId === selectedRoleId);
   const isAdminRole = selectedRole?.roleName?.toLowerCase() === 'admin';
+  const isParentRole = selectedRole?.roleName?.toLowerCase() === 'parent';
+  const isHostelRequired = ['warden', 'student', 'mess'].includes(selectedRole?.roleName?.toLowerCase());
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
@@ -224,7 +226,7 @@ const CreateUser = () => {
                       </Col>
                       
                       <Col span={12}>
-                        {selectedRoleId && !isAdminRole && (
+                        {selectedRoleId && isHostelRequired && (
                           <Form.Item 
                             name="hostel_id" 
                             label={<Text strong>Assigned Hostel Unit</Text>}
@@ -239,6 +241,18 @@ const CreateUser = () => {
                                 <Option key={h.id} value={h.id}>{h.name}</Option>
                               ))}
                             </Select>
+                          </Form.Item>
+                        )}
+                        {selectedRoleId && isParentRole && (
+                          <Form.Item 
+                            name="studentRollNumbers" 
+                            label={<Text strong>Linked Student Roll Number(s)</Text>}
+                            rules={[{ required: true, message: 'Roll number(s) comma separated required' }]}
+                          >
+                            <Input 
+                              placeholder="e.g. 2312063, 2312057" 
+                              className="h-12 rounded-xl"
+                            />
                           </Form.Item>
                         )}
                       </Col>

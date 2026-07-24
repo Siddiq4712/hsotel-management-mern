@@ -1,7 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, Image, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
-import { LogOut } from 'lucide-react-native';const Header = () => {
+import { LogOut } from 'lucide-react-native';
+
+const Header = () => {
   const { user, logout } = useAuth();
   const [imageError, setImageError] = useState(false);
 
@@ -47,39 +50,41 @@ import { LogOut } from 'lucide-react-native';const Header = () => {
   };
 
   return (
-    <View className="bg-white border-b border-gray-200 h-16 flex-row items-center px-4 justify-between">
-      
-      {/* Left: App name + Role */}
-      <View className="flex-row items-center space-x-3">
-        <Text className="text-lg font-semibold text-gray-800">HMS</Text>
-        <Text className="text-xs md:text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
-          {user?.role?.toUpperCase()}
-        </Text>
-      </View>
-
-      {/* Right: Avatar + Username + Hostel + Logout */}
-      <View className="flex-row items-center space-x-3 max-w-[70%]">
-        {renderAvatar()}
-
-        <View className="max-w-[55%]">
-          <Text className="text-base md:text-lg text-gray-700 font-medium" numberOfLines={1}>
-            {user?.username}
+    <SafeAreaView edges={['top']} className="bg-white border-b border-gray-200">
+      <View className="h-16 flex-row items-center px-4 justify-between">
+        
+        {/* Left: App name + Role */}
+        <View className="flex-row items-center space-x-3">
+          <Text className="text-lg font-semibold text-gray-800">HMS</Text>
+          <Text className="text-xs md:text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
+            {user?.role?.toUpperCase()}
           </Text>
-          {user?.hostel && (
-            <Text className="text-xs md:text-sm text-gray-500" numberOfLines={1}>
-              @{user.hostel.name}
-            </Text>
-          )}
         </View>
 
-        <TouchableOpacity
-          onPress={handleLogout}
-          className="p-3 bg-red-600 rounded-md"
-        >
-          <LogOut size={18} color="white" />
-        </TouchableOpacity>
+        {/* Right: Avatar + Username + Hostel + Logout */}
+        <View className="flex-row items-center space-x-3 max-w-[70%]">
+          {renderAvatar()}
+
+          <View className="max-w-[55%]">
+            <Text className="text-base md:text-lg text-gray-700 font-medium" numberOfLines={1}>
+              {user?.username}
+            </Text>
+            {user?.hostel && (
+              <Text className="text-xs md:text-sm text-gray-500" numberOfLines={1}>
+                @{user.hostel.name}
+              </Text>
+            )}
+          </View>
+
+          <TouchableOpacity
+            onPress={handleLogout}
+            className="p-3 bg-red-600 rounded-md"
+          >
+            <LogOut size={18} color="white" />
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 

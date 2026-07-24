@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import 'dotenv/config';
@@ -15,6 +15,8 @@ import wardenRoutes from './routes/warden.js';
 import studentRoutes from './routes/student.js';
 import messRoutes from './routes/mess.js';
 import attendanceRoutes from './routes/attendanceRoutes.js';
+import outpassRoutes from './routes/outpass.js';
+import parentRoutes from './routes/parent.js';
 
 import { verifyEmailConnection } from './utils/emailUtils.js';
 
@@ -52,23 +54,28 @@ app.use('/api/warden', wardenRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/mess', messRoutes);
 app.use('/api/attendance', attendanceRoutes);
+app.use('/api/outpass', outpassRoutes);
+app.use('/api/parent', parentRoutes);
 
 /* =======================
    CREATE DEFAULT ADMIN
 ======================= */
 const createDefaultAdmin = async () => {
   try {
-    let adminRole = await Role.findOne({
+    const requiredRoles = ['Admin', 'Warden', 'Student', 'Mess', 'Parent', 'Security'];
+    for (const name of requiredRoles) {
+      const existing = await Role.findOne({
+        where: { roleName: { [Op.in]: [name, name.toLowerCase()] } }
+      });
+      if (!existing) {
+        await Role.create({ roleName: name, status: 'Active' });
+        console.log(`✅ Created '${name}' role`);
+      }
+    }
+
+    const adminRole = await Role.findOne({
       where: { roleName: { [Op.in]: ['Admin', 'admin'] } }
     });
-
-    if (!adminRole) {
-      adminRole = await Role.create({
-        roleName: 'Admin',
-        status: 'Active'
-      });
-      console.log("✅ Created 'Admin' role");
-    }
 
     const adminExists = await User.findOne({
       where: { roleId: adminRole.roleId }
@@ -88,7 +95,7 @@ const createDefaultAdmin = async () => {
       console.log('✅ Default admin created (admin / admin123)');
     }
   } catch (error) {
-    console.error('❌ Admin creation error:', error);
+    console.error('❌ Admin/Roles seeding error:', error);
   }
 };
 

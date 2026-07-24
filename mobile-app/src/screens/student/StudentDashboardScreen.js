@@ -10,7 +10,7 @@ import {
   Bed, Receipt, Calendar, Home, CreditCard, 
   FileText, Utensils, AlertTriangle, 
   ChevronLeft, ChevronRight, LayoutGrid, RefreshCw, 
-  CheckCircle2
+  CheckCircle2, QrCode
 } from 'lucide-react-native';
 import { BarChart } from 'react-native-chart-kit';
 import moment from 'moment';
@@ -122,6 +122,7 @@ const StudentDashboardScreen = ({ navigation }) => {
               <ActionBtn label="Issues" icon={FileText} color="#3b82f6" bg="#eff6ff" onPress={() => navigation.navigate('Complaints')} />
               <ActionBtn label="Bills" icon={Receipt} color="#a855f7" bg="#faf5ff" onPress={() => navigation.navigate('MessCharges')} />
               <ActionBtn label="Food" icon={Utensils} color="#f97316" bg="#fff7ed" onPress={() => navigation.navigate('FoodOrder')} />
+              <ActionBtn label="Outpass" icon={QrCode} color="#4f46e5" bg="#e0e7ff" onPress={() => navigation.navigate('OutpassStatus')} />
             </View>
 
             <View style={styles.card}>
@@ -226,9 +227,9 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 12, fontWeight: '700', color: '#1e293b' },
 
   actionGrid: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  actionBtn: { width: '22%', alignItems: 'center' },
+  actionBtn: { width: '18%', alignItems: 'center' },
   actionIcon: { width: '100%', aspectRatio: 1, borderRadius: 16, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', marginBottom: 6, elevation: 2, shadowOpacity: 0.05 },
-  actionLabel: { fontSize: 11, fontWeight: '600', color: '#475569' },
+  actionLabel: { fontSize: 10, fontWeight: '600', color: '#475569' },
 
   card: { backgroundColor: '#fff', borderRadius: 24, padding: 16, marginBottom: 16, elevation: 1 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },

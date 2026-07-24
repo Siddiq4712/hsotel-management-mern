@@ -29,6 +29,7 @@ const MENU_STRUCTURE = {
       items: [
         { id: 'create-user', label: 'Create User', icon: UserPlus },
         { id: 'sessions', label: 'Manage Sessions', icon: Calendar },
+        { id: 'outpass-logs', label: 'Outpass Logs', icon: FileText },
       ]
     },
     {
@@ -63,6 +64,7 @@ const MENU_STRUCTURE = {
         { id: 'enroll-student', label: 'Enroll Student', icon: UserPlus },
         { id: 'attendance', label: 'Attendance', icon: ClipboardCheck },
         { id: 'leave-requests', label: 'Leave Requests', icon: Calendar },
+        { id: 'outpass-approval', label: 'Outpass Approval', icon: Clipboard },
         { id: 'suspensions', label: 'Suspensions', icon: UserX },
       ]
     },
@@ -95,6 +97,7 @@ const MENU_STRUCTURE = {
         { id: 'my-complaints', label: 'My Complaints', icon: AlertCircle },
         { id: 'my-rebates', label: 'My Rebates', icon: CreditCard },
         { id: 'day-reduction', label: 'Apply Day Reduction', icon: FileText },
+        { id: 'outpass', label: 'Gate Outpass', icon: Clipboard },
       ]
     },
     {
