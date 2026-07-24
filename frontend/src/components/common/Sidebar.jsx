@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   Home, Building, Users, UserPlus, Bed, Calendar, FileText, Settings,
@@ -181,6 +182,7 @@ const MENU_STRUCTURE = {
 
 const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen, isCollapsed, setIsCollapsed }) => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredMenu = useMemo(() => {
@@ -196,6 +198,7 @@ const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen, isCollapsed, 
 
   const handleMenuItemClick = (itemId) => {
     setCurrentView(itemId);
+    navigate(`/${itemId}`);
     if (window.innerWidth < 1024) setIsOpen(false);
   };
 
