@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { User, Lock, ArrowRight } from 'lucide-react';
 import { Button, message } from 'antd';
 import { GoogleOutlined } from '@ant-design/icons';
 import { authAPI } from '../../services/api';
 import './Login.css'; // Import the CSS file
+import necLogo from '/nec_logo.jpeg';
+import necImage from '/nec_image.jpg';
 
 const Login = () => {
   const [credentials, setCredentials] = useState({ userName: '', password: '' });
@@ -16,6 +18,7 @@ const Login = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const { login } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Handle OAuth error messages from URL parameters
   useEffect(() => {
@@ -72,7 +75,7 @@ const Login = () => {
     const result = await login(credentials);
 
     if (result.success) {
-      window.location.href = '/';
+      navigate('/dashboard', { replace: true });
     } else {
       setError(result.message);
     }
@@ -100,14 +103,14 @@ const Login = () => {
     <div 
       className="min-h-screen flex flex-col bg-cover bg-center bg-no-repeat" 
       style={{ 
-        backgroundImage: `url(/nec_image.jpg)`, 
+        backgroundImage: `url(${necImage})`, 
       }}
     >
       {/* Top Header */}
       <header className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 flex items-center justify-between shadow-lg">
         <div className="flex items-center space-x-4 animate-fadeInLeft">
           <img 
-            src="/nec_logo.jpeg" 
+            src={necLogo} 
             alt="National Engineering College"
             className="h-12 w-auto hover:scale-110 transition-transform duration-300"
           />
@@ -124,7 +127,7 @@ const Login = () => {
           <div className="text-center mb-4">
             <div className="inline-block">
               <img 
-                src="/nec_logo.jpeg" 
+                src={necLogo} 
                 alt="NEC"
                 className="mx-auto h-24 w-auto mb-4 hover:scale-110 transition-transform duration-300"
               />

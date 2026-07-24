@@ -127,7 +127,13 @@ const GPSAttendanceScreen = () => {
       const res = await wardenAPI.getStudents(
         trimmedYear ? { enrollment_year: trimmedYear } : undefined
       );
-      setStudents(res.data?.data || []);
+      const fetchedStudents = res.data?.data || [];
+      const normalizedStudents = fetchedStudents.map((student) => ({
+        ...student,
+        enrollment_year: student.enrollment_year || student.session || null,
+        id: student.id || student.userId
+      }));
+      setStudents(normalizedStudents);
     } catch (error) {
       console.error('Failed to fetch enrolled students:', error);
     } finally {
@@ -180,7 +186,7 @@ const GPSAttendanceScreen = () => {
           geofence_lat,
           geofence_lng,
           geofence_radius_m,
-          enrollment_year: Number(selectedBatch)
+          enrollment_year: selectedBatch
         });
 
         const serverTime = new Date(res.data.server_time).getTime();

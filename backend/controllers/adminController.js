@@ -3,7 +3,7 @@ import { Op, fn, col, literal } from 'sequelize';
 import sequelize from '../config/database.js';
 import {
   User, Role, Hostel, RoomType, HostelRoom, Session, Attendance,
-  HostelFacilityType, HostelFacility, HostelMaintenance,
+  HostelFacilityType, HostelFacility, HostelFacilityRegister, HostelMaintenance,
   IncomeType, ExpenseType, UOM, Supplier, PurchaseOrder, SupplierBill, DayReductionRequest,
   Fee,
   AdditionalIncome,
