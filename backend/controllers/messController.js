@@ -1,4 +1,4 @@
-﻿import ExcelJS from 'exceljs';
+import ExcelJS from 'exceljs';
 import {
   Menu, Item, ItemCategory, User, MenuItem, Hostel, Attendance, Enrollment, DailyMessCharge,
   MenuSchedule, UOM, ItemStock, DailyConsumption, MessBill, Session, CreditToken, Concern, Holiday,
@@ -2338,6 +2338,136 @@ export const recordBulkConsumption = async (req, res) => {
     });
   }
 };
+
+/**
+ * Single-Page Daily Consumption Entry
+ * Groups breakfast, lunch, snacks, dinner items into one submission payload,
+ * runs FIFO batch depletion, stock reduction, logging, and restock planning.
+ */
+export const recordSinglePageDailyConsumption = async (req, res) => {
+  const { consumption_date, items, meals } = req.body;
+  const hostel_id = req.user.hostel_id;
+  const user_id = req.user.userId;
+  const transaction = await sequelize.transaction();
+
+  try {
+    let consumptionsList = [];
+
+    if (Array.isArray(items) && items.length > 0) {
+      consumptionsList = items.map(item => ({
+        ...item,
+        consumption_date: item.consumption_date || consumption_date || new Date()
+      }));
+    } else if (meals && typeof meals === 'object') {
+      const mealTypes = ['breakfast', 'lunch', 'snacks', 'dinner'];
+      mealTypes.forEach(mType => {
+        if (Array.isArray(meals[mType])) {
+          meals[mType].forEach(item => {
+            if (item.item_id && parseFloat(item.quantity_consumed) > 0) {
+              consumptionsList.push({
+                item_id: parseInt(item.item_id),
+                quantity_consumed: parseFloat(item.quantity_consumed),
+                unit: item.unit_id || item.unit,
+                consumption_date: consumption_date || new Date(),
+                meal_type: mType
+              });
+            }
+          });
+        }
+      });
+    }
+
+    if (consumptionsList.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        success: false, 
+        message: 'At least one item with a valid quantity must be entered.' 
+      });
+    }
+
+    // ===============================================
+// Validate total requested quantity against stock
+// ===============================================
+
+// Combine quantities for the same item across all meals
+const itemTotals = new Map();
+
+for (const item of consumptionsList) {
+  const itemId = parseInt(item.item_id);
+  const qty = parseFloat(item.quantity_consumed || 0);
+
+  itemTotals.set(itemId, (itemTotals.get(itemId) || 0) + qty);
+}
+
+// Validate stock
+for (const [itemId, totalQty] of itemTotals.entries()) {
+
+  const stock = await ItemStock.findOne({
+    where: {
+      hostel_id,
+      item_id: itemId
+    },
+    include: [
+      {
+        model: Item,
+        attributes: ['name']
+      }
+    ],
+    transaction
+  });
+
+  if (!stock) {
+    await transaction.rollback();
+
+    return res.status(400).json({
+      success: false,
+      message: `No stock record found for Item ID ${itemId}.`
+    });
+  }
+
+  const availableStock = parseFloat(stock.current_stock || 0);
+
+  if (totalQty > availableStock) {
+    await transaction.rollback();
+
+    return res.status(400).json({
+      success: false,
+      message: `${stock.Item?.name || 'Selected Item'} has only ${availableStock} ${stock.unit || ''} available, but ${totalQty} was entered.`
+    });
+  }
+}
+
+    const { lowStockItems, createdDailyConsumptions } = await _recordBulkConsumptionLogic(
+      consumptionsList,
+      hostel_id,
+      user_id,
+      transaction
+    );
+
+    await transaction.commit();
+
+    const totalCost = createdDailyConsumptions.reduce((sum, c) => sum + parseFloat(c.total_cost || 0), 0);
+
+    res.status(201).json({
+      success: true,
+      message: 'Single-page daily consumption recorded successfully and inventory stock updated.',
+      data: {
+        consumptions: createdDailyConsumptions,
+        totalCost,
+        itemCount: createdDailyConsumptions.length,
+        lowStockItems,
+      }
+    });
+  } catch (error) {
+    if (transaction) await transaction.rollback();
+    console.error('Single-page daily consumption error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message.includes('stock') ? error.message : ('Server error: ' + error.message)
+    });
+  }
+};
+
 export const recordInventoryPurchase = async (req, res) => {
   const { items } = req.body;
   const { hostel_id, userId: user_id } = req.user;

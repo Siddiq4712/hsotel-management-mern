@@ -5,7 +5,7 @@ import {
   Home, Building, Users, UserPlus, Bed, Calendar, FileText, Settings,
   ChefHat, Receipt, Wifi, Wrench, DollarSign, CreditCard, Truck,
   ClipboardCheck, MessageCircle, AlertCircle, UserX, CalendarDays,
-  Package, Database, Coffee, ShoppingBag, List, BarChart2,
+  Package, Database, Coffee, ShoppingBag, List, BarChart2, Zap,
   Clipboard, ChevronLeft, ChevronRight, Cake, Search, LogOut
 } from 'lucide-react';
 
@@ -136,6 +136,7 @@ const MENU_STRUCTURE = {
     {
       title: 'Inventory & Stock',
       items: [
+        { id: 'single-page-daily-entry', label: 'Single-Page Meal Entry', icon: Zap },
         { id: 'items', label: 'Manage Items', icon: Coffee },
         { id: 'uoms', label: 'Units of Measure', icon: Settings },
         { id: 'stock', label: 'Stock Management', icon: Database },

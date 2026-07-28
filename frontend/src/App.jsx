@@ -89,6 +89,7 @@ import BedFeeManagement from './components/mess/BedFeeManagement';
 import PurchaseOrder from './components/mess/PurchaseOrder';
 import RecipeManagement from './components/mess/RecipeManagement';
 import RecordStudentSpecialMeal from './components/mess/RecordStudentSpecialMeal';
+import SinglePageDailyConsumption from './components/mess/SinglePageDailyConsumption';
 import MyHostelFee from './components/student/MyHostelFee';
 
 // Lazy load CreateRoom
@@ -283,6 +284,8 @@ const DashboardRouter = () => {
             return <PurchaseByStore />;
           case 'food-orders-dashboard':
             return <MessOrderDashboard />;
+          case 'single-page-daily-entry':
+            return <SinglePageDailyConsumption />;
           case 'record-consumption':
             return <RecordAdhocConsumption />;
           case 'inventory':

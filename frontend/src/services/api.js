@@ -361,6 +361,7 @@ export const messAPI = {
   // Expected data: { consumptions: [{ item_id, quantity_consumed, unit, consumption_date, meal_type }] }
   exportStockToExcel: () => api.get('/mess/stock/export-excel', { responseType: 'blob' }),
   recordBulkConsumption: (data) => api.post('/mess/consumption/bulk', data),
+  recordSinglePageDailyConsumption: (data) => api.post('/mess/consumption/single-page', data),
   getDailyConsumption: (params) => api.get('/mess/consumption', { params }), // params: { date, meal_type, item_id }
   // Expected data: { items: [{ item_id, quantity, unit_price, transaction_date, expiry_date }] }
   recordInventoryPurchase: (data) => api.post('/mess/inventory-purchase', data),
