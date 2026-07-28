@@ -128,6 +128,7 @@ export const Hostel = sequelize.define('Hostel', {
   capacity: { type: DataTypes.INTEGER, allowNull: false },
   annual_fee_amount: { type: DataTypes.DECIMAL(10, 2), defaultValue: 0.00 },
   show_fee_reminder: { type: DataTypes.BOOLEAN, defaultValue: false },
+  parent_approval_required: { type: DataTypes.BOOLEAN, defaultValue: false, allowNull: false },
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true }
 }, { tableName: 'tbl_Hostel', timestamps: true });
 
@@ -1072,6 +1073,46 @@ export const Guest = sequelize.define('Guest', {
   charges: { type: DataTypes.DECIMAL(10, 2), allowNull: true, defaultValue: 0.00 }
 }, { tableName: 'tbl_Guest', timestamps: true });
 
+export const ParentStudent = sequelize.define('ParentStudent', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  parent_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_users', key: 'id' } },
+  student_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_users', key: 'id' } }
+}, { tableName: 'tbl_ParentStudent', timestamps: true });
+
+export const Outpass = sequelize.define('Outpass', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  student_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_users', key: 'id' } },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
+  purpose: { type: DataTypes.STRING, allowNull: false },
+  destination: { type: DataTypes.STRING, allowNull: false },
+  from_date: { type: DataTypes.DATE, allowNull: false },
+  to_date: { type: DataTypes.DATE, allowNull: false },
+  exit_time: { type: DataTypes.DATE, allowNull: true },
+  return_time: { type: DataTypes.DATE, allowNull: true },
+  status: { type: DataTypes.ENUM('pending', 'approved', 'rejected', 'cancelled', 'outside', 'completed', 'expired', 'late_return'), defaultValue: 'pending', allowNull: false },
+  qr_token: { type: DataTypes.STRING, allowNull: true, unique: true },
+  approved_by: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_users', key: 'id' } },
+  approved_date: { type: DataTypes.DATE, allowNull: true },
+  remarks: { type: DataTypes.TEXT, allowNull: true }
+}, { tableName: 'tbl_Outpass', timestamps: true });
+
+export const HostelNotice = sequelize.define('HostelNotice', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Hostel', key: 'id' } },
+  title: { type: DataTypes.STRING, allowNull: false },
+  content: { type: DataTypes.TEXT, allowNull: false },
+  created_by: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_users', key: 'id' } }
+}, { tableName: 'tbl_HostelNotice', timestamps: true });
+
+export const InAppNotification = sequelize.define('InAppNotification', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  user_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_users', key: 'id' } },
+  title: { type: DataTypes.STRING, allowNull: false },
+  message: { type: DataTypes.TEXT, allowNull: false },
+  type: { type: DataTypes.STRING, allowNull: false },
+  status: { type: DataTypes.ENUM('unread', 'read'), defaultValue: 'unread', allowNull: false }
+}, { tableName: 'tbl_InAppNotification', timestamps: true });
+
 // ==========================================
 // UNIFIED ASSOCIATIONS
 // ==========================================
@@ -1326,6 +1367,27 @@ export const initAssociations = () => {
   SpecialFoodItem.hasMany(FoodOrderItem, { foreignKey: 'food_item_id' });
 
   FoodOrder.belongsTo(Hostel, { foreignKey: 'hostel_id' });
+
+  // ParentStudent associations
+  ParentStudent.belongsTo(User, { foreignKey: 'parent_id', as: 'Parent', targetKey: 'userId' });
+  ParentStudent.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
+  User.hasMany(ParentStudent, { foreignKey: 'parent_id', as: 'ParentLinks', sourceKey: 'userId' });
+  User.hasMany(ParentStudent, { foreignKey: 'student_id', as: 'StudentLinks', sourceKey: 'userId' });
+
+  // Outpass associations
+  Outpass.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
+  Outpass.belongsTo(Hostel, { foreignKey: 'hostel_id', as: 'Hostel' });
+  Outpass.belongsTo(User, { foreignKey: 'approved_by', as: 'Approver', targetKey: 'userId' });
+  User.hasMany(Outpass, { foreignKey: 'student_id', as: 'Outpasses', sourceKey: 'userId' });
+
+  // HostelNotice associations
+  HostelNotice.belongsTo(Hostel, { foreignKey: 'hostel_id', as: 'Hostel' });
+  HostelNotice.belongsTo(User, { foreignKey: 'created_by', as: 'Creator', targetKey: 'userId' });
+  Hostel.hasMany(HostelNotice, { foreignKey: 'hostel_id', as: 'Notices' });
+
+  // InAppNotification associations
+  InAppNotification.belongsTo(User, { foreignKey: 'user_id', as: 'User', targetKey: 'userId' });
+  User.hasMany(InAppNotification, { foreignKey: 'user_id', as: 'Notifications', sourceKey: 'userId' });
 };
 
 // Export sequelize instance

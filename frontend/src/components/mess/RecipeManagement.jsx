@@ -303,7 +303,7 @@ const RecipeManagement = () => {
           onCancel={() => setModalVisible(false)}
           footer={null}
           width={720}
-          destroyOnClose // Ensures Form.List re-registers correctly
+          destroyOnHidden // Ensures Form.List re-registers correctly
         >
           <Form form={form} layout="vertical" onFinish={onFinish} className="pm-form-input" style={{ marginTop: 8 }}>
             <Form.Item name="name" label={<FieldLabel>Dish Name</FieldLabel>} rules={[{ required: true }]}>

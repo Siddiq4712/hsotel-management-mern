@@ -3,6 +3,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import AuthNavigator from '../auth/AuthNavigator';
 import StudentTabNavigator from './StudentTabNavigator';
 import WardenTabNavigator from './WardenTabNavigator';
+import SecurityNavigator from './SecurityNavigator';
+import ParentNavigator from './ParentNavigator';
 import { useAuth } from '../hooks/useAuth';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { normalizeRole } from '../utils/role';
@@ -33,6 +35,10 @@ const AppNavigator = () => {
           <StudentTabNavigator />
         ) : resolvedRole === 'warden' ? (
           <WardenTabNavigator />
+        ) : resolvedRole === 'security' ? (
+          <SecurityNavigator />
+        ) : resolvedRole === 'parent' ? (
+          <ParentNavigator />
         ) : (
           <AuthNavigator />
         )

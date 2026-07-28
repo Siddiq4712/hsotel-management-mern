@@ -104,4 +104,22 @@ const StudentTabNavigator = () => {
   );
 };
 
-export default StudentTabNavigator;
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import ApplyLeaveScreen from '../screens/student/ApplyLeaveScreen';
+import OutpassRequestScreen from '../screens/student/OutpassRequestScreen';
+import OutpassStatusScreen from '../screens/student/OutpassStatusScreen';
+
+const Stack = createNativeStackNavigator();
+
+const StudentStackNavigator = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="StudentTabs" component={StudentTabNavigator} />
+      <Stack.Screen name="ApplyLeave" component={ApplyLeaveScreen} options={{ headerShown: true, title: 'Apply for Leave' }} />
+      <Stack.Screen name="OutpassStatus" component={OutpassStatusScreen} options={{ headerShown: true, title: 'Gate Pass Status' }} />
+      <Stack.Screen name="OutpassRequest" component={OutpassRequestScreen} options={{ headerShown: true, title: 'Request Outpass' }} />
+    </Stack.Navigator>
+  );
+};
+
+export default StudentStackNavigator;

@@ -1,10 +1,11 @@
-﻿import bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 import { Op } from 'sequelize';
 import moment from 'moment';
 import { 
   User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,
   Attendance, GPSAttendance, Leave, Complaint, Suspension, Holiday, Fee, MessBill, Hostel, RoomRequest,
-  DayReductionRequest, Rebate, DailyRateLog, HostelLayout, AdditionalCollection, AdditionalCollectionType, Role, sequelize
+  DayReductionRequest, Rebate, DailyRateLog, HostelLayout, AdditionalCollection, AdditionalCollectionType, Role, sequelize,
+  Outpass
 } from '../models/index.js';
 
 const getHostelId = (user) => {
@@ -1052,6 +1053,20 @@ export const getDashboardStats = async (req, res) => {
 
       const totalTodayAttendance = attendanceCounts.reduce((sum, curr) => sum + (parseInt(curr.count) || 0), 0);
 
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      const pendingOutpasses = await Outpass.count({ where: { hostel_id, status: 'pending' } });
+      const outsideOutpasses = await Outpass.count({ where: { hostel_id, status: 'outside' } });
+      const completedTodayOutpasses = await Outpass.count({
+        where: {
+          hostel_id,
+          status: { [Op.in]: ['completed', 'late_return'] },
+          return_time: { [Op.gte]: todayStart }
+        }
+      });
+      const lateReturnOutpasses = await Outpass.count({ where: { hostel_id, status: 'late_return' } });
+
       res.json({
          success: true,
          data: {
@@ -1072,7 +1087,14 @@ export const getDashboardStats = async (req, res) => {
             recentComplaints,
 
             attendanceStatus,
-            totalTodayAttendance
+            totalTodayAttendance,
+
+            outpasses: {
+              pending: pendingOutpasses,
+              outside: outsideOutpasses,
+              completedToday: completedTodayOutpasses,
+              lateReturn: lateReturnOutpasses
+            }
          }
       });
    } catch (error) {

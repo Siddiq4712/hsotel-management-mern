@@ -103,7 +103,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
       setWatchItems([{ quantity: 1 }]);
       onSuccess?.();
     } catch (err) {
-      message.error(err.response?.data?.message || 'Failed to record meal');
+      message.error(err.message || 'Failed to record meal');
     } finally {
       setSubmitting(false);
     }

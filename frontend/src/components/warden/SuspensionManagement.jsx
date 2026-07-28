@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Card, Table, Tag, Button, Input, Select, DatePicker, 
   Typography, Row, Col, Statistic, Space, Skeleton, 
-  Modal, Badge, Divider, Empty, message, ConfigProvider, theme, Form
+  Modal, Badge, Divider, Empty, ConfigProvider, theme, Form, App as AntdApp
 } from 'antd';
 import { 
   UserX, Plus, User, Calendar, CheckCircle2, AlertCircle, 
@@ -65,6 +65,7 @@ const LedgerSkeleton = () => (
 );
 
 const SuspensionManagement = () => {
+  const { message } = AntdApp.useApp();
   const [form] = Form.useForm();
   const [suspensions, setSuspensions] = useState([]);
   const [students, setStudents] = useState([]);
@@ -208,14 +209,14 @@ const SuspensionManagement = () => {
               <div className="flex flex-wrap gap-4 items-center">
                 <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 md:max-w-md focus-within:border-rose-300 transition-all">
                   <Search size={18} className="text-slate-300" />
-                  <Input placeholder="Search Roll or Incident..." bordered={false} className="w-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                  <Input placeholder="Search Roll or Incident..." variant="borderless" className="w-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                 </div>
                 <Button icon={<RefreshCw size={16}/>} onClick={fetchData} className="rounded-xl h-12 w-12 flex items-center justify-center border-slate-200" />
               </div>
             </Card>
 
             {/* Real Table */}
-            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" styles={{ body: { padding: 0 } }}>
               {filteredSuspensions.length > 0 ? (
                 <Table 
                   dataSource={filteredSuspensions} 
@@ -242,7 +243,7 @@ const SuspensionManagement = () => {
           }}
           footer={null}
           width={600}
-          destroyOnClose
+          destroyOnHidden
         >
           <Form form={form} layout="vertical" onFinish={handleCreateSuspension}>
             <Form.Item
