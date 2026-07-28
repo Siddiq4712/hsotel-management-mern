@@ -40,6 +40,7 @@ import {
   getItemStock,
   getDailyConsumption,
   recordBulkConsumption,
+  recordSinglePageDailyConsumption,
   recordInventoryPurchase,
   getInventoryTransactions,
   exportStockToExcel,
@@ -272,6 +273,7 @@ router.post('/stock', authorize(['mess', 'admin']), updateItemStock);
 router.get('/stock', authorize(['mess', 'warden', 'admin']), getItemStock);
 router.get('/stock/export-excel', authorize(['mess', 'admin']), exportStockToExcel);
 router.post('/consumption/bulk', authorize(['mess', 'admin']), recordBulkConsumption);
+router.post('/consumption/single-page', authorize(['mess', 'admin']), recordSinglePageDailyConsumption);
 router.get('/consumption', authorize(['mess', 'warden', 'admin']), getDailyConsumption);
 router.post('/inventory-purchase', authorize(['mess', 'admin']), recordInventoryPurchase);
 router.get('/inventory-transactions', authorize(['mess', 'warden', 'admin']), getInventoryTransactions);
