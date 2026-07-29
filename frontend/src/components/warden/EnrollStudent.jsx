@@ -8,9 +8,10 @@ import {
 import { 
   User, Lock, CheckCircle2, AlertCircle, Bed, School, 
   Hash, Mail, Send, ArrowRight, ArrowLeft, GraduationCap,
-  ShieldCheck, Info, FileSpreadsheet
+  ShieldCheck, Info, FileSpreadsheet, Download
 } from 'lucide-react';
 import { wardenAPI } from '../../services/api';
+import { downloadStudentBulkImportTemplate, getRequiredImportColumns, mapExcelRowToStudent, validateExcelImportHeaders } from '../../utils/bulkImportUtils';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -38,6 +39,7 @@ const EnrollStudent = () => {
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
+  const requiredImportColumns = getRequiredImportColumns();
 
   useEffect(() => {
     fetchSessions();
@@ -56,46 +58,55 @@ const EnrollStudent = () => {
   };
 
   const handleExcelImport = (file) => {
-  // Capture the Batch/Year selected in the Manual Form dropdown
-  const sessionId = form.getFieldValue('session_id');
-  
-  if (!sessionId) {
-    message.error("CRITICAL: Select 'Academic Year / Batch' from the dropdown before uploading Excel!");
-    return false;
-  }
+    const sessionId = form.getFieldValue('session_id');
 
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, { type: 'array' });
-    const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-
-    const formatted = json.map(row => ({
-      userName: row['Name'], 
-      roll_number: String(row['Roll Number']),
-      college: row['College'] || 'nec',
-      // Determines if "Allocate Room/Bed" is checked for this student
-      requires_bed: String(row['Hosteller']).toLowerCase() === 'yes'
-    }));
-
-    setLoading(true);
-    try {
-      const response = await wardenAPI.bulkEnrollStudents({ 
-        students: formatted, 
-        session_id: sessionId // Passing the batch ID to backend
-      });
-      
-      const { successful, skipped } = response.data.data;
-      message.success(`Import Finished. Enrolled: ${successful}, Skipped: ${skipped}`);
-    } catch (err) {
-      message.error("Import failed: " + err.message);
-    } finally {
-      setLoading(false);
+    if (!sessionId) {
+      message.error("CRITICAL: Select 'Academic Year / Batch' from the dropdown before uploading Excel!");
+      return false;
     }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(worksheet);
+      const headers = json.length > 0 ? Object.keys(json[0]) : [];
+      const validation = validateExcelImportHeaders(headers);
+
+      if (!validation.isValid) {
+        message.error(`Required columns missing: ${validation.missingColumns.join(', ')}. Please use the template above.`);
+        return;
+      }
+
+      const formatted = json
+        .map((row) => mapExcelRowToStudent(row, headers))
+        .filter(Boolean);
+
+      if (formatted.length === 0) {
+        message.error('No student rows were found in the Excel file.');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const response = await wardenAPI.bulkEnrollStudents({
+          students: formatted,
+          session_id: sessionId
+        });
+
+        const { successful, skipped } = response.data.data;
+        message.success(`Import Finished. Enrolled: ${successful}, Skipped: ${skipped}`);
+      } catch (err) {
+        message.error("Import failed: " + err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+    return false;
   };
-  reader.readAsArrayBuffer(file);
-  return false;
-};
 
   // --- FINAL SAVE FUNCTION (Only called on Step 2 Submit) ---
   const onFinish = async () => {
@@ -180,25 +191,39 @@ const EnrollStudent = () => {
             
             <div>
               <Text strong className="block mb-2 text-blue-700">Step 2: Upload File</Text>
-              <Upload 
-                beforeUpload={handleExcelImport} 
-                showUploadList={false} 
-                accept=".xlsx, .xls"
-              >
-                <Button 
-                  icon={<FileSpreadsheet size={18} />} 
-                  className="h-12 rounded-xl bg-green-600 text-white hover:bg-green-700 border-none px-6"
-                  loading={loading}
+              <div className="flex flex-wrap items-center gap-2">
+                <Upload 
+                  beforeUpload={handleExcelImport} 
+                  showUploadList={false} 
+                  accept=".xlsx, .xls"
                 >
-                  Bulk Import Students
+                  <Button 
+                    icon={<FileSpreadsheet size={18} />} 
+                    className="h-12 rounded-xl bg-green-600 text-white hover:bg-green-700 border-none px-6"
+                    loading={loading}
+                  >
+                    Bulk Import Students
+                  </Button>
+                </Upload>
+                <Button
+                  icon={<Download size={16} />}
+                  className="h-12 rounded-xl border-blue-200 text-blue-700 hover:border-blue-400"
+                  onClick={() => downloadStudentBulkImportTemplate()}
+                >
+                  Download Template
                 </Button>
-              </Upload>
+              </div>
             </div>
             
             <div className="pb-2">
-               <Text type="secondary" className="text-xs italic">
-                 * Excel must have: Name, Roll Number, College, Hosteller (yes/no)
-               </Text>
+              <Text type="secondary" className="text-xs italic block mb-2">
+                Required columns: {requiredImportColumns.map((column) => column.label).join(', ')}
+              </Text>
+              <div className="flex flex-wrap gap-2">
+                {requiredImportColumns.map((column) => (
+                  <Tag key={column.key} color="blue">{column.label}</Tag>
+                ))}
+              </div>
             </div>
           </div>
         </Card>

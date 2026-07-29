@@ -6,10 +6,11 @@ import {
 } from 'antd';
 import { 
   Bed, Plus, Trash2, ChevronLeft, ChevronRight, LayoutGrid, 
-  RefreshCw, FilePlus, ClipboardCheck, Info, Search 
+  RefreshCw, FilePlus, ClipboardCheck, Info, Search, Download 
 } from 'lucide-react';
 import moment from 'moment';
 import { messAPI } from '../../services/api';
+import { downloadStudentBulkImportTemplate, getRequiredImportColumns } from '../../utils/bulkImportUtils';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -51,6 +52,7 @@ const BedFeeManagement = () => {
   const [selectedSessionId, setSelectedSessionId] = useState(undefined);
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
   const [sessionForModalFilter, setSessionForModalFilter] = useState(undefined);
+  const requiredImportColumns = getRequiredImportColumns();
 
   // --- 1. FETCH MAIN DATA (Existing Fees) ---
   const fetchInitialData = useCallback(async () => {
@@ -200,6 +202,7 @@ const BedFeeManagement = () => {
             </div>
             <Space>
               <Button icon={<LayoutGrid size={18}/>} onClick={() => setIsBulkModalVisible(true)}>Session Bulk</Button>
+              <Button icon={<Download size={18} />} onClick={() => downloadStudentBulkImportTemplate()}>Excel Template</Button>
               <Button type="primary" icon={<FilePlus size={18}/>} onClick={() => setIsGenerateFeeModalVisible(true)}>Generate New Fees</Button>
             </Space>
           </div>
@@ -207,7 +210,7 @@ const BedFeeManagement = () => {
 
         {/* Filters */}
         <Card className="border-none shadow-sm rounded-xl mb-6">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <Select
               placeholder="Filter List by Session"
               className="w-64"
@@ -218,6 +221,14 @@ const BedFeeManagement = () => {
               {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
             </Select>
             <Button icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''} />} onClick={fetchInitialData}>Refresh</Button>
+          </div>
+          <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3">
+            <Text className="text-xs text-blue-700">Excel reference for student bulk sheets: {requiredImportColumns.map((column) => column.label).join(', ')}</Text>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {requiredImportColumns.map((column) => (
+                <Tag key={column.key} color="blue">{column.label}</Tag>
+              ))}
+            </div>
           </div>
         </Card>
 

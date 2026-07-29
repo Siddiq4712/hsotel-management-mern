@@ -316,6 +316,7 @@ export const messAPI = {
   // Item Management - Complete CRUD
   // Expected data: { name, category_id, unit_price, unit_id, description }
   createItem: (data) => api.post('/mess/items', data),
+  createBulkItems: (data) => api.post('/mess/items/bulk', data),
   getItems: (params) => api.get('/mess/items', { params }), // params: { category_id, search }
   getItemById: (id) => api.get(`/mess/items/${id}`),
   updateItem: (id, data) => api.put(`/mess/items/${id}`, data), // Expected data: { name, category_id, unit_price, unit_id, description }
@@ -357,6 +358,7 @@ export const messAPI = {
   // Stock Management
   // Expected data: { item_id, hostel_id, quantity, unit_price, purchase_date, expiry_date }
   updateItemStock: (data) => api.post('/mess/stock', data),
+  createBulkStock: (data) => api.post('/mess/stock/bulk', data),
   getItemStock: (params) => api.get('/mess/stock', { params }), // params: { low_stock }
   // Expected data: { consumptions: [{ item_id, quantity_consumed, unit, consumption_date, meal_type }] }
   exportStockToExcel: () => api.get('/mess/stock/export-excel', { responseType: 'blob' }),
@@ -371,6 +373,7 @@ export const messAPI = {
   // Store Management - Complete CRUD
   // Expected data: { name, address, contact_number }
   createStore: (data) => api.post('/mess/stores', data),
+  createBulkStores: (data) => api.post('/mess/stores/bulk', data),
   getStores: (params) => api.get('/mess/stores', { params }), // params: { search, is_active }
   updateStore: (id, data) => api.put(`/mess/stores/${id}`, data), // Expected data: { name, address, contact_number, is_active }
   deleteStore: (id) => api.delete(`/mess/stores/${id}`),

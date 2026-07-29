@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Table, Button, Space, Tag, Modal, Form,
   Input, Select, InputNumber, Typography, Row, Col, 
@@ -7,10 +7,12 @@ import {
 import {
   Package, Tags, Plus, Search, Edit2, 
   Database, Boxes, Info, CheckCircle2, X, RefreshCw, 
-  Layers, AlertTriangle, Calculator, DollarSign
+  Layers, AlertTriangle, Calculator, DollarSign, UploadCloud, Download
 } from 'lucide-react';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
+import * as XLSX from 'xlsx';
+import { downloadItemBulkImportTemplate, validateItemExcelImportHeaders, mapExcelRowToItem } from '../../utils/bulkImportUtils';
 
 const { Option } = Select;
 const { Title, Text } = Typography;
@@ -103,6 +105,8 @@ const ItemManagement = () => {
   const [editingItem, setEditingItem] = useState(null);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
+  const [importingItems, setImportingItems] = useState(false);
+  const fileInputRef = useRef(null);
   
   const [form] = Form.useForm();
   const [categoryForm] = Form.useForm();
@@ -133,6 +137,89 @@ const ItemManagement = () => {
     link.rel = 'stylesheet';
     document.head.appendChild(link);
   }, [fetchData]);
+
+  const triggerItemImport = () => fileInputRef.current?.click();
+
+  const handleItemImportFile = async (file) => {
+    setImportingItems(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        message.error('The Excel file does not contain any sheets.');
+        return;
+      }
+
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+      if (!rows.length) {
+        message.error('The Excel file does not contain any rows.');
+        return;
+      }
+
+      const headers = Object.keys(rows[0]);
+      const validation = validateItemExcelImportHeaders(headers);
+      if (!validation.isValid) {
+        message.error(`Missing required columns: ${validation.missingColumns.join(', ')}`);
+        return;
+      }
+
+      const parsedRows = rows.map((row, index) => ({
+        rowNumber: index + 2,
+        payload: mapExcelRowToItem(row, headers)
+      }));
+
+      const invalidRows = parsedRows.filter((row) => !row.payload);
+      if (invalidRows.length) {
+        message.error(`Invalid or incomplete rows: ${invalidRows.map((row) => row.rowNumber).join(', ')}`);
+        return;
+      }
+
+      const payload = parsedRows.map((row) => row.payload);
+      const response = await messAPI.createBulkItems({ items: payload });
+      const result = response.data.data || {};
+
+      if (result.created > 0) {
+        message.success(`${result.created} material(s) imported successfully.`);
+      }
+
+      if (result.errors && result.errors.length > 0) {
+        Modal.info({
+          title: 'Import completed with warnings',
+          content: (
+            <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+              {result.errors.map((error) => (
+                <div key={error.row} style={{ marginBottom: 8 }}>
+                  Row {error.row}: {error.message}
+                </div>
+              ))}
+            </div>
+          ),
+          width: 560
+        });
+      }
+
+      if (!result.created && (!result.errors || result.errors.length === 0)) {
+        message.info('No materials were imported from the file.');
+      }
+
+      fetchData();
+    } catch (error) {
+      console.error('Item import failed', error);
+      message.error('Failed to import Excel file. Check the file format and try again.');
+    } finally {
+      setImportingItems(false);
+    }
+  };
+
+  const handleItemImportChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+    await handleItemImportFile(file);
+  };
 
   const stats = useMemo(() => {
     const lowStock = items.filter(i => parseFloat(i.stock_quantity || 0) < 10).length;
@@ -235,6 +322,13 @@ const ItemManagement = () => {
             </div>
           </div>
           <Space>
+            <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleItemImportChange} />
+            <ActionBtn icon={<UploadCloud size={14}/>} onClick={triggerItemImport} variant="default">
+              {importingItems ? 'Importing...' : 'Import Excel'}
+            </ActionBtn>
+            <ActionBtn icon={<Download size={14}/>} onClick={() => downloadItemBulkImportTemplate()} variant="default">
+              Download Template
+            </ActionBtn>
             <ActionBtn icon={<RefreshCw size={14}/>} onClick={fetchData}>Sync Stock</ActionBtn>
             <button
               onClick={() => activeTab === 'items' ? (() => { setEditingItem(null); form.resetFields(); setModalVisible(true); })() : (() => { setEditingCategory(null); categoryForm.resetFields(); setCategoryModalVisible(true); })()}
