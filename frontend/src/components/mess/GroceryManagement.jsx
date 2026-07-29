@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Select, Input, message, Space, Typography, Tag } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Download } from 'lucide-react';
 import { messAPI } from '../../services/api';
+import { downloadItemBulkImportTemplate, getRequiredItemImportColumns } from '../../utils/bulkImportUtils';
 
 const { Option } = Select;
 const { Title, Text } = Typography;
@@ -13,6 +15,7 @@ const GroceryManagement = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchText, setSearchText] = useState('');
   const [loading, setLoading] = useState(false);
+  const requiredImportColumns = getRequiredItemImportColumns();
 
   useEffect(() => {
     fetchItems();
@@ -102,12 +105,23 @@ const GroceryManagement = () => {
           <Button icon={<ReloadOutlined />} onClick={fetchItems}>
             Refresh
           </Button>
+          <Button icon={<Download size={16} />} onClick={() => downloadItemBulkImportTemplate()}>
+            Excel Template
+          </Button>
           <Button type="primary" icon={<PlusOutlined />}>
             Add Item
           </Button>
         </Space>
       }
     >
+      <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-3">
+        <Text className="text-xs text-blue-700">Excel reference for grocery item sheets: {requiredImportColumns.map((column) => column.label).join(', ')}</Text>
+        <div className="flex flex-wrap gap-2 mt-2">
+          {requiredImportColumns.map((column) => (
+            <Tag key={column.key} color="blue">{column.label}</Tag>
+          ))}
+        </div>
+      </div>
       <Space style={{ marginBottom: 16 }}>
         <Select
           placeholder="Filter by category"

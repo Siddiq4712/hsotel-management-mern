@@ -12,6 +12,7 @@ import {
 
   // Item Management
   createItem,
+  createBulkItems,
   getItems,
   getItemById,
   updateItem,
@@ -58,6 +59,8 @@ import {
 
   // Store Management
   createStore,
+  createBulkStores,
+  createBulkStock,
   getStores,
   updateStore,
   deleteStore,
@@ -236,6 +239,7 @@ router.post('/menus/:id/apply-date-range', authorize(['mess', 'admin']), applyMe
 
 /* ---------- ITEM MANAGEMENT ---------- */
 router.post('/items', authorize(['mess', 'admin']), validateItem, createItem);
+router.post('/items/bulk', authorize(['mess', 'admin']), createBulkItems);
 router.get('/items', authorize(['mess', 'warden', 'admin']), getItems);
 router.get('/items/:id', authorize(['mess', 'warden', 'admin']), getItemById);
 router.put('/items/:id', authorize(['mess', 'admin']), validateItem, updateItem);
@@ -269,6 +273,7 @@ router.delete('/uoms/:id', authorize(['mess', 'admin', 'warden']), deleteUOM);
 
 /* ---------- STOCK & CONSUMPTION ---------- */
 router.post('/stock', authorize(['mess', 'admin']), updateItemStock);
+router.post('/stock/bulk', authorize(['mess', 'admin']), createBulkStock);
 router.get('/stock', authorize(['mess', 'warden', 'admin']), getItemStock);
 router.get('/stock/export-excel', authorize(['mess', 'admin']), exportStockToExcel);
 router.post('/consumption/bulk', authorize(['mess', 'admin']), recordBulkConsumption);
@@ -287,6 +292,7 @@ router.post('/generate-mess-bills', authorize(['mess', 'admin']), generateMessBi
 
 /* ---------- STORE MANAGEMENT ---------- */
 router.post('/stores', authorize(['mess', 'admin']), validateStore, createStore);
+router.post('/stores/bulk', authorize(['mess', 'admin']), createBulkStores);
 router.get('/stores', authorize(['mess', 'warden', 'admin']), getStores);
 router.put('/stores/:id', authorize(['mess', 'admin']), validateStore, updateStore);
 router.delete('/stores/:id', authorize(['mess', 'admin', 'warden']), deleteStore);

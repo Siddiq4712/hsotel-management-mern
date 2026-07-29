@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Table, Button, Select, message, Space, Typography, Tag,
   Switch, Modal, Form, InputNumber, DatePicker, ConfigProvider, 
@@ -6,9 +6,11 @@ import {
 } from 'antd';
 import { 
   Warehouse, Plus, Download, RefreshCw, 
-  Search, FileBarChart, Filter, Box, AlertCircle
+  Search, FileBarChart, Filter, Box, AlertCircle, UploadCloud
 } from 'lucide-react';
 import { messAPI } from '../../services/api';
+import * as XLSX from 'xlsx';
+import { downloadStockBulkImportTemplate, validateStockExcelImportHeaders, mapExcelRowToStock } from '../../utils/bulkImportUtils';
 import moment from 'moment';
 
 const { Title, Text } = Typography;
@@ -22,9 +24,11 @@ const StockManagement = () => {
   const [showLowStock, setShowLowStock] = useState(false);
   const [isAddStockModalVisible, setIsAddStockModalVisible] = useState(false);
   const [isUnitRateModalVisible, setIsUnitRateModalVisible] = useState(false);
+  const [importingStock, setImportingStock] = useState(false);
   
   const [addStockForm] = Form.useForm();
   const [unitRateForm] = Form.useForm();
+  const stockImportRef = useRef(null);
 
   // --- Data Fetching ---
   const fetchStocks = useCallback(async () => {
@@ -52,6 +56,110 @@ const StockManagement = () => {
       const res = await messAPI.getItems();
       setItems(res.data.data || []);
     } catch (e) { console.error(e); }
+  };
+
+  const triggerStockImport = () => stockImportRef.current?.click();
+
+  const handleStockImportFile = async (file) => {
+    setImportingStock(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        message.error('The Excel file does not contain any sheets.');
+        return;
+      }
+
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+      if (!rows.length) {
+        message.error('The Excel file does not contain any rows.');
+        return;
+      }
+
+      const headers = Object.keys(rows[0]);
+      const validation = validateStockExcelImportHeaders(headers);
+      if (!validation.isValid) {
+        message.error(`Missing required columns: ${validation.missingColumns.join(', ')}`);
+        return;
+      }
+
+      const itemNameToId = new Map(items.map((item) => [String(item.name || '').trim().toLowerCase(), item.id]));
+      const parsed = rows.map((row, index) => {
+        const payload = mapExcelRowToStock(row, headers);
+        if (!payload) {
+          return { rowNumber: index + 2, error: 'Missing required stock fields' };
+        }
+
+        const itemId = itemNameToId.get(payload.item_name.trim().toLowerCase());
+        if (!itemId) {
+          return { rowNumber: index + 2, error: `Item not found: ${payload.item_name}` };
+        }
+
+        return {
+          rowNumber: index + 2,
+          payload: {
+            item_id: itemId,
+            quantity: payload.quantity,
+            unit_price: payload.unit_price,
+            purchase_date: payload.purchase_date,
+            expiry_date: payload.expiry_date
+          }
+        };
+      });
+
+      const errors = parsed.filter((row) => row.error);
+      const validRows = parsed.filter((row) => !row.error).map((row) => row.payload);
+
+      if (!validRows.length) {
+        message.error('No valid stock rows were found in the Excel file.');
+        return;
+      }
+
+      const response = await messAPI.createBulkStock({ stocks: validRows });
+      const result = response.data.data || {};
+
+      if (result.created > 0) {
+        message.success(`${result.created} stock record(s) imported successfully.`);
+      }
+
+      const combinedErrors = [
+        ...errors.map((row) => ({ row: row.rowNumber, message: row.error })),
+        ...(result.errors || [])
+      ];
+
+      if (combinedErrors.length) {
+        Modal.info({
+          title: 'Import completed with warnings',
+          content: (
+            <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+              {combinedErrors.map((error) => (
+                <div key={error.row} style={{ marginBottom: 8 }}>
+                  Row {error.row}: {error.message}
+                </div>
+              ))}
+            </div>
+          ),
+          width: 560
+        });
+      }
+
+      fetchStocks();
+    } catch (error) {
+      console.error('Stock import failed', error);
+      message.error('Failed to import stock Excel file. Please verify the file format.');
+    } finally {
+      setImportingStock(false);
+    }
+  };
+
+  const handleStockImportChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+    await handleStockImportFile(file);
   };
 
   useEffect(() => {
@@ -159,8 +267,15 @@ const StockManagement = () => {
             <Title level={2} style={{ margin: 0, fontWeight: 800 }}>Stock Management</Title>
           </div>
           <Space size="middle">
+            <input ref={stockImportRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleStockImportChange} />
             <Button icon={<RefreshCw size={16} />} onClick={fetchStocks} className="rounded-xl h-10">Sync</Button>
             <Button icon={<Download size={16} />} onClick={() => setIsUnitRateModalVisible(true)} className="rounded-xl h-10">Reports</Button>
+            <Button icon={<UploadCloud size={16} />} onClick={triggerStockImport} loading={importingStock} className="rounded-xl h-10">
+              {importingStock ? 'Importing...' : 'Import Excel'}
+            </Button>
+            <Button icon={<Download size={16} />} onClick={() => downloadStockBulkImportTemplate()} className="rounded-xl h-10">
+              Download Template
+            </Button>
             <Button 
               type="primary" 
               icon={<Plus size={18} />} 

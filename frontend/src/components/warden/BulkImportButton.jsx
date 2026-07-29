@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Button, Upload, message, Modal, Table } from 'antd';
-import { FileSpreadsheet, UploadCloud } from 'lucide-react';
+import { Button, Upload, message, Modal, Tag } from 'antd';
+import { FileSpreadsheet, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { wardenAPI } from '../../services/api';
+import { downloadStudentBulkImportTemplate, getRequiredImportColumns, mapExcelRowToStudent, validateExcelImportHeaders } from '../../utils/bulkImportUtils';
 
 const BulkImportButton = ({ sessionId, onComplete }) => {
   const [loading, setLoading] = useState(false);
+  const requiredImportColumns = getRequiredImportColumns();
 
   const handleFileUpload = (file) => {
     if (!sessionId) {
@@ -20,18 +22,20 @@ const BulkImportButton = ({ sessionId, onComplete }) => {
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       const json = XLSX.utils.sheet_to_json(worksheet);
+      const headers = json.length > 0 ? Object.keys(json[0]) : [];
+      const validation = validateExcelImportHeaders(headers);
 
-      // Map Excel Columns to Database Fields
-      const formattedData = json.map(row => ({
-        userName: row['Name'] || row['name'],
-        userMail: row['Email'] || row['email'],
-        roll_number: String(row['Roll Number'] || row['roll_no']),
-        college: row['College'] || 'nec',
-        requires_bed: String(row['Hosteller']).toLowerCase() === 'yes'
-      }));
+      if (!validation.isValid) {
+        message.error(`Required columns missing: ${validation.missingColumns.join(', ')}. Please use the template.`);
+        return;
+      }
+
+      const formattedData = json
+        .map((row) => mapExcelRowToStudent(row, headers))
+        .filter(Boolean);
 
       if (formattedData.length === 0) {
-        message.error("The Excel sheet is empty.");
+        message.error("The Excel sheet is empty or had no usable student rows.");
         return;
       }
 
@@ -65,15 +69,31 @@ const BulkImportButton = ({ sessionId, onComplete }) => {
   };
 
   return (
-    <Upload beforeUpload={handleFileUpload} showUploadList={false} accept=".xlsx, .xls">
-      <Button 
-        icon={<FileSpreadsheet size={18} />} 
-        loading={loading}
-        className="h-11 rounded-xl bg-green-600 text-white hover:bg-green-700 border-none"
+    <div className="flex flex-wrap items-center gap-2">
+      <Upload beforeUpload={handleFileUpload} showUploadList={false} accept=".xlsx, .xls">
+        <Button 
+          icon={<FileSpreadsheet size={18} />} 
+          loading={loading}
+          className="h-11 rounded-xl bg-green-600 text-white hover:bg-green-700 border-none"
+        >
+          Import from Excel
+        </Button>
+      </Upload>
+      <Button
+        icon={<Download size={18} />}
+        className="h-11 rounded-xl border-blue-200 text-blue-700 hover:border-blue-400"
+        onClick={() => downloadStudentBulkImportTemplate()}
       >
-        Import from Excel
+        Download Template
       </Button>
-    </Upload>
+      <div className="w-full">
+        <div className="flex flex-wrap gap-2 mt-2">
+          {requiredImportColumns.map((column) => (
+            <Tag key={column.key} color="blue">{column.label}</Tag>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 };
 

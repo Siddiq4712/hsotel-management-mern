@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { message } from 'antd';
 import { 
   ConfigProvider as AntConfig, 
@@ -17,9 +17,11 @@ import {
 } from 'antd';
 import {
   Store, Plus, MapPin, Phone, Edit3, Trash2, 
-  RefreshCw, Search, Link, ChevronRight, Info, Building2
+  RefreshCw, Search, Link, ChevronRight, Info, Building2, UploadCloud, Download
 } from 'lucide-react';
 import { messAPI } from '../../services/api';
+import * as XLSX from 'xlsx';
+import { downloadStoreBulkImportTemplate, validateStoreExcelImportHeaders, mapExcelRowToStore } from '../../utils/bulkImportUtils';
 
 const { Text } = AntTypography;
 
@@ -40,6 +42,8 @@ const StoreManagement = () => {
   const [form] = AntForm.useForm();
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
+  const [importingStores, setImportingStores] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     fetchStores();
@@ -74,6 +78,89 @@ const StoreManagement = () => {
       is_active: store.is_active
     });
     setModalVisible(true);
+  };
+
+  const triggerStoreImport = () => fileInputRef.current?.click();
+
+  const handleStoreImportFile = async (file) => {
+    setImportingStores(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        message.error('The Excel file does not contain any sheets.');
+        return;
+      }
+
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' });
+      if (!rows.length) {
+        message.error('The Excel file does not contain any rows.');
+        return;
+      }
+
+      const headers = Object.keys(rows[0]);
+      const validation = validateStoreExcelImportHeaders(headers);
+      if (!validation.isValid) {
+        message.error(`Missing required columns: ${validation.missingColumns.join(', ')}`);
+        return;
+      }
+
+      const parsedRows = rows.map((row, index) => ({
+        rowNumber: index + 2,
+        payload: mapExcelRowToStore(row, headers)
+      }));
+
+      const invalidRows = parsedRows.filter((row) => !row.payload);
+      if (invalidRows.length) {
+        message.error(`Invalid or incomplete rows: ${invalidRows.map((row) => row.rowNumber).join(', ')}`);
+        return;
+      }
+
+      const payload = parsedRows.map((row) => row.payload);
+      const response = await messAPI.createBulkStores({ stores: payload });
+      const result = response.data.data || {};
+
+      if (result.created > 0) {
+        message.success(`${result.created} provider(s) imported successfully.`);
+      }
+
+      if (result.errors && result.errors.length > 0) {
+        AntModal.info({
+          title: 'Import completed with warnings',
+          content: (
+            <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+              {result.errors.map((error) => (
+                <div key={error.row} style={{ marginBottom: 8 }}>
+                  Row {error.row}: {error.message}
+                </div>
+              ))}
+            </div>
+          ),
+          width: 560
+        });
+      }
+
+      if (!result.created && (!result.errors || result.errors.length === 0)) {
+        message.info('No providers were imported from the file.');
+      }
+
+      fetchStores();
+    } catch (error) {
+      console.error('Store import failed', error);
+      message.error('Failed to import Excel file. Check the file format and try again.');
+    } finally {
+      setImportingStores(false);
+    }
+  };
+
+  const handleStoreImportChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+    await handleStoreImportFile(file);
   };
 
   const handleSubmit = async (values) => {
@@ -183,14 +270,34 @@ const StoreManagement = () => {
                 <p className="store-subheading">Manage your supplier network and procurement locations</p>
               </div>
             </div>
-            <AntButton 
-              type="primary" 
-              icon={<Plus size={18}/>} 
-              onClick={() => { setEditingStore(null); form.resetFields(); setModalVisible(true); }}
-              className="store-save-btn"
-            >
-              Register Store
-            </AntButton>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleStoreImportChange} />
+              <AntButton
+                type="default"
+                icon={<UploadCloud size={18} />}
+                onClick={triggerStoreImport}
+                className="store-save-btn"
+                loading={importingStores}
+              >
+                {importingStores ? 'Importing...' : 'Import Excel'}
+              </AntButton>
+              <AntButton
+                type="default"
+                icon={<Download size={18} />}
+                onClick={() => downloadStoreBulkImportTemplate()}
+                className="store-save-btn"
+              >
+                Download Template
+              </AntButton>
+              <AntButton 
+                type="primary" 
+                icon={<Plus size={18}/>} 
+                onClick={() => { setEditingStore(null); form.resetFields(); setModalVisible(true); }}
+                className="store-save-btn"
+              >
+                Register Store
+              </AntButton>
+            </div>
           </div>
 
           <div className="store-panel mb-6">

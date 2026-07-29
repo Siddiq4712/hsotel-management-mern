@@ -701,6 +701,101 @@ export const createItem = async (req, res) => {
   }
 };
 
+export const createBulkItems = async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, message: 'No item rows provided for import' });
+  }
+
+  const transaction = await sequelize.transaction();
+  try {
+    const categoryRecords = await ItemCategory.findAll({ transaction });
+    const categoryMap = new Map(categoryRecords.map(category => [category.name.trim().toLowerCase(), category]));
+
+    const uomRecords = await UOM.findAll({ transaction });
+    const uomMap = new Map(uomRecords.map(uom => [uom.abbreviation.trim().toLowerCase(), uom]));
+
+    const createdItems = [];
+    const errors = [];
+
+    for (let index = 0; index < items.length; index += 1) {
+      const row = items[index];
+      const rowNumber = index + 2;
+      const name = String(row.name ?? '').trim();
+      const categoryName = String(row.category_name ?? '').trim();
+      const unitAbbreviation = String(row.unit ?? '').trim();
+      const unitPrice = Number(row.unit_price ?? 0);
+      const description = row.description ? String(row.description).trim() : null;
+      const maximumQuantity = row.maximum_quantity !== undefined && row.maximum_quantity !== null && row.maximum_quantity !== ''
+        ? Number(row.maximum_quantity)
+        : null;
+
+      if (!name) {
+        errors.push({ row: rowNumber, message: 'Item name is required' });
+        continue;
+      }
+      if (!categoryName) {
+        errors.push({ row: rowNumber, message: 'Category is required' });
+        continue;
+      }
+      if (!unitAbbreviation) {
+        errors.push({ row: rowNumber, message: 'Unit abbreviation is required' });
+        continue;
+      }
+
+      let category = categoryMap.get(categoryName.toLowerCase());
+      if (!category) {
+        category = await ItemCategory.create({ name: categoryName }, { transaction });
+        categoryMap.set(categoryName.toLowerCase(), category);
+      }
+
+      const uom = uomMap.get(unitAbbreviation.toLowerCase());
+      if (!uom) {
+        errors.push({ row: rowNumber, message: `UOM not found for abbreviation '${unitAbbreviation}'` });
+        continue;
+      }
+
+      const existingItem = await Item.findOne({
+        where: {
+          name,
+          category_id: category.id
+        },
+        transaction
+      });
+      if (existingItem) {
+        errors.push({ row: rowNumber, message: 'Item already exists with same name and category' });
+        continue;
+      }
+
+      const created = await Item.create({
+        name,
+        category_id: category.id,
+        unit_price: Number.isNaN(unitPrice) ? 0 : unitPrice,
+        unit_id: uom.id,
+        description,
+        maximum_quantity: Number.isNaN(maximumQuantity) ? null : maximumQuantity
+      }, { transaction });
+
+      createdItems.push(created);
+    }
+
+    await transaction.commit();
+
+    res.status(201).json({
+      success: true,
+      data: {
+        created: createdItems.length,
+        errors
+      },
+      message: `${createdItems.length} item(s) imported successfully`
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Bulk item import error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 export const getItems = async (req, res) => {
   try {
     const { category_id, search } = req.query;
@@ -1767,6 +1862,114 @@ export const updateItemStock = async (req, res) => {
   }
 };
 
+export const createBulkStock = async (req, res) => {
+  const hostel_id = req.user.hostel_id;
+  const { stocks } = req.body;
+
+  if (!Array.isArray(stocks) || stocks.length === 0) {
+    return res.status(400).json({ success: false, message: 'No stock records provided for import' });
+  }
+
+  const transaction = await sequelize.transaction();
+  try {
+    const itemIds = [...new Set(stocks.filter((row) => row.item_id).map((row) => row.item_id))];
+    const itemNames = [...new Set(stocks.filter((row) => row.item_name).map((row) => String(row.item_name).trim().toLowerCase()))];
+
+    const itemsById = new Map(
+      (itemIds.length ? await Item.findAll({ where: { id: itemIds }, transaction }) : []).map((item) => [item.id, item])
+    );
+
+    const itemsByName = new Map(
+      (itemNames.length ? await Item.findAll({ where: { name: itemNames }, transaction }) : []).map((item) => [String(item.name).trim().toLowerCase(), item])
+    );
+
+    const created = [];
+    const errors = [];
+
+    for (let index = 0; index < stocks.length; index += 1) {
+      const row = stocks[index];
+      const rowNumber = index + 2;
+      const itemIdFromRow = row.item_id;
+      const itemNameFromRow = row.item_name ? String(row.item_name).trim() : '';
+      const quantity = Number(row.quantity);
+      const unit_price = Number(row.unit_price);
+      const purchase_date = row.purchase_date || new Date();
+      const expiry_date = row.expiry_date || null;
+
+      let item = null;
+      if (itemIdFromRow) {
+        item = itemsById.get(itemIdFromRow);
+      }
+
+      if (!item && itemNameFromRow) {
+        item = itemsByName.get(itemNameFromRow.toLowerCase());
+      }
+
+      if (!item) {
+        errors.push({ row: rowNumber, message: `Item not found: ${itemNameFromRow || itemIdFromRow || 'unknown'}` });
+        continue;
+      }
+
+      if (!itemNameFromRow || Number.isNaN(quantity) || Number.isNaN(unit_price) || quantity <= 0 || unit_price < 0) {
+        errors.push({ row: rowNumber, message: 'Missing or invalid quantity, unit price, or item name' });
+        continue;
+      }
+
+      let itemStock = await ItemStock.findOne({ where: { item_id: item.id, hostel_id }, transaction });
+      if (itemStock) {
+        itemStock = await itemStock.update(
+          {
+            current_stock: parseFloat(itemStock.current_stock) + parseFloat(quantity),
+            last_purchase_date: purchase_date
+          },
+          { transaction }
+        );
+      } else {
+        itemStock = await ItemStock.create(
+          {
+            item_id: item.id,
+            hostel_id,
+            current_stock: quantity,
+            minimum_stock: 0,
+            last_purchase_date: purchase_date
+          },
+          { transaction }
+        );
+      }
+
+      await InventoryBatch.create(
+        {
+          item_id: item.id,
+          hostel_id,
+          quantity_purchased: parseFloat(quantity),
+          quantity_remaining: parseFloat(quantity),
+          unit_price: parseFloat(unit_price),
+          purchase_date,
+          expiry_date,
+          status: 'active'
+        },
+        { transaction }
+      );
+
+      created.push({ item_id: item.id, item_name: item.name });
+    }
+
+    await transaction.commit();
+    res.status(201).json({
+      success: true,
+      data: {
+        created: created.length,
+        errors
+      },
+      message: `${created.length} stock record(s) imported successfully`
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Bulk stock import error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 export const getItemStock = async (req, res) => {
   try {
     const hostel_id = req.user.hostel_id;
@@ -2530,6 +2733,66 @@ export const createStore = async (req, res) => {
     });
   } catch (error) {
     console.error('Store creation error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const createBulkStores = async (req, res) => {
+  const { stores } = req.body;
+  if (!Array.isArray(stores) || stores.length === 0) {
+    return res.status(400).json({ success: false, message: 'No store rows provided for import' });
+  }
+
+  const transaction = await sequelize.transaction();
+  try {
+    const existingStores = await Store.findAll({ transaction });
+    const existingMap = new Map(existingStores.map((store) => [store.name.trim().toLowerCase(), store]));
+
+    const createdStores = [];
+    const errors = [];
+
+    for (let index = 0; index < stores.length; index += 1) {
+      const row = stores[index];
+      const rowNumber = index + 2;
+      const name = String(row.name ?? '').trim();
+      const address = row.address ? String(row.address).trim() : null;
+      const contact_number = row.contact_number ? String(row.contact_number).trim() : null;
+      const is_active = row.is_active !== undefined ? Boolean(row.is_active) : true;
+
+      if (!name) {
+        errors.push({ row: rowNumber, message: 'Store name is required' });
+        continue;
+      }
+
+      if (existingMap.has(name.toLowerCase())) {
+        errors.push({ row: rowNumber, message: 'Store already exists with same name' });
+        continue;
+      }
+
+      const created = await Store.create({
+        name,
+        address,
+        contact_number,
+        is_active
+      }, { transaction });
+
+      existingMap.set(name.toLowerCase(), created);
+      createdStores.push(created);
+    }
+
+    await transaction.commit();
+
+    res.status(201).json({
+      success: true,
+      data: {
+        created: createdStores.length,
+        errors
+      },
+      message: `${createdStores.length} store(s) imported successfully`
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Bulk store import error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
