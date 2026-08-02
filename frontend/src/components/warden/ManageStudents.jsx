@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Card, Table, Input, Button, Tag, Space, Typography, 
-  Modal, Descriptions, Badge, Empty, Skeleton, ConfigProvider, theme 
+  Modal, Descriptions, Badge, Empty, Skeleton, ConfigProvider, theme, Alert
 } from 'antd';
 import { 
   Users, User, Bed, Search, RefreshCw, Eye, 
   ChevronLeft, ChevronRight, Mail, Hash, BookOpen, 
-  ShieldCheck, UserCircle, MapPin, Inbox
+  ShieldCheck, UserCircle, MapPin, Inbox, Server
 } from 'lucide-react';
+import axios from 'axios';
 import { wardenAPI } from '../../services/api';
 import moment from 'moment';
 
@@ -43,6 +44,13 @@ const ManageStudents = () => {
   const [roommatesLoading, setRoommatesLoading] = useState(false);
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  
+  // Academics API Testing State
+  const [academicsModalVisible, setAcademicsModalVisible] = useState(false);
+  const [academicsStudents, setAcademicsStudents] = useState([]);
+  const [academicsLoading, setAcademicsLoading] = useState(false);
+  const [academicsToken, setAcademicsToken] = useState(localStorage.getItem('token') || '');
+  const [academicsError, setAcademicsError] = useState('');
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
@@ -57,6 +65,32 @@ const ManageStudents = () => {
   }, []);
 
   useEffect(() => { fetchStudents(); }, [fetchStudents]);
+
+  const fetchAcademicsStudents = async () => {
+    setAcademicsLoading(true);
+    setAcademicsError('');
+    try {
+      const response = await axios.get('https://erp.nec.edu.in/institute_management_system/students', {
+        headers: {
+          Authorization: `Bearer ${academicsToken}`
+        }
+      });
+      const data = Array.isArray(response.data) ? response.data : (response.data.data || []);
+      
+      // Filter only hosteller students (checking student_type or studentType case-insensitively)
+      const hostellers = data.filter(student => {
+        const type = student.student_type || student.studentType || '';
+        return type.trim().toLowerCase() === 'hosteller';
+      });
+      
+      setAcademicsStudents(hostellers);
+    } catch (error) {
+      console.error('Error fetching from Academics API:', error);
+      setAcademicsError(error.response?.data?.message || error.message || 'Failed to fetch. Check your authorization token or console for CORS/network errors.');
+    } finally {
+      setAcademicsLoading(false);
+    }
+  };
 
   const filteredStudents = useMemo(() => {
     return students.filter(s =>
@@ -186,6 +220,14 @@ const ManageStudents = () => {
               onClick={fetchStudents} 
               className="rounded-xl h-12 w-12 flex items-center justify-center border-slate-200" 
             />
+            <Button 
+              type="primary"
+              icon={<Server size={16}/>} 
+              onClick={() => setAcademicsModalVisible(true)} 
+              className="rounded-xl h-12 flex items-center justify-center border-slate-200 bg-emerald-600 hover:bg-emerald-700 border-none shadow-md" 
+            >
+              Test Academics API
+            </Button>
           </div>
         </Card>
 
@@ -301,6 +343,111 @@ const ManageStudents = () => {
               </div>
             </div>
           )}
+        </Modal>
+
+        {/* Academics API Connection Testing Modal */}
+        <Modal
+          title={<div className="flex items-center gap-2 text-emerald-600"><Server size={20}/> Academics API Connection Test</div>}
+          open={academicsModalVisible}
+          onCancel={() => setAcademicsModalVisible(false)}
+          footer={[
+            <Button key="close" onClick={() => setAcademicsModalVisible(false)} className="rounded-xl">
+              Close
+            </Button>,
+            <Button 
+              key="fetch" 
+              type="primary" 
+              loading={academicsLoading} 
+              onClick={fetchAcademicsStudents} 
+              className="rounded-xl bg-emerald-600 hover:bg-emerald-700"
+            >
+              Fetch Students
+            </Button>
+          ]}
+          width={800}
+        >
+          <div className="space-y-4 my-4">
+            <Text type="secondary">
+              Use this tool to test fetching students from the Academics database directly from the Warden view.
+            </Text>
+            
+            <div>
+              <Text strong className="block mb-2">Authorization Token (JWT Bearer Token):</Text>
+              <Input.Password
+                value={academicsToken}
+                onChange={e => setAcademicsToken(e.target.value)}
+                placeholder="Paste Warden / SuperAdmin JWT Token..."
+                className="rounded-xl font-mono text-xs"
+              />
+            </div>
+
+            {academicsError && (
+              <Alert 
+                message="Error Fetching Data" 
+                description={academicsError} 
+                type="error" 
+                showIcon 
+                closable
+              />
+            )}
+
+            {academicsStudents.length > 0 && (
+              <div className="space-y-4">
+                <Alert 
+                  message={`Successfully fetched ${academicsStudents.length} students from Academics database!`} 
+                  type="success" 
+                  showIcon 
+                />
+                
+                <Table
+                  dataSource={academicsStudents}
+                  rowKey="id"
+                  pagination={{ pageSize: 5 }}
+                  columns={[
+                    {
+                      title: 'Register No',
+                      dataIndex: 'registerNumber',
+                      key: 'registerNumber',
+                    },
+                    {
+                      title: 'Name',
+                      dataIndex: 'username',
+                      key: 'username',
+                    },
+                    {
+                      title: 'Email',
+                      dataIndex: 'email',
+                      key: 'email',
+                    },
+                    {
+                      title: 'Course',
+                      dataIndex: 'course',
+                      key: 'course',
+                    },
+                    {
+                      title: 'Type (Raw Data Check)',
+                      key: 'rawType',
+                      render: (_, record) => {
+                        const rawType = record.student_type || record.studentType || 'Not sent by API';
+                        return (
+                          <Tag color={rawType === 'Hosteller' ? 'green' : 'orange'}>
+                            {rawType}
+                          </Tag>
+                        );
+                      }
+                    }
+                  ]}
+                />
+
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 max-h-60 overflow-y-auto">
+                  <Text strong className="block mb-2 text-xs text-slate-500 uppercase tracking-wider">Raw First Student Record JSON (To verify properties):</Text>
+                  <pre className="text-xs text-slate-600 bg-white p-3 rounded-lg border border-slate-200">
+                    {JSON.stringify(academicsStudents[0], null, 2)}
+                  </pre>
+                </div>
+              </div>
+            )}
+          </div>
         </Modal>
       </div>
     </ConfigProvider>
