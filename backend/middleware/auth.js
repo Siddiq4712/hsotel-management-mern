@@ -24,20 +24,20 @@ const normalizeRole = (role) => {
 export const auth = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
-    
+
     console.log('Auth middleware - Token:', token ? 'Present' : 'Missing');
-    
+
     if (!token) {
       return res.status(401).json({ message: 'No token, authorization denied' });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     console.log('Auth middleware - Decoded token:', decoded);
-    
+
     const user = await User.findByPk(decoded.userId, {
       attributes: { exclude: ['password'] },
       include: [{ model: Role, as: 'role', attributes: ['roleName'] }]
-    }); 
+    });
 
     console.log('Auth middleware - User found:', user ? user.userName : 'Not found');
 
@@ -72,9 +72,9 @@ export const authorize = (roles) => {
   return (req, res, next) => {
     console.log('Authorize middleware - Required roles:', roles);
     console.log('Authorize middleware - User role:', req.user?.role);
-    
+
     if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         message: 'Access denied',
         required: roles,
         current: req.user?.role || 'none'

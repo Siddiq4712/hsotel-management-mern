@@ -161,6 +161,7 @@ export const wardenAPI = {
   // Student Management
   enrollStudent: (data) => api.post('/warden/students', data),
   getStudents: (params) => api.get('/warden/students', { params }),
+  getStudentSummary: (studentId) => api.get(`/warden/students/${studentId}/summary`),
   bulkEnrollStudents: (data) => api.post('/warden/students/bulk-import', data),
 
   // EMI and Fee Management
@@ -241,6 +242,7 @@ export const wardenAPI = {
 };
 export const studentAPI = {
   // Profile
+  getDashboardStats: () => api.get('/student/dashboard-stats'),
   getProfile: () => api.get('/student/profile'),
   getLayout: () => api.get('/student/hostel-layout'),
   getRooms: () => api.get('/student/rooms'),

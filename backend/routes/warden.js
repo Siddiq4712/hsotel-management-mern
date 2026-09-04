@@ -23,7 +23,8 @@ import {
   createRoomWarden, updateRoomWarden, deleteRoomWarden, getRoomsWarden, getLayout, saveLayout,
   // Reductions & Rebates
   getDayReductionRequestsForWarden, updateDayReductionRequestStatusByWarden,
-  getRoomRequestsWarden, decideRoomRequest, getRebates, updateRebateStatus, bulkEnrollStudents
+  getRoomRequestsWarden, decideRoomRequest, getRebates, updateRebateStatus, bulkEnrollStudents,
+  getStudentSummaryForWarden
 } from '../controllers/wardenController.js'; // Added .js extension
 
 import { auth, authorize } from '../middleware/auth.js'; // Added .js extension
@@ -41,6 +42,7 @@ router.get('/sessions', authorize(['warden', 'mess']), getSessions);
 /* ---------- STUDENT MANAGEMENT ---------- */
 router.post('/students', authorize(['warden', 'mess']), enrollStudent);
 router.get('/students', authorize(['warden', 'mess']), getStudents);
+router.get('/students/:student_id/summary', authorize(['warden', 'admin']), getStudentSummaryForWarden);
 router.post('/students/bulk-import', bulkEnrollStudents);
 
 /* ---------- ROOM MANAGEMENT ---------- */

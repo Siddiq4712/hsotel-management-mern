@@ -3132,3 +3132,84 @@ export const getLatestDailyRate = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ==========================================
+// CHATBOT SUMMARY (INDIVIDUAL STUDENT)
+// ==========================================
+export const getStudentSummaryForWarden = async (req, res) => {
+  try {
+    const { student_id } = req.params;
+    const hostel_id = getHostelId(req.user);
+
+    if (!hostel_id || !student_id) {
+      return res.status(400).json({ success: false, message: 'Hostel ID or Student ID missing.' });
+    }
+
+    const studentRoleIds = await getStudentRoleIds();
+    const student = await User.findOne({
+      where: { userId: student_id, hostel_id, roleId: { [Op.in]: studentRoleIds } }
+    });
+
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found.' });
+    }
+
+    const currentMonth = new Date().getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+
+    // 1. Attendance (Current Month)
+    const totalDays = await Attendance.count({
+      where: { 
+        student_id, 
+        hostel_id,
+        [Op.and]: [
+          sequelize.where(sequelize.fn('MONTH', sequelize.col('date')), currentMonth),
+          sequelize.where(sequelize.fn('YEAR', sequelize.col('date')), currentYear)
+        ]
+      }
+    });
+
+    const presentDays = await Attendance.count({
+      where: { 
+        student_id, 
+        hostel_id,
+        status: 'P',
+        [Op.and]: [
+          sequelize.where(sequelize.fn('MONTH', sequelize.col('date')), currentMonth),
+          sequelize.where(sequelize.fn('YEAR', sequelize.col('date')), currentYear)
+        ]
+      }
+    });
+
+    // 2. Complaints
+    const totalComplaints = await Complaint.count({ where: { student_id, hostel_id } });
+    const pendingComplaints = await Complaint.count({ where: { student_id, hostel_id, status: 'Pending' } });
+    
+    // 3. Leaves / Outpasses
+    const totalLeaves = await Leave.count({ where: { student_id, hostel_id } });
+    const pendingLeaves = await Leave.count({ where: { student_id, hostel_id, status: 'Pending' } });
+
+    // 4. Room
+    const activeRoomAllotment = await RoomAllotment.findOne({
+      where: { student_id, is_active: true },
+      include: [{ model: HostelRoom, attributes: ['room_number', 'block'] }]
+    });
+
+    const roomDetails = activeRoomAllotment?.HostelRoom 
+      ? `${activeRoomAllotment.HostelRoom.block ? activeRoomAllotment.HostelRoom.block + '-' : ''}${activeRoomAllotment.HostelRoom.room_number}`
+      : 'Not Allotted';
+
+    res.json({
+      success: true,
+      data: {
+        attendance: { presentDays, totalDays },
+        complaints: { totalComplaints, pendingComplaints },
+        leaves: { totalLeaves, pendingLeaves },
+        room: roomDetails,
+      }
+    });
+  } catch (error) {
+    console.error('Warden GetStudentSummary Error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

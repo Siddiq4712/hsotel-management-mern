@@ -4,6 +4,8 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { StockProvider } from './context/StockContext';
 import { App as AntdApp } from 'antd';
 import Layout from './components/common/Layout';
+import { ChatbotProvider } from './providers/ChatbotProvider';
+import ChatWidget from './components/chatbot/ChatWidget';
 import Login from './components/auth/Login';
 import OAuthCallback from './components/auth/OAuthCallback';
 
@@ -356,20 +358,23 @@ function App() {
       <StockProvider>
         <AntdApp>
           <Router>
-            <div className="App">
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route path="/auth/callback" element={<OAuthCallback />} />
-                <Route
-                  path="/*"
-                  element={
-                    <ProtectedRoute>
-                      <DashboardRouter />
-                    </ProtectedRoute>
-                  }
-                />
-              </Routes>
-            </div>
+            <ChatbotProvider>
+              <div className="App">
+                <Routes>
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/auth/callback" element={<OAuthCallback />} />
+                  <Route
+                    path="/*"
+                    element={
+                      <ProtectedRoute>
+                        <DashboardRouter />
+                      </ProtectedRoute>
+                    }
+                  />
+                </Routes>
+                <ChatWidget />
+              </div>
+            </ChatbotProvider>
           </Router>
         </AntdApp>
       </StockProvider>
