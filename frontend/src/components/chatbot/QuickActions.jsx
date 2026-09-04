@@ -1,10 +1,6 @@
 import React from 'react';
-import { getQuickActionsForRole } from '../../config/intents';
-import { useAuth } from '../../context/AuthContext';
 
-export const QuickActions = ({ onSelect }) => {
-  const { user } = useAuth();
-  const actions = getQuickActionsForRole(user?.role || 'student');
+export const QuickActions = ({ actions = [], onSelect }) => {
 
   if (actions.length === 0) return null;
 
@@ -17,7 +13,7 @@ export const QuickActions = ({ onSelect }) => {
         {actions.map((action, index) => (
           <button
             key={index}
-            onClick={() => onSelect(action.text)}
+            onClick={() => onSelect(action)}
             className="flex items-center justify-between p-2.5 text-xs font-medium text-slate-700 bg-white hover:bg-gradient-to-r hover:from-indigo-50 hover:to-blue-50 border border-slate-100 hover:border-indigo-200 rounded-xl transition-all text-left shadow-sm hover:shadow-md cursor-pointer group"
           >
             <span className="font-semibold text-slate-600 group-hover:text-indigo-700 transition-colors">

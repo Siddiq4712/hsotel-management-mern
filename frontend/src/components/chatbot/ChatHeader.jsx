@@ -13,13 +13,13 @@ export const ChatHeader = ({ onClose, onReset }) => {
         {/* Information and Status */}
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-bold tracking-wide">Hostel Genie</h3>
+            <h3 className="text-sm font-bold tracking-wide">HostelMate</h3>
             <div className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.5 rounded-full select-none">
               <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
               <span className="text-[8px] font-bold text-emerald-400 uppercase tracking-widest">Online</span>
             </div>
           </div>
-          <p className="text-[10px] text-slate-400 font-medium">Your Smart Hostel Assistant</p>
+          <p className="text-[10px] text-slate-400 font-medium">Your hostel assistant</p>
         </div>
       </div>
       

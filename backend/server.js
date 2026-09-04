@@ -17,6 +17,7 @@ import messRoutes from './routes/mess.js';
 import attendanceRoutes from './routes/attendanceRoutes.js';
 import outpassRoutes from './routes/outpass.js';
 import parentRoutes from './routes/parent.js';
+import chatRoutes from './routes/chat.js';
 
 import { verifyEmailConnection } from './utils/emailUtils.js';
 
@@ -56,6 +57,7 @@ app.use('/api/mess', messRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/outpass', outpassRoutes);
 app.use('/api/parent', parentRoutes);
+app.use('/api/chat', chatRoutes);
 
 /* =======================
    CREATE DEFAULT ADMIN

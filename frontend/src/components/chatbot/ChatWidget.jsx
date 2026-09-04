@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 export const ChatWidget = () => {
   const { user } = useAuth();
 
-  // Hostel Genie should only be active for logged-in users (Student, Warden, Mess, Admin)
+  // HostelMate is available only after authentication.
   if (!user) return null;
 
   return (

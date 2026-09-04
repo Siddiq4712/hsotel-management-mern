@@ -15,7 +15,7 @@ export const FloatingButton = () => {
         }
         backdrop-blur-md
       `}
-      aria-label="Hostel Genie Chatbot Assistant"
+      aria-label="Open HostelMate assistant"
     >
       {isOpen ? (
         <X size={26} className="transition-transform" />

@@ -6,6 +6,7 @@ import { ChatBubble } from './ChatBubble';
 import { ChatInput } from './ChatInput';
 import { SuggestionChips } from './SuggestionChips';
 import { TypingIndicator } from './TypingIndicator';
+import { getChatRoleActions } from '../../config/chatRoleActions';
 
 const POPULAR_QUESTIONS = {
   warden: [
@@ -28,6 +29,13 @@ const POPULAR_QUESTIONS = {
     "Mess Menu",
     "Room Details",
   ],
+  parent: [
+    'Student Details',
+    'Room',
+    'Leave Status',
+    'Fee Status',
+    'Notices',
+  ],
   mess: [
     "Menus",
     "Low Stock",
@@ -42,9 +50,7 @@ const POPULAR_QUESTIONS = {
   ],
 };
 
-const PopularQuestions = ({ role, onSelect }) => {
-  const normRole = role === 'lapc' ? 'student' : role?.toLowerCase() || 'student';
-  const questions = POPULAR_QUESTIONS[normRole] || POPULAR_QUESTIONS.student;
+const PopularQuestions = ({ actions, onSelect }) => {
 
   return (
     <div className="px-3 py-3 border-b border-slate-100">
@@ -52,13 +58,13 @@ const PopularQuestions = ({ role, onSelect }) => {
         🔥 Popular Questions
       </p>
       <div className="flex flex-wrap gap-1.5">
-        {questions.map(q => (
+        {actions.map(q => (
           <button
-            key={q}
-            onClick={() => onSelect(q.replace(/^[^\w]+/, '').trim())}
+            key={q.label}
+            onClick={() => onSelect(q)}
             className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 rounded-full px-3 py-1 transition-colors cursor-pointer"
           >
-            {q}
+            {q.label}
           </button>
         ))}
       </div>
@@ -98,6 +104,9 @@ export const ChatWindow = () => {
 
   // Show Popular Questions only when conversation is fresh (only welcome message)
   const showPopularQuestions = messages.length <= 2;
+  const handleQuickAction = (action) => {
+    sendMessage(action.message);
+  };
 
   return (
     <div
@@ -110,7 +119,7 @@ export const ChatWindow = () => {
 
       {/* Popular Questions — shown initially */}
       {showPopularQuestions && (
-        <PopularQuestions role={user?.role} onSelect={sendMessage} />
+        <PopularQuestions actions={getChatRoleActions(user?.role)} onSelect={handleQuickAction} />
       )}
 
       {/* Messages Scroll Area */}

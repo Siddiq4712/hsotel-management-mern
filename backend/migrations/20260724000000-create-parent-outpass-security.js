@@ -4,11 +4,22 @@ import { QueryTypes } from 'sequelize';
 export async function up() {
   const transaction = await sequelize.transaction();
   try {
-    // 1. Add parent_approval_required to tbl_Hostel
-    await sequelize.query(`
-      ALTER TABLE tbl_Hostel
-      ADD COLUMN parent_approval_required TINYINT(1) NOT NULL DEFAULT 0;
-    `, { type: QueryTypes.RAW, transaction });
+    // 1. Add parent_approval_required only when this database has not received it yet.
+    // The migration runner can be run more than once, so this must be idempotent.
+    const [column] = await sequelize.query(`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tbl_Hostel'
+        AND COLUMN_NAME = 'parent_approval_required'
+      LIMIT 1;
+    `, { type: QueryTypes.SELECT, transaction });
+
+    if (!column) {
+      await sequelize.query(`
+        ALTER TABLE tbl_Hostel
+        ADD COLUMN parent_approval_required TINYINT(1) NOT NULL DEFAULT 0;
+      `, { type: QueryTypes.RAW, transaction });
+    }
 
     // 2. Create tbl_ParentStudent
     await sequelize.query(`

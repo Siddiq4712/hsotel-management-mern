@@ -47,19 +47,24 @@ export const createHostel = async (req, res) => {
   try {
     const { name, address, contact_number, email, capacity } = req.body;
 
-    if (!name || !capacity) {
+    if (!String(name || '').trim() || !Number.isInteger(Number(capacity)) || Number(capacity) < 1) {
       return res.status(400).json({
         success: false,
-        message: 'Name and capacity are required'
+        message: 'Please enter a hostel name and a whole-number capacity of at least 1.'
       });
     }
 
+    const existingHostel = await Hostel.findOne({ where: { name: String(name).trim() } });
+    if (existingHostel) {
+      return res.status(409).json({ success: false, message: 'A hostel with this name already exists.' });
+    }
+
     const hostel = await Hostel.create({
-      name,
+      name: String(name).trim(),
       address,
       contact_number,
       email,
-      capacity
+      capacity: Number(capacity)
     });
 
     res.status(201).json({
@@ -69,7 +74,13 @@ export const createHostel = async (req, res) => {
     });
   } catch (error) {
     console.error('Hostel creation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    if (error.name === 'SequelizeValidationError') {
+      return res.status(400).json({ success: false, message: error.errors.map((item) => item.message).join(' ') });
+    }
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(409).json({ success: false, message: 'A hostel with this name already exists.' });
+    }
+    res.status(500).json({ success: false, message: 'Unable to create the hostel. Please check the server log and try again.' });
   }
 };
 

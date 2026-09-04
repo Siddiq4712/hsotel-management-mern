@@ -90,7 +90,7 @@ const CreateHostelSection = () => {
       form.resetFields();
     } catch (error) {
       console.error('Registration Error:', error);
-      message.error(error.response?.data?.message || 'Protocol violation: Failed to create hostel');
+      message.error(error.response?.data?.message || error.message?.replace(/^API Error:\s*/, '') || 'Failed to create hostel');
     } finally {
       setLoading(false);
     }
