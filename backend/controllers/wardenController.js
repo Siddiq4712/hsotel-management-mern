@@ -1127,8 +1127,10 @@ export const bulkMonthEndMandays = async (req, res) => {
       throw new Error('Invalid month (should be 1-12)');
     }
 
-    const startDate = new Date(yearNum, monthNum - 1, 1);
-    const endDate = new Date(yearNum, monthNum, 0);
+    const monthFormatted = String(monthNum).padStart(2, '0');
+    const lastDayOfMonth = new Date(yearNum, monthNum, 0).getDate();
+    const startDate = `${yearNum}-${monthFormatted}-01`;
+    const endDate = `${yearNum}-${monthFormatted}-${String(lastDayOfMonth).padStart(2, '0')}`;
 
     // Get all active students in the hostel
     const students = await User.findAll({
@@ -1675,15 +1677,33 @@ export const bulkMarkAttendance = async (req, res) => {
 
 export const getAttendance = async (req, res) => {
    try {
-      const { date } = req.query;
+      const { date, month, year, is_monthly } = req.query;
       const hostel_id = getHostelId(req.user);
 
       if (!hostel_id) {
         return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
       }
 
+      let whereClause = { hostel_id };
+
+      if (month && year) {
+        const monthNum = parseInt(month, 10);
+        const yearNum = parseInt(year, 10);
+        const monthFormatted = String(monthNum).padStart(2, '0');
+        const lastDayOfMonth = new Date(yearNum, monthNum, 0).getDate();
+        const startDate = `${yearNum}-${monthFormatted}-01`;
+        const endDate = `${yearNum}-${monthFormatted}-${String(lastDayOfMonth).padStart(2, '0')}`;
+        
+        whereClause.date = { [Op.between]: [startDate, endDate] };
+        if (is_monthly !== undefined) {
+          whereClause.is_monthly = is_monthly === 'true' || is_monthly === true;
+        }
+      } else if (date) {
+        whereClause.date = date;
+      }
+
       const attendance = await Attendance.findAll({
-         where: { date, hostel_id },
+         where: whereClause,
          include: [{ 
             model: User, 
             as: 'Student', 
@@ -1692,16 +1712,21 @@ export const getAttendance = async (req, res) => {
          }],
       });
 
+      // If querying monthly summary records specifically, return directly
+      if (month && year && (is_monthly === 'true' || is_monthly === true)) {
+        return res.json({ success: true, data: attendance });
+      }
+
       // Merge GPS attendance records for the same date so mobile Attendance page
       // reflects GPS session status as well. Manual attendance takes priority.
-      const gpsAttendance = await GPSAttendance.findAll({
+      const gpsAttendance = date ? await GPSAttendance.findAll({
          where: { attendance_date: date, hostel_id },
          include: [{
             model: User,
             where: { hostel_id },
             attributes: ['userId', 'userName']
          }]
-      });
+      }) : [];
 
       const mergedByStudent = new Map();
       attendance.forEach((record) => {
