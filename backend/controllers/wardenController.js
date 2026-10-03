@@ -211,11 +211,13 @@ export const getStudents = async (req, res) => {
 export const bulkEnrollStudents = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const { students, session_id } = req.body; // session_id comes from the UI dropdown
-    const hostel_id = req.user.hostelId || req.user.hostel_id;
+    const { students = [], session_id: defaultSessionId, college: defaultCollege } = req.body;
+    const hostel_id = getHostelId(req.user) || req.user.hostelId || req.user.hostel_id;
 
     if (!hostel_id) throw new Error("Hostel ID not found. Please re-login.");
-    if (!session_id) throw new Error("Please select an Academic Year/Batch.");
+    if (!Array.isArray(students) || students.length === 0) {
+      throw new Error("No student records provided for bulk enrollment.");
+    }
 
     // Get Student Role ID dynamically
     const studentRole = await Role.findOne({ 
@@ -233,32 +235,57 @@ export const bulkEnrollStudents = async (req, res) => {
 
     for (const studentData of students) {
       try {
-        const { userName, roll_number, college, requires_bed } = studentData;
-        const generatedEmail = `${roll_number}@nec.edu.in`.toLowerCase();
+        const rawName = studentData.userName || studentData.name || '';
+        const studentName = rawName.trim().toUpperCase();
+        const normalizedRollNumber = String(studentData.roll_number || studentData.roll || '').trim();
+        const studentCollege = String(studentData.college || defaultCollege || 'nec').trim().toLowerCase();
+        const defaultDomain = studentCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in';
+        const generatedEmail = normalizedRollNumber ? `${normalizedRollNumber}@${defaultDomain}`.toLowerCase() : '';
+        const normalizedEmail = String(studentData.email || studentData.userMail || generatedEmail).trim().toLowerCase();
+        const studentSessionId = studentData.session_id || defaultSessionId;
+        const requiresBed = Boolean(studentData.requires_bed);
+
+        if (!studentName) {
+          throw new Error(`Student name is required for roll ${normalizedRollNumber || 'unknown'}`);
+        }
+        if (!normalizedRollNumber) {
+          throw new Error(`Roll number is required for student ${studentName}`);
+        }
+        if (!studentSessionId || !Number.isFinite(Number(studentSessionId))) {
+          throw new Error(`Academic batch/session is required for ${studentName} (${normalizedRollNumber})`);
+        }
 
         // 1. Create/Update User (Login Credentials)
         let user = await User.findOne({ 
-          where: { [Op.or]: [{ roll_number }, { userMail: generatedEmail }] },
+          where: { [Op.or]: [{ roll_number: normalizedRollNumber }, { userMail: normalizedEmail }] },
           transaction 
         });
 
         if (!user) {
+          const studentPass = studentData.password ? await bcrypt.hash(studentData.password, salt) : defaultPassword;
           user = await User.create({
-            userName: userName.toUpperCase(),
-            userMail: generatedEmail,
-            password: defaultPassword,
+            userName: studentName,
+            userMail: normalizedEmail,
+            password: studentPass,
             roleId: studentRole.roleId,
             hostel_id,
-            roll_number,
+            roll_number: normalizedRollNumber,
             status: true 
           }, { transaction });
         } else if (!studentRoleIds.includes(Number(user.roleId))) {
-          throw new Error('Existing account is not a student/lapc role');
+          throw new Error(`Existing account for ${normalizedRollNumber} is not a student account`);
+        } else {
+          await user.update({
+            hostel_id,
+            roleId: studentRole.roleId,
+            status: true,
+            roll_number: normalizedRollNumber
+          }, { transaction });
         }
 
         // 2. Create Enrollment Record (The Batch/Session link)
         const existingEnrollment = await Enrollment.findOne({
-          where: { student_id: user.userId, session_id },
+          where: { student_id: user.userId, session_id: parseInt(studentSessionId) },
           transaction
         });
 
@@ -266,20 +293,24 @@ export const bulkEnrollStudents = async (req, res) => {
           await Enrollment.create({
             student_id: user.userId,
             hostel_id,
-            session_id: parseInt(session_id), // Linked to chosen batch
-            roll_number,
-            college: college || 'nec',
-            requires_bed: !!requires_bed, 
-            // Logical consistency: if hosteller, set dues to 6 (matching manual logic)
-            remaining_dues: requires_bed ? 6 : 0, 
+            session_id: parseInt(studentSessionId),
+            roll_number: normalizedRollNumber,
+            college: studentCollege || 'nec',
+            requires_bed: requiresBed, 
             status: 'active'
           }, { transaction });
           results.successful++;
         } else {
+          await existingEnrollment.update({
+            requires_bed: requiresBed,
+            college: studentCollege || 'nec',
+            roll_number: normalizedRollNumber,
+            status: 'active'
+          }, { transaction });
           results.skipped++;
         }
       } catch (err) {
-        results.errors.push({ name: studentData.userName, error: err.message });
+        results.errors.push({ name: studentData.userName || studentData.name || studentData.roll_number, error: err.message });
       }
     }
 
