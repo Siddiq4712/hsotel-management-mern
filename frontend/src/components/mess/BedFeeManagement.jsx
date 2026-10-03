@@ -84,14 +84,16 @@ const BedFeeManagement = () => {
     if (!sessionId) return;
     setModalLoading(true);
     try {
-      // Logic: Fetch students from backend where Enrollment.requires_bed = 1
+      // Fetch students from backend where Enrollment.requires_bed = 1
       const response = await messAPI.getStudents({ 
-        requires_bed: 'true', // Backend expects string 'true' for query param
+        requires_bed: 'true',
         session_id: sessionId 
       });
-      setStudentsForSelection(response.data.data || []);
-      setSelectedStudentIds([]); // Clear previous selection
+      const data = response.data?.data || [];
+      setStudentsForSelection(data);
+      setSelectedStudentIds(data.map(s => s.id)); // Pre-select all eligible students
     } catch (error) {
+      console.error('Fetch Students for Bed Fee Error:', error);
       message.error('Failed to load students who require beds');
     } finally {
       setModalLoading(false);
@@ -153,8 +155,8 @@ const BedFeeManagement = () => {
       key: 'student',
       render: (_, r) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{r.Student?.userName}</Text>
-          <Text className="text-[10px] text-slate-400 font-bold uppercase">{r.Student?.roll_number}</Text>
+          <Text strong>{r.Student?.userName || r.userName || r.name || `Student #${r.student_id}`}</Text>
+          <Text className="text-[10px] text-slate-400 font-bold uppercase">{r.Student?.roll_number || r.roll_number || r.registerNumber || `#${r.student_id}`}</Text>
         </Space>
       )
     },
@@ -298,7 +300,12 @@ const BedFeeManagement = () => {
                     <Checkbox.Group className="w-full" value={selectedStudentIds} onChange={setSelectedStudentIds}>
                       <Row gutter={[0, 8]}>
                         {studentsForSelection.map(s => (
-                          <Col span={12} key={s.id}><Checkbox value={s.id}>{s.userName}</Checkbox></Col>
+                          <Col span={12} key={s.id}>
+                            <Checkbox value={s.id}>
+                              <span className="font-semibold">{s.userName || s.name || s.username || `Student #${s.id}`}</span>
+                              <span className="text-xs text-slate-400 ml-1">({s.roll_number || s.registerNumber || `#${s.id}`})</span>
+                            </Checkbox>
+                          </Col>
                         ))}
                       </Row>
                     </Checkbox.Group>

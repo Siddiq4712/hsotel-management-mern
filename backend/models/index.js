@@ -145,8 +145,7 @@ export const Enrollment = sequelize.define('Enrollment', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX: Use actual DB table and column
+    allowNull: false
   },
   roll_number: { type: DataTypes.STRING, allowNull: true, unique: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
@@ -187,8 +186,7 @@ export const RoomAllotment = sequelize.define('RoomAllotment', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   room_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_HostelRoom', key: 'id' } },
   allotment_date: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
@@ -201,8 +199,7 @@ export const RoomRequest = sequelize.define('RoomRequest', {
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   room_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_HostelRoom', key: 'id' } },
   status: { type: DataTypes.ENUM('pending', 'approved', 'rejected', 'cancelled'), allowNull: false, defaultValue: 'pending' },
@@ -239,8 +236,7 @@ export const Attendance = sequelize.define('Attendance', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   date: { type: DataTypes.DATEONLY, allowNull: false },
@@ -307,8 +303,7 @@ export const Leave = sequelize.define('Leave', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   leave_type: { type: DataTypes.ENUM('casual', 'sick', 'emergency', 'vacation', 'other'), allowNull: false },
   from_date: { type: DataTypes.DATE, allowNull: false },
@@ -328,8 +323,7 @@ export const Suspension = sequelize.define('Suspension', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   reason: { type: DataTypes.TEXT, allowNull: false },
   start_date: { type: DataTypes.DATE, allowNull: false },
@@ -347,8 +341,7 @@ export const DayReductionRequest = sequelize.define('DayReductionRequest', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   from_date: { type: DataTypes.DATEONLY, allowNull: false },
@@ -382,8 +375,7 @@ export const Complaint = sequelize.define('Complaint', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   subject: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: false },
@@ -634,8 +626,7 @@ export const Token = sequelize.define('Token', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   token_date: { type: DataTypes.DATEONLY, allowNull: false },
   meal_type: { type: DataTypes.ENUM('breakfast', 'lunch', 'dinner', 'snacks'), allowNull: false },
@@ -647,8 +638,7 @@ export const DailyMessCharge = sequelize.define('DailyMessCharge', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   date: { type: DataTypes.DATEONLY, allowNull: false },
@@ -665,8 +655,7 @@ export const MessBill = sequelize.define('MessBill', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   month: { type: DataTypes.INTEGER, allowNull: false },
@@ -698,8 +687,7 @@ export const Fee = sequelize.define('Fee', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   enrollment_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Enrollment', key: 'id' } },
   fee_type: { type: DataTypes.ENUM('hostel', 'mess', 'maintenance', 'security', 'emi', 'other'), allowNull: false },
@@ -733,8 +721,7 @@ export const StudentFee = sequelize.define('StudentFee', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   fee_type: { type: DataTypes.STRING, allowNull: false },
@@ -799,8 +786,7 @@ export const AdditionalCollection = sequelize.define('AdditionalCollection', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   collection_type_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_AdditionalCollectionType', key: 'id' } },
   amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
@@ -832,8 +818,7 @@ export const Rebate = sequelize.define('Rebate', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   rebate_type: { type: DataTypes.ENUM('mess', 'hostel', 'facility', 'other'), allowNull: false },
   amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
@@ -852,8 +837,7 @@ export const Transaction = sequelize.define('Transaction', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   transaction_type: { type: DataTypes.ENUM('payment', 'refund', 'adjustment'), allowNull: false },
   amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
@@ -983,8 +967,7 @@ export const HostelFacilityRegister = sequelize.define('HostelFacilityRegister',
   facility_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_HostelFacility', key: 'id' } },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   usage_date: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
   duration_minutes: { type: DataTypes.INTEGER, allowNull: true },
@@ -1031,8 +1014,7 @@ export const FoodOrder = sequelize.define('FoodOrder', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: false, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: false
   },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   order_date: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
@@ -1062,8 +1044,7 @@ export const Guest = sequelize.define('Guest', {
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   visiting_student_id: { 
     type: DataTypes.INTEGER, 
-    allowNull: true, 
-    references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
+    allowNull: true
   },
   check_in_date: { type: DataTypes.DATE, allowNull: false },
   check_out_date: { type: DataTypes.DATE, allowNull: true },
@@ -1076,12 +1057,12 @@ export const Guest = sequelize.define('Guest', {
 export const ParentStudent = sequelize.define('ParentStudent', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   parent_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_users', key: 'id' } },
-  student_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_users', key: 'id' } }
+  student_id: { type: DataTypes.INTEGER, allowNull: false }
 }, { tableName: 'tbl_ParentStudent', timestamps: true });
 
 export const Outpass = sequelize.define('Outpass', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  student_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_users', key: 'id' } },
+  student_id: { type: DataTypes.INTEGER, allowNull: false },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   purpose: { type: DataTypes.STRING, allowNull: false },
   destination: { type: DataTypes.STRING, allowNull: false },
@@ -1151,35 +1132,37 @@ export const initAssociations = () => {
   Enrollment.belongsTo(User, {
     foreignKey: 'student_id',
     as: 'Student',
-    targetKey: 'userId'
+    targetKey: 'userId',
+    constraints: false
   });
   User.hasMany(Enrollment, { 
     foreignKey: 'student_id', 
     as: 'tbl_Enrollment', 
-    sourceKey: 'userId' 
+    sourceKey: 'userId',
+    constraints: false
   });
 
   Enrollment.belongsTo(Hostel, { foreignKey: 'hostel_id' });
   Enrollment.belongsTo(Session, { foreignKey: 'session_id' });
 
-  RoomAllotment.belongsTo(User, { foreignKey: 'student_id', as: 'AllotmentStudent', targetKey: 'userId' });
-  User.hasMany(RoomAllotment, { foreignKey: 'student_id', as: 'tbl_RoomAllotments', sourceKey: 'userId' });
+  RoomAllotment.belongsTo(User, { foreignKey: 'student_id', as: 'AllotmentStudent', targetKey: 'userId', constraints: false });
+  User.hasMany(RoomAllotment, { foreignKey: 'student_id', as: 'tbl_RoomAllotments', sourceKey: 'userId', constraints: false });
 
   RoomAllotment.belongsTo(HostelRoom, { foreignKey: 'room_id' });
   HostelRoom.hasMany(RoomAllotment, { foreignKey: 'room_id', as: 'tbl_RoomAllotments' });
 
-  RoomRequest.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
+  RoomRequest.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
   RoomRequest.belongsTo(User, { foreignKey: 'approved_by', as: 'ProcessedBy', targetKey: 'userId' });
   RoomRequest.belongsTo(HostelRoom, { foreignKey: 'room_id', as: 'Room' });
   RoomRequest.belongsTo(Hostel, { foreignKey: 'hostel_id' });
-  User.hasMany(RoomRequest, { foreignKey: 'student_id', as: 'RoomRequests', sourceKey: 'userId' });
+  User.hasMany(RoomRequest, { foreignKey: 'student_id', as: 'RoomRequests', sourceKey: 'userId', constraints: false });
   HostelRoom.hasMany(RoomRequest, { foreignKey: 'room_id', as: 'RoomRequests' });
   Hostel.hasMany(RoomRequest, { foreignKey: 'hostel_id', as: 'RoomRequests' });
 
   // ==========================================
   // 4. ATTENDANCE & WORKFLOW
   // ==========================================
-  Attendance.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
+  Attendance.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
   Attendance.belongsTo(User, { foreignKey: 'marked_by', as: 'MarkedBy', targetKey: 'userId' });
   Attendance.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 
@@ -1193,20 +1176,20 @@ export const initAssociations = () => {
   User.hasMany(GPSAttendanceSession, { foreignKey: 'created_by', as: 'CreatedGpsAttendanceSessions', sourceKey: 'userId' });
   Hostel.hasMany(GPSAttendanceSession, { foreignKey: 'hostel_id' });
 
-  Leave.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
+  Leave.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
   Leave.belongsTo(User, { foreignKey: 'approved_by', as: 'ApprovedBy', targetKey: 'userId' });
-  User.hasMany(Leave, { foreignKey: 'student_id', as: 'StudentLeaves', sourceKey: 'userId' });
+  User.hasMany(Leave, { foreignKey: 'student_id', as: 'StudentLeaves', sourceKey: 'userId', constraints: false });
   User.hasMany(Leave, { foreignKey: 'approved_by', as: 'ApprovedLeaves', sourceKey: 'userId' });
 
-  Complaint.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
+  Complaint.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
   Complaint.belongsTo(User, { foreignKey: 'assigned_to', as: 'AssignedTo', targetKey: 'userId' });
-  User.hasMany(Complaint, { foreignKey: 'student_id', as: 'StudentComplaints', sourceKey: 'userId' });
+  User.hasMany(Complaint, { foreignKey: 'student_id', as: 'StudentComplaints', sourceKey: 'userId', constraints: false });
   User.hasMany(Complaint, { foreignKey: 'assigned_to', as: 'AssignedComplaints', sourceKey: 'userId' });
 
-  Suspension.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
+  Suspension.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
   Suspension.belongsTo(User, { foreignKey: 'issued_by', as: 'IssuedBy', targetKey: 'userId' });
 
-  DayReductionRequest.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
+  DayReductionRequest.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
   DayReductionRequest.belongsTo(User, { foreignKey: 'admin_id', as: 'AdminProcessor', targetKey: 'userId' });
   DayReductionRequest.belongsTo(User, { foreignKey: 'warden_id', as: 'WardenProcessor', targetKey: 'userId' });
   DayReductionRequest.belongsTo(Hostel, { foreignKey: 'hostel_id', as: 'Hostel' });
@@ -1274,30 +1257,30 @@ export const initAssociations = () => {
   RecipeItem.belongsTo(UOM, { foreignKey: 'unit_id', as: 'UOMDetail' });
 
   // Token
-  Token.belongsTo(User, { foreignKey: 'student_id', as: 'TokenStudent', targetKey: 'userId' });
-  User.hasMany(Token, { foreignKey: 'student_id', as: 'Tokens', sourceKey: 'userId' });
+  Token.belongsTo(User, { foreignKey: 'student_id', as: 'TokenStudent', targetKey: 'userId', constraints: false });
+  User.hasMany(Token, { foreignKey: 'student_id', as: 'Tokens', sourceKey: 'userId', constraints: false });
 
 
   // ==========================================
   // 6. FINANCE & BILLING MODULE
   // ==========================================
-  Fee.belongsTo(User, { foreignKey: 'student_id', as: 'FeeStudent', targetKey: 'userId' });
+  Fee.belongsTo(User, { foreignKey: 'student_id', as: 'FeeStudent', targetKey: 'userId', constraints: false });
   Fee.belongsTo(User, { foreignKey: 'collected_by', as: 'CollectedBy', targetKey: 'userId' });
   Fee.belongsTo(Enrollment, { foreignKey: 'enrollment_id', as: 'Enrollment' });
   Enrollment.hasMany(Fee, { foreignKey: 'enrollment_id', as: 'Fees' });
-  User.hasMany(Fee, { foreignKey: 'student_id', as: 'Fees', sourceKey: 'userId' });
+  User.hasMany(Fee, { foreignKey: 'student_id', as: 'Fees', sourceKey: 'userId', constraints: false });
 
-  StudentFee.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
+  StudentFee.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
   StudentFee.belongsTo(User, { foreignKey: 'issued_by', as: 'IssuedBy', targetKey: 'userId' });
   StudentFee.belongsTo(Hostel, { foreignKey: 'hostel_id' });
-  User.hasMany(StudentFee, { foreignKey: 'student_id', as: 'StudentFees', sourceKey: 'userId' });
+  User.hasMany(StudentFee, { foreignKey: 'student_id', as: 'StudentFees', sourceKey: 'userId', constraints: false });
 
-  MessBill.belongsTo(User, { foreignKey: 'student_id', as: 'MessBillStudent', targetKey: 'userId' });
+  MessBill.belongsTo(User, { foreignKey: 'student_id', as: 'MessBillStudent', targetKey: 'userId', constraints: false });
   MessBill.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 
-  DailyMessCharge.belongsTo(User, { foreignKey: 'student_id', as: 'DailyMessChargeStudent', targetKey: 'userId' });
+  DailyMessCharge.belongsTo(User, { foreignKey: 'student_id', as: 'DailyMessChargeStudent', targetKey: 'userId', constraints: false });
   DailyMessCharge.belongsTo(Hostel, { foreignKey: 'hostel_id' });
-  User.hasMany(DailyMessCharge, { foreignKey: 'student_id', as: 'DailyMessCharges', sourceKey: 'userId' });
+  User.hasMany(DailyMessCharge, { foreignKey: 'student_id', as: 'DailyMessCharges', sourceKey: 'userId', constraints: false });
 
   DailyRateLog.belongsTo(Hostel, { foreignKey: 'hostel_id' });
   DailyRateLog.belongsTo(User, { foreignKey: 'saved_by', as: 'SavedBy', targetKey: 'userId' });
@@ -1316,16 +1299,16 @@ export const initAssociations = () => {
   AdditionalIncome.belongsTo(User, { foreignKey: 'received_by', as: 'IncomeReceivedBy', targetKey: 'userId' });
   User.hasMany(AdditionalIncome, { foreignKey: 'received_by', as: 'ReceivedAdditionalIncomes', sourceKey: 'userId' });
 
-  Transaction.belongsTo(User, { foreignKey: 'student_id', as: 'TransactionStudent', targetKey: 'userId' });
+  Transaction.belongsTo(User, { foreignKey: 'student_id', as: 'TransactionStudent', targetKey: 'userId', constraints: false });
   Transaction.belongsTo(User, { foreignKey: 'processed_by', as: 'ProcessedBy', targetKey: 'userId' });
 
-  // Rebate - ✅ FIXED: Added missing association
-  Rebate.belongsTo(User, { foreignKey: 'student_id', as: 'RebateStudent', targetKey: 'userId' });
+  // Rebate
+  Rebate.belongsTo(User, { foreignKey: 'student_id', as: 'RebateStudent', targetKey: 'userId', constraints: false });
   Rebate.belongsTo(User, { foreignKey: 'approved_by', as: 'RebateApprovedBy', targetKey: 'userId' });
-  User.hasMany(Rebate, { foreignKey: 'student_id', as: 'Rebates', sourceKey: 'userId' });
+  User.hasMany(Rebate, { foreignKey: 'student_id', as: 'Rebates', sourceKey: 'userId', constraints: false });
 
   // Additional Collections
-  AdditionalCollection.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
+  AdditionalCollection.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
   AdditionalCollection.belongsTo(User, { foreignKey: 'collected_by', as: 'CollectedBy', targetKey: 'userId' });
   AdditionalCollection.belongsTo(AdditionalCollectionType, { foreignKey: 'collection_type_id' });
 
@@ -1347,22 +1330,21 @@ export const initAssociations = () => {
   User.hasMany(HostelMaintenance, { foreignKey: 'reported_by', as: 'ReportedMaintenance', sourceKey: 'userId' });
 
   HostelFacilityRegister.belongsTo(HostelFacility, { foreignKey: 'facility_id', as: 'facility' });
-  HostelFacilityRegister.belongsTo(User, { foreignKey: 'student_id', as: 'FacilityRegisterStudent', targetKey: 'userId' });
-  User.hasMany(HostelFacilityRegister, { foreignKey: 'student_id', as: 'FacilityRegisters', sourceKey: 'userId' });
+  HostelFacilityRegister.belongsTo(User, { foreignKey: 'student_id', as: 'FacilityRegisterStudent', targetKey: 'userId', constraints: false });
+  User.hasMany(HostelFacilityRegister, { foreignKey: 'student_id', as: 'FacilityRegisters', sourceKey: 'userId', constraints: false });
 
   Guest.belongsTo(Hostel, { foreignKey: 'hostel_id' });
-  Guest.belongsTo(User, { foreignKey: 'visiting_student_id', as: 'VisitingStudent', targetKey: 'userId' });
+  Guest.belongsTo(User, { foreignKey: 'visiting_student_id', as: 'VisitingStudent', targetKey: 'userId', constraints: false });
 
   // ==========================================
-  // 8. SPECIAL FOOD ORDER SYSTEM (Add this)
+  // 8. SPECIAL FOOD ORDER SYSTEM
   // ==========================================
-  FoodOrder.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
-  User.hasMany(FoodOrder, { foreignKey: 'student_id' });
+  FoodOrder.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
+  User.hasMany(FoodOrder, { foreignKey: 'student_id', constraints: false });
 
   FoodOrder.hasMany(FoodOrderItem, { foreignKey: 'food_order_id' });
   FoodOrderItem.belongsTo(FoodOrder, { foreignKey: 'food_order_id' });
 
-  // THIS LINE FIXES YOUR SPECIFIC ERROR:
   FoodOrderItem.belongsTo(SpecialFoodItem, { foreignKey: 'food_item_id' });
   SpecialFoodItem.hasMany(FoodOrderItem, { foreignKey: 'food_item_id' });
 
@@ -1370,15 +1352,17 @@ export const initAssociations = () => {
 
   // ParentStudent associations
   ParentStudent.belongsTo(User, { foreignKey: 'parent_id', as: 'Parent', targetKey: 'userId' });
-  ParentStudent.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
+  ParentStudent.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
   User.hasMany(ParentStudent, { foreignKey: 'parent_id', as: 'ParentLinks', sourceKey: 'userId' });
-  User.hasMany(ParentStudent, { foreignKey: 'student_id', as: 'StudentLinks', sourceKey: 'userId' });
+  User.hasMany(ParentStudent, { foreignKey: 'student_id', as: 'StudentLinks', sourceKey: 'userId', constraints: false });
 
   // Outpass associations
-  Outpass.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId' });
+  Outpass.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
   Outpass.belongsTo(Hostel, { foreignKey: 'hostel_id', as: 'Hostel' });
   Outpass.belongsTo(User, { foreignKey: 'approved_by', as: 'Approver', targetKey: 'userId' });
-  User.hasMany(Outpass, { foreignKey: 'student_id', as: 'Outpasses', sourceKey: 'userId' });
+  User.hasMany(Outpass, { foreignKey: 'student_id', as: 'Outpasses', sourceKey: 'userId', constraints: false });
+
+
 
   // HostelNotice associations
   HostelNotice.belongsTo(Hostel, { foreignKey: 'hostel_id', as: 'Hostel' });

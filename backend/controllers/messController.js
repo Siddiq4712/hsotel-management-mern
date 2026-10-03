@@ -4,7 +4,7 @@ import {
   MenuSchedule, UOM, ItemStock, DailyConsumption, MessBill, Session, CreditToken, Concern, Holiday,
   Store, ItemStore, InventoryTransaction, ConsumptionLog, IncomeType, AdditionalIncome, StudentFee, RestockPlan,
   InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem, MessDailyExpense, ExpenseType, SpecialConsumption, SpecialConsumptionItem,
-  Recipe, RecipeItem, DailyRateLog
+  Recipe, RecipeItem, DailyRateLog, Role
 } from '../models/index.js'; // Ensure .js extension and named imports
 import { sendMessBillToStudent } from '../utils/emailUtils.js';
 import { Op } from 'sequelize';
@@ -12,6 +12,7 @@ import sequelize from '../config/database.js'; // Default export from your conve
 import moment from 'moment';
 import { getMonthDateRange } from '../utils/dateUtils.js'; // Added .js extension
 import { sendConsumptionNotificationToAdmin } from '../utils/emailUtils.js'; // Added .js extension
+import { fetchStudentsFromERP } from '../services/erpStudentService.js';
 
 function customRounding(amount) {
   const num = parseFloat(amount);
@@ -4869,6 +4870,78 @@ export const correctLastPurchase = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+/**
+ * Fetches enrolled hosteller students stored in the database where role is 'student'
+ */
+const getHostellerStudentsFromDB = async ({ hostel_id = null, college = null, requires_bed = null, session_id = null, transaction = null } = {}) => {
+  try {
+    let enrollmentWhere = {
+      status: 'active'
+    };
+
+    if (hostel_id && hostel_id !== 0 && hostel_id !== 'all') {
+      enrollmentWhere.hostel_id = hostel_id;
+    }
+    if (college && college !== 'all') {
+      enrollmentWhere.college = college;
+    }
+    if (session_id && session_id !== 'all' && session_id !== 'undefined') {
+      enrollmentWhere.session_id = parseInt(session_id, 10);
+    }
+    if (requires_bed === 'true' || requires_bed === true || requires_bed === 1 || requires_bed === '1') {
+      enrollmentWhere.requires_bed = { [Op.in]: [true, 1] };
+    }
+
+    const enrollments = await Enrollment.findAll({
+      where: enrollmentWhere,
+      include: [
+        {
+          model: User,
+          as: 'Student',
+          attributes: ['userId', 'userName', 'roll_number', 'userMail', 'status', 'roleId', 'hostel_id'],
+          required: false
+        },
+        {
+          model: Session,
+          attributes: ['id', 'name'],
+          required: false
+        }
+      ],
+      order: [[{ model: User, as: 'Student' }, 'userName', 'ASC']],
+      transaction: transaction || undefined
+    });
+
+    return enrollments.map(e => {
+      const plain = e.get ? e.get({ plain: true }) : e;
+      const student = plain.Student || {};
+      const roll = student.roll_number || plain.roll_number || '';
+      const sId = student.userId || plain.student_id;
+      const sName = student.userName || student.name || `Student ${roll}`;
+      return {
+        id: sId,
+        userId: sId,
+        student_id: sId,
+        enrollment_id: plain.id,
+        userName: sName,
+        username: sName,
+        name: sName,
+        roll_number: roll,
+        registerNumber: roll,
+        userMail: student.userMail || '',
+        email: student.userMail || '',
+        college: plain.college || 'NEC',
+        requires_bed: Boolean(plain.requires_bed),
+        remaining_dues: plain.remaining_dues || 0,
+        session_id: plain.session_id,
+        session_name: plain.Session?.name || ''
+      };
+    });
+  } catch (err) {
+    console.error('[Mess DB Students Query Error]:', err);
+    return [];
+  }
+};
+
 export const getMessFeeSummary = async (req, res) => {
   try {
     const { month, year } = req.query;
@@ -4881,15 +4954,8 @@ export const getMessFeeSummary = async (req, res) => {
       });
     }
 
-    // 1. Get all active students in the hostel
-    const students = await User.findAll({
-      where: {
-        hostel_id,
-        roleId: 2, status: 'Active'
-      },
-      attributes: ['userId', 'userName', 'userMail'],
-      order: [['userName', 'ASC']]
-    });
+    // 1. Fetch hosteller students stored in DB where roles.rolename = 'student'
+    const students = await getHostellerStudentsFromDB({ hostel_id });
 
     if (students.length === 0) {
       return res.json({
@@ -4901,7 +4967,7 @@ export const getMessFeeSummary = async (req, res) => {
     // 2. Get all mess bills for the specified month and year
     const bills = await MessBill.findAll({
       where: {
-        hostel_id,
+        ...(hostel_id ? { hostel_id } : {}),
         month,
         year
       }
@@ -4909,7 +4975,7 @@ export const getMessFeeSummary = async (req, res) => {
 
     // 3. Create a map for quick lookup of bills by student_id
     const billMap = new Map();
-    bills.forEach(bill => billMap.set(bill.student_id, bill));
+    bills.forEach(bill => billMap.set(String(bill.student_id), bill));
 
     // 4. Combine student data with their bill information
     let totalAmount = 0;
@@ -4919,8 +4985,8 @@ export const getMessFeeSummary = async (req, res) => {
     let paidBills = 0;
 
     const studentsWithFees = students.map(student => {
-      const studentJSON = student.toJSON();
-      const bill = billMap.get(student.userId);
+      const studentId = String(student.userId || student.id);
+      const bill = billMap.get(studentId);
 
       if (bill) {
         totalAmount += parseFloat(bill.amount);
@@ -4932,7 +4998,7 @@ export const getMessFeeSummary = async (req, res) => {
           pendingBills++;
         }
         return {
-          ...studentJSON,
+          ...student,
           amount: bill.amount,
           status: bill.status,
           due_date: bill.due_date,
@@ -4941,7 +5007,7 @@ export const getMessFeeSummary = async (req, res) => {
         };
       } else {
         return {
-          ...studentJSON,
+          ...student,
           amount: 0,
           status: 'not_generated',
           due_date: null,
@@ -4975,6 +5041,7 @@ export const getMessFeeSummary = async (req, res) => {
     });
   }
 };
+
 export const getStudentFeeBreakdown = async (req, res) => {
   try {
     const { month, year } = req.query;
@@ -4984,16 +5051,12 @@ export const getStudentFeeBreakdown = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Month and year are required.' });
     }
 
-    // 1. Get all active students
-    const students = await User.findAll({
-      where: { hostel_id, roleId: 2, status: 'Active' },
-      attributes: ['userId', 'userName', 'userMail'],
-      raw: true,
-    });
+    // 1. Fetch hosteller students stored in DB where roles.rolename = 'student'
+    const students = await getHostellerStudentsFromDB({ hostel_id });
 
     // 2. Get aggregated Daily Mess Charges
     const messCharges = await DailyMessCharge.findAll({
-      where: { hostel_id, date: { [Op.between]: [new Date(year, month - 1, 1), new Date(year, month, 0)] } },
+      where: { ...(hostel_id ? { hostel_id } : {}), date: { [Op.between]: [new Date(year, month - 1, 1), new Date(year, month, 0)] } },
       group: ['student_id'],
       attributes: ['student_id', [sequelize.fn('SUM', sequelize.col('amount')), 'total_mess_bill']],
       raw: true,
@@ -5001,7 +5064,7 @@ export const getStudentFeeBreakdown = async (req, res) => {
 
     // 3. Get aggregated Special Food Orders
     const foodOrders = await FoodOrder.findAll({
-      where: { hostel_id, status: 'delivered', order_date: { [Op.between]: [new Date(year, month - 1, 1), new Date(year, month, 0)] } },
+      where: { ...(hostel_id ? { hostel_id } : {}), status: 'delivered', order_date: { [Op.between]: [new Date(year, month - 1, 1), new Date(year, month, 0)] } },
       group: ['student_id'],
       attributes: ['student_id', [sequelize.fn('SUM', sequelize.col('total_amount')), 'total_special_food_cost']],
       raw: true,
@@ -5009,37 +5072,42 @@ export const getStudentFeeBreakdown = async (req, res) => {
 
     // 4. Get aggregated Other Fees (Water Bill, etc.)
     const otherFees = await StudentFee.findAll({
-      where: { hostel_id, month, year },
+      where: { ...(hostel_id ? { hostel_id } : {}), month, year },
       group: ['student_id', 'fee_type'],
       attributes: ['student_id', 'fee_type', [sequelize.fn('SUM', sequelize.col('amount')), 'total_amount']],
       raw: true,
     });
 
     // 5. Create maps for efficient lookup
-    const messChargeMap = new Map(messCharges.map(item => [item.student_id, parseFloat(item.total_mess_bill)]));
-    const foodOrderMap = new Map(foodOrders.map(item => [item.student_id, parseFloat(item.total_special_food_cost)]));
+    const messChargeMap = new Map(messCharges.map(item => [String(item.student_id), parseFloat(item.total_mess_bill)]));
+    const foodOrderMap = new Map(foodOrders.map(item => [String(item.student_id), parseFloat(item.total_special_food_cost)]));
     const waterBillMap = new Map();
     const otherExpenseMap = new Map();
 
     otherFees.forEach(fee => {
+      const sId = String(fee.student_id);
       if (fee.fee_type === 'water_bill') {
-        waterBillMap.set(fee.student_id, parseFloat(fee.total_amount));
-      } else { // Aggregate all other types into 'other_expenses'
-        const current = otherExpenseMap.get(fee.student_id) || 0;
-        otherExpenseMap.set(fee.student_id, current + parseFloat(fee.total_amount));
+        waterBillMap.set(sId, parseFloat(fee.total_amount));
+      } else {
+        const current = otherExpenseMap.get(sId) || 0;
+        otherExpenseMap.set(sId, current + parseFloat(fee.total_amount));
       }
     });
 
     // 6. Combine all data
     const feeBreakdown = students.map(student => {
-      const mess_bill = messChargeMap.get(student.userId) || 0;
-      const special_food_cost = foodOrderMap.get(student.userId) || 0;
-      const water_bill = waterBillMap.get(student.userId) || 0;
-      const other_expenses = otherExpenseMap.get(student.userId) || 0;
+      const studentId = String(student.userId || student.id);
+      const mess_bill = messChargeMap.get(studentId) || 0;
+      const special_food_cost = foodOrderMap.get(studentId) || 0;
+      const water_bill = waterBillMap.get(studentId) || 0;
+      const other_expenses = otherExpenseMap.get(studentId) || 0;
       const total = mess_bill + special_food_cost + water_bill + other_expenses;
 
       return {
         ...student,
+        userId: student.userId || student.id,
+        userName: student.userName || student.username,
+        userMail: student.userMail || student.email,
         mess_bill: mess_bill.toFixed(2),
         special_food_cost: special_food_cost.toFixed(2),
         water_bill: water_bill.toFixed(2),
@@ -5083,13 +5151,12 @@ export const createStudentFee = async (req, res) => {
 
 // messController.js - Modifications to createBulkStudentFee
 
-// messController.js -> createBulkStudentFee
 export const createBulkStudentFee = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { session_id, fee_type, amount, month, year, student_ids, description } = req.body;
-    const { hostel_id } = req.user;
-    const issued_by = req.user.userId || req.user.id;
+    const hostel_id = req.user?.hostel_id || req.user?.hostelId || 1;
+    const issued_by = req.user?.userId || req.user?.id || 1;
 
     let targetStudentIds = [];
 
@@ -5101,14 +5168,16 @@ export const createBulkStudentFee = async (req, res) => {
       if (!session_id) throw new Error('Session ID is required');
 
       const enrollmentWhere = {
-        session_id,
-        hostel_id,
+        session_id: parseInt(session_id, 10),
         status: 'active'
       };
+      if (hostel_id && hostel_id !== 0) {
+        enrollmentWhere.hostel_id = hostel_id;
+      }
 
       // ONLY filter by requires_bed if it's a bed charge
       if (fee_type === 'bed_charge') {
-        enrollmentWhere.requires_bed = true;
+        enrollmentWhere.requires_bed = { [Op.in]: [true, 1] };
       }
 
       const enrollments = await Enrollment.findAll({
@@ -5130,40 +5199,27 @@ export const createBulkStudentFee = async (req, res) => {
 
     // 2. Logic specific to Bed Charges (Decrementing dues)
     if (fee_type === 'bed_charge') {
-      // Find valid enrollments that still have dues > 0
-      const activeEnrollmentsWithDues = await Enrollment.findAll({
+      const activeEnrollments = await Enrollment.findAll({
         where: {
           student_id: { [Op.in]: targetStudentIds },
-          hostel_id,
-          status: 'active',
-          requires_bed: true,
-          // remaining_dues: { [Op.gt]: 0 } // Temporarily disabled until migration is run
+          status: 'active'
         },
         transaction
       });
 
-      const validBedStudentIds = activeEnrollmentsWithDues.map(e => e.student_id);
-      
-      if (validBedStudentIds.length === 0) {
-        throw new Error('All selected students have already completed their 6 months of bed dues.');
+      if (activeEnrollments.length > 0) {
+        await Enrollment.decrement('remaining_dues', {
+          by: 1,
+          where: { id: { [Op.in]: activeEnrollments.map(e => e.id) } },
+          transaction
+        });
       }
-
-      // Decrement dues
-      await Enrollment.decrement('remaining_dues', {
-        by: 1,
-        where: { id: { [Op.in]: activeEnrollmentsWithDues.map(e => e.id) } },
-        transaction
-      });
-
-      // Override target list with only those who had dues to pay
-      targetStudentIds = validBedStudentIds;
     }
 
     // 3. Prevent Duplicates (Don't apply the SAME fee type twice in the same month)
     const existingFees = await StudentFee.findAll({
       where: { 
         student_id: { [Op.in]: targetStudentIds }, 
-        hostel_id, 
         fee_type, 
         month, 
         year 
@@ -5183,7 +5239,7 @@ export const createBulkStudentFee = async (req, res) => {
     // 4. Create the records
     const feesToCreate = eligibleStudentIds.map(student_id => ({
       student_id,
-      hostel_id,
+      hostel_id: hostel_id || 1,
       fee_type,
       amount,
       description: description || `${fee_type} fee for ${month}/${year}`,
@@ -5206,59 +5262,21 @@ export const createBulkStudentFee = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 export const getStudents = async (req, res) => {
   try {
-    const hostel_id = req.user.hostel_id;
-    const { requires_bed, session_id } = req.query; 
+    const hostel_id = req.user?.hostel_id || req.user?.hostelId;
+    const { requires_bed, session_id, college } = req.query; 
 
-    let enrollmentWhereClause = {
-      status: 'active',
-      hostel_id
-    };
-
-    if (session_id) {
-      enrollmentWhereClause.session_id = session_id;
-    }
-
-    if (requires_bed === 'true') {
-      enrollmentWhereClause.requires_bed = true;
-      // enrollmentWhereClause.remaining_dues = { [Op.gt]: 0 }; // Temporarily disabled until migration is run
-    }
-
-    const students = await User.findAll({
-      where: {
-        hostel_id,
-        roleId: 2, status: 'Active'
-      },
-      attributes: ['userId', 'userName', 'roll_number'],
-      include: [{
-        model: Enrollment,
-        as: 'tbl_Enrollment', // <--- CHANGED FROM tbl_Enrollments TO tbl_Enrollment
-        where: enrollmentWhereClause,
-        required: true, 
-        attributes: ['id', 'session_id', 'requires_bed']
-      }],
-      order: [['userName', 'ASC']]
+    // Fetch stored hosteller students from DB where roles.rolename = 'student'
+    const students = await getHostellerStudentsFromDB({
+      hostel_id: (hostel_id && hostel_id !== 0) ? hostel_id : null,
+      college,
+      requires_bed,
+      session_id
     });
 
-    const formattedStudents = students.map(student => {
-      const studentData = student.get({ plain: true });
-      
-      // Update the alias here as well to match singular
-      const activeEnrollment = studentData.tbl_Enrollment && studentData.tbl_Enrollment[0] 
-        ? studentData.tbl_Enrollment[0] 
-        : null;
-
-      return {
-        id: studentData.id,
-        username: studentData.userName,
-        roll_number: studentData.roll_number,
-        requires_bed: activeEnrollment?.requires_bed,
-        remaining_dues: activeEnrollment?.remaining_dues || (activeEnrollment?.requires_bed ? 6 : 0)
-      };
-    });
-
-    res.json({ success: true, data: formattedStudents });
+    res.json({ success: true, data: students });
   } catch (error) {
     console.error("FATAL ERROR IN GET STUDENTS:", error); 
     res.status(500).json({ success: false, message: error.message });
@@ -5267,25 +5285,99 @@ export const getStudents = async (req, res) => {
 
 export const getStudentFees = async (req, res) => {
     try {
-        const { month, year, fee_type } = req.query;
-        const { hostel_id } = req.user;
+        const { month, year, fee_type, session_id } = req.query;
+        const hostel_id = req.user?.hostel_id || req.user?.hostelId;
 
-        let whereClause = { hostel_id };
-        if (month) whereClause.month = month;
-        if (year) whereClause.year = year;
+        let whereClause = {};
+        if (hostel_id && hostel_id !== 0) whereClause.hostel_id = hostel_id;
+        if (month) whereClause.month = parseInt(month, 10);
+        if (year) whereClause.year = parseInt(year, 10);
         if (fee_type) whereClause.fee_type = fee_type;
+
+        if (session_id && session_id !== 'undefined' && session_id !== 'all') {
+          const sessionEnrollments = await Enrollment.findAll({
+            where: { session_id: parseInt(session_id, 10), ...(hostel_id ? { hostel_id } : {}) },
+            attributes: ['student_id'],
+            raw: true
+          });
+          const sessionStudentIds = sessionEnrollments.map(e => e.student_id);
+          whereClause.student_id = { [Op.in]: sessionStudentIds };
+        }
 
         const fees = await StudentFee.findAll({
             where: whereClause,
             include: [
-                { model: User, as: 'Student', attributes: ['userId', 'userName'] },
-                { model: User, as: 'IssuedBy', attributes: ['userId', 'userName'] }
+                { model: User, as: 'Student', attributes: ['userId', 'userName', 'roll_number', 'userMail'], required: false },
+                { model: User, as: 'IssuedBy', attributes: ['userId', 'userName'], required: false }
             ],
             order: [['createdAt', 'DESC']],
-            // limit: 100
         });
 
-        res.json({ success: true, data: fees });
+        const studentIds = fees.map(f => f.student_id).filter(Boolean);
+        
+        // Lookup from User table
+        const localUsers = await User.findAll({
+          where: { userId: { [Op.in]: studentIds } },
+          attributes: ['userId', 'userName', 'roll_number', 'userMail'],
+          raw: true
+        });
+        const userMap = new Map(localUsers.map(u => [String(u.userId), u]));
+
+        // Lookup from Enrollment table to get roll_number if not in User
+        const enrollments = await Enrollment.findAll({
+          where: { student_id: { [Op.in]: studentIds } },
+          attributes: ['student_id', 'roll_number', 'college'],
+          raw: true
+        });
+        const enrollMap = new Map(enrollments.map(e => [String(e.student_id), e]));
+
+        // Fallback from ERP if needed
+        let erpMap = new Map();
+        try {
+          let hostelName = '';
+          if (hostel_id) {
+            const hostel = await Hostel.findByPk(hostel_id);
+            if (hostel) hostelName = hostel.name;
+          }
+          const erpStudents = await fetchStudentsFromERP({
+            authHeader: req.headers.authorization,
+            hostelName,
+            hostellersOnly: false
+          });
+          (erpStudents || []).forEach(s => {
+            if (s.id) erpMap.set(String(s.id), s);
+            if (s.userId) erpMap.set(String(s.userId), s);
+            if (s.roll_number) erpMap.set(String(s.roll_number).trim().toUpperCase(), s);
+          });
+        } catch (erpErr) {
+          console.warn('[getStudentFees] ERP fallback warning:', erpErr.message);
+        }
+
+        const enrichedFees = fees.map(f => {
+          const plain = f.get ? f.get({ plain: true }) : f;
+          const u = userMap.get(String(plain.student_id));
+          const e = enrollMap.get(String(plain.student_id));
+          const erp = erpMap.get(String(plain.student_id));
+
+          const sName = plain.Student?.userName || u?.userName || erp?.userName || erp?.username || `Student #${plain.student_id}`;
+          const sRoll = plain.Student?.roll_number || u?.roll_number || e?.roll_number || erp?.roll_number || erp?.registerNumber || `#${plain.student_id}`;
+          const sEmail = plain.Student?.userMail || u?.userMail || erp?.userMail || erp?.email || '';
+
+          return {
+            ...plain,
+            Student: {
+              userId: plain.student_id,
+              userName: sName,
+              username: sName,
+              roll_number: sRoll,
+              userMail: sEmail
+            },
+            userName: sName,
+            roll_number: sRoll
+          };
+        });
+
+        res.json({ success: true, data: enrichedFees });
 
     } catch (error) {
         console.error('Error fetching student fees:', error);
@@ -5417,29 +5509,14 @@ export const generateMonthlyMessReport = async (req, res) => {
     const netMessCost = grandTotalGrossExpenses - totalDeductions;
     const dailyRate = totalHostelManDays > 0 ? (netMessCost / totalHostelManDays) : 0;
 
-    // 3. Fetch all required student data in bulk
-    let studentWhereClause = { roleId: 2, hostel_id, status: 'Active' };
-    let studentInclude = [];
-    if (college && college !== 'all') {
-      studentInclude.push({
-        model: Enrollment,
-        as: 'tbl_Enrollment',
-        where: { college },
-        required: true // Ensures only students from the selected college are returned
-      });
-    }
-
-    const students = await User.findAll({
-      where: studentWhereClause,
-      include: studentInclude,
-      attributes: ['userId', 'userName', 'roll_number'],
-    });
+    // 3. Fetch hosteller students stored in DB where roles.rolename = 'student'
+    const students = await getHostellerStudentsFromDB({ hostel_id, college });
 
     if (students.length === 0) {
       return res.json({ success: true, data: [], summary: { operationalDays, daysInMonth, holidayCount } });
     }
 
-    const studentIds = students.map(s => s.userId);
+    const studentIds = students.map(s => s.userId || s.id);
 
     // Get attendance in a map for quick lookup
     const attendanceData = await Attendance.findAll({
@@ -5448,7 +5525,7 @@ export const generateMonthlyMessReport = async (req, res) => {
       group: ['student_id'],
       raw: true
     });
-    const studentAttendanceMap = new Map(attendanceData.map(item => [item.student_id, parseInt(item.total_mandays, 10)]));
+    const studentAttendanceMap = new Map(attendanceData.map(item => [String(item.student_id), parseInt(item.total_mandays, 10)]));
 
     // Get fees in a map for quick lookup
     const feeData = await StudentFee.findAll({
@@ -5458,17 +5535,19 @@ export const generateMonthlyMessReport = async (req, res) => {
     });
     const studentFeesMap = new Map();
     feeData.forEach(fee => {
-        if (!studentFeesMap.has(fee.student_id)) {
-            studentFeesMap.set(fee.student_id, {});
+        const sId = String(fee.student_id);
+        if (!studentFeesMap.has(sId)) {
+            studentFeesMap.set(sId, {});
         }
-        const studentFeeObject = studentFeesMap.get(fee.student_id);
+        const studentFeeObject = studentFeesMap.get(sId);
         studentFeeObject[fee.fee_type] = (studentFeeObject[fee.fee_type] || 0) + parseFloat(fee.amount);
     });
 
     // 4. Process each student and build the report
     const reportData = students.map(student => {
-        const messDays = studentAttendanceMap.get(student.userId) || 0;
-        const studentFees = studentFeesMap.get(student.userId) || {};
+        const studentId = String(student.userId || student.id);
+        const messDays = studentAttendanceMap.get(studentId) || 0;
+        const studentFees = studentFeesMap.get(studentId) || {};
         
         const messAmount = messDays * dailyRate;
         const bedCharges = studentFees.bed_charge || 0;
@@ -5485,9 +5564,9 @@ export const generateMonthlyMessReport = async (req, res) => {
         const roundingUp = finalAmount - netAmount;
 
         return {
-            studentId: student.userId,
-            name: student.userName,
-            regNo: student.roll_number || 'N/A',
+            studentId: studentId,
+            name: student.userName || student.username,
+            regNo: student.roll_number || student.registerNumber || 'N/A',
             messDays,
             dailyRate: parseFloat(dailyRate.toFixed(2)),
             messAmount: parseFloat(messAmount.toFixed(2)),
@@ -6542,7 +6621,10 @@ export const generateDailyRateReport = async (req, res) => {
     const totalManDays = studentManDaysData.reduce((sum, item) => sum + parseInt(item.manDays), 0);
 
     // Handle Water Charges: Create or update the entry for the month
-    const waterExpenseType = await ExpenseType.findOne({ where: { name: 'Water Charges' } });
+    const [waterExpenseType] = await ExpenseType.findOrCreate({ 
+      where: { name: 'Water Charges' },
+      defaults: { name: 'Water Charges', description: 'Monthly water charges', is_active: true }
+    });
     if (waterExpenseType) {
       const waterAmount = totalManDays * 10;
       const existingWaterEntry = await MessDailyExpense.findOne({
@@ -6573,8 +6655,6 @@ export const generateDailyRateReport = async (req, res) => {
         });
         console.log(`[Water Charges] Created new entry for ${moment(startDate).format('MMMM YYYY')} with amount: ${waterAmount}`);
       }
-    } else {
-      console.warn('[Water Charges] ExpenseType "Water Charges" not found.');
     }
 
     // 1. Fetch Gross Expenses (Item Consumptions + Other Expenses, now includes water)
@@ -6753,8 +6833,26 @@ export const recordStaffRecordedSpecialFoodConsumption = async (req, res) => {
     }
 
     // 1. Validate student and special food items
-    const student = await User.findOne({ where: { userId: student_id, hostel_id, roleId: 2 }, transaction });
-    if (!student) {
+    let studentValid = true;
+    const localStudent = await User.findOne({ where: { userId: student_id, hostel_id, roleId: 2 }, transaction });
+    if (!localStudent) {
+      let hostelName = '';
+      if (hostel_id) {
+        const hostel = await Hostel.findByPk(hostel_id, { transaction });
+        if (hostel) hostelName = hostel.name;
+      }
+      const erpStudents = await fetchStudentsFromERP({
+        authHeader: req.headers.authorization,
+        hostelName,
+        hostellersOnly: false
+      });
+      const existsInErp = (erpStudents || []).some(s => String(s.id) === String(student_id) || String(s.userId) === String(student_id));
+      if (!existsInErp && erpStudents && erpStudents.length > 0) {
+        studentValid = false;
+      }
+    }
+
+    if (!studentValid) {
       await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Student not found or not associated with this hostel.' });
     }
@@ -6882,57 +6980,56 @@ export const generateMessBills = async (req, res) => {
     const endDate = moment({ year: parseInt(year), month: parseInt(month) - 1 }).endOf('month').toDate();
     const dueDate = moment(endDate).add(7, 'days').toDate();
 
-    // 1. Fetch target students including email
-    let studentWhereClause = { hostel_id, roleId: 2, status: 'Active' };
-    if (college && college !== 'all') {
-      const enrolls = await Enrollment.findAll({ where: { hostel_id, college, status: 'active' }, attributes: ['student_id'], raw: true, transaction });
-      studentWhereClause.userId = { [Op.in]: enrolls.map(e => e.student_id) };
-    }
-
-    const students = await User.findAll({ 
-      where: studentWhereClause, 
-      attributes: ['userId', 'userName', 'roll_number', 'userMail'], 
-      raw: true, 
-      transaction 
-    });
+    // 1. Fetch target students from ERP API
+    let hostelName = '';
+    // 1. Fetch hosteller students stored in DB where roles.rolename = 'student'
+    const students = await getHostellerStudentsFromDB({ hostel_id, college, transaction });
 
     if (students.length === 0) {
       await transaction.rollback();
       return res.json({ success: true, message: 'No students found.' });
     }
 
-    const studentIds = students.map(s => s.userId);
+    const studentIds = students.map(s => String(s.userId || s.id));
+    const studentRolls = students.map(s => String(s.roll_number || s.registerNumber).trim().toUpperCase()).filter(Boolean);
 
-    // 2. Calculate Global Daily Rate (Simplified logic for brevity)
-    const totalManDays = (await Attendance.sum('totalManDays', { where: { hostel_id, date: { [Op.between]: [startDate, endDate] } }, transaction })) || 0;
-    const foodCost = (await DailyConsumption.sum('total_cost', { where: { hostel_id, consumption_date: { [Op.between]: [startDate, endDate] } }, transaction })) || 0;
-    const otherExp = (await MessDailyExpense.sum('amount', { where: { hostel_id, expense_date: { [Op.between]: [startDate, endDate] } }, transaction })) || 0;
+    // 2. Calculate Global Daily Rate
+    const totalManDays = (await Attendance.sum('totalManDays', { where: { ...(hostel_id ? { hostel_id } : {}), date: { [Op.between]: [startDate, endDate] } }, transaction })) || 0;
+    const foodCost = (await DailyConsumption.sum('total_cost', { where: { ...(hostel_id ? { hostel_id } : {}), consumption_date: { [Op.between]: [startDate, endDate] } }, transaction })) || 0;
+    const otherExp = (await MessDailyExpense.sum('amount', { where: { ...(hostel_id ? { hostel_id } : {}), expense_date: { [Op.between]: [startDate, endDate] } }, transaction })) || 0;
     
-    // Simple Deductions (Add your specific ones here)
     const netCost = (parseFloat(foodCost) + parseFloat(otherExp)); 
     const dailyRate = totalManDays > 0 ? netCost / totalManDays : 0;
 
     // 3. Map Data (Attendance and Fees)
     const manDaysRecords = await Attendance.findAll({
       attributes: ['student_id', [sequelize.fn('SUM', sequelize.col('totalManDays')), 'count']],
-      where: { student_id: { [Op.in]: studentIds }, date: { [Op.between]: [startDate, endDate] } },
+      where: { student_id: { [Op.in]: [...studentIds, ...studentRolls] }, date: { [Op.between]: [startDate, endDate] } },
       group: ['student_id'], raw: true, transaction
     });
-    const manDaysMap = new Map(manDaysRecords.map(r => [r.student_id, parseInt(r.count)]));
+    const manDaysMap = new Map();
+    manDaysRecords.forEach(r => {
+      manDaysMap.set(String(r.student_id), parseInt(r.count, 10));
+    });
 
     const studentFees = await StudentFee.findAll({
-      where: { student_id: { [Op.in]: studentIds }, month, year },
+      where: { student_id: { [Op.in]: [...studentIds, ...studentRolls] }, month, year },
       raw: true, transaction
     });
 
     // 4. Generate Bills Loop
     const billsForEmail = [];
     for (const student of students) {
-      const days = manDaysMap.get(student.userId) || 0;
+      const studentId = String(student.userId || student.id);
+      const studentRoll = String(student.roll_number || student.registerNumber || '');
+      const studentName = student.userName || student.username;
+      const studentEmail = student.email || student.userMail || (studentRoll ? `${studentRoll}@nec.edu.in` : '');
+
+      const days = manDaysMap.get(studentId) || manDaysMap.get(studentRoll) || 0;
       const messAmt = days * dailyRate;
       
       // Aggregate other fees (Bed, Newspaper, etc.)
-      const fees = studentFees.filter(f => f.student_id === student.userId);
+      const fees = studentFees.filter(f => String(f.student_id) === studentId || String(f.student_id) === studentRoll);
       const bed = fees.filter(f => f.fee_type === 'bed_charge').reduce((s, f) => s + parseFloat(f.amount), 0);
       const news = (days > 0) ? fees.filter(f => f.fee_type === 'newspaper').reduce((s, f) => s + parseFloat(f.amount), 0) : 0;
       const extra = fees.filter(f => !['bed_charge', 'newspaper'].includes(f.fee_type)).reduce((s, f) => s + parseFloat(f.amount), 0);
@@ -6941,13 +7038,13 @@ export const generateMessBills = async (req, res) => {
       const finalAmount = (totalRaw - Math.floor(totalRaw) <= 0.20) ? Math.floor(totalRaw) : Math.ceil(totalRaw);
 
       await MessBill.upsert({
-        student_id: student.userId, hostel_id, month, year, amount: finalAmount, 
-        status: 'pending', due_date: dueDate, description: `Mess: â‚¹${messAmt.toFixed(2)} | Days: ${days}`
+        student_id: studentId, hostel_id, month, year, amount: finalAmount, 
+        status: 'pending', due_date: dueDate, description: `Mess: ₹${messAmt.toFixed(2)} | Days: ${days}`
       }, { transaction });
 
       // Queue for email
       billsForEmail.push({
-        userMail: student.userMail, name: student.userName, roll: student.roll_number,
+        userMail: studentEmail, name: studentName, roll: studentRoll,
         finalAmount, monthName: moment(startDate).format('MMMM'), year,
         breakdown: { messDays: days, messAmount: messAmt.toFixed(2), additionalAmount: extra.toFixed(2), bedCharges: bed.toFixed(2), newspaperAmount: news.toFixed(2) }
       });

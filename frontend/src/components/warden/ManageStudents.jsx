@@ -97,10 +97,13 @@ const ManageStudents = () => {
   };
 
   const filteredStudents = useMemo(() => {
-    return students.filter(s =>
-      s.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (s.roll_number && s.roll_number.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    return students.filter(s => {
+      const name = (s.userName || s.username || '').toLowerCase();
+      const roll = (s.roll_number || s.registerNumber || '').toLowerCase();
+      const course = (s.course || s.session || '').toLowerCase();
+      const query = searchTerm.toLowerCase();
+      return name.includes(query) || roll.includes(query) || course.includes(query);
+    });
   }, [students, searchTerm]);
 
   const handleViewDetails = async (student) => {
@@ -114,7 +117,7 @@ const ManageStudents = () => {
       
       if (roomId) {
         const response = await wardenAPI.getRoomOccupants(roomId);
-        setRoommates(response.data.data?.filter(m => m.id !== student.userId) || []);
+        setRoommates(response.data.data?.filter(m => m.id !== (student.userId || student.id)) || []);
       } else {
         setRoommates([]);
       }
@@ -129,19 +132,23 @@ const ManageStudents = () => {
     {
       title: 'Student Name',
       key: 'identity',
-      render: (_, r) => (
-        <Space gap={3}>
-          <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
-            <User size={20} />
-          </div>
-          <Space direction="vertical" size={0}>
-            <Text strong className="text-slate-700">{r.userName}</Text>
-            <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-              Roll: {r.roll_number || 'Not Set'}
-            </Text>
+      render: (_, r) => {
+        const displayName = r.userName || r.username || 'Unnamed';
+        const displayRoll = r.roll_number || r.registerNumber || 'Not Set';
+        return (
+          <Space gap={3}>
+            <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
+              <User size={20} />
+            </div>
+            <Space direction="vertical" size={0}>
+              <Text strong className="text-slate-700 uppercase">{displayName}</Text>
+              <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                Roll: {displayRoll}
+              </Text>
+            </Space>
           </Space>
-        </Space>
-      )
+        );
+      }
     },
     {
       title: 'Room Status',
@@ -149,9 +156,10 @@ const ManageStudents = () => {
       render: (_, r) => {
         const allotment = r.tbl_RoomAllotments?.find(a => a.is_active);
         const room = allotment?.HostelRoom || allotment?.tbl_HostelRoom;
-        return room ? (
+        const roomNumber = room?.room_number || r.room_number;
+        return roomNumber ? (
           <Tag color="green" bordered={false} className="rounded-full px-3 font-bold text-[10px] uppercase">
-            Room {room.room_number}
+            Room {roomNumber}
           </Tag>
         ) : (
           <Tag color="orange" bordered={false} className="rounded-full px-3 font-bold text-[10px] uppercase">
@@ -161,9 +169,23 @@ const ManageStudents = () => {
       }
     },
     {
-      title: 'Batch',
-      dataIndex: 'session',
-      render: (s) => <Text className="text-slate-500 font-medium">{s || 'N/A'}</Text>
+      title: 'Gender',
+      key: 'gender',
+      render: (_, r) => {
+        const gender = (r.gender || r.Gender || r.sex || '').toUpperCase();
+        const isMale = gender === 'MALE' || gender === 'M';
+        const isFemale = gender === 'FEMALE' || gender === 'F';
+        return (
+          <Tag color={isMale ? 'blue' : isFemale ? 'magenta' : 'default'} className="rounded-full px-2.5 font-bold text-[10px]">
+            {gender || 'N/A'}
+          </Tag>
+        );
+      }
+    },
+    {
+      title: 'Course / Batch',
+      key: 'course',
+      render: (_, r) => <Text className="text-slate-500 font-medium">{r.course || r.session || 'N/A'}</Text>
     },
     {
       title: 'Action',
@@ -300,17 +322,26 @@ const ManageStudents = () => {
               </div>
 
               <Descriptions bordered column={2} className="rounded-2xl overflow-hidden shadow-sm border-slate-100">
-                <Descriptions.Item label={<Space><Hash size={14}/> Student ID</Space>}>
-                  {selectedStudent.userId}
+                <Descriptions.Item label={<Space><Hash size={14}/> Roll / Reg No</Space>}>
+                  {selectedStudent.registerNumber || selectedStudent.roll_number || selectedStudent.userId}
                 </Descriptions.Item>
-                <Descriptions.Item label={<Space><BookOpen size={14}/> Batch</Space>}>
-                  {selectedStudent.session || 'N/A'}
+                <Descriptions.Item label={<Space><BookOpen size={14}/> Course / Batch</Space>}>
+                  {selectedStudent.course || selectedStudent.session || 'N/A'}
+                </Descriptions.Item>
+                <Descriptions.Item label={<Space><Mail size={14}/> Email Address</Space>}>
+                  {selectedStudent.email || selectedStudent.userMail || 'N/A'}
+                </Descriptions.Item>
+                <Descriptions.Item label={<Space><User size={14}/> Student Type</Space>}>
+                  <Tag color="green" className="font-bold uppercase">
+                    {selectedStudent.student_type || selectedStudent.studentType || 'Hosteller'}
+                  </Tag>
                 </Descriptions.Item>
                 <Descriptions.Item label={<Space><MapPin size={14}/> Room Assignment</Space>} span={2}>
                   {(() => {
                     const room = selectedStudent.tbl_RoomAllotments?.find(a => a.is_active)?.HostelRoom;
-                    return room 
-                      ? `Room ${room.room_number} (${room.tbl_RoomType?.name || 'Standard'})` 
+                    const roomNumber = room?.room_number || selectedStudent.room_number;
+                    return roomNumber 
+                      ? `Room ${roomNumber} (${room?.tbl_RoomType?.name || 'Standard'})` 
                       : 'Not Assigned to a Room';
                   })()}
                 </Descriptions.Item>
@@ -422,6 +453,21 @@ const ManageStudents = () => {
                       title: 'Email',
                       dataIndex: 'email',
                       key: 'email',
+                    },
+                    {
+                      title: 'Gender',
+                      dataIndex: 'gender',
+                      key: 'gender',
+                      render: (_, record) => {
+                        const g = record.gender || record.Gender || record.sex || record.student_gender || 'N/A';
+                        const isMale = String(g).toUpperCase().startsWith('M');
+                        const isFemale = String(g).toUpperCase().startsWith('F');
+                        return (
+                          <Tag color={isMale ? 'blue' : isFemale ? 'magenta' : 'default'} className="font-bold">
+                            {g}
+                          </Tag>
+                        );
+                      }
                     },
                     {
                       title: 'Course',

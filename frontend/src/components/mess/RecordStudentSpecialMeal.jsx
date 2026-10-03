@@ -156,7 +156,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
 
                   <Form.Item name="student_id" label="Student Beneficiary" rules={[{ required: true, message: 'Select a student' }]}>
                     <Select
-                      placeholder="Search by name…"
+                      placeholder="Search by name or roll number…"
                       showSearch
                       optionFilterProp="children"
                       className="ssm-select"
@@ -164,9 +164,11 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
                     >
                       {students.map((s, index) => {
                         const studentId = s.userId ?? s.id ?? `student-${index}`;
+                        const name = s.userName || s.username || 'Student';
+                        const roll = s.roll_number || s.registerNumber || '';
                         return (
                           <Option key={studentId} value={studentId}>
-                            {s.userName}
+                            {name} {roll ? `(${roll})` : ''}
                           </Option>
                         );
                       })}
