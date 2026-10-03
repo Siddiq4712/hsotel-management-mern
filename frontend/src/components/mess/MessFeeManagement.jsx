@@ -185,8 +185,19 @@ const MessFeeManagement = () => {
 
   const columns = [
     { title: 'S.No.', key: 'sno', render: (_, __, i) => (currentPage - 1) * pageSize + i + 1, width: 70, fixed: 'left' },
-    { title: 'Student Name', dataIndex: 'name', key: 'name', width: 220, fixed: 'left', render: (t) => <Text strong className="text-slate-700">{t}</Text> },
-    { title: 'Reg No', dataIndex: 'regNo', width: 120 },
+    { 
+      title: 'Student Name', 
+      key: 'name', 
+      width: 220, 
+      fixed: 'left', 
+      render: (_, r) => <Text strong className="text-slate-700 uppercase">{r.name || r.userName || r.username || 'N/A'}</Text> 
+    },
+    { 
+      title: 'Reg No', 
+      key: 'regNo', 
+      width: 120, 
+      render: (_, r) => <span className="font-mono font-bold text-xs">{r.regNo || r.roll_number || r.registerNumber || 'N/A'}</span> 
+    },
     { title: 'Days', dataIndex: 'messDays', align: 'center', width: 80, render: (d) => <Badge count={d} color="#2563eb" overflowCount={31} /> },
     { title: 'Daily Rate', dataIndex: 'dailyRate', align: 'right', render: (v) => <Text type="secondary">₹{parseFloat(v).toFixed(2)}</Text> },
     

@@ -24,7 +24,7 @@ import {
   // Reductions & Rebates
   getDayReductionRequestsForWarden, updateDayReductionRequestStatusByWarden,
   getRoomRequestsWarden, decideRoomRequest, getRebates, updateRebateStatus, bulkEnrollStudents,
-  getStudentSummaryForWarden
+  getStudentSummaryForWarden, getErpSyncStatus, syncErpRecords
 } from '../controllers/wardenController.js'; // Added .js extension
 
 import { auth, authorize } from '../middleware/auth.js'; // Added .js extension
@@ -37,6 +37,8 @@ router.use(authorize(['warden']));
 
 /* ---------- DASHBOARD & SESSIONS ---------- */
 router.get('/dashboard-stats', getDashboardStats);
+router.get('/erp-sync-status', getErpSyncStatus);
+router.post('/erp-sync-now', syncErpRecords);
 router.get('/sessions', authorize(['warden', 'mess']), getSessions);
 
 /* ---------- STUDENT MANAGEMENT ---------- */
