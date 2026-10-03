@@ -70,7 +70,11 @@ const ManageStudents = () => {
     setAcademicsLoading(true);
     setAcademicsError('');
     try {
-      const response = await axios.get('https://erp.nec.edu.in/institute_management_system/students', {
+      const endpoint = import.meta.env.DEV
+        ? '/erp-api/institute_management_system/students'
+        : 'https://erp.nec.edu.in/institute_management_system/students';
+
+      const response = await axios.get(endpoint, {
         headers: {
           Authorization: `Bearer ${academicsToken}`
         }
