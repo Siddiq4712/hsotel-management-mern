@@ -13,6 +13,14 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
+    proxy: {
+      '/erp-api': {
+        target: 'https://erp.nec.edu.in',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/erp-api/, ''),
+      },
+    },
   },
   build: {
     outDir: 'build',
