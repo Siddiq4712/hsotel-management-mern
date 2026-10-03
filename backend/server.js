@@ -109,7 +109,7 @@ initAssociations();
 
 sequelize
   .sync()
-  //.sync({alter : true})
+  // .sync({alter : true})
   .then(async () => {
     console.log('✅ Database synced successfully');
 
