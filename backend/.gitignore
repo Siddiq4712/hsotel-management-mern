@@ -34,3 +34,6 @@ coverage/
 
 # Optional config overrides
 *.local
+
+# Private historical imports and database backups
+import-work/

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
+import { initialBillingDate } from '../../utils/billingDate';
 
 const { Title, Text } = Typography;
 
@@ -16,7 +17,7 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
   const [loading, setLoading] = useState(!isReadOnly);
   const [saving, setSaving] = useState(false);
   const [reportData, setReportData] = useState(sharedData);
-  const [selectedDate, setSelectedDate] = useState(moment());
+  const [selectedDate, setSelectedDate] = useState(initialBillingDate);
   
   // Notification Modal States
   const [isNotifyModalVisible, setIsNotifyModalVisible] = useState(false);

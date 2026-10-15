@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
+import { initialBillingDate } from '../../utils/billingDate';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -41,9 +42,10 @@ const MessFeeManagement = () => {
   // --- States ---
   const [reportData, setReportData] = useState([]);
   const [summary, setSummary] = useState({});
+  const [historicalImport, setHistoricalImport] = useState(false);
   const [loading, setLoading] = useState(true);
   const [generatingBills, setGeneratingBills] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(moment());
+  const [selectedDate, setSelectedDate] = useState(initialBillingDate);
   const [selectedCollege, setSelectedCollege] = useState('all');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [students, setStudents] = useState([]);
@@ -84,6 +86,8 @@ const MessFeeManagement = () => {
 
       // Update calculations based on synced Ledger Daily Rate
       const updatedData = data.map(row => {
+        // Imported historical statements retain their approved rate and rounding.
+        if (reportRes.data.historicalImport) return row;
         const messAmount = (row.messDays || 0) * dailyRateValue;
         
         // Ensure bedCharges and newspaper (hinduIndianExpress) are included in the math
@@ -105,6 +109,7 @@ const MessFeeManagement = () => {
       });
 
       setReportData(updatedData);
+      setHistoricalImport(Boolean(reportRes.data.historicalImport));
       setSummary(summaryData);
     } catch (error) {
       console.error(error);
@@ -249,15 +254,16 @@ const MessFeeManagement = () => {
           </div>
 
           <Space>
-            <Button icon={<Plus size={18}/>} onClick={() => setIsModalVisible(true)} className="rounded-xl h-12">Add Manual Fee</Button>
+            <Button disabled={historicalImport} icon={<Plus size={18}/>} onClick={() => setIsModalVisible(true)} className="rounded-xl h-12">Add Manual Fee</Button>
             <Button 
               type="primary" 
               icon={<CheckCircle2 size={18} />} 
               onClick={handleFinalizeBills}
+              disabled={historicalImport || loading}
               loading={generatingBills}
               className="rounded-xl h-12 shadow-lg shadow-blue-100 font-bold px-8 bg-emerald-600 hover:bg-emerald-700 border-none"
             >
-              Finalize & Send Emails
+              {historicalImport ? 'Historical Bills Imported' : 'Finalize & Send Emails'}
             </Button>
           </Space>
         </div>
@@ -298,7 +304,7 @@ const MessFeeManagement = () => {
             </Space>
             <div className="flex items-center gap-2 text-slate-400">
               <Info size={14} />
-              <Text style={{ fontSize: '12px' }}>Amounts are rounded based on 0.20 threshold logic.</Text>
+              <Text style={{ fontSize: '12px' }}>{historicalImport ? 'August source workbook amounts and rounding preserved.' : 'Amounts are rounded based on 0.20 threshold logic.'}</Text>
             </div>
           </div>
         </Card>

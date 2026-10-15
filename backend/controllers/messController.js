@@ -4,7 +4,7 @@ import {
   MenuSchedule, UOM, ItemStock, DailyConsumption, MessBill, Session, CreditToken, Concern, Holiday,
   Store, ItemStore, InventoryTransaction, ConsumptionLog, IncomeType, AdditionalIncome, StudentFee, RestockPlan,
   InventoryBatch, SpecialFoodItem, FoodOrder, FoodOrderItem, MessDailyExpense, ExpenseType, SpecialConsumption, SpecialConsumptionItem,
-  Recipe, RecipeItem, DailyRateLog
+  Recipe, RecipeItem, DailyRateLog, Role
 } from '../models/index.js'; // Ensure .js extension and named imports
 import { sendMessBillToStudent } from '../utils/emailUtils.js';
 import { Op } from 'sequelize';
@@ -12,6 +12,13 @@ import sequelize from '../config/database.js'; // Default export from your conve
 import moment from 'moment';
 import { getMonthDateRange } from '../utils/dateUtils.js'; // Added .js extension
 import { sendConsumptionNotificationToAdmin } from '../utils/emailUtils.js'; // Added .js extension
+import { getHistoricalBilling, monthlyHistoricalReport, sendHistoricalDailyReport } from '../utils/historicalBilling.js';
+
+async function studentRoleId() {
+  const role = await Role.findOne({ where: { roleName: 'Student' } });
+  if (!role) throw new Error('Student role is not configured');
+  return role.roleId;
+}
 
 function customRounding(amount) {
   const num = parseFloat(amount);
@@ -4885,7 +4892,7 @@ export const getMessFeeSummary = async (req, res) => {
     const students = await User.findAll({
       where: {
         hostel_id,
-        roleId: 2, status: 'Active'
+        roleId: await studentRoleId(), status: 'Active'
       },
       attributes: ['userId', 'userName', 'userMail'],
       order: [['userName', 'ASC']]
@@ -4986,7 +4993,7 @@ export const getStudentFeeBreakdown = async (req, res) => {
 
     // 1. Get all active students
     const students = await User.findAll({
-      where: { hostel_id, roleId: 2, status: 'Active' },
+      where: { hostel_id, roleId: await studentRoleId(), status: 'Active' },
       attributes: ['userId', 'userName', 'userMail'],
       raw: true,
     });
@@ -5228,7 +5235,7 @@ export const getStudents = async (req, res) => {
     const students = await User.findAll({
       where: {
         hostel_id,
-        roleId: 2, status: 'Active'
+        roleId: await studentRoleId(), status: 'Active'
       },
       attributes: ['userId', 'userName', 'roll_number'],
       include: [{
@@ -5376,6 +5383,8 @@ export const generateMonthlyMessReport = async (req, res) => {
   try {
     const { month, year, college } = req.query;
     const hostel_id = req.user.hostel_id;
+    const historical = await getHistoricalBilling(hostel_id, month, year);
+    if (historical) return res.json(monthlyHistoricalReport(historical, college));
 
     if (!month || !year) {
       return res.status(400).json({ success: false, message: 'Month and year are required.' });
@@ -5418,7 +5427,7 @@ export const generateMonthlyMessReport = async (req, res) => {
     const dailyRate = totalHostelManDays > 0 ? (netMessCost / totalHostelManDays) : 0;
 
     // 3. Fetch all required student data in bulk
-    let studentWhereClause = { roleId: 2, hostel_id, status: 'Active' };
+    let studentWhereClause = { roleId: await studentRoleId(), hostel_id, status: 'Active' };
     let studentInclude = [];
     if (college && college !== 'all') {
       studentInclude.push({
@@ -6503,6 +6512,8 @@ export const generateDailyRateReport = async (req, res) => {
   try {
     const { month, year, export: exportToExcel } = req.query;
     const { hostel_id } = req.user;
+    const historical = await getHistoricalBilling(hostel_id, month, year);
+    if (historical) return await sendHistoricalDailyReport(res, historical, exportToExcel);
 
     if (!month || !year) {
       return res.status(400).json({ success: false, message: 'Month and year are required.' });
@@ -6516,7 +6527,7 @@ export const generateDailyRateReport = async (req, res) => {
 
     // 0. Fetch all active students and their IDs
     const students = await User.findAll({
-      where: { hostel_id, roleId: 2, status: 'Active' },
+      where: { hostel_id, roleId: await studentRoleId(), status: 'Active' },
       attributes: ['userId', 'userName', 'roll_number'],
       raw: true
     });
@@ -6753,7 +6764,7 @@ export const recordStaffRecordedSpecialFoodConsumption = async (req, res) => {
     }
 
     // 1. Validate student and special food items
-    const student = await User.findOne({ where: { userId: student_id, hostel_id, roleId: 2 }, transaction });
+    const student = await User.findOne({ where: { userId: student_id, hostel_id, roleId: await studentRoleId() }, transaction });
     if (!student) {
       await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Student not found or not associated with this hostel.' });
@@ -6872,6 +6883,13 @@ export const generateMessBills = async (req, res) => {
   try {
     const { month, year, college } = req.body; // Using body for POST request
     const { hostel_id } = req.user;
+    const historical = await getHistoricalBilling(hostel_id, month, year);
+    if (historical) {
+      await transaction.rollback();
+      return res.json({ success: true, historicalImport: true,
+        message: 'August 2026 historical bills are already imported. No bills changed and no emails sent.',
+        summary: { total: historical.rows.length, dailyRate: historical.daily.dailyRate.toFixed(2) } });
+    }
 
     if (!month || !year) {
       await transaction.rollback();
@@ -6883,7 +6901,7 @@ export const generateMessBills = async (req, res) => {
     const dueDate = moment(endDate).add(7, 'days').toDate();
 
     // 1. Fetch target students including email
-    let studentWhereClause = { hostel_id, roleId: 2, status: 'Active' };
+    let studentWhereClause = { hostel_id, roleId: await studentRoleId(), status: 'Active' };
     if (college && college !== 'all') {
       const enrolls = await Enrollment.findAll({ where: { hostel_id, college, status: 'active' }, attributes: ['student_id'], raw: true, transaction });
       studentWhereClause.userId = { [Op.in]: enrolls.map(e => e.student_id) };
