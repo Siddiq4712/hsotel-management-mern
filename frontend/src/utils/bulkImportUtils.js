@@ -4,22 +4,17 @@ const REQUIRED_STUDENT_IMPORT_COLUMNS = [
   {
     key: 'name',
     label: 'Name',
-    aliases: ['name', 'student name', 'student_name']
+    aliases: ['name', 'student name', 'student_name', 'full name', 'student']
   },
   {
     key: 'roll_number',
     label: 'Roll Number',
-    aliases: ['roll number', 'roll_number', 'roll no', 'rollno', 'roll_no']
+    aliases: ['roll number', 'roll_number', 'roll no', 'rollno', 'roll_no', 'roll', 'uid', 'register number', 'reg no']
   },
   {
-    key: 'college',
-    label: 'College',
-    aliases: ['college', 'college name', 'campus']
-  },
-  {
-    key: 'requires_bed',
-    label: 'Hosteller',
-    aliases: ['hosteller', 'requires bed', 'requires_bed', 'is hosteller']
+    key: 'email',
+    label: 'Email',
+    aliases: ['email', 'email address', 'email_address', 'mail', 'student email', 'student_email', 'usermail', 'user_mail']
   }
 ];
 
@@ -202,24 +197,23 @@ export const mapExcelRowToStudent = (row = {}, headers = []) => {
 
   const nameValue = getHeaderValue(row, REQUIRED_STUDENT_IMPORT_COLUMNS[0].aliases);
   const rollValue = getHeaderValue(row, REQUIRED_STUDENT_IMPORT_COLUMNS[1].aliases);
-  const collegeValue = getHeaderValue(row, REQUIRED_STUDENT_IMPORT_COLUMNS[2].aliases);
-  const hostellerValue = getHeaderValue(row, REQUIRED_STUDENT_IMPORT_COLUMNS[3].aliases);
+  const emailValue = getHeaderValue(row, REQUIRED_STUDENT_IMPORT_COLUMNS[2].aliases);
 
   const normalizedRollNumber = String(rollValue ?? '').trim();
   const normalizedName = String(nameValue ?? '').trim();
+  const normalizedEmail = String(emailValue ?? '').trim();
 
   if (!normalizedName || !normalizedRollNumber) {
     return null;
   }
 
-  const requiresBedValue = String(hostellerValue ?? '').trim().toLowerCase();
-  const requiresBed = ['yes', 'y', 'true', '1', 'hosteller'].includes(requiresBedValue);
-
   return {
+    key: `${normalizedRollNumber}_${Math.random().toString(36).substr(2, 9)}`,
+    name: normalizedName,
     userName: normalizedName,
     roll_number: normalizedRollNumber,
-    college: String(collegeValue ?? 'nec').trim() || 'nec',
-    requires_bed: requiresBed
+    email: normalizedEmail,
+    requires_bed: false // Initially not checked
   };
 };
 
@@ -323,9 +317,9 @@ const createWorkbookWithSheet = (data, sheetName = 'Sheet1') => {
 
 export const downloadStudentBulkImportTemplate = (fileName = 'student-bulk-import-template.xlsx') => {
   const worksheetData = [
-    ['Name', 'Roll Number', 'College', 'Hosteller'],
-    ['John Doe', '20240001', 'NEC', 'Yes'],
-    ['Jane Smith', '20240002', 'LAPC', 'No']
+    ['Name', 'Roll Number', 'Email'],
+    ['John Doe', '20240001', 'johndoe@nec.edu.in'],
+    ['Jane Smith', '20240002', 'janesmith@lapc.edu.in']
   ];
 
   const workbook = createWorkbookWithSheet(worksheetData, 'Students');

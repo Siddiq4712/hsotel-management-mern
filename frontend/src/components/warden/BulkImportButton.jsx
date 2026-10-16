@@ -42,24 +42,28 @@ const BulkImportButton = ({ sessionId, onComplete }) => {
       setLoading(true);
       try {
         const response = await wardenAPI.bulkEnrollStudents({
-          students: formattedData,
-          session_id: sessionId
+          students: formattedData.map(s => ({
+            ...s,
+            session_id: sessionId
+          })),
+          session_id: sessionId,
+          college: 'nec'
         });
         
-        const { successful, skipped, errors } = response.data.data;
+        const { successful, skipped, errors = [] } = response.data.data;
         Modal.success({
           title: 'Import Completed',
           content: (
             <div>
               <p>Successfully Enrolled: <b>{successful}</b></p>
-              <p>Skipped (Already exists): {skipped}</p>
+              <p>Skipped / Existing: {skipped}</p>
               {errors.length > 0 && <p className="text-red-500">Errors: {errors.length}</p>}
             </div>
           )
         });
         if (onComplete) onComplete();
       } catch (error) {
-        message.error("Bulk import failed.");
+        message.error("Bulk import failed: " + (error.response?.data?.message || error.message));
       } finally {
         setLoading(false);
       }

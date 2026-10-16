@@ -154,9 +154,11 @@ export const adminAPI = {
 
 // Warden API - Updated with complete endpoints
 export const wardenAPI = {
-  // Dashboard
+  // Dashboard & ERP Sync
   getDashboardStats: () => api.get('/warden/dashboard-stats'),
   getSessions: () => api.get('/warden/sessions'),
+  getErpSyncStatus: () => api.get('/warden/erp-sync-status'),
+  syncErpRecords: () => api.post('/warden/erp-sync-now'),
 
   // Student Management
   enrollStudent: (data) => api.post('/warden/students', data),
