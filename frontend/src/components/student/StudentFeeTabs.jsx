@@ -37,7 +37,7 @@ const StudentFeeTabs = () => {
       }}
     >
       <AntdApp>
-        <div className="bg-slate-50 min-h-screen">
+        <div className="module-page bg-slate-50 min-h-screen">
           <Tabs 
             defaultActiveKey="mess" 
             items={items} 
@@ -47,27 +47,6 @@ const StudentFeeTabs = () => {
           />
         </div>
         {/* Standard style tag to avoid React boolean attribute warnings */}
-        <style>{`
-          .fee-management-tabs .ant-tabs-nav {
-            margin-bottom: 0 !important;
-            padding: 8px 2rem 0 2rem;
-            background: white;
-            border-bottom: 1px solid #e2e8f0;
-          }
-          .fee-management-tabs .ant-tabs-tab {
-            border: none !important;
-            background: transparent !important;
-            padding: 12px 24px !important;
-            transition: all 0.3s;
-          }
-          .fee-management-tabs .ant-tabs-tab-active {
-            border-bottom: 3px solid #2563eb !important;
-            background: #f8fafc !important;
-          }
-          .fee-management-tabs .ant-tabs-tab:hover {
-            color: #2563eb !important;
-          }
-        `}</style>
       </AntdApp>
     </ConfigProvider>
   );

@@ -185,11 +185,11 @@ const WardenDashboard = ({ setCurrentView }) => {
   ];
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: '#2563eb', borderRadius: 24, fontFamily: 'Inter, sans-serif' } }}>
-      <div className="p-4 md:p-10 bg-[#f8fafc] min-h-screen">
+    <ConfigProvider>
+      <div className="module-page p-4 md:p-10 bg-[#f8fafc] min-h-screen">
         
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div className="module-page-header flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div>
             <Title level={2} style={{ margin: 0 }}>Hostel Overview</Title>
             <Text type="secondary">Welcome back, Warden • Academic Year 2024-25</Text>

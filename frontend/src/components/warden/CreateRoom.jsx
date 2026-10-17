@@ -162,7 +162,7 @@ export default function HostelBlueprintDesigner() {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="min-h-screen bg-[#fcfdff] p-8 font-serif text-slate-900 select-none">
+      <div className="module-page min-h-screen bg-[#fcfdff] p-8 font-serif text-slate-900 select-none">
         
         {/* Header Section */}
         <header className="max-w-[1500px] mx-auto flex justify-between items-center border-b-2 border-blue-900 pb-6 mb-8">

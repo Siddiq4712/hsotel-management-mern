@@ -6,7 +6,7 @@ import { Button, message } from 'antd';
 import { GoogleOutlined } from '@ant-design/icons';
 import { authAPI } from '../../services/api';
 import './Login.css'; // Import the CSS file
-import necLogo from '/nec_logo.jpeg';
+import necLogo from '/nec-logo.png';
 import necImage from '/nec_image.jpg';
 
 const Login = () => {

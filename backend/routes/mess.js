@@ -1,4 +1,5 @@
 import express from 'express';
+import { installAdminWorkspace } from '../middleware/adminWorkspace.js';
 import { body } from 'express-validator';
 import rateLimit from 'express-rate-limit';
 import {
@@ -166,6 +167,7 @@ import {
 import { auth, authorize } from '../middleware/auth.js'; // Added .js extension
 
 const router = express.Router();
+installAdminWorkspace(router, 'mess');
 
 // Rate limiting for sensitive endpoints
 const createOrderLimiter = rateLimit({

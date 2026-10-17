@@ -251,9 +251,23 @@ export const Attendance = sequelize.define('Attendance', {
     allowNull: false, 
     references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
   },
+  reduction_request_id: { type: DataTypes.INTEGER, allowNull: true },
   totalManDays: { type: DataTypes.INTEGER, allowNull: true },
   is_monthly: { type: DataTypes.BOOLEAN, defaultValue: false }
 }, { tableName: 'tbl_Attendance', timestamps: true });
+
+export const MonthlyAttendanceImport = sequelize.define('MonthlyAttendanceImport', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: false },
+  month: { type: DataTypes.INTEGER, allowNull: false },
+  year: { type: DataTypes.INTEGER, allowNull: false },
+  imported_by: { type: DataTypes.INTEGER, allowNull: false },
+  file_name: { type: DataTypes.STRING, allowNull: false },
+  source_hash: { type: DataTypes.STRING(64), allowNull: false },
+  row_count: { type: DataTypes.INTEGER, allowNull: false },
+  total_man_days: { type: DataTypes.INTEGER, allowNull: false },
+  records: { type: DataTypes.JSON, allowNull: false }
+}, { tableName: 'tbl_MonthlyAttendanceImport', timestamps: true });
 
 export const GPSAttendance = sequelize.define('GPSAttendance', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -348,7 +362,12 @@ export const DayReductionRequest = sequelize.define('DayReductionRequest', {
   from_date: { type: DataTypes.DATEONLY, allowNull: false },
   to_date: { type: DataTypes.DATEONLY, allowNull: false },
   reason: { type: DataTypes.TEXT, allowNull: false },
-  status: { type: DataTypes.ENUM('pending_admin', 'approved_by_admin', 'rejected_by_admin', 'approved_by_warden', 'rejected_by_warden'), defaultValue: 'pending_admin', allowNull: false },
+  category: { type: DataTypes.STRING(32), allowNull: true },
+  activity: { type: DataTypes.STRING(150), allowNull: true },
+  document: { type: DataTypes.JSON, allowNull: true },
+  decided_at: { type: DataTypes.DATE, allowNull: true },
+  workflow_version: { type: DataTypes.INTEGER, allowNull: true },
+  status: { type: DataTypes.ENUM('pending_admin', 'approved_by_admin', 'rejected_by_admin', 'approved_by_warden', 'rejected_by_warden', 'needs_correction', 'cancelled'), defaultValue: 'pending_admin', allowNull: false },
   admin_id: { 
     type: DataTypes.INTEGER, 
     allowNull: true, 
@@ -362,6 +381,38 @@ export const DayReductionRequest = sequelize.define('DayReductionRequest', {
   },
   warden_remarks: { type: DataTypes.TEXT, allowNull: true }
 }, { tableName: 'tbl_DayReductionRequests', timestamps: true });
+
+export const ReductionDay = sequelize.define('ReductionDay', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  request_id: { type: DataTypes.INTEGER, allowNull: false },
+  student_id: { type: DataTypes.INTEGER, allowNull: false },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: false },
+  date: { type: DataTypes.DATEONLY, allowNull: false },
+  attendance_status: { type: DataTypes.STRING(2), allowNull: false },
+  active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  before_attendance: { type: DataTypes.JSON, allowNull: false },
+  created_attendance_id: { type: DataTypes.INTEGER, allowNull: true }
+}, { tableName: 'tbl_ReductionDays', timestamps: true, indexes: [
+  { unique: true, fields: ['request_id', 'date'] }, { fields: ['hostel_id', 'student_id', 'date', 'active'] }
+] });
+
+export const ReductionDecision = sequelize.define('ReductionDecision', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  request_id: { type: DataTypes.INTEGER, allowNull: false },
+  actor_id: { type: DataTypes.INTEGER, allowNull: false },
+  actor_role: { type: DataTypes.STRING(20), allowNull: false },
+  action: { type: DataTypes.STRING(32), allowNull: false },
+  remarks: { type: DataTypes.TEXT, allowNull: true },
+  previous_values: { type: DataTypes.JSON, allowNull: true }
+}, { tableName: 'tbl_ReductionDecisions', timestamps: true });
+
+export const MessBillingSnapshot = sequelize.define('MessBillingSnapshot', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: false },
+  month: { type: DataTypes.INTEGER, allowNull: false },
+  year: { type: DataTypes.INTEGER, allowNull: false },
+  payload: { type: DataTypes.JSON, allowNull: false }
+}, { tableName: 'tbl_MessBillingSnapshot', timestamps: true, indexes: [{ unique: true, fields: ['hostel_id', 'month', 'year'] }] });
 
 export const Holiday = sequelize.define('Holiday', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -663,7 +714,8 @@ export const MessBill = sequelize.define('MessBill', {
   year: { type: DataTypes.INTEGER, allowNull: false },
   amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   status: { type: DataTypes.ENUM('pending', 'paid', 'overdue'), defaultValue: 'pending' },
-  due_date: { type: DataTypes.DATE, allowNull: false }
+  due_date: { type: DataTypes.DATE, allowNull: false },
+  billing_breakdown: { type: DataTypes.JSON, allowNull: true }
 }, { tableName: 'tbl_MessBill', timestamps: true });
 
 // ==========================================
@@ -1093,7 +1145,8 @@ export const InAppNotification = sequelize.define('InAppNotification', {
   message: { type: DataTypes.TEXT, allowNull: false },
   type: { type: DataTypes.STRING, allowNull: false },
   status: { type: DataTypes.ENUM('unread', 'read'), defaultValue: 'unread', allowNull: false }
-}, { tableName: 'tbl_InAppNotification', timestamps: true });
+}, { tableName: 'tbl_InAppNotification', timestamps: true,
+  indexes:[{fields:['user_id','status','id']},{fields:['user_id','id']}] });
 
 // ==========================================
 // UNIFIED ASSOCIATIONS
@@ -1165,6 +1218,7 @@ export const initAssociations = () => {
   // ==========================================
   Attendance.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
   Attendance.belongsTo(User, { foreignKey: 'marked_by', as: 'MarkedBy', targetKey: 'userId' });
+  Attendance.belongsTo(DayReductionRequest, { foreignKey: 'reduction_request_id', as: 'ReductionRequest', constraints: false });
   Attendance.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 
   GPSAttendance.belongsTo(User, { foreignKey: 'user_id', targetKey: 'userId' });
@@ -1194,6 +1248,10 @@ export const initAssociations = () => {
   DayReductionRequest.belongsTo(User, { foreignKey: 'admin_id', as: 'AdminProcessor', targetKey: 'userId' });
   DayReductionRequest.belongsTo(User, { foreignKey: 'warden_id', as: 'WardenProcessor', targetKey: 'userId' });
   DayReductionRequest.belongsTo(Hostel, { foreignKey: 'hostel_id', as: 'Hostel' });
+  ReductionDay.belongsTo(DayReductionRequest, { foreignKey: 'request_id', as: 'Request' });
+  DayReductionRequest.hasMany(ReductionDay, { foreignKey: 'request_id', as: 'ReductionDays' });
+  DayReductionRequest.hasMany(ReductionDecision, { foreignKey: 'request_id', as: 'Decisions' });
+  ReductionDecision.belongsTo(User, { foreignKey: 'actor_id', targetKey: 'userId', as: 'Actor' });
 
   Holiday.belongsTo(Hostel, { foreignKey: 'hostel_id' });
   Hostel.hasMany(Holiday, { foreignKey: 'hostel_id' });
@@ -1310,8 +1368,15 @@ export const initAssociations = () => {
 
   // Additional Collections
   AdditionalCollection.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
+  AdditionalCollection.belongsTo(User, { foreignKey: 'student_id', as: 'CollectionStudent', targetKey: 'userId', constraints: false });
   AdditionalCollection.belongsTo(User, { foreignKey: 'collected_by', as: 'CollectedBy', targetKey: 'userId' });
   AdditionalCollection.belongsTo(AdditionalCollectionType, { foreignKey: 'collection_type_id' });
+  CreditToken.belongsTo(Concern, { foreignKey: 'concern_id', as: 'Concern' });
+  CreditToken.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy', targetKey: 'userId' });
+  SpecialConsumption.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy', targetKey: 'userId' });
+  SpecialConsumption.hasMany(SpecialConsumptionItem, { foreignKey: 'special_consumption_id', as: 'ItemsConsumed' });
+  SpecialConsumptionItem.belongsTo(Item, { foreignKey: 'item_id' });
+  SpecialConsumptionItem.belongsTo(UOM, { foreignKey: 'unit_id' });
 
   // ==========================================
   // 7. FACILITY MANAGEMENT

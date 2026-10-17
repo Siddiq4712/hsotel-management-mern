@@ -142,12 +142,12 @@ const ParentDashboard = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#3b82f6', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+    <ConfigProvider>
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
 
         {/* Top Header Card */}
         <Card className="border-none shadow-sm rounded-3xl p-6 bg-white mb-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="module-page-header flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100 text-white">
                 <User size={24} />

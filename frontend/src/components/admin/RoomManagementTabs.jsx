@@ -30,7 +30,7 @@ const RoomManagementTabs = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb' } }}>
-      <div className="bg-slate-50 min-h-screen">
+      <div className="module-page bg-slate-50 min-h-screen">
         <Tabs 
           defaultActiveKey="types" 
           items={items} 
@@ -39,22 +39,6 @@ const RoomManagementTabs = () => {
           size="large"
         />
       </div>
-      <style jsx global>{`
-        .custom-admin-tabs .ant-tabs-nav {
-          margin-bottom: 0 !important;
-          padding: 0 2rem;
-          background: white;
-          border-bottom: 1px solid #e2e8f0;
-        }
-        .custom-admin-tabs .ant-tabs-tab {
-          border: none !important;
-          background: transparent !important;
-          padding: 12px 20px !important;
-        }
-        .custom-admin-tabs .ant-tabs-tab-active {
-          border-bottom: 2px solid #2563eb !important;
-        }
-      `}</style>
     </ConfigProvider>
   );
 };

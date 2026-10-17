@@ -123,24 +123,13 @@ const MessDashboard = ({ setCurrentView }) => {
   };
 
   return (
-    <ConfigProvider
-      theme={{
-        algorithm: theme.defaultAlgorithm,
-        token: {
-          colorPrimary: '#2563eb', // blue-600
-          colorBgContainer: '#ffffff',
-          borderRadius: 16,
-          colorTextHeading: '#1e293b', // slate-800
-          colorText: '#475569', // slate-600
-        },
-      }}
-    >
-      <div className="p-8 bg-slate-50 min-h-screen">
+    <ConfigProvider>
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         {/* Header Section */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="module-page-header flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-200">
-                <LayoutDashboard className="text-white" size={24} />
+              <LayoutDashboard className="text-white" size={24} />
             </div>
             <div>
               <Title level={2} style={{ margin: 0 }}>Mess Overview</Title>

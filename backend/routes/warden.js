@@ -1,4 +1,7 @@
+import { uploadReductionDocument, reductionDocument, reviseReduction, decideReduction } from '../controllers/reductionController.js';
 import express from 'express';
+import { getAttendanceRoster } from '../controllers/attendanceController.js';
+import { installAdminWorkspace } from '../middleware/adminWorkspace.js';
 import {
   enrollStudent, getStudents, getAvailableRooms, allotRoom, getDashboardStats, getSessions,
   // Attendance Management
@@ -30,6 +33,7 @@ import {
 import { auth, authorize } from '../middleware/auth.js'; // Added .js extension
 
 const router = express.Router();
+installAdminWorkspace(router, 'warden');
 
 // Apply auth and base authorize to all routes in this file
 router.use(auth);
@@ -53,6 +57,7 @@ router.post('/room-allotment', allotRoom);
 router.get('/rooms/:id/occupants', getRoomOccupants);
 
 /* ---------- ATTENDANCE MANAGEMENT ---------- */
+router.get('/attendance/roster', getAttendanceRoster);
 router.post('/attendance', markAttendance);
 router.post('/attendance/bulk', bulkMarkAttendance);
 router.post('/attendance/bulks', bulkMonthEndMandays); 
@@ -110,6 +115,7 @@ router.post('/layout', saveLayout);
 router.get('/room-requests', getRoomRequestsWarden);
 router.put('/room-requests/:id', decideRoomRequest);
 
+router.get('/day-reduction-requests/:id/document', reductionDocument);
 router.get('/day-reduction-requests', getDayReductionRequestsForWarden);
 router.put('/day-reduction-requests/:id/status', updateDayReductionRequestStatusByWarden); 
 

@@ -1243,18 +1243,20 @@ export const getDashboardStats = async (req, res) => {
   try {
     const totalHostels = await Hostel.count({ where: { is_active: true } });
     
-    // Use user.role directly; role-table join is unreliable with current schema.
+    // User.roleId is a foreign key, not the role name.
+    const dashboardRoles = await Role.findAll({ attributes: ['roleId', 'roleName'], raw: true });
+    const idsForRoles = names => dashboardRoles.filter(role => names.includes(String(role.roleName).toLowerCase())).map(role => role.roleId);
     const totalWardens = await User.count({
       where: {
         status: 'Active',
-        roleId: { [Op.in]: ['warden'] }
+        roleId: { [Op.in]: idsForRoles(['warden']) }
       }
     });
 
     const totalStudents = await User.count({
       where: {
         status: 'Active',
-        roleId: { [Op.in]: ['student', 'lapc'] }
+        roleId: { [Op.in]: idsForRoles(['student', 'lapc']) }
       }
     });
 
@@ -1297,6 +1299,8 @@ export const getDashboardStats = async (req, res) => {
 export const getAdminChartData = async (req, res) => {
   try {
     const chartData = {};
+    const roles = await Role.findAll({ attributes: ['roleId', 'roleName'], raw: true });
+    const roleNames = new Map(roles.map(role => [String(role.roleId), role.roleName]));
 
     const userRoleCounts = await User.findAll({
       attributes: ['roleId', [fn('COUNT', col('id')), 'count']],
@@ -1308,7 +1312,7 @@ export const getAdminChartData = async (req, res) => {
     const labels = [];
     const counts = [];
     userRoleCounts.forEach(item => {
-      const roleName = String(item.roleId || '').trim();
+      const roleName = String(roleNames.get(String(item.roleId)) || `Unknown role (${item.roleId})`).trim();
       labels.push(roleName ? roleName.charAt(0).toUpperCase() + roleName.slice(1).toLowerCase() : 'Unknown');
       counts.push(parseInt(item.count, 10));
     });
@@ -1359,91 +1363,9 @@ export const getAdminChartData = async (req, res) => {
   }
 };
 
-export const getDayReductionRequestsForAdmin = async (req, res) => {
-  try {
-    const { status, hostel_id, student_id, from_date, to_date } = req.query;
-    let whereClause = {};
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    } else {
-      whereClause.status = { [Op.in]: ['pending_admin', 'approved_by_admin', 'rejected_by_admin', 'approved_by_warden', 'rejected_by_warden'] };
-    }
-    if (hostel_id) whereClause.hostel_id = hostel_id;
-    if (student_id) whereClause.student_id = student_id;
-    if (from_date && to_date) {
-      whereClause[Op.and] = [{ from_date: { [Op.lte]: to_date } }, { to_date: { [Op.gte]: from_date } }];
-    }
+export { listReductions as getDayReductionRequestsForAdmin } from './reductionController.js';
 
-    const requests = await DayReductionRequest.findAll({
-      where: whereClause,
-      include: [
-        { model: User, as: 'Student', attributes: ['userId', 'userName', 'userMail', 'roll_number'] }, // Changed attributes
-        { model: User, as: 'AdminProcessor', attributes: ['userId', 'userName'], required: false }, // Changed attributes
-        { model: User, as: 'WardenProcessor', attributes: ['userId', 'userName'], required: false }, // Changed attributes
-        { model: Hostel, as: 'Hostel', attributes: ['id', 'name'] }
-      ],
-      order: [['createdAt', 'DESC']]
-    });
-    res.json({ success: true, data: requests });
-  } catch (error) {
-    console.error('Error fetching requests:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-export const updateDayReductionRequestStatusByAdmin = async (req, res) => {
-  const transaction = await sequelize.transaction();
-  try {
-    const { id } = req.params;
-    const { action, admin_remarks } = req.body;
-    const admin_id = req.user.userId; // Changed to userId
-
-    const request = await DayReductionRequest.findByPk(id, { transaction });
-    if (!request || request.status !== 'pending_admin') {
-      await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'Request not found or invalid status' });
-    }
-
-    let newStatus = action === 'approve' ? 'approved_by_admin' : 'rejected_by_admin';
-
-    await request.update({ status: newStatus, admin_id, admin_remarks }, { transaction });
-
-    if (newStatus === 'approved_by_admin') {
-      const { student_id, from_date, to_date, hostel_id } = request;
-      let currentDate = moment(from_date);
-      const endDate = moment(to_date);
-
-      while (currentDate.isSameOrBefore(endDate)) {
-        const dateString = currentDate.format('YYYY-MM-DD');
-        let existingAttendance = await Attendance.findOne({ where: { student_id, hostel_id, date: dateString }, transaction });
-
-        if (existingAttendance) {
-          if (existingAttendance.status !== 'P') {
-            await existingAttendance.update({
-              status: 'OD',
-              totalManDays: 1,
-              remarks: (existingAttendance.remarks || '') + '; Day reduction approved by Admin',
-              marked_by: admin_id
-            }, { transaction });
-          }
-        } else {
-          await Attendance.create({
-            student_id, hostel_id, date: dateString, status: 'OD', totalManDays: 1,
-            remarks: 'Day reduction request approved by Admin', marked_by: admin_id
-          }, { transaction });
-        }
-        currentDate.add(1, 'day');
-      }
-    }
-
-    await transaction.commit();
-    res.json({ success: true, data: request, message: `Request ${newStatus} successfully.` });
-  } catch (error) {
-    await transaction.rollback();
-    console.error('Error updating status:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
+export { decideReduction as updateDayReductionRequestStatusByAdmin } from './reductionController.js';
 
 export const updateHostelFeeSettings = async (req, res) => {
   try {

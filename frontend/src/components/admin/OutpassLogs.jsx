@@ -160,10 +160,10 @@ const OutpassLogs = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#3b82f6', borderRadius: 12 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="module-page-header flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100 text-white">
               <Shield size={24} />

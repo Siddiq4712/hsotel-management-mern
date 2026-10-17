@@ -1,10 +1,12 @@
 import React, { useState, Suspense, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { resolveWorkspace } from './utils/adminWorkspace';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { StockProvider } from './context/StockContext';
 import { App as AntdApp } from 'antd';
 import Layout from './components/common/Layout';
 import WeeklyMenuWorkspace from './components/mess/WeeklyMenuWorkspace';
+import EntryHostelDialog from './components/common/EntryHostelDialog';
 import { ChatbotProvider } from './providers/ChatbotProvider';
 import ChatWidget from './components/chatbot/ChatWidget';
 import Login from './components/auth/Login';
@@ -22,6 +24,8 @@ import ManageMaintenance from './components/admin/ManageMaintenance';
 import ManageIncomeTypes from './components/admin/ManageIncomeTypes';
 import ManageExpenseTypes from './components/admin/ManageExpenseTypes';
 import DayReductionRequestsAdmin from './components/admin/DayReductionRequests';
+import MonthlyAttendanceImport from './components/admin/MonthlyAttendanceImport';
+import ActivityLogs from './components/admin/ActivityLogs';
 
 // ✅ NEW IMPORT (Room Tabs)
 import RoomManagementTabs from './components/admin/RoomManagementTabs';
@@ -75,7 +79,7 @@ import StoreManagement from './components/mess/StoreManagement';
 import MessOrderDashboard from './components/mess/MessOrderDashboard';
 import SpecialFoodItemsManagement from './components/mess/SpecialFoodItemsManagement';
 import FoodOrdersManagement from './components/mess/FoodOrdersManagement';
-import ItemStoreMapping from './components/mess/ItemStoreMapping';
+// import ItemStoreMapping from './components/mess/ItemStoreMapping';
 import ConsumptionReport from './components/mess/ConsumptionReport';
 import MenuPlanner from './components/mess/MenuPlanner';
 import CreateMenu from './components/mess/CreateMenu';
@@ -127,6 +131,17 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 const DashboardRouter = () => {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const workspace = resolveWorkspace(user?.role, new URLSearchParams(location.search).get('workspace'), localStorage.getItem('adminWorkspace'));
+  useEffect(() => {
+    if (user?.role === 'admin') localStorage.setItem('adminWorkspace', workspace);
+  }, [user?.role, workspace]);
+  const changeWorkspace = next => {
+    if (user?.role !== 'admin') return;
+    const selected = resolveWorkspace('admin', next);
+    localStorage.setItem('adminWorkspace', selected);
+    navigate(`/dashboard?workspace=${selected}`);
+  };
   const [currentView, setCurrentView] = useState(() => {
     const path = location.pathname.replace(/^\/+/, '');
     return path || 'dashboard';
@@ -138,7 +153,7 @@ const DashboardRouter = () => {
   }, [location.pathname]);
 
   const renderComponent = () => {
-    switch (user?.role) {
+    switch (workspace) {
 
       // ================= ADMIN =================
       case 'admin':
@@ -158,6 +173,12 @@ const DashboardRouter = () => {
             return <CreateUser />;
           case 'sessions':
             return <ManageSessions />;
+          case 'monthly-attendance-import':
+            return <MonthlyAttendanceImport />;
+          case 'activity-logs':
+            return <ActivityLogs />;
+          case 'consumption':
+            return <RecordStudentSpecialMeal />;
           case 'facility-types':
             return <ManageFacilityTypes />;
           case 'facilities':
@@ -319,8 +340,9 @@ const DashboardRouter = () => {
             return <InventoryManagement />;
           case 'inventory-transactions':
             return <InventoryTransactions />;
+          // Mapping is disabled. Existing links open the store master instead.
           case 'item-store-mapping':
-            return <ItemStoreMapping />;
+            return <StoreManagement />;
           case 'stores':
             return <StoreManagement />;
           case 'calculate-daily-charges':
@@ -359,7 +381,7 @@ const DashboardRouter = () => {
   };
 
   return (
-    <Layout currentView={currentView} setCurrentView={setCurrentView}>
+    <Layout currentView={currentView} setCurrentView={setCurrentView} workspace={workspace} onWorkspaceChange={changeWorkspace}>
       {renderComponent()}
     </Layout>
   );
@@ -386,6 +408,7 @@ function App() {
                   />
                 </Routes>
                 <ChatWidget />
+                <EntryHostelDialog />
               </div>
             </ChatbotProvider>
           </Router>

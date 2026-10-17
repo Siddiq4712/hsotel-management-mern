@@ -217,7 +217,7 @@ const ViewBills = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="module-page-header flex justify-between items-center">
         <Title level={2}>My Mess Bills</Title>
         <DatePicker 
           picker="month" 

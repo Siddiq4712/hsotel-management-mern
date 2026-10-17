@@ -58,9 +58,13 @@ export const AuthProvider = ({ children }) => {
       setAuthToken(token);
       setUser(normalizedUser);
 
-      return { success: true };
+      return { success: true, user: normalizedUser };
     } catch (error) {
-      return { success: false, message: error.message || "Login failed" };
+      console.error('Login error:', error.response?.data || error.message);
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Login failed'
+      };
     } finally {
       setLoading(false);
     }

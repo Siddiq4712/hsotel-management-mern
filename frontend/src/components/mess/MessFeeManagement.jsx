@@ -81,14 +81,18 @@ const MessFeeManagement = () => {
       setStudents(studentsRes.data.data || []);
 
       summaryData.syncedDailyRate = dailyRateValue;
+      summaryData.allHostels = Boolean(reportRes.data.allHostels);
       summaryData.syncedNetExpenses = ledgerNetExpenses;
       summaryData.syncedManDays = ledgerManDays;
 
       // Update calculations based on synced Ledger Daily Rate
       const updatedData = data.map(row => {
         // Imported historical statements retain their approved rate and rounding.
-        if (reportRes.data.historicalImport) return row;
-        const messAmount = (row.messDays || 0) * dailyRateValue;
+        if (row.legacyFinalized || row.historicalImport || (!reportRes.data.allHostels && reportRes.data.historicalImport)) return row;
+        const rowRate = reportRes.data.allHostels
+          ? (dailyRateRes.data.hostelSummaries?.find(item => item.hostel_id === row.hostel_id)?.dailyRate ?? row.dailyRate)
+          : dailyRateValue;
+        const messAmount = (row.messDays || 0) * rowRate;
         
         // Ensure bedCharges and newspaper (hinduIndianExpress) are included in the math
         const bed = parseFloat(row.bedCharges || 0);
@@ -99,7 +103,7 @@ const MessFeeManagement = () => {
 
         return {
           ...row,
-          dailyRate: dailyRateValue,
+          dailyRate: rowRate,
           messAmount: parseFloat(messAmount.toFixed(2)),
           bedCharges: bed, // ensure it's a number
           hinduIndianExpress: paper, // ensure it's a number
@@ -109,7 +113,7 @@ const MessFeeManagement = () => {
       });
 
       setReportData(updatedData);
-      setHistoricalImport(Boolean(reportRes.data.historicalImport));
+      setHistoricalImport(Boolean(reportRes.data.historicalImport || reportRes.data.legacyFinalized));
       setSummary(summaryData);
     } catch (error) {
       console.error(error);
@@ -203,7 +207,9 @@ const MessFeeManagement = () => {
       width: 120, 
       render: (_, r) => <span className="font-mono font-bold text-xs">{r.regNo || r.roll_number || r.registerNumber || 'N/A'}</span> 
     },
-    { title: 'Days', dataIndex: 'messDays', align: 'center', width: 80, render: (d) => <Badge count={d} color="#2563eb" overflowCount={31} /> },
+    { title: 'Base days', dataIndex: 'baseDays', align: 'center', render: v => v ?? 'Legacy' },
+    { title: 'Approved reduction', dataIndex: 'approvedReductionDays', align: 'center', render: v => v ?? 'Legacy' },
+    { title: 'Billable days', dataIndex: 'messDays', align: 'center', width: 80, render: (d) => <Badge count={d} color="#2563eb" overflowCount={31} /> },
     { title: 'Daily Rate', dataIndex: 'dailyRate', align: 'right', render: (v) => <Text type="secondary">₹{parseFloat(v).toFixed(2)}</Text> },
     
     // --- ADDED COLUMNS START ---
@@ -239,10 +245,10 @@ const MessFeeManagement = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header */}
-        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
+        <div className="module-page-header flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
               <Calculator className="text-white" size={24} />
@@ -274,7 +280,7 @@ const MessFeeManagement = () => {
               loading={generatingBills}
               className="rounded-xl h-12 shadow-lg shadow-blue-100 font-bold px-8 bg-emerald-600 hover:bg-emerald-700 border-none"
             >
-              {historicalImport ? 'Historical Bills Imported' : 'Finalize & Send Emails'}
+              {historicalImport ? 'Recorded Bills Preserved' : 'Finalize & Send Emails'}
             </Button>
           </Space>
         </div>
@@ -282,7 +288,7 @@ const MessFeeManagement = () => {
         {/* Statistic Cards */}
         <Row gutter={[24, 24]} className="mb-8">
           {[
-            { label: 'Calculated Rate', value: summary.syncedDailyRate, color: '#059669', icon: <Receipt size={18}/>, suffix: '/ day' },
+            { label: summary.allHostels ? 'Average Rate (All Hostels)' : 'Calculated Rate', value: summary.syncedDailyRate, color: '#059669', icon: <Receipt size={18}/>, suffix: '/ day' },
             { label: 'Net Mess Cost', value: summary.syncedNetExpenses, color: '#0f172a', icon: <Wallet size={18}/> },
             { label: 'Total Students', value: reportData.length, color: '#0f172a', icon: <Users size={18}/> },
             { label: 'Total Man-Days', value: summary.syncedManDays, color: '#0f172a', icon: <Calendar size={18}/> },
@@ -315,7 +321,7 @@ const MessFeeManagement = () => {
             </Space>
             <div className="flex items-center gap-2 text-slate-400">
               <Info size={14} />
-              <Text style={{ fontSize: '12px' }}>{historicalImport ? 'August source workbook amounts and rounding preserved.' : 'Amounts are rounded based on 0.20 threshold logic.'}</Text>
+              <Text style={{ fontSize: '12px' }}>{historicalImport ? 'Recorded amounts and rounding are preserved. Legacy breakdowns are not reconstructed.' : 'Amounts are rounded based on 0.20 threshold logic.'}</Text>
             </div>
           </div>
         </Card>
@@ -324,7 +330,8 @@ const MessFeeManagement = () => {
         {loading ? <FeeSkeleton /> : (
           <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
             <Table 
-              columns={columns} 
+              columns={columns.map(column => ({ ...column, render: (value, row, index) => row.breakdownUnavailable && ['messDays', 'dailyRate', 'bedCharges', 'hinduIndianExpress', 'additionalAmount'].includes(column.dataIndex)
+                ? <Text type="secondary">Unavailable</Text> : column.render ? column.render(value, row, index) : value }))}
               dataSource={reportData} 
               rowKey="studentId" 
               scroll={{ x: 1400 }} 

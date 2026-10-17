@@ -1,3 +1,4 @@
+import MessReductionsScreen from '../screens/MessReductionsScreen';
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Home, FileText, MessageCircle, Utensils, CreditCard, DollarSign, Bed, CheckSquare } from 'lucide-react-native'; // Removed Wifi, ShoppingBag, Building for simpler tabs
@@ -36,6 +37,7 @@ const StudentTabNavigator = () => {
         },
       }}
     >
+      <Tab.Screen name="MessReductions" component={MessReductionsScreen} options={{tabBarLabel:'Reductions',tabBarIcon:({color,size})=><FileText color={color} size={size}/>}} />
       <Tab.Screen
         name="Dashboard"
         component={StudentDashboardScreen}

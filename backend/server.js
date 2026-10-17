@@ -7,8 +7,12 @@ import { Op } from 'sequelize';
 import session from 'express-session';
 import passport from './config/passport.js';
 import sequelize from './config/database.js';
-import { ensureMenuPlanningSchema } from './services/menuPlanningSchema.js';
 import { User, Role, initAssociations } from './models/index.js';
+import * as models from './models/index.js';
+import { installActivityRecorder } from './services/activityRecorder.js';
+import { reconcileInterruptedActivities } from './services/activityContext.js';
+import { ensureReductionSchema } from './services/reductionSchema.js';
+import { ensureMenuPlanningSchema } from './services/menuPlanningSchema.js';
 
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
@@ -19,6 +23,7 @@ import attendanceRoutes from './routes/attendanceRoutes.js';
 import outpassRoutes from './routes/outpass.js';
 import parentRoutes from './routes/parent.js';
 import chatRoutes from './routes/chat.js';
+import notificationRoutes from './routes/notifications.js';
 import menuPlanningRoutes from './routes/menuPlanning.js';
 
 import { verifyEmailConnection } from './utils/emailUtils.js';
@@ -29,6 +34,7 @@ const app = express();
    MIDDLEWARE
 ======================= */
 app.use(cors());
+app.use('/api/admin/monthly-attendance', express.json({ limit: '1mb' }));
 app.use(express.json());
 
 /* =======================
@@ -60,6 +66,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/outpass', outpassRoutes);
 app.use('/api/parent', parentRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/menu-planning', menuPlanningRoutes);
 
 /* =======================
@@ -111,12 +118,15 @@ const PORT = process.env.PORT || 5001;
 
 // Initialize associations FIRST
 initAssociations();
+installActivityRecorder(models);
 
-ensureMenuPlanningSchema()
+ensureReductionSchema(sequelize)
+  .then(() => ensureMenuPlanningSchema())
   .then(() => sequelize.sync())
   // .sync({alter : true})
   .then(async () => {
     console.log('✅ Database synced successfully');
+    await reconcileInterruptedActivities();
 
     // Email check (optional)
     try {

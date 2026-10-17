@@ -448,12 +448,12 @@ const HostelHub = () => {
         token: { colorPrimary: '#2563eb', borderRadius: 16 },
       }}
     >
-      <div className="min-h-screen bg-slate-50">
+      <div className="module-page min-h-screen bg-slate-50">
         {/* Sticky Tab Bar */}
         <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-100 shadow-sm">
           <div className="px-8 pt-6 pb-0">
             {/* Page Identity */}
-            <div className="flex items-center gap-3 mb-6">
+            <div className="module-page-heading flex items-center gap-3 mb-6">
               <div className="p-2.5 bg-blue-600 rounded-xl shadow-lg shadow-blue-100">
                 <Building className="text-white" size={20} />
               </div>

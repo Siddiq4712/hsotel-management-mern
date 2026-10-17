@@ -34,10 +34,18 @@ const LoginScreen = () => {
     }
 
     setShowLoading(true);
-    const result = await login(credentials);
-    if (!result.success) {
+    try {
+      console.log('Attempting login...');
+      const result = await login(credentials);
+      console.log('Login result:', result);
+      if (!result.success) {
+        setShowLoading(false);
+        setShowError(result.message || 'Sign in failed.');
+      }
+    } catch (error) {
+      console.error('Login exception:', error);
+      setShowError(error.message || 'Network error or server unreachable.');
       setShowLoading(false);
-      setShowError(result.message || 'Sign in failed.');
     }
   };
 
@@ -95,7 +103,7 @@ const LoginScreen = () => {
                 <View className="flex-row items-center">
                   <View className="bg-white rounded-2xl h-16 w-16 justify-center items-center shadow-md">
                     <Image 
-                        source={require('../../assets/nec_logo.jpeg')} 
+                        source={require('../../assets/nec-logo.png')} 
                         style={{ width: 56, height: 56, borderRadius: 12 }} 
                     />
                   </View>

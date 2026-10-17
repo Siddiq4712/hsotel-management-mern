@@ -1,3 +1,4 @@
+import { studentMessCharges } from '../services/studentMessCharges.js';
 ﻿import { 
   User, HostelRoom, RoomType, MessBill, DailyMessCharge, MenuSchedule, MessDailyExpense, ExpenseType,
   Leave, Complaint, Transaction, Attendance, Token, Rebate,
@@ -732,77 +733,8 @@ export const getSpecialFoodItemCategories = async (req, res) => {
 };
 
 export const getMyDailyMessCharges = async (req, res) => {
-  try {
-    const { month, year } = req.query;
-    const student_id = req.user.userId;
-    const hostel_id = req.user.hostel_id;
-
-    if (!month || !year) return res.status(400).json({ success: false, message: 'Month and year required' });
-
-    const startDate = moment({ year, month: month - 1 }).startOf('month').toDate();
-    const endDate = moment().isSame(moment({ year, month: month - 1 }), 'month')
-      ? moment().endOf('day').toDate()
-      : moment({ year, month: month - 1 }).endOf('month').toDate();
-
-    const hostelManDaysData = await Attendance.findAll({
-      attributes: [[sequelize.fn('SUM', sequelize.col('totalManDays')), 'manDays']],
-      where: { hostel_id, date: { [Op.between]: [startDate, endDate] } },
-      raw: true
-    });
-    const totalHostelManDays = hostelManDaysData[0] ? parseInt(hostelManDaysData[0].manDays) : 0;
-
-    const totalFoodIngredientCost = (await DailyConsumption.sum('total_cost', { where: { hostel_id, consumption_date: { [Op.between]: [startDate, endDate] } } })) || 0;
-    const totalOtherMessExpenses = (await MessDailyExpense.sum('amount', { where: { hostel_id, expense_date: { [Op.between]: [startDate, endDate] } } })) || 0;
-    const grandTotalGrossExpenses = totalFoodIngredientCost + totalOtherMessExpenses;
-
-    const cashTokenIncomeType = await IncomeType.findOne({ where: { name: 'Cash Token' } });
-    const cashTokenAmount = cashTokenIncomeType ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: cashTokenIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0 : 0;
-
-    const sisterConcernIncomeType = await IncomeType.findOne({ where: { name: 'Sister Concern Bill' } });
-    const creditTokenAmount = sisterConcernIncomeType ? (await AdditionalIncome.sum('amount', { where: { hostel_id, income_type_id: sisterConcernIncomeType.id, received_date: { [Op.between]: [startDate, endDate] } } })) || 0 : 0;
-
-    const totalDeductions = cashTokenAmount + creditTokenAmount;
-    const netMessCost = grandTotalGrossExpenses - totalDeductions;
-    const monthlyCalculatedDailyRate = totalHostelManDays > 0 ? netMessCost / totalHostelManDays : 0;
-
-    const attendanceRecords = await Attendance.findAll({
-      where: { student_id, date: { [Op.between]: [startDate, endDate] } },
-      attributes: ['date', 'status', 'totalManDays'],
-      raw: true
-    });
-    const attendanceMap = new Map(attendanceRecords.map(att => [moment(att.date).format('YYYY-MM-DD'), att]));
-
-    const dailyCharges = [];
-    let currentDate = moment(startDate);
-    while (currentDate.isSameOrBefore(moment().startOf('day')) && currentDate.isSameOrBefore(moment(endDate))) {
-      const dateStr = currentDate.format('YYYY-MM-DD');
-      const att = attendanceMap.get(dateStr) || { status: 'A', totalManDays: 0 };
-      const baseMessCharge = (att.status === 'P' || att.status === 'OD') ? monthlyCalculatedDailyRate : 0;
-      
-      dailyCharges.push({
-        id: dateStr,
-        date: dateStr,
-        attendance_status: att.status,
-        baseMessCharge: parseFloat(baseMessCharge.toFixed(2)),
-        dailyTotalCharge: parseFloat(baseMessCharge.toFixed(2))
-      });
-      currentDate.add(1, 'day');
-    }
-
-    res.json({
-      success: true,
-      data: {
-        dailyCharges,
-        monthlySummary: {
-          monthlyCalculatedDailyRate: parseFloat(monthlyCalculatedDailyRate.toFixed(2)),
-          studentTotalManDaysForMonth: attendanceRecords.reduce((sum, att) => sum + parseInt(att.totalManDays || 0), 0)
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Charges fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+  try { res.json({ success: true, data: await studentMessCharges(req.user, req.query.month, req.query.year) }); }
+  catch (error) { res.status(error.status || 500).json({ message: error.message }); }
 };
 
 export const getMonthlyMessExpensesChartData = async (req, res) => {
@@ -961,47 +893,11 @@ export const cancelRoomRequest = async (req, res) => {
 
 /* ---------- DAY REDUCTION & REBATE ---------- */
 
-export const applyDayReduction = async (req, res) => {
-  try {
-    const { from_date, to_date, reason } = req.body;
-    const student_id = req.user.userId;
-    const hostel_id = req.user.hostel_id;
-    if (!hostel_id) return res.status(400).json({ success: false, message: 'No hostel assigned' });
+export { submitReduction as applyDayReduction } from './reductionController.js';
 
-    const newRequest = await DayReductionRequest.create({ student_id, hostel_id, from_date, to_date, reason, status: 'pending_admin' });
-    res.status(201).json({ success: true, data: newRequest, message: 'Submitted for review' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
+export { listReductions as getMyDayReductionRequests } from './reductionController.js';
 
-export const getMyDayReductionRequests = async (req, res) => {
-  try {
-    const student_id = req.user.userId;
-    const requests = await DayReductionRequest.findAll({
-      where: { student_id },
-      include: [
-        { model: User, as: 'AdminProcessor', attributes: ['userName'], required: false },
-        { model: Hostel, as: 'Hostel', attributes: ['name'], required: false }
-      ],
-      order: [['createdAt', 'DESC']]
-    });
-    res.json({ success: true, data: requests });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-export const applyRebate = async (req, res) => {
-  try {
-    const student_id = req.user.userId;
-    const { rebate_type, from_date, to_date, reason } = req.body;
-    const rebate = await Rebate.create({ student_id, rebate_type, from_date, to_date, reason, amount: 0.00, status: 'pending' });
-    res.status(201).json({ success: true, message: 'Submitted', data: rebate });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
+export const applyRebate = async (req, res) => res.status(410).json({ message: 'Use Mess Reductions to submit a category, dates, and supporting document.' });
 
 export const getMyRebates = async (req, res) => {
   try {

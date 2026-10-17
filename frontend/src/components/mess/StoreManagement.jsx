@@ -27,7 +27,7 @@ const { Text } = AntTypography;
 
 /* ─── Skeleton ─── */
 const StoreSkeleton = () => (
-  <div className="store-shell">
+  <div className="module-page store-shell">
     <div className="store-skeleton-pulse" style={{ height: 60, borderRadius: 16, marginBottom: 32 }} />
     <div className="store-skeleton-pulse" style={{ height: 500, borderRadius: 24 }} />
   </div>
@@ -228,6 +228,7 @@ const StoreManagement = () => {
       align: 'right',
       render: (_, record) => (
         <AntSpace size="middle">
+          {/* Item-store mapping disabled; purchases use master items directly.
           <AntTooltip title="Map Inventory Items">
             <AntButton 
               type="text"
@@ -236,6 +237,7 @@ const StoreManagement = () => {
               onClick={() => window.location.href = `/mess/item-store-mapping?store=${record.id}`}
             />
           </AntTooltip>
+          */}
           <AntButton 
             type="text"
             className="hover:bg-slate-100 text-slate-500 rounded-lg"
@@ -243,7 +245,7 @@ const StoreManagement = () => {
             onClick={() => handleEdit(record)}
           />
           <AntPopconfirm 
-            title="Remove provider?" 
+            title="Remove store?" 
             description="Linked inventory data may be affected."
             onConfirm={() => messAPI.deleteStore(record.id).then(fetchStores)}
           >
@@ -260,14 +262,14 @@ const StoreManagement = () => {
     <>
       <style>{CSS}</style>
       <AntConfig theme={{ token: { colorPrimary: '#1a56db', borderRadius: 12 } }}>
-        <div className="store-shell">
+        <div className="module-page store-shell">
           
-          <div className="store-topbar">
+          <div className="module-page-header store-topbar">
             <div className="store-topbar-left">
               <div className="store-icon-badge"><Store size={22} /></div>
               <div>
-                <h1 className="store-heading">Provider Management</h1>
-                <p className="store-subheading">Manage your supplier network and procurement locations</p>
+                <h1 className="module-title store-heading">Store Management</h1>
+                <p className="module-subtitle store-subheading">Maintain stores for purchases. Choose items directly from the item master.</p>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -295,7 +297,7 @@ const StoreManagement = () => {
                 onClick={() => { setEditingStore(null); form.resetFields(); setModalVisible(true); }}
                 className="store-save-btn"
               >
-                Register Store
+                Add Store
               </AntButton>
             </div>
           </div>
@@ -305,7 +307,7 @@ const StoreManagement = () => {
               <div className="store-search-box max-w-lg flex-1">
                 <Search size={18} className="text-slate-300" />
                 <AntInput 
-                  placeholder="Search by provider name or location..." 
+                  placeholder="Search by store name or location..." 
                   variant="borderless"
                   value={searchText} 
                   onChange={e => setSearchText(e.target.value)} 
@@ -338,7 +340,7 @@ const StoreManagement = () => {
           title={
             <div className="flex items-center gap-3 p-2">
               <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600"><Store size={20}/></div>
-              <span className="text-lg font-bold">{editingStore ? 'Update Provider' : 'New Provider Registration'}</span>
+              <span className="text-lg font-bold">{editingStore ? 'Update Store' : 'Add Store'}</span>
             </div>
           }
           open={modalVisible}
@@ -371,7 +373,7 @@ const StoreManagement = () => {
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
               <AntButton onClick={() => setModalVisible(false)} className="h-12 px-6 rounded-xl font-bold">Discard</AntButton>
               <AntButton type="primary" htmlType="submit" loading={confirmLoading} className="store-save-btn">
-                {editingStore ? 'Save Changes' : 'Register Provider'}
+                {editingStore ? 'Save Changes' : 'Add Store'}
               </AntButton>
             </div>
           </AntForm>

@@ -255,10 +255,10 @@ const StockManagement = () => {
       token: { colorPrimary: '#4f46e5', borderRadius: 12 },
       components: { Table: { headerBg: '#f8fafc', headerColor: '#64748b' } }
     }}>
-      <div className="p-8 bg-white min-h-screen">
+      <div className="module-page p-8 bg-white min-h-screen">
         
         {/* Page Header */}
-        <div className="flex justify-between items-end mb-8">
+        <div className="module-page-header flex justify-between items-end mb-8">
           <div>
             <div className="flex items-center gap-2 text-indigo-600 mb-1">
               <Warehouse size={20} />

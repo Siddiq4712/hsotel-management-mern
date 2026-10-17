@@ -408,10 +408,10 @@ const EnrollStudent = () => {
 
   return (
     <ConfigProvider theme={{ token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-4 md:p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-4 md:p-8 bg-slate-50 min-h-screen">
         
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div className="module-page-header flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg text-white">
               <GraduationCap size={28} />

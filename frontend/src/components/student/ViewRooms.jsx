@@ -152,7 +152,7 @@ const ViewRooms = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#fcfdff] p-4 md:p-8 font-serif">
+    <div className="module-page min-h-screen bg-[#fcfdff] p-4 md:p-8 font-serif">
       <header className="max-w-[1400px] mx-auto flex flex-col md:flex-row justify-between items-start md:items-end border-b-2 border-blue-900 pb-6 mb-8 gap-4">
         <div className="flex items-center gap-4">
           <div className="p-2 bg-blue-900 text-white rounded-sm shadow-xl"><Layers size={24} /></div>

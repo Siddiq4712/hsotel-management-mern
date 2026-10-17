@@ -1,2 +1,8 @@
 .env
 config.json
+/backend/private/
+/mobile-app/.reduction-build-check/
+.expo
+.expo/
+mobile-app/.expo
+mobile-app/.expo/

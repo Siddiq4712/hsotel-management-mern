@@ -1,5 +1,6 @@
 // src/services/api.js
 import axios from 'axios';
+import { requestEntryHostel } from './entryHostel';
 
 // Vite uses import.meta.env instead of process.env
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/api';
@@ -21,6 +22,8 @@ export const menuPlanningAPI = {
 // Request interceptor to add token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
+  const workspace = localStorage.getItem('adminWorkspace');
+  if (['admin', 'warden', 'mess'].includes(workspace)) config.headers['X-Workspace'] = workspace;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -30,7 +33,12 @@ api.interceptors.request.use((config) => {
 // Response interceptor to handle errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    if (error.response?.status === 409 && error.response?.data?.code === 'HOSTEL_REQUIRED' && !error.config?.entryHostelRetry) {
+      const hostelId = await requestEntryHostel(error.response.data.hostels);
+      return api.request({ ...error.config, entryHostelRetry: true,
+        headers: { ...error.config.headers, 'X-Entry-Hostel-Id': hostelId } });
+    }
     const status = error.response?.status;
     const backendMessage = String(error.response?.data?.message || '').toLowerCase();
     const requestUrl = String(error.config?.url || '');
@@ -56,6 +64,12 @@ api.interceptors.response.use(
   }
 );
 
+export const notificationAPI = {
+  getNotifications: (params) => api.get('/notifications', {params}),
+  markRead: (id) => api.patch(`/notifications/${id}/read`),
+  markAllRead: (data) => api.patch('/notifications/read-all', data),
+};
+
 // Auth API
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
@@ -68,6 +82,16 @@ export const authAPI = {
 
 // Admin API - Complete CRUD operations
 export const adminAPI = {
+  getActivities: (params) => api.get('/admin/activities', {params}),
+  getActivity: (id, params) => api.get(`/admin/activities/${id}`, {params}),
+  previewActivityReversal: (id) => api.get(`/admin/activities/${id}/reversal-preview`),
+  revertActivity: (id, data) => api.post(`/admin/activities/${id}/revert`, data),
+  correctActivityRecord: (id, changeId, data) => api.patch(`/admin/activities/${id}/records/${changeId}`, data),
+  deleteActivityRecord: (id, changeId, data) => api.delete(`/admin/activities/${id}/records/${changeId}`, {data}),
+  getMonthlyAttendanceRoster: (params) => api.get('/admin/monthly-attendance/roster', { params }),
+  previewMonthlyAttendance: (data) => api.post('/admin/monthly-attendance/preview', data),
+  importMonthlyAttendance: (data) => api.post('/admin/monthly-attendance/import', data),
+  getMonthlyAttendanceImports: (params) => api.get('/admin/monthly-attendance/imports', { params }),
   // Dashboard
   getDashboardStats: () => api.get('/admin/dashboard-stats'),
   getAdminChartData: () => api.get('/admin/chart-data'), // ADD THIS LINE
@@ -155,8 +179,8 @@ export const adminAPI = {
 
   updateHostelFeeSettings: (id, data) => api.put(`/admin/hostels/${id}/fee-settings`, data),
 
-  getNotifications: () => api.get('/admin/notifications'),
-  markNotificationRead: (id) => api.put(`/admin/notifications/${id}/read`),
+  getNotifications: () => notificationAPI.getNotifications({pageSize:50}),
+  markNotificationRead: (id) => notificationAPI.markRead(id),
 
   // Add to messAPI
   notifyAdmin: (data) => api.post('/mess/notify-admin', data),
@@ -201,6 +225,8 @@ export const wardenAPI = {
 
   // Attendance Management
   markAttendance: (data) => api.post('/warden/attendance', data),
+  bulkMarkAttendance: (data) => api.post('/warden/attendance/bulk', data),
+  getAttendanceRoster: () => api.get('/warden/attendance/roster'),
   getAttendance: (params) => api.get('/warden/attendance', { params }),
   updateAttendance: (id, data) => api.put(`/warden/attendance/${id}`, data),
 
@@ -523,3 +549,12 @@ export const parentAPI = {
 };
 
 export default api;
+
+// Evidence is fetched with the same authenticated client; it is never public.
+export const reductionAPI = {
+  list: (role, params) => api.get('/' + role + '/day-reduction-requests', { params }),
+  submit: data => api.post('/student/day-reduction-requests', data),
+  revise: (id, data) => api.put('/student/day-reduction-requests/' + id, data),
+  decide: (role, id, data) => api.put('/' + role + '/day-reduction-requests/' + id + '/status', data),
+  document: (role, id) => api.get('/' + role + '/day-reduction-requests/' + id + '/document', { responseType: 'blob' })
+};

@@ -34,7 +34,8 @@
       "GEOFENCE_RADIUS_M": "200"
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font"
     ]
   }
 }

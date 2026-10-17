@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { Op } from 'sequelize';
 import moment from 'moment';
+import { getHistoricalBilling } from '../utils/historicalBilling.js';
 import { 
   User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,
   Attendance, GPSAttendance, Leave, Complaint, Suspension, Holiday, Fee, MessBill, Hostel, RoomRequest,
@@ -477,7 +478,7 @@ export const getAttendanceSummary = async (req, res) => {
     }
 
     const totalStudents = await User.count({
-      where: { roleId: 2, hostel_id, status: 'Active' }
+      where: { roleId: { [Op.in]: await getStudentRoleIds() }, hostel_id, status: 'Active' }
     });
 
     const presentCount = await Attendance.count({
@@ -548,7 +549,7 @@ export const allotRoom = async (req, res) => {
       }
 
       const student = await User.findOne({ 
-         where: { userId: student_id, hostel_id, roleId: 2, status: 'Active' } 
+         where: { userId: student_id, hostel_id, roleId: { [Op.in]: await getStudentRoleIds() }, status: 'Active' }
       });
       if (!student) throw new Error('Student not found in this hostel.');
       
@@ -1111,9 +1112,9 @@ export const getDashboardStats = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
       }
 
-      // Total Students - Use roleId: 2 and status: 'Active'
+      // Resolve configured Student/LAPC roles rather than assuming a numeric role ID.
       const totalStudents = await User.count({ 
-         where: { roleId: 2, hostel_id, status: 'Active' } 
+         where: { roleId: { [Op.in]: await getStudentRoleIds() }, hostel_id, status: 'Active' }
       });
 
       // Room Occupancy Stats
@@ -1279,102 +1280,7 @@ export const getDashboardStats = async (req, res) => {
 // ==========================================
 // BULK MONTH-END MANDAYS
 // ==========================================
-export const bulkMonthEndMandays = async (req, res) => {
-  const transaction = await sequelize.transaction();
-  try {
-    const { month, year, total_operational_days, student_reductions = [] } = req.body;
-    const hostel_id = getHostelId(req.user);
-    const marked_by = req.user.userId;
-
-    if (!hostel_id) {
-      throw new Error('Hostel binding missing.');
-    }
-
-    if (!month || !year || total_operational_days === undefined) {
-      throw new Error('Month, year, and total_operational_days are required');
-    }
-
-    const monthNum = parseInt(month, 10);
-    const yearNum = parseInt(year, 10);
-    if (monthNum < 1 || monthNum > 12) {
-      throw new Error('Invalid month (should be 1-12)');
-    }
-
-    const monthFormatted = String(monthNum).padStart(2, '0');
-    const lastDayOfMonth = new Date(yearNum, monthNum, 0).getDate();
-    const startDate = `${yearNum}-${monthFormatted}-01`;
-    const endDate = `${yearNum}-${monthFormatted}-${String(lastDayOfMonth).padStart(2, '0')}`;
-
-    // Get all active students in the hostel
-    const students = await User.findAll({
-      where: { 
-        hostel_id,
-        roleId: 2, 
-        status: 'Active'
-      },
-      attributes: ['userId'],
-      transaction
-    });
-
-    if (students.length === 0) {
-      throw new Error('No active students found in this hostel');
-    }
-
-    // Create a map for quick lookup of reductions
-    const reductionMap = {};
-    student_reductions.forEach(({ student_id, reduction_days }) => {
-      reductionMap[student_id] = parseInt(reduction_days) || 0;
-    });
-
-    // Delete existing attendance records for this month for all students
-    await Attendance.destroy({
-      where: {
-        student_id: { [Op.in]: students.map(s => s.userId) },
-        date: {
-          [Op.between]: [startDate, endDate]
-        }
-      },
-      transaction
-    });
-
-    // Create monthly summary record for each student
-    const createdRecords = [];
-    for (const student of students) {
-      const reduction = reductionMap[student.userId] || 0;
-      const mandays = Math.max(0, total_operational_days - reduction);
-
-      const monthlyRecord = await Attendance.create({
-        student_id: student.userId,
-        hostel_id,
-        date: startDate,
-        status: 'P',
-        totalManDays: mandays,
-        is_monthly: true,
-        marked_by,
-        remarks: `Monthly mandays entry: ${mandays} present out of ${total_operational_days} operational days (reduction: ${reduction})`
-      }, { transaction });
-
-      createdRecords.push(monthlyRecord);
-    }
-
-    await transaction.commit();
-
-    res.status(201).json({
-      success: true,
-      message: `Monthly mandays entry completed for ${createdRecords.length} students`,
-      data: {
-        month,
-        year,
-        total_operational_days,
-        records_created: createdRecords.length
-      }
-    });
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    console.error('Bulk month-end mandays error:', error);
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
+export const bulkMonthEndMandays = async (req, res) => res.status(410).json({ success: false, message: 'Manual month-end reductions are retired. Submit a documented reduction request for warden or admin approval.' });
 
 // ==========================================
 // MONTHLY ATTENDANCE
@@ -1389,7 +1295,7 @@ export const getMonthlyAttendance = async (req, res) => {
     }
 
     const totalStudents = await User.count({ 
-      where: { roleId: 2, hostel_id, status: 'Active' } 
+      where: { roleId: { [Op.in]: await getStudentRoleIds() }, hostel_id, status: 'Active' }
     });
     
     if (totalStudents === 0) {
@@ -1523,416 +1429,13 @@ export const getSessions = async (req, res) => {
 // ==========================================
 // ATTENDANCE MANAGEMENT
 // ==========================================
-export const markAttendance = async (req, res) => {
-   const transaction = await sequelize.transaction();
-   try {
-      const { student_id, date, status, from_date, to_date, reason, remarks } = req.body;
-      const marked_by = req.user.userId;
-      const hostel_id = getHostelId(req.user);
+export { markAttendance } from './attendanceController.js';
 
-      if (!hostel_id) {
-        throw new Error('Hostel binding missing.');
-      }
+export { updateAttendance } from './attendanceController.js';
 
-      // Validate inputs
-      if (!student_id || !date || !status) {
-         throw new Error('Missing required fields: student_id, date, and status are required');
-      }
-      if (!['P', 'A', 'OD'].includes(status)) {
-         throw new Error('Invalid status. Must be P, A, or OD');
-      }
-      if (status === 'OD' && (!from_date || !to_date)) {
-         throw new Error('from_date and to_date are required for OD status');
-      }
+export { bulkMarkAttendance } from './attendanceController.js';
 
-      const studentRoleIds = await getStudentRoleIds();
-      if (!studentRoleIds.length) {
-         throw new Error('Student/LAPC roles are not configured.');
-      }
-
-      // Validate student
-      const student = await User.findOne({
-         where: {
-            userId: student_id,
-            roleId: { [Op.in]: studentRoleIds },
-            hostel_id,
-            status: { [Op.in]: ['Active', 'active'] }
-         },
-         transaction
-      });
-      if (!student) {
-         throw new Error('Student not found in this hostel');
-      }
-
-      // Validate marked_by
-      if (!marked_by) {
-         throw new Error('Invalid user authentication');
-      }
-
-      // Validate dates
-      const parsedDate = new Date(date);
-      if (isNaN(parsedDate)) {
-         throw new Error('Invalid date format. Use YYYY-MM-DD');
-      }
-      let startDate, endDate;
-      if (status === 'OD') {
-         startDate = new Date(from_date);
-         endDate = new Date(to_date);
-         if (isNaN(startDate) || isNaN(endDate)) {
-            throw new Error('Invalid from_date or to_date format. Use YYYY-MM-DD');
-         }
-         if (startDate > endDate) {
-            throw new Error('from_date cannot be later than to_date');
-         }
-      }
-
-      const attendanceData = {
-         student_id,
-         date,
-         status,
-         marked_by,
-         hostel_id,
-         reason,
-         remarks,
-         from_date: status === 'OD' ? from_date : null,
-         to_date: status === 'OD' ? to_date : null,
-         totalManDays: status === 'A' ? 0 : 1
-      };
-
-      const [attendance, created] = await Attendance.findOrCreate({
-         where: { student_id, date },
-         defaults: attendanceData,
-         transaction
-      });
-      if (!created) await attendance.update(attendanceData, { transaction });
-
-      // Handle OD ranges
-      if (status === 'OD' && from_date && to_date) {
-         let curr = moment(from_date);
-         let end = moment(to_date);
-         while (curr.isSameOrBefore(end)) {
-            const dStr = curr.format('YYYY-MM-DD');
-            if (dStr !== date) {
-               await Attendance.upsert({ 
-                  student_id, 
-                  date: dStr, 
-                  status: 'OD', 
-                  from_date, 
-                  to_date, 
-                  marked_by, 
-                  hostel_id, 
-                  reason, 
-                  remarks, 
-                  totalManDays: 1 
-               }, { transaction });
-            }
-            curr.add(1, 'days');
-         }
-      }
-
-      await transaction.commit();
-      res.json({ success: true, data: attendance, message: 'Attendance marked successfully' });
-   } catch (error) {
-      if (transaction) await transaction.rollback();
-      console.error('Attendance marking error:', {
-         message: error.message,
-         stack: error.stack,
-         requestBody: req.body,
-         user: req.user
-      });
-      res.status(error.message.includes('not found') ? 404 : 400).json({ success: false, message: error.message });
-   }
-};
-
-export const updateAttendance = async (req, res) => {
-   const transaction = await sequelize.transaction();
-   try {
-      const { id } = req.params;
-      const { status, reason, remarks, from_date, to_date } = req.body;
-      const hostel_id = getHostelId(req.user);
-      const marked_by = req.user.userId;
-
-      if (!hostel_id) {
-        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
-      }
-
-      if (!['P', 'A', 'OD'].includes(status)) {
-         return res.status(400).json({ success: false, message: 'Invalid status. Must be P, A, or OD' });
-      }
-
-      const oldAttendance = await Attendance.findOne({
-         where: { id },
-         include: [{ model: User, as: 'Student', where: { hostel_id } }],
-         transaction
-      });
-
-      if (!oldAttendance) {
-         await transaction.rollback();
-         return res.status(404).json({ success: false, message: 'Attendance record not found' });
-      }
-
-      const oldStatus = oldAttendance.status;
-      const student_id = oldAttendance.student_id;
-      const currentDate = oldAttendance.date;
-
-      const updateData = {
-         status,
-         reason,
-         remarks,
-         from_date: status === 'OD' ? from_date : null,
-         to_date: status === 'OD' ? to_date : null,
-         marked_by,
-         hostel_id,
-         totalManDays: status === 'A' ? 0 : 1
-      };
-
-      // Validate dates for OD
-      if (status === 'OD') {
-         if (!from_date || !to_date) {
-            await transaction.rollback();
-            return res.status(400).json({ success: false, message: 'from_date and to_date are required for OD status' });
-         }
-         const startDate = new Date(from_date);
-         const endDate = new Date(to_date);
-         if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) {
-            await transaction.rollback();
-            return res.status(400).json({ success: false, message: 'Invalid from_date or to_date' });
-         }
-      }
-
-      // Handle range cleanup/creation
-      if (oldStatus === 'OD' && status !== 'OD') {
-         const oldStart = new Date(oldAttendance.from_date);
-         const oldEnd = new Date(oldAttendance.to_date);
-         for (let d = new Date(oldStart); d <= oldEnd; d.setDate(d.getDate() + 1)) {
-            const rangeDate = d.toISOString().split('T')[0];
-            if (rangeDate === currentDate) continue;
-            await Attendance.destroy({
-               where: { student_id, date: rangeDate },
-               transaction
-            });
-         }
-      } else if (status === 'OD' && oldStatus !== 'OD') {
-         const startDate = new Date(from_date);
-         const endDate = new Date(to_date);
-         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-            const rangeDate = d.toISOString().split('T')[0];
-            await Attendance.upsert(
-               {
-                  student_id,
-                  date: rangeDate,
-                  status: 'OD',
-                  from_date,
-                  to_date,
-                  marked_by,
-                  hostel_id,
-                  reason,
-                  remarks,
-                  totalManDays: 1
-               },
-               { transaction }
-            );
-         }
-      }
-
-      // Update the current record
-      await oldAttendance.update(updateData, { transaction });
-
-      await transaction.commit();
-
-      // Refetch the updated record for response
-      const updatedAttendance = await Attendance.findByPk(id, {
-         include: [
-            { model: User, as: 'Student', attributes: ['userId', 'userName', 'userMail'] },
-            { model: User, as: 'MarkedBy', attributes: ['userId', 'userName'] }
-         ]
-      });
-
-      res.json({ success: true, data: updatedAttendance, message: 'Attendance updated successfully' });
-   } catch (error) {
-      if (transaction) await transaction.rollback();
-      console.error('Attendance update error:', error);
-      res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-   }
-};
-
-export const bulkMarkAttendance = async (req, res) => {
-   const { date, attendanceData } = req.body;
-   const marked_by = req.user.userId;
-   const hostel_id = getHostelId(req.user);
-   const transaction = await sequelize.transaction();
-   try {
-      if (!hostel_id) {
-        throw new Error('Hostel binding missing.');
-      }
-
-      if (!date || !Array.isArray(attendanceData)) throw new Error("Date and attendance data are required.");
-      
-      const studentRoleIds = await getStudentRoleIds();
-      if (!studentRoleIds.length) {
-         throw new Error('Student/LAPC roles are not configured.');
-      }
-
-      // Validate all students belong to the hostel
-      const studentIds = attendanceData.map(record => record.student_id);
-      const students = await User.findAll({
-         where: { 
-            userId: { [Op.in]: studentIds },
-            roleId: { [Op.in]: studentRoleIds },
-            hostel_id,
-            status: { [Op.in]: ['Active', 'active'] }
-         },
-         attributes: ['userId']
-      });
-      if (students.length !== studentIds.length) {
-         throw new Error('One or more students not found in this hostel');
-      }
-
-      for (const record of attendanceData) {
-         const { student_id, status, from_date, to_date, reason, remarks } = record;
-
-         if (!['P', 'A', 'OD'].includes(status)) {
-            throw new Error(`Invalid status for student ${student_id}: ${status}`);
-         }
-
-         const upsertData = {
-            student_id,
-            date,
-            status,
-            marked_by,
-            hostel_id,
-            reason: status === 'OD' ? (reason || null) : null,
-            remarks: status === 'OD' ? (remarks || null) : null,
-            from_date: status === 'OD' ? (from_date || null) : null,
-            to_date: status === 'OD' ? (to_date || null) : null,
-            totalManDays: status === 'A' ? 0 : 1
-         };
-
-         await Attendance.upsert(upsertData, { transaction });
-
-         // If OD, create range entries
-         if (status === 'OD' && from_date && to_date) {
-            const startDate = new Date(from_date);
-            const endDate = new Date(to_date);
-            if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) {
-               throw new Error(`Invalid OD date range for student ${student_id}`);
-            }
-            if (!reason) {
-               throw new Error(`Reason required for OD for student ${student_id}`);
-            }
-
-            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-               const rangeDate = d.toISOString().split('T')[0];
-               if (rangeDate === date) continue;
-               await Attendance.upsert({
-                  student_id,
-                  date: rangeDate,
-                  status: 'OD',
-                  from_date,
-                  to_date,
-                  marked_by,
-                  hostel_id,
-                  reason,
-                  remarks,
-                  totalManDays: 1
-               }, { transaction });
-            }
-         }
-      }
-      await transaction.commit();
-      res.json({ success: true, message: 'Attendance saved successfully.' });
-   } catch (error) {
-      if (transaction) await transaction.rollback();
-      console.error('Bulk attendance marking error:', error);
-      res.status(400).json({ success: false, message: error.message });
-   }
-};
-
-export const getAttendance = async (req, res) => {
-   try {
-      const { date, month, year, is_monthly } = req.query;
-      const hostel_id = getHostelId(req.user);
-
-      if (!hostel_id) {
-        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
-      }
-
-      let whereClause = { hostel_id };
-
-      if (month && year) {
-        const monthNum = parseInt(month, 10);
-        const yearNum = parseInt(year, 10);
-        const monthFormatted = String(monthNum).padStart(2, '0');
-        const lastDayOfMonth = new Date(yearNum, monthNum, 0).getDate();
-        const startDate = `${yearNum}-${monthFormatted}-01`;
-        const endDate = `${yearNum}-${monthFormatted}-${String(lastDayOfMonth).padStart(2, '0')}`;
-        
-        whereClause.date = { [Op.between]: [startDate, endDate] };
-        if (is_monthly !== undefined) {
-          whereClause.is_monthly = is_monthly === 'true' || is_monthly === true;
-        }
-      } else if (date) {
-        whereClause.date = date;
-      }
-
-      const attendance = await Attendance.findAll({
-         where: whereClause,
-         include: [{ 
-            model: User, 
-            as: 'Student', 
-            where: { hostel_id }, 
-            attributes: ['userId', 'userName'] 
-         }],
-      });
-
-      // If querying monthly summary records specifically, return directly
-      if (month && year && (is_monthly === 'true' || is_monthly === true)) {
-        return res.json({ success: true, data: attendance });
-      }
-
-      // Merge GPS attendance records for the same date so mobile Attendance page
-      // reflects GPS session status as well. Manual attendance takes priority.
-      const gpsAttendance = date ? await GPSAttendance.findAll({
-         where: { attendance_date: date, hostel_id },
-         include: [{
-            model: User,
-            where: { hostel_id },
-            attributes: ['userId', 'userName']
-         }]
-      }) : [];
-
-      const mergedByStudent = new Map();
-      attendance.forEach((record) => {
-         mergedByStudent.set(Number(record.student_id), record.toJSON ? record.toJSON() : record);
-      });
-
-      gpsAttendance.forEach((record) => {
-         const studentId = Number(record.user_id);
-         if (mergedByStudent.has(studentId)) return;
-
-         const plain = record.toJSON ? record.toJSON() : record;
-         mergedByStudent.set(studentId, {
-            id: `gps-${plain.id}`,
-            student_id: studentId,
-            date: plain.attendance_date,
-            status: plain.status,
-            from_date: null,
-            to_date: null,
-            reason: null,
-            remarks: `GPS ${String(plain.session || '').toLowerCase()} session`,
-            marked_by: null,
-            hostel_id: plain.hostel_id,
-            source: 'GPS',
-            Student: plain.Student || plain.User || null
-         });
-      });
-
-      res.json({ success: true, data: Array.from(mergedByStudent.values()) });
-   } catch (error) {
-      console.error('Attendance fetch error:', error);
-      res.status(500).json({ success: false, message: 'Server error' });
-   }
-};
+export { getAttendance } from './attendanceController.js';
 
 // ==========================================
 // LEAVE MANAGEMENT
@@ -2265,7 +1768,7 @@ export const createSuspension = async (req, res) => {
       }
 
       const student = await User.findOne({
-         where: { userId: student_id, roleId: 2, hostel_id, status: 'Active' }
+         where: { userId: student_id, roleId: { [Op.in]: await getStudentRoleIds() }, hostel_id, status: 'Active' }
       });
 
       if (!student) {
@@ -2503,7 +2006,7 @@ export const createAdditionalCollection = async (req, res) => {
       }
 
       const student = await User.findOne({
-         where: { userId: student_id, roleId: 2, hostel_id, status: 'Active' }
+         where: { userId: student_id, roleId: { [Op.in]: await getStudentRoleIds() }, hostel_id, status: 'Active' }
       });
 
       if (!student) {
@@ -2572,146 +2075,7 @@ export const getAdditionalCollections = async (req, res) => {
 // ==========================================
 // MESS BILL MANAGEMENT
 // ==========================================
-export const generateMessBills = async (req, res) => {
-   const transaction = await sequelize.transaction();
-   try {
-      const { month, year, amount_per_day } = req.body;
-      const hostel_id = getHostelId(req.user);
-      
-      if (!hostel_id) {
-        await transaction.rollback();
-        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
-      }
-
-      if (!month || !year || !amount_per_day) {
-         await transaction.rollback();
-         return res.status(400).json({ 
-            success: false, 
-            message: 'Month, year and amount per day are required' 
-         });
-      }
-      
-      const monthNum = parseInt(month, 10);
-      const yearNum = parseInt(year, 10);
-      
-      if (monthNum < 1 || monthNum > 12) {
-         await transaction.rollback();
-         return res.status(400).json({ 
-            success: false, 
-            message: 'Invalid month (should be 1-12)' 
-         });
-      }
-      
-      const startDate = new Date(yearNum, monthNum - 1, 1);
-      const endDate = new Date(yearNum, monthNum, 0);
-      
-      // Get all students in the hostel
-      const students = await User.findAll({
-         where: { 
-            hostel_id,
-            roleId: 2,
-            status: 'Active'
-         },
-         attributes: ['userId']
-      });
-      
-      if (students.length === 0) {
-         await transaction.rollback();
-         return res.status(404).json({
-            success: false,
-            message: 'No active students found in this hostel'
-         });
-      }
-      
-      // Get all attendance records for this month
-      const attendanceRecords = await Attendance.findAll({
-         where: {
-            date: {
-               [Op.between]: [startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]
-            },
-            student_id: {
-               [Op.in]: students.map(student => student.userId)
-            }
-         },
-         transaction
-      });
-      
-      // Create a map to track attendance for each student
-      const studentAttendance = {};
-      
-      students.forEach(student => {
-         studentAttendance[student.userId] = {
-            odDays: 0,
-            presentDays: 0
-         };
-      });
-      
-      attendanceRecords.forEach(record => {
-         if (record.status === 'OD') {
-            studentAttendance[record.student_id].odDays++;
-         } else if (record.status === 'P') {
-            studentAttendance[record.student_id].presentDays++;
-         }
-      });
-      
-      const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
-      
-      const createdBills = [];
-      for (const student of students) {
-         const odDays = studentAttendance[student.userId].odDays || 0;
-         const chargeableDays = daysInMonth - odDays;
-         const totalAmount = chargeableDays * amount_per_day;
-         
-         const dueMonth = monthNum === 12 ? 1 : monthNum + 1;
-         const dueYear = monthNum === 12 ? yearNum + 1 : yearNum;
-         const dueDate = new Date(dueYear, dueMonth - 1, 10);
-         
-         const [bill, created] = await MessBill.findOrCreate({
-            where: {
-               student_id: student.userId,
-               hostel_id,
-               month: monthNum,
-               year: yearNum
-            },
-            defaults: {
-               amount: totalAmount,
-               status: 'pending',
-               due_date: dueDate
-            },
-            transaction
-         });
-         
-         if (!created) {
-            await bill.update({
-               amount: totalAmount,
-               due_date: dueDate
-            }, { transaction });
-         }
-         
-         createdBills.push(bill);
-      }
-      
-      await transaction.commit();
-      
-      res.status(201).json({
-         success: true,
-         message: `Mess bills generated for ${createdBills.length} students for ${month}/${year}`,
-         data: {
-            billCount: createdBills.length,
-            month: monthNum,
-            year: yearNum
-         }
-      });
-      
-   } catch (error) {
-      if (transaction) await transaction.rollback();
-      console.error('Mess bill generation error:', error);
-      res.status(500).json({ 
-         success: false, 
-         message: 'Server error: ' + error.message 
-      });
-   }
-};
+export { generateMessBills } from './messController.js';
 
 export const getMessBills = async (req, res) => {
    try {
@@ -3092,148 +2456,9 @@ export const decideRoomRequest = async (req, res) => {
 // ==========================================
 // DAY REDUCTION REQUESTS
 // ==========================================
-export const getDayReductionRequestsForWarden = async (req, res) => {
-  try {
-    const wardenHostelId = getHostelId(req.user);
-    if (!wardenHostelId) {
-      return res.status(403).json({ success: false, message: 'Warden is not assigned to a hostel.' });
-    }
+export { listReductions as getDayReductionRequestsForWarden } from './reductionController.js';
 
-    const { status, student_id, from_date, to_date } = req.query;
-
-    let whereClause = {
-      hostel_id: wardenHostelId
-    };
-
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    } else {
-      whereClause.status = { [Op.in]: ['approved_by_admin', 'approved_by_warden', 'rejected_by_warden'] };
-    }
-
-    if (student_id) whereClause.student_id = student_id;
-    if (from_date && to_date) {
-      whereClause[Op.and] = [
-        { from_date: { [Op.lte]: to_date } },
-        { to_date: { [Op.gte]: from_date } }
-      ];
-    }
-
-    const requests = await DayReductionRequest.findAll({
-      where: whereClause,
-      include: [
-        { model: User, as: 'Student', attributes: ['userId', 'userName', 'userMail', 'roll_number'] },
-        { model: User, as: 'AdminProcessor', attributes: ['userId', 'userName'], required: false },
-        { model: User, as: 'WardenProcessor', attributes: ['userId', 'userName'], required: false },
-        { model: Hostel, as: 'Hostel', attributes: ['id', 'name'] }
-      ],
-      order: [['createdAt', 'DESC']]
-    });
-
-    res.json({ success: true, data: requests });
-  } catch (error) {
-    console.error('Error fetching day reduction requests for warden:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-  }
-};
-
-export const updateDayReductionRequestStatusByWarden = async (req, res) => {
-  const transaction = await sequelize.transaction();
-  try {
-    const { id } = req.params;
-    const { action, warden_remarks } = req.body;
-    const warden_id = req.user.userId;
-    const wardenHostelId = getHostelId(req.user);
-
-    if (!wardenHostelId) {
-      await transaction.rollback();
-      return res.status(403).json({ success: false, message: 'Warden is not assigned to a hostel.' });
-    }
-
-    const request = await DayReductionRequest.findByPk(id, { transaction });
-
-    if (!request) {
-      await transaction.rollback();
-      return res.status(404).json({ success: false, message: 'Day reduction request not found.' });
-    }
-
-    if (request.hostel_id !== wardenHostelId) {
-        await transaction.rollback();
-        return res.status(403).json({ success: false, message: 'You are not authorized to process requests for this hostel.' });
-    }
-
-    if (request.status !== 'approved_by_admin') {
-      await transaction.rollback();
-      return res.status(400).json({ success: false, message: `Request not in 'approved_by_admin' status. Current status: ${request.status}.` });
-    }
-
-    let newStatus;
-    if (action === 'approve') {
-      newStatus = 'approved_by_warden';
-    } else if (action === 'reject') {
-      newStatus = 'rejected_by_warden';
-    } else {
-      await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'Invalid action. Must be "approve" or "reject".' });
-    }
-
-    await request.update({
-      status: newStatus,
-      warden_id,
-      warden_remarks,
-    }, { transaction });
-
-    if (newStatus === 'approved_by_warden') {
-      const { student_id, from_date, to_date, hostel_id } = request;
-      const startDate = moment(from_date);
-      const endDate = moment(to_date);
-
-      let currentDate = moment(startDate);
-      while (currentDate.isSameOrBefore(endDate)) {
-        const dateString = currentDate.format('YYYY-MM-DD');
-
-        let existingAttendance = await Attendance.findOne({
-          where: {
-            student_id,
-            hostel_id,
-            date: dateString
-          },
-          transaction
-        });
-
-        if (existingAttendance) {
-          if (existingAttendance.status !== 'P') {
-             await existingAttendance.update({
-              status: 'OD',
-              totalManDays: 1,
-              remarks: existingAttendance.remarks ? `${existingAttendance.remarks}; Day reduction request approved (ID: ${id})` : `Day reduction request approved (ID: ${id})`,
-              marked_by: warden_id
-            }, { transaction });
-          }
-        } else {
-          await Attendance.create({
-            student_id,
-            hostel_id,
-            date: dateString,
-            status: 'OD',
-            totalManDays: 1,
-            remarks: `Day reduction request approved (ID: ${id})`,
-            marked_by: warden_id
-          }, { transaction });
-        }
-        currentDate.add(1, 'day');
-      }
-    }
-
-    await transaction.commit();
-    res.json({ success: true, data: request, message: `Day reduction request ${newStatus.replace('_', ' ')} successfully.` });
-
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    console.error('Error updating day reduction request status by warden:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-  }
-};
+export { decideReduction as updateDayReductionRequestStatusByWarden } from './reductionController.js';
 
 // ==========================================
 // REBATES
@@ -3317,37 +2542,7 @@ export const getRebates = async (req, res) => {
   }
 };
 
-export const updateRebateStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, amount } = req.body;
-    const warden_id = req.user.userId;
-
-    const rebate = await Rebate.findByPk(id);
-    if (!rebate) return res.status(404).json({ success: false, message: 'Rebate not found' });
-
-    if (status === 'approved') {
-      if (!amount || parseFloat(amount) <= 0) {
-        return res.status(400).json({ success: false, message: 'Please provide a valid manual amount' });
-      }
-
-      await rebate.update({
-        status: 'approved',
-        amount: parseFloat(amount).toFixed(2),
-        approved_by: warden_id
-      });
-
-      return res.json({ success: true, message: `Rebate approved for ₹${amount}` });
-    }
-
-    await rebate.update({ status: 'rejected', approved_by: warden_id });
-    res.json({ success: true, message: 'Rebate rejected' });
-
-  } catch (error) {
-    console.error("Update Rebate Error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
+export const updateRebateStatus = async (req, res) => res.status(410).json({ message: 'Legacy rebate decisions are read-only. Use the documented mess reduction workflow.' });
 
 export const getLatestDailyRate = async (req, res) => {
   try {

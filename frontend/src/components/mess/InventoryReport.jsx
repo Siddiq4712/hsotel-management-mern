@@ -97,7 +97,7 @@
 
     return (
       <div>
-        <div className="mb-8 flex justify-between items-center">
+        <div className="module-page-header mb-8 flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Inventory Report</h1>
             <p className="text-gray-600 mt-2">Current stock levels and inventory status</p>

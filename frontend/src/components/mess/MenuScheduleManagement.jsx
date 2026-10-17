@@ -24,13 +24,13 @@ const T = {
   ink:       '#141820',
   inkMid:    '#4B5263',
   inkSoft:   '#8B92A5',
-  accent:    '#1A56DB',
+  accent:    '#2563eb',
   accentBg:  '#EBF2FF',
   danger:    '#DC2626',
   dangerBg:  '#FEF2F2',
   success:   '#16A34A',
   successBg: '#F0FDF4',
-  radius:    '12px',
+  radius:    '24px',
   shadow:    '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
 };
 
@@ -238,27 +238,24 @@ const MenuScheduleManagement = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: T.accent, borderRadius: 8, fontFamily: "'DM Sans', sans-serif" } }}>
+    <ConfigProvider theme={{ token: { colorPrimary: T.accent, borderRadius: 12 } }}>
       <style>{`
         .pm-table .ant-table-thead > tr > th { background: #F7F8FA !important; border-bottom: 1px solid ${T.border} !important; padding: 12px 16px !important; }
         .pm-table .ant-table-tbody > tr > td { padding: 14px 16px !important; border-bottom: 1px solid ${T.border} !important; }
-        .pm-modal .ant-modal-content { border-radius: 14px; overflow: hidden; }
+        .pm-modal .ant-modal-content { border-radius: 24px; overflow: hidden; }
       `}</style>
 
-      <div style={{ minHeight: '100vh', background: T.bg, fontFamily: "'DM Sans', sans-serif" }}>
+      <div className="module-page">
         
         {/* Header */}
-        <div style={{
-          background: T.surface, borderBottom: `1px solid ${T.border}`,
-          padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
+        <div className="module-page-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <ClipboardList size={20} color={T.accent} />
             </div>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: T.ink }}>Schedule Logs</div>
-              <div style={{ fontSize: 12, color: T.inkSoft }}>Track meal history and final inventory consumption</div>
+              <h1 className="module-title">Schedule Logs</h1>
+              <div className="module-subtitle">Track meal history and final inventory consumption</div>
             </div>
           </div>
           <button
@@ -273,7 +270,7 @@ const MenuScheduleManagement = () => {
           </button>
         </div>
 
-        <div style={{ padding: '28px 32px' }}>
+        <div className="space-y-6">
           
           {/* Low Stock Banner */}
           {lowStockAlert && (
@@ -297,7 +294,7 @@ const MenuScheduleManagement = () => {
           )}
 
           {/* Stats Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+          <div className="module-stat-grid">
             <StatCard label="Scheduled Meals" value={stats.upcoming} icon={Calendar} accent />
             <StatCard label="Served (Period)" value={stats.served} icon={CheckCircle} />
             <StatCard label="Alerts" value={lowStockAlert ? lowStockAlert.items.length : 0} icon={AlertTriangle} variant={lowStockAlert ? "danger" : "default"} />

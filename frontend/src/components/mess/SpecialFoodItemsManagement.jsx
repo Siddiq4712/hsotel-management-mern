@@ -233,8 +233,8 @@ const SpecialFoodItemsManagement = () => {
 
   return (
     <ConfigProvider theme={{ token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
-        <div className="flex justify-between items-center mb-8">
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
+        <div className="module-page-header flex justify-between items-center mb-8">
           <div>
             <Title level={2} className="m-0">Special Menu Hub</Title>
             <Text type="secondary">

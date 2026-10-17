@@ -2,7 +2,8 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Replace with your backend API
-export const API_BASE_URL = 'http://10.55.159.186:5001/api';
+// Using emulator local loopback because IP networking is failing
+export const API_BASE_URL = 'http://10.0.2.2:5001/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -120,6 +121,7 @@ export const studentAPI = {
    WARDEN APIs
 =========================== */
 export const wardenAPI = {
+  getAttendanceRoster:()=>api.get('/warden/attendance/roster'),
   // Dashboard & Students
   getDashboardStats: () => api.get('/warden/dashboard-stats'),
   getSessions: () => api.get('/warden/sessions'),
@@ -214,3 +216,10 @@ export const outpassAPI = {
 };
 
 export default api;
+
+export const reductionAPI = {
+  list:(role,params)=>api.get('/'+role+'/day-reduction-requests',{params}),
+  submit:data=>api.post('/student/day-reduction-requests',data,{headers:{'Content-Type':'multipart/form-data'}}),
+  revise:(id,data)=>api.put('/student/day-reduction-requests/'+id,data,{headers:{'Content-Type':'multipart/form-data'}}),
+  decide:(role,id,data)=>api.put('/'+role+'/day-reduction-requests/'+id+'/status',data)
+};
