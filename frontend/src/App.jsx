@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { StockProvider } from './context/StockContext';
 import { App as AntdApp } from 'antd';
 import Layout from './components/common/Layout';
+import WeeklyMenuWorkspace from './components/mess/WeeklyMenuWorkspace';
 import { ChatbotProvider } from './providers/ChatbotProvider';
 import ChatWidget from './components/chatbot/ChatWidget';
 import Login from './components/auth/Login';
@@ -180,6 +181,12 @@ const DashboardRouter = () => {
       // ================= WARDEN =================
       case 'warden':
         switch (currentView) {
+          case 'menus':
+            return <WeeklyMenuWorkspace />;
+          case 'weekly-menu':
+            return <WeeklyMenuWorkspace initialTab="plans" />;
+          case 'menu-settings':
+            return <WeeklyMenuWorkspace initialTab="settings" />;
           case 'dashboard':
             return <WardenDashboard setCurrentView={setCurrentView} />;
           case 'students':
@@ -271,6 +278,12 @@ const DashboardRouter = () => {
           case 'dashboard':
             return <MessDashboard setCurrentView={setCurrentView} />;
           case 'menus':
+            return <WeeklyMenuWorkspace />;
+          case 'weekly-menu':
+            return <WeeklyMenuWorkspace initialTab="plans" />;
+          case 'menu-settings':
+            return <WeeklyMenuWorkspace initialTab="settings" />;
+          case 'menu-templates':
             return <EnhancedMenuManagement />;
           case 'recipe':
             return <RecipeManagement />;

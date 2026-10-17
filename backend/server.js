@@ -7,6 +7,7 @@ import { Op } from 'sequelize';
 import session from 'express-session';
 import passport from './config/passport.js';
 import sequelize from './config/database.js';
+import { ensureMenuPlanningSchema } from './services/menuPlanningSchema.js';
 import { User, Role, initAssociations } from './models/index.js';
 
 import authRoutes from './routes/auth.js';
@@ -18,6 +19,7 @@ import attendanceRoutes from './routes/attendanceRoutes.js';
 import outpassRoutes from './routes/outpass.js';
 import parentRoutes from './routes/parent.js';
 import chatRoutes from './routes/chat.js';
+import menuPlanningRoutes from './routes/menuPlanning.js';
 
 import { verifyEmailConnection } from './utils/emailUtils.js';
 
@@ -58,6 +60,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/outpass', outpassRoutes);
 app.use('/api/parent', parentRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/menu-planning', menuPlanningRoutes);
 
 /* =======================
    CREATE DEFAULT ADMIN
@@ -109,8 +112,8 @@ const PORT = process.env.PORT || 5001;
 // Initialize associations FIRST
 initAssociations();
 
-sequelize
-  .sync()
+ensureMenuPlanningSchema()
+  .then(() => sequelize.sync())
   // .sync({alter : true})
   .then(async () => {
     console.log('✅ Database synced successfully');

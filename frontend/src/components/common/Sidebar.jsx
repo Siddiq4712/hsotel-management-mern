@@ -57,6 +57,11 @@ const MENU_STRUCTURE = {
 
   warden: [
     { title: 'Main', items: [{ id: 'dashboard', label: 'Dashboard', icon: Home }] },
+    { title: 'Menu Management', items: [
+      { id: 'menus', label: "Today's Menu", icon: ChefHat },
+      { id: 'weekly-menu', label: 'Weekly Plan', icon: Calendar },
+      { id: 'menu-settings', label: 'Menu Settings', icon: Settings },
+    ] },
     {
       title: 'Student Management',
       items: [
@@ -129,11 +134,10 @@ const MENU_STRUCTURE = {
     {
       title: 'Menu Management',
       items: [
-        { id: 'menus', label: 'Manage Menus', icon: ChefHat },
-        { id: 'create-menu', label: 'Create Menu', icon: ChefHat },
-        { id: 'recipe', label: 'Create Recipe', icon: Cake },
-        { id: 'menu-planner', label: 'Menu Planner', icon: Calendar },
-        { id: 'menu-schedule', label: 'Menu Schedule', icon: ClipboardCheck },
+        { id: 'menus', label: "Today's Menu", icon: ChefHat },
+        { id: 'weekly-menu', label: 'Weekly Plan', icon: Calendar },
+        { id: 'recipe', label: 'Recipes', icon: Cake },
+        { id: 'menu-settings', label: 'Menu Settings', icon: Settings },
       ]
     },
     {

@@ -1,6 +1,8 @@
 import express from 'express';
 import { Op } from 'sequelize';
 import { auth } from '../middleware/auth.js';
+import { resolvedMeals } from '../services/weeklyMenuPlanning.js';
+import { today as menuToday } from '../utils/weeklyMenu.js';
 import {
   User, Role, Hostel, HostelRoom, RoomAllotment, Leave, Complaint, Attendance,
   Fee, StudentFee, Menu, MenuSchedule, ParentStudent, HostelNotice, FoodOrder, SpecialFoodItem, Outpass,
@@ -264,6 +266,14 @@ async function menuText(hostelId, message) {
   const meal = (message.toLowerCase().match(/breakfast|lunch|dinner|snacks/) || [])[0];
   const requestedDate = new Date();
   if (tomorrow) requestedDate.setDate(requestedDate.getDate() + 1);
+  const menuDate = new Date(`${menuToday()}T12:00:00Z`);
+  if (tomorrow) menuDate.setUTCDate(menuDate.getUTCDate() + 1);
+  const weeklyMeals = await resolvedMeals(hostelId, dateOnly(menuDate));
+  if (weeklyMeals.some(item => item.plan_id || item.configured)) {
+    const visible = weeklyMeals.filter(item => item.configured && (!meal || item.slot.category === meal));
+    if (!visible.length) return `No ${meal || 'meal'} is planned for ${dateOnly(menuDate)}.`;
+    return `🍛 **${tomorrow ? "Tomorrow's" : "Today's"} Menu**\n${visible.map(item => `• ${item.slot.label} (${item.slot.time}): ${item.status === 'skipped' ? 'Meal skipped' : item.dishes}`).join('\n')}`;
+  }
   const where = { hostel_id: hostelId, scheduled_date: dateOnly(requestedDate), status: { [Op.ne]: 'cancelled' } };
   if (meal) where.meal_time = meal;
   const schedules = await MenuSchedule.findAll({ where, include: [Menu], order: [['meal_time', 'ASC']] });

@@ -1,0 +1,20 @@
+.weekly-workspace .ant-alert { margin-bottom: 20px; }
+.weekly-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.weekly-field { display: flex; flex-direction: column; gap: 7px; margin: 16px 0; font-size: 14px; font-weight: 500; }
+.weekly-field .ant-input-number { width: 100%; }
+.weekly-toolbar .weekly-field { margin: 0; }
+.weekly-meal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr)); gap: 20px; margin-top: 20px; }
+.weekly-meal-grid .ant-card-head-title { white-space: normal; }
+.weekly-meal-grid h4 { white-space: pre-wrap; }
+.weekly-plan-card { margin-bottom: 20px; }
+.weekly-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0 16px; }
+.weekly-table-scroll { overflow-x: auto; margin-bottom: 16px; }
+.weekly-editor, .weekly-settings-table { width: 100%; border-collapse: collapse; }
+.weekly-editor th, .weekly-editor td, .weekly-settings-table td, .weekly-settings-table th { padding: 10px; border: 1px solid #e2e8f0; vertical-align: top; text-align: left; }
+.weekly-editor td { min-width: 230px; }
+.weekly-editor .ant-select { width: 100%; margin-top: 8px; }
+.weekly-settings-table { min-width: 700px; }
+.weekly-settings-table .ant-select { width: 150px; }
+.weekly-tools { margin-top: 24px; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px; }
+.weekly-tools summary { cursor: pointer; margin-bottom: 10px; }
+.weekly-permission { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; max-width: 650px; padding: 12px 0; }

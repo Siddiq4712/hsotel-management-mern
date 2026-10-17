@@ -8,6 +8,16 @@ const api = axios.create({
   baseURL: API_BASE_URL,
 });
 
+export const menuPlanningAPI = {
+  hostels: () => api.get('/menu-planning/hostels'),
+  metadata: hostel_id => api.get('/menu-planning/metadata', { params: { hostel_id } }),
+  day: (hostel_id, date) => api.get(`/menu-planning/day/${date}`, { params: { hostel_id } }),
+  publish: (hostel_id, data) => api.post('/menu-planning/plans', { ...data, hostel_id }),
+  settings: (hostel_id, data) => api.put('/menu-planning/settings', { ...data, hostel_id }),
+  override: (hostel_id, date, slot, data) => api.put(`/menu-planning/day/${date}/${slot}`, { ...data, hostel_id }),
+  consume: (hostel_id, date, slot, data) => api.post(`/menu-planning/day/${date}/${slot}/consumption`, { ...data, hostel_id })
+};
+
 // Request interceptor to add token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');

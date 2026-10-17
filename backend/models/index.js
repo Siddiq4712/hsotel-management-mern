@@ -1,5 +1,6 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/database.js';
+export { MenuPlanningSettings, WeeklyMenuPlan, PlannedDailyMeal, MenuPlanningChange } from './menuPlanning.js';
 
 // ==========================================
 // 1. IDENTITY & STAFF MODELS
