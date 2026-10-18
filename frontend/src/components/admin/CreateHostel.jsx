@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Card, Form, Input, Button, InputNumber,
   Typography, Row, Col, Divider, message,
   ConfigProvider, theme, Space, Skeleton,
-  Tag, Progress, Empty, Badge
+  Tag, Progress, Empty, Badge, Modal, Switch, Alert
 } from 'antd';
 import {
   Building, MapPin, Phone, Mail, Users, Bed,
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import moment from 'moment';
 import { adminAPI } from '../../services/api';
+import HostelDetailsModal from './HostelDetailsModal';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -69,25 +70,21 @@ const HostelCardSkeleton = () => (
 
 // ─── Create Hostel Section ───────────────────────────────────
 
-const CreateHostelSection = () => {
+const CreateHostelSection = ({ onCreated }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [componentLoading, setComponentLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setComponentLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
+  const componentLoading = false;
 
   const onFinish = async (values) => {
     setLoading(true);
     try {
       await adminAPI.createHostel({
         ...values,
-        capacity: parseInt(values.capacity)
+        capacity: Number(values.capacity)
       });
       message.success('Institutional unit registered successfully!');
       form.resetFields();
+      onCreated?.();
     } catch (error) {
       console.error('Registration Error:', error);
       message.error(error.response?.data?.message || error.message?.replace(/^API Error:\s*/, '') || 'Failed to create hostel');
@@ -124,7 +121,7 @@ const CreateHostelSection = () => {
                   <Form.Item
                     name="name"
                     label={<Text strong>Hostel Identity Name</Text>}
-                    rules={[{ required: true, message: 'Institutional name is required' }]}
+                    rules={[{ required: true, whitespace: true, message: 'Institutional name is required' }, { max: 255 }]}
                   >
                     <Input
                       prefix={<Building size={18} className="text-slate-400 mr-2" />}
@@ -175,10 +172,12 @@ const CreateHostelSection = () => {
                   <Form.Item
                     name="capacity"
                     label={<Text strong>Authorized Bed Capacity</Text>}
-                    rules={[{ required: true, message: 'Capacity threshold must be defined' }]}
+                    rules={[{ required: true, message: 'Capacity threshold must be defined' }, { type: 'integer', min: 1, max: 2147483647 }]}
                   >
                     <InputNumber
                       min={1}
+                      max={2147483647}
+                      precision={0}
                       prefix={<Users size={18} className="text-slate-400 mr-2" />}
                       placeholder="e.g. 250"
                       className="w-full h-12 rounded-xl flex items-center"
@@ -267,34 +266,62 @@ const CreateHostelSection = () => {
 const ManageHostelsSection = () => {
   const [hostels, setHostels] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [includeInactive, setIncludeInactive] = useState(false);
+  const [error, setError] = useState('');
+  const [selectedHostelId, setSelectedHostelId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const request = useRef(0);
 
   const fetchHostels = useCallback(async () => {
+    const sequence = ++request.current;
     setLoading(true);
+    setError('');
     try {
-      const response = await adminAPI.getHostels();
+      const response = await adminAPI.getHostels({ search, include_inactive: includeInactive ? 'true' : 'false' });
+      if (sequence !== request.current) return;
       setHostels(response.data.data || []);
     } catch (error) {
-      message.error('Hostel registry synchronization failed.');
+      if (sequence !== request.current) return;
+      setError(error.response?.data?.message || 'Unable to load hostels. Please refresh.');
     } finally {
-      setTimeout(() => setLoading(false), 800);
+      if (sequence === request.current) setLoading(false);
     }
-  }, []);
+  }, [search, includeInactive]);
 
-  useEffect(() => { fetchHostels(); }, [fetchHostels]);
+  useEffect(() => { fetchHostels(); return () => { request.current += 1; }; }, [fetchHostels]);
 
   const stats = useMemo(() => ({
     total: hostels.length,
-    capacity: hostels.reduce((acc, curr) => acc + (curr.capacity || 0), 0),
-    rooms: hostels.reduce((acc, curr) => acc + (curr.tbl_HostelRooms?.length || 0), 0)
+    capacity: hostels.reduce((acc, curr) => acc + Number(curr.capacity || 0), 0),
+    rooms: hostels.reduce((acc, curr) => acc + (curr.HostelRooms || curr.tbl_HostelRooms || []).length, 0)
   }), [hostels]);
+
+  const remove = hostel => Modal.confirm({
+    title: `Delete ${hostel.name}?`,
+    content: 'Empty hostels are deleted. Hostels with linked records are deactivated so their users, inventory, and history are preserved.',
+    okText: 'Delete / deactivate', okButtonProps: { danger: true },
+    onOk: async () => {
+      setDeletingId(hostel.id);
+      try {
+        const response = await adminAPI.deleteHostel(hostel.id);
+        message.success(response.data.message);
+        await fetchHostels();
+      } catch (error) { message.error(error.response?.data?.message || 'Unable to delete hostel.'); throw error; }
+      finally { setDeletingId(null); }
+    },
+  });
 
   return (
     <div className="p-8">
       <div className="flex justify-end mb-8">
         <Space>
-          <Button icon={<RefreshCw size={16} />} onClick={fetchHostels} className="rounded-xl h-11 px-6 font-bold shadow-sm">Sync Journal</Button>
+          <Input.Search aria-label="Search hostels" placeholder="Search name or address" allowClear onSearch={setSearch} />
+          <Space><Switch aria-label="Show inactive hostels" checked={includeInactive} onChange={setIncludeInactive} /><Text>Show inactive</Text></Space>
+          <Button icon={<RefreshCw size={16} />} onClick={fetchHostels} className="rounded-xl h-11 px-6 font-bold shadow-sm">Refresh</Button>
         </Space>
       </div>
+      {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 16 }} />}
 
       {loading ? (
         <>
@@ -337,6 +364,7 @@ const ManageHostelsSection = () => {
                         </div>
                         <div>
                           <h3 className="text-lg font-black text-slate-800 tracking-tight leading-none mb-1">{hostel.name}</h3>
+                        {!hostel.is_active && <Tag color="default">Inactive</Tag>}
                           <Tag bordered={false} color="success" className="rounded-full px-3 font-bold uppercase text-[9px] m-0 flex items-center gap-1">
                             <ShieldCheck size={10} /> Institutional Unit
                           </Tag>
@@ -374,7 +402,7 @@ const ManageHostelsSection = () => {
                       <div className="flex gap-4 mt-4">
                         <div className="flex items-center gap-2">
                           <Bed size={14} className="text-slate-400" />
-                          <Text strong className="text-xs">{hostel.tbl_HostelRooms?.length || 0} Rooms</Text>
+                          <Text strong className="text-xs">{(hostel.HostelRooms || hostel.tbl_HostelRooms || []).length} Rooms</Text>
                         </div>
                         <Divider type="vertical" className="h-4 border-slate-200" />
                         <div className="flex items-center gap-2">
@@ -390,9 +418,12 @@ const ManageHostelsSection = () => {
                       <Calendar size={12} />
                       <Text className="text-[10px] font-bold uppercase">Registry: {moment(hostel.createdAt).format('YYYY')}</Text>
                     </div>
-                    <Button type="text" className="text-blue-600 font-bold text-xs flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-                      Open Details <ChevronRight size={14} />
-                    </Button>
+                    <Space>
+                      <Button onClick={() => setSelectedHostelId(hostel.id)} disabled={Boolean(deletingId)} aria-label={`Edit ${hostel.name}`}>
+                        Edit details <ChevronRight size={14} />
+                      </Button>
+                      <Button danger loading={deletingId === hostel.id} disabled={Boolean(deletingId)} onClick={() => remove(hostel)} aria-label={`Delete ${hostel.name}`}>Delete</Button>
+                    </Space>
                   </div>
                 </Card>
               </Col>
@@ -417,21 +448,24 @@ const ManageHostelsSection = () => {
           </Row>
         </>
       )}
+      <HostelDetailsModal hostelId={selectedHostelId} onClose={() => setSelectedHostelId(null)}
+        onSaved={() => { setSelectedHostelId(null); fetchHostels(); }} />
     </div>
   );
 };
 
 // ─── Main Combined Page ──────────────────────────────────────
 
-const HostelHub = () => {
-  const [activeTab, setActiveTab] = useState('manage');
+const HostelHub = ({ initialTab = 'manage' }) => {
+  const [activeTab, setActiveTab] = useState(initialTab);
+  useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
 
   const tabs = [
     {
       key: 'manage',
       label: 'Manage Hostels',
       icon: LayoutGrid,
-      description: 'View & audit all units',
+      description: 'View & edit hostels',
     },
     {
       key: 'create',
@@ -459,7 +493,7 @@ const HostelHub = () => {
               </div>
               <div>
                 <h1 className="text-xl font-black text-slate-800 leading-none tracking-tight">
-                  Hostel Operations
+                  Manage Hostels
                 </h1>
                 <p className="text-[11px] text-slate-400 font-medium mt-1">
                   Institutional Housing Management System
@@ -519,7 +553,7 @@ const HostelHub = () => {
           style={{ animation: 'fadeSlideIn 0.4s ease forwards' }}
         >
           {activeTab === 'manage' && <ManageHostelsSection />}
-          {activeTab === 'create' && <CreateHostelSection />}
+          {activeTab === 'create' && <CreateHostelSection onCreated={() => setActiveTab('manage')} />}
         </div>
 
         <style>{`

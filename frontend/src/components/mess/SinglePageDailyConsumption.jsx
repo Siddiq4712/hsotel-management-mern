@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { DatePicker } from '../common/MomentPickers';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Card, Table, Button, Tag, Space, message, Modal,
-  Form, Input, Select, InputNumber, DatePicker, Typography,
+  Form, Input, Select, InputNumber, Typography,
   Divider, ConfigProvider, Row, Col, Alert, Badge, Spin, Tooltip, Progress
 } from 'antd';
 import {
@@ -9,7 +10,9 @@ import {
   Coffee, Sun, Sunset, Moon, Package, ArrowRight, RefreshCw,
   Sparkles, ShieldAlert, Layers, Check, ShoppingBag
 } from 'lucide-react';
-import { messAPI } from '../../services/api';
+import { adminAPI, messAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { useInventoryWorkspace } from './InventoryWorkspace';
 import moment from 'moment';
 
 const { Option } = Select;
@@ -44,6 +47,15 @@ const MEAL_TYPES = [
 ];
 
 const SinglePageDailyConsumption = () => {
+  const { user } = useAuth();
+  const inventory = useInventoryWorkspace();
+  const isAdmin = user?.role === 'admin';
+  const [hostels, setHostels] = useState([]);
+  const [selectedHostel, setSelectedHostel] = useState(null);
+  const [hostelsLoading, setHostelsLoading] = useState(isAdmin);
+  const [hostelsError, setHostelsError] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const stockRequest = useRef(0);
   const [items, setItems] = useState([]);
   const [uoms, setUoms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,15 +73,58 @@ const SinglePageDailyConsumption = () => {
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
   const [resultModalData, setResultModalData] = useState(null);
 
+  const fetchHostels = useCallback(async () => {
+    if (inventory) {
+      setHostels(inventory.hostels);
+      setHostelsLoading(false);
+      return;
+    }
+    setHostelsLoading(true);
+    setHostelsError('');
+    try {
+      const response = await adminAPI.getHostels();
+      setHostels(response.data.data || []);
+    } catch {
+      setHostelsError('Unable to load hostels. Please retry.');
+    } finally {
+      setHostelsLoading(false);
+    }
+  }, [inventory]);
+
+  useEffect(() => {
+    if (isAdmin) fetchHostels();
+  }, [isAdmin, fetchHostels]);
+
+  const changeHostel = (hostelId) => {
+    stockRequest.current += 1;
+    setItems([]);
+    setUoms([]);
+    setLoading(true);
+    setLoadError('');
+    setConfirmModalVisible(false);
+    setResultModalData(null);
+    setMealEntries(Object.fromEntries(MEAL_TYPES.map((meal, index) => [meal.key,
+      [{ id: Date.now() + index, item_id: null, quantity: '' }]])));
+    setSelectedHostel(hostelId);
+  };
+
   // Fetch items and stocks
   const fetchData = useCallback(async () => {
+    const sequence = ++stockRequest.current;
+    if (isAdmin && !selectedHostel) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
+    setLoadError('');
+    setItems([]);
     try {
       const [itemsRes, uomsRes, stockRes] = await Promise.all([
         messAPI.getItems(),
         messAPI.getUOMs(),
-        messAPI.getItemStock(),
+        messAPI.getItemStock(isAdmin ? { hostel_id: selectedHostel } : undefined),
       ]);
+      if (sequence !== stockRequest.current) return;
 
       const itemsList = itemsRes.data?.data || itemsRes.data || [];
       const uomsList = uomsRes.data?.data || uomsRes.data || [];
@@ -94,16 +149,22 @@ const SinglePageDailyConsumption = () => {
       setItems(enrichedItems);
       setUoms(uomsList);
     } catch (err) {
+      if (sequence !== stockRequest.current) return;
       console.error('Failed to load inventory data:', err);
+      setLoadError('Unable to load stock. Refresh stock before entering consumption.');
       message.error('Failed to load raw items stock data.');
     } finally {
-      setLoading(false);
+      if (sequence === stockRequest.current) setLoading(false);
     }
-  }, []);
+  }, [isAdmin, selectedHostel]);
 
   useEffect(() => {
     fetchData();
+    return () => { stockRequest.current += 1; };
   }, [fetchData]);
+
+  const canEnterStock = !loading && !loadError && (!isAdmin || Boolean(selectedHostel));
+  const selectedHostelName = hostels.find(hostel => hostel.id === selectedHostel)?.name;
 
   // Create an item lookup map
   const itemMap = useMemo(() => {
@@ -230,6 +291,7 @@ const SinglePageDailyConsumption = () => {
 
   // Handle final submission to backend
   const handleFinalSubmit = async () => {
+    if (!canEnterStock || submitting) return;
 
     if (flattenedSubmissionData.length === 0) {
       return message.warning(
@@ -259,6 +321,7 @@ if (!validateStockBeforeSubmit()) {
       const dateStr = consumptionDate ? consumptionDate.format('YYYY-MM-DD') : moment().format('YYYY-MM-DD');
       
       const response = await messAPI.recordSinglePageDailyConsumption({
+        ...(isAdmin ? { hostel_id: selectedHostel } : {}),
         consumption_date: dateStr,
         items: flattenedSubmissionData.map(d => ({
           item_id: d.item_id,
@@ -301,15 +364,6 @@ if (!validateStockBeforeSubmit()) {
     }
   };
 
-  if (loading) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', background: T.bg, minHeight: '80vh', borderRadius: T.radius }}>
-        <Spin size="large" />
-        <Paragraph style={{ marginTop: 16, color: T.inkMid, fontWeight: 600 }}>Loading Mess Raw Material Inventory Stock...</Paragraph>
-      </div>
-    );
-  }
-
   return (
     <ConfigProvider
       theme={{
@@ -347,6 +401,14 @@ if (!validateStockBeforeSubmit()) {
 
           {/* Date Selector & Action */}
           <Space size="middle" wrap>
+            {isAdmin && <div>
+              <label htmlFor="consumption-hostel" style={{ display: 'block', fontWeight: 600 }}>Hostel</label>
+              <Select id="consumption-hostel" aria-label="Hostel for daily stock entry"
+                placeholder="Select hostel" value={selectedHostel} onChange={changeHostel}
+                loading={hostelsLoading} disabled={submitting || hostelsLoading}
+                style={{ minWidth: 220 }}
+                options={hostels.map(hostel => ({ value: hostel.id, label: hostel.name }))} />
+            </div>}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.bg, padding: '6px 12px', borderRadius: 8, border: `1px solid ${T.border}` }}>
               <Calendar size={16} color={T.inkMid} />
               <Text style={{ fontSize: 12, fontWeight: 600, color: T.inkMid }}>Consumption Date:</Text>
@@ -363,6 +425,7 @@ if (!validateStockBeforeSubmit()) {
               type="default"
               icon={<RefreshCw size={14} />}
               onClick={fetchData}
+              disabled={loading || submitting || (isAdmin && !selectedHostel)}
               style={{ borderRadius: 8, fontWeight: 600 }}
             >
               Refresh Stock
@@ -372,7 +435,7 @@ if (!validateStockBeforeSubmit()) {
               type="primary"
               size="large"
               icon={<CheckCircle2 size={18} />}
-              disabled={summaryStats.validRowsCount === 0}
+              disabled={!canEnterStock || submitting || summaryStats.validRowsCount === 0}
               onClick={() => setConfirmModalVisible(true)}
               style={{
                 borderRadius: 8,
@@ -387,6 +450,16 @@ if (!validateStockBeforeSubmit()) {
           </Space>
         </div>
 
+        {isAdmin && hostelsError && <Alert type="error" showIcon title={hostelsError}
+          action={<Button onClick={fetchHostels} loading={hostelsLoading}>Retry hostels</Button>} />}
+        {isAdmin && !selectedHostel && !hostelsError && <Alert type="info" showIcon
+          title={hostelsLoading ? 'Loading hostels...' : hostels.length ? 'Select a hostel to load its stock and enter daily consumption.' : 'No hostels available. Add a hostel before recording consumption.'} />}
+        {loading && <div style={{ padding: 40, textAlign: 'center' }}>
+          <Spin size="large" />
+          <Paragraph>Loading Mess Raw Material Inventory Stock...</Paragraph>
+        </div>}
+        {loadError && <Alert type="error" showIcon title={loadError} />}
+        {canEnterStock && <>
         {/* ─── Metric Stat Cards ─── */}
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
           <Col xs={24} sm={12} md={6}>
@@ -522,6 +595,7 @@ if (!validateStockBeforeSubmit()) {
                                 SELECT INVENTORY MATERIAL #{index + 1}
                               </Text>
                               <Select
+                                aria-label={`${meal.label} material ${index + 1}`}
                                 showSearch
                                 placeholder="Search & select raw item..."
                                 value={row.item_id}
@@ -555,6 +629,7 @@ if (!validateStockBeforeSubmit()) {
                                 QUANTITY USED ({unitName})
                               </Text>
                               <InputNumber
+                                aria-label={`${meal.label} quantity ${index + 1}`}
                                 min={0.01}
                                 step={0.5}
                                 placeholder="Qty"
@@ -635,7 +710,7 @@ if (!validateStockBeforeSubmit()) {
             type="primary"
             size="large"
             icon={<CheckCircle2 size={18} />}
-            disabled={summaryStats.validRowsCount === 0}
+            disabled={submitting || summaryStats.validRowsCount === 0}
             onClick={() => setConfirmModalVisible(true)}
             style={{
               borderRadius: 8,
@@ -662,11 +737,17 @@ if (!validateStockBeforeSubmit()) {
           confirmLoading={submitting}
           okText="Confirm & Deduct Stock Now"
           cancelText="Review Entries"
+          closable={!submitting}
+          mask={{ closable: !submitting }}
+          keyboard={!submitting}
+          cancelButtonProps={{ disabled: submitting }}
           width={640}
         >
           <Paragraph style={{ color: T.inkMid, fontSize: 13 }}>
             You are submitting the following daily raw material consumption for <strong>{consumptionDate.format('MMMM DD, YYYY')}</strong>:
           </Paragraph>
+          {isAdmin && <Paragraph>Hostel: <strong>{selectedHostelName}</strong></Paragraph>}
+          {inventory && <Paragraph>Stock inventory: <strong>{inventory.name}</strong></Paragraph>}
 
           <div style={{ maxHeight: 320, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 8, padding: 12, marginBottom: 16 }}>
             {flattenedSubmissionData.map((d, i) => (
@@ -736,6 +817,7 @@ if (!validateStockBeforeSubmit()) {
           )}
         </Modal>
 
+        </>}
       </div>
     </ConfigProvider>
   );

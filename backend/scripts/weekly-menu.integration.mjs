@@ -7,6 +7,7 @@ import { MenuPlanningSettings, WeeklyMenuPlan, PlannedDailyMeal, MenuPlanningCha
 import { planningHostel, planningMetadata, publishWeeklyPlan, resolvedMeals, savePlanningSettings, overrideDailyMeal, consumeDailyMeal } from '../services/weeklyMenuPlanning.js';
 import { today, DEFAULT_CONFIGURATION } from '../utils/weeklyMenu.js';
 import { ensureMenuPlanningSchema } from '../services/menuPlanningSchema.js';
+import { Inventory, InventoryHostel } from '../models/inventory.js';
 
 initAssociations();
 if (process.env.DEBUG_MENU_TEST) sequelize.options.logging = sql => { if (/SAVEPOINT|ROLLBACK|tbl_DailyConsumption|tbl_ItemStock/.test(sql)) console.log(sql); };
@@ -27,14 +28,16 @@ const tag = crypto.randomUUID();
 try {
   const hostel = await Hostel.create({ name: `Weekly menu test ${tag}`, capacity: 100 }, { transaction });
   const other = await Hostel.create({ name: `Weekly menu isolation ${tag}`, capacity: 5 }, { transaction });
+  const inventory = await Inventory.create({ name: `Weekly menu inventory ${tag}` }, { transaction });
+  await InventoryHostel.create({ hostel_id: hostel.id, inventory_id: inventory.id }, { transaction });
   const role = await Role.create({ roleName: `WeeklyMenu-${tag}` }, { transaction });
   const actor = await User.create({ userName: 'Menu integration test', userMail: `${tag}@invalid.test`, password: 'test-only', roleId: role.roleId, hostel_id: hostel.id }, { transaction });
   const unit = await UOM.create({ name: `Test kg ${tag}`, abbreviation: 'kg', type: 'weight' }, { transaction });
   const category = await ItemCategory.create({ name: `Test category ${tag}` }, { transaction });
   const rice = await Item.create({ name: `Test rice ${tag}`, category_id: category.id, unit_id: unit.id }, { transaction });
-  const stock = await ItemStock.create({ item_id: rice.id, hostel_id: hostel.id, current_stock: 100, minimum_stock: 10 }, { transaction });
-  await InventoryBatch.bulkCreate([{ item_id: rice.id, hostel_id: hostel.id, quantity_purchased: 40, quantity_remaining: 40, unit_price: 40, purchase_date: today() },
-    { item_id: rice.id, hostel_id: hostel.id, quantity_purchased: 60, quantity_remaining: 60, unit_price: 60, purchase_date: today() }], { transaction });
+  const stock = await ItemStock.create({ item_id: rice.id, hostel_id: hostel.id, inventory_id: inventory.id, current_stock: 100, minimum_stock: 10 }, { transaction });
+  await InventoryBatch.bulkCreate([{ item_id: rice.id, hostel_id: hostel.id, inventory_id: inventory.id, quantity_purchased: 40, quantity_remaining: 40, unit_price: 40, purchase_date: today() },
+    { item_id: rice.id, hostel_id: hostel.id, inventory_id: inventory.id, quantity_purchased: 60, quantity_remaining: 60, unit_price: 60, purchase_date: today() }], { transaction });
   const template = await Menu.create({ hostel_id: hostel.id, name: 'Rice test template', meal_type: 'lunch', estimated_servings: 100, date: today() }, { transaction });
   await MenuItem.create({ menu_id: template.id, item_id: rice.id, quantity: 10, unit_id: unit.id }, { transaction });
   const request = (body = {}, params = {}, roleName = 'mess') => ({ user: { userId: actor.userId, userName: actor.userName, role: roleName, hostel_id: hostel.id },

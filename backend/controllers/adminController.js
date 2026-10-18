@@ -43,171 +43,102 @@ const resolveRoleRecord = async ({ roleId, role }) => {
 const normalizeRoleName = (name) => String(name || '').trim();
 
 // HOSTEL MANAGEMENT
+const hostelFields = (body, partial = false) => {
+  const values = {};
+  const invalid = message => { throw Object.assign(new Error(message), { status: 400 }); };
+  if (!partial || Object.hasOwn(body, 'name')) {
+    if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 255) invalid('Enter a hostel name of 1–255 characters.');
+    values.name = body.name.trim();
+  }
+  if (!partial || Object.hasOwn(body, 'capacity')) {
+    if (!Number.isInteger(Number(body.capacity)) || Number(body.capacity) < 1 || Number(body.capacity) > 2147483647) invalid('Capacity must be a whole number between 1 and 2147483647.');
+    values.capacity = Number(body.capacity);
+  }
+  for (const key of ['address', 'contact_number', 'email']) {
+    if (Object.hasOwn(body, key)) values[key] = String(body[key] ?? '').trim() || null;
+    if (key !== 'address' && values[key]?.length > 255) invalid(`${key === 'email' ? 'Email' : 'Contact number'} cannot exceed 255 characters.`);
+  }
+  if (Object.hasOwn(body, 'is_active')) {
+    if (typeof body.is_active !== 'boolean') invalid('Hostel status must be active or inactive.');
+    values.is_active = body.is_active;
+  }
+  if (!Object.keys(values).length) invalid('Enter hostel details to update.');
+  return values;
+};
+const hostelFailure = (res, error) => {
+  if (error.name === 'SequelizeUniqueConstraintError') return res.status(409).json({ success: false, message: 'A hostel with this name already exists.' });
+  if (error.name === 'SequelizeValidationError') return res.status(400).json({ success: false, message: error.errors.map(item => item.message).join(' ') });
+  return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Unable to complete the hostel operation. Please try again.' });
+};
+const hostelId = value => {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id < 1) throw Object.assign(new Error('Choose a valid hostel.'), { status: 400 });
+  return id;
+};
+
 export const createHostel = async (req, res) => {
   try {
-    const { name, address, contact_number, email, capacity } = req.body;
-
-    if (!String(name || '').trim() || !Number.isInteger(Number(capacity)) || Number(capacity) < 1) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please enter a hostel name and a whole-number capacity of at least 1.'
-      });
-    }
-
-    const existingHostel = await Hostel.findOne({ where: { name: String(name).trim() } });
-    if (existingHostel) {
-      return res.status(409).json({ success: false, message: 'A hostel with this name already exists.' });
-    }
-
-    const hostel = await Hostel.create({
-      name: String(name).trim(),
-      address,
-      contact_number,
-      email,
-      capacity: Number(capacity)
-    });
-
-    res.status(201).json({
-      success: true,
-      data: hostel,
-      message: 'Hostel created successfully'
-    });
-  } catch (error) {
-    console.error('Hostel creation error:', error);
-    if (error.name === 'SequelizeValidationError') {
-      return res.status(400).json({ success: false, message: error.errors.map((item) => item.message).join(' ') });
-    }
-    if (error.name === 'SequelizeUniqueConstraintError') {
-      return res.status(409).json({ success: false, message: 'A hostel with this name already exists.' });
-    }
-    res.status(500).json({ success: false, message: 'Unable to create the hostel. Please check the server log and try again.' });
-  }
+    const values = hostelFields(req.body);
+    if (await Hostel.findOne({ where: { name: values.name } })) return res.status(409).json({ success: false, message: 'A hostel with this name already exists.' });
+    const hostel = await Hostel.create(values);
+    return res.status(201).json({ success: true, data: hostel, message: 'Hostel created successfully' });
+  } catch (error) { return hostelFailure(res, error); }
 };
 
 export const getHostels = async (req, res) => {
   try {
-    const { search } = req.query;
-
-    let whereClause = { is_active: true };
-
-    if (search) {
-      whereClause[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { address: { [Op.iLike]: `%${search}%` } }
-      ];
-    }
-
-    const hostels = await Hostel.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: HostelRoom,
-          include: [{ model: RoomType }]
-        }
-      ],
-      order: [['createdAt', 'DESC']]
-    });
-
-    res.json({ success: true, data: hostels });
-  } catch (error) {
-    console.error('Hostels fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+    const search = String(req.query.search || '').trim();
+    const where = req.query.include_inactive === 'true' ? {} : { is_active: true };
+    if (search) where[Op.or] = [{ name: { [Op.like]: `%${search}%` } }, { address: { [Op.like]: `%${search}%` } }];
+    const hostels = await Hostel.findAll({ where, include: [{ model: HostelRoom, include: [{ model: RoomType }] }], order: [['createdAt', 'DESC'], ['id', 'DESC']] });
+    return res.json({ success: true, data: hostels });
+  } catch (error) { return hostelFailure(res, error); }
 };
 
 export const getHostelById = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const hostel = await Hostel.findByPk(id, {
-      include: [
-        {
-          model: HostelRoom,
-          include: [{ model: RoomType }]
-        }
-      ]
-    });
-
-    if (!hostel) {
-      return res.status(404).json({
-        success: false,
-        message: 'Hostel not found'
-      });
-    }
-
-    res.json({ success: true, data: hostel });
-  } catch (error) {
-    console.error('Hostel fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+    const hostel = await Hostel.findByPk(hostelId(req.params.id), { include: [{ model: HostelRoom, include: [{ model: RoomType }] }] });
+    if (!hostel) return res.status(404).json({ success: false, message: 'Hostel not found' });
+    return res.json({ success: true, data: hostel });
+  } catch (error) { return hostelFailure(res, error); }
 };
 
 export const updateHostel = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { name, address, contact_number, email, capacity } = req.body;
-
+    const id = hostelId(req.params.id);
+    const values = hostelFields(req.body, true);
     const hostel = await Hostel.findByPk(id);
-
-    if (!hostel) {
-      return res.status(404).json({
-        success: false,
-        message: 'Hostel not found'
-      });
+    if (!hostel) return res.status(404).json({ success: false, message: 'Hostel not found' });
+    if (values.name && await Hostel.findOne({ where: { name: values.name, id: { [Op.ne]: id } } })) return res.status(409).json({ success: false, message: 'A hostel with this name already exists.' });
+    if (values.capacity !== undefined) {
+      const occupied = Number(await HostelRoom.sum('occupancy_count', { where: { hostel_id: id } }) || 0);
+      if (values.capacity < occupied) return res.status(400).json({ success: false, message: `Capacity cannot be below the ${occupied} currently occupied beds.` });
     }
-
-    await hostel.update({
-      name,
-      address,
-      contact_number,
-      email,
-      capacity
-    });
-
-    res.json({
-      success: true,
-      data: hostel,
-      message: 'Hostel updated successfully'
-    });
-  } catch (error) {
-    console.error('Hostel update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+    await hostel.update(values);
+    return res.json({ success: true, data: hostel, message: 'Hostel updated successfully' });
+  } catch (error) { return hostelFailure(res, error); }
 };
 
 export const deleteHostel = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const hostel = await Hostel.findByPk(id);
-
-    if (!hostel) {
-      return res.status(404).json({
-        success: false,
-        message: 'Hostel not found'
-      });
-    }
-
-    const usersCount = await User.count({ where: { hostel_id: id } });
-    const roomsCount = await HostelRoom.count({ where: { hostel_id: id } });
-
-    if (usersCount > 0 || roomsCount > 0) {
-      await hostel.update({ is_active: false });
-      res.json({
-        success: true,
-        message: 'Hostel deactivated successfully (has associated records)'
-      });
-    } else {
-      await hostel.destroy();
-      res.json({
-        success: true,
-        message: 'Hostel deleted successfully'
-      });
-    }
-  } catch (error) {
-    console.error('Hostel deletion error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+    const id = hostelId(req.params.id);
+    const deactivated = await sequelize.transaction(async transaction => {
+      const hostel = await Hostel.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!hostel) throw Object.assign(new Error('Hostel not found'), { status: 404 });
+      // Preserve every linked record, including inventory assignments and
+      // financial history, even when the hostel has no rooms or current users.
+      for (const model of Object.values(sequelize.models)) {
+        if (!model.rawAttributes?.hostel_id) continue;
+        if (await model.count({ where: { hostel_id: id }, transaction })) {
+          await hostel.update({ is_active: false }, { transaction });
+          return true;
+        }
+      }
+      await hostel.destroy({ transaction });
+      return false;
+    });
+    return res.json({ success: true, deactivated, message: deactivated ? 'Hostel deactivated; its linked records and history are preserved.' : 'Hostel deleted successfully.' });
+  } catch (error) { return hostelFailure(res, error); }
 };
 
 // USER MANAGEMENT

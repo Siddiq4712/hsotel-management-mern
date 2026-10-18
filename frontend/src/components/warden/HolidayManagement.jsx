@@ -1,7 +1,8 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  Card, Table, Tag, Button, Input, Select, DatePicker, 
-  Typography, Row, Col, Statistic, Space, Skeleton, 
+import {
+  Card, Table, Tag, Button, Input, Select,
+  Typography, Row, Col, Statistic, Space, Skeleton,
   Modal, Badge, Divider, Empty, message, ConfigProvider, theme, Form
 } from 'antd';
 import { 

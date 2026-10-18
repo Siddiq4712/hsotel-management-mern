@@ -3,6 +3,9 @@ import ExcelJS from 'exceljs';
 import { Op } from 'sequelize';
 import * as models from '../models/index.js';
 
+const inventoryPath = /^\/(stock|inventory-purchase|inventory-transactions|inventory\/correct-last-purchase|purchase-orders)(\/|$)|^\/items\/[^/]+\/(fifo-price|batches)$|^\/chart-data\/item-stock$|^\/reports\/latest-purchase$/;
+const consumptionWrite = /^\/consumption\/(bulk|single-page|return)$/;
+
 const sharedMess = /^\/(item-categories|uoms|stores|item-stores|special-food-items|concerns|expenses-types)(\/|$)/;
 const modelForPath = {
   students:'User',rooms:'HostelRoom','room-types':'RoomType','leave-requests':'Leave',complaints:'Complaint',
@@ -114,17 +117,46 @@ export function installAdminWorkspace(router, portal) {
       return register(path,...handlers,async(req,res,next)=>{
         if(req.user?.role!=='admin' || (portal==='outpass' && !/^\/(warden|approve|reject)(\/|$)/.test(path)))return handler(req,res,next);
         const shared=portal==='mess' && (sharedMess.test(path) || /^\/items(?:\/[^/]+)?$/.test(path) || /^\/items\/(bulk|:item_id\/stores)$/.test(path));
-        if(shared || path==='/sessions')return handler(req,res,next);
+        const inventoryId = req.get('X-Inventory-Id') || req.body?.inventory_id || req.query.inventory_id;
+        const poolRequest = portal === 'mess' && (inventoryPath.test(path) || consumptionWrite.test(path) || (method === 'get' && path === '/items' && inventoryId));
+        if((shared && !poolRequest) || path==='/sessions')return handler(req,res,next);
         try {
+          if (poolRequest && inventoryId) {
+            if (!Number.isInteger(Number(inventoryId)) || Number(inventoryId) <= 0) throw new Error('Choose a valid inventory.');
+            const inventory = await models.Inventory.findByPk(inventoryId);
+            if (!inventory) throw new Error('Inventory not found.');
+            const members = await models.InventoryHostel.findAll({ where: { inventory_id: inventory.id }, raw: true });
+            const memberIds = members.map(member => member.hostel_id);
+            const explicit = req.get('X-Entry-Hostel-Id') || req.body?.hostel_id || req.body?.hostelId || req.query.hostel_id;
+            if (explicit && !memberIds.includes(Number(explicit))) throw new Error('The selected hostel does not use this inventory. Reload and choose its assigned inventory.');
+            const hostels = await models.Hostel.findAll({ where: { id: { [Op.in]: memberIds } }, order: [['id', 'ASC']] });
+            if (!hostels.length) throw new Error('Assign at least one hostel to this inventory first.');
+            if (consumptionWrite.test(path) && !explicit) return res.status(409).json({ code: 'HOSTEL_REQUIRED', message: 'Choose the hostel consuming this stock.',
+              hostels: hostels.map(hostel => ({ id: hostel.id, name: hostel.name })) });
+            const hostel = hostels.find(row => row.id === Number(explicit)) || hostels[0];
+            const scoped = scopedRequest(req, hostel);
+            scoped.inventory_id = inventory.id;
+            return handler(scoped, res, next);
+          }
           const id=await identifyHostel(req,path,portal);
           if(id){
             const hostel=await models.Hostel.findByPk(id);
             if(!hostel)return res.status(400).json({message:'Hostel not found.'});
             return handler(scopedRequest(req,hostel),res,next);
           }
-          const hostels=await models.Hostel.findAll({order:[['id','ASC']]});
+          let hostels=await models.Hostel.findAll({order:[['id','ASC']]});
           if(method!=='get' || path==='/daily-charges/calculate' || path==='/layout')return res.status(409).json({code:'HOSTEL_REQUIRED',message:'Choose the hostel for this entry.',
             hostels:hostels.map(hostel=>({id:hostel.id,name:hostel.name}))});
+          // Stock pools shared by multiple hostels must appear once in totals.
+          if (poolRequest && inventoryPath.test(path)) {
+            const assignments = await models.InventoryHostel.findAll({ raw: true });
+            const seen = new Set();
+            hostels = hostels.filter(hostel => {
+              const pool = assignments.find(row => row.hostel_id === hostel.id)?.inventory_id;
+              if (!pool || seen.has(pool)) return false;
+              seen.add(pool); return true;
+            });
+          }
           const results=[];
           for(const hostel of hostels){
             const response=await capture(handler,scopedRequest(req,hostel));

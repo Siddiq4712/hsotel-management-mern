@@ -7,6 +7,8 @@ import { App as AntdApp } from 'antd';
 import Layout from './components/common/Layout';
 import WeeklyMenuWorkspace from './components/mess/WeeklyMenuWorkspace';
 import EntryHostelDialog from './components/common/EntryHostelDialog';
+import ManageInventories from './components/admin/ManageInventories';
+import InventoryWorkspace from './components/mess/InventoryWorkspace';
 import { ChatbotProvider } from './providers/ChatbotProvider';
 import ChatWidget from './components/chatbot/ChatWidget';
 import Login from './components/auth/Login';
@@ -67,14 +69,12 @@ import StudentFeeTabs from './components/student/StudentFeeTabs';
 // Mess Components
 import MessDashboard from './components/mess/MessDashboard';
 import EnhancedMenuManagement from './components/mess/EnhancedMenuManagement';
-import ItemManagement from './components/mess/ItemManagement';
+import InventoryHub from './components/mess/InventoryHub';
+import InventoryTransactions from './components/mess/InventoryTransactions';
 import MenuScheduleManagement from './components/mess/MenuScheduleManagement';
-import StockManagement from './components/mess/StockManagement';
 import DailyOperations from './components/mess/DailyOperations';
 import UOMManagement from './components/mess/UOMManagement';
 import PurchaseByStore from './components/mess/PurchaseByStore';
-import InventoryManagement from './components/mess/InventoryManagement';
-import InventoryTransactions from './components/mess/InventoryTransactions';
 import StoreManagement from './components/mess/StoreManagement';
 import MessOrderDashboard from './components/mess/MessOrderDashboard';
 import SpecialFoodItemsManagement from './components/mess/SpecialFoodItemsManagement';
@@ -153,6 +153,7 @@ const DashboardRouter = () => {
   }, [location.pathname]);
 
   const renderComponent = () => {
+    if (currentView === 'manage-inventories' && user?.role === 'admin') return <ManageInventories />;
     switch (workspace) {
 
       // ================= ADMIN =================
@@ -163,7 +164,7 @@ const DashboardRouter = () => {
           case 'hostels':
             return <ManageHostels />;
           case 'create-hostel':
-            return <CreateHostel />;
+            return <CreateHostel initialTab="create" />;
 
           // ✅ UPDATED ROOM MANAGEMENT
           case 'room-management':
@@ -309,13 +310,13 @@ const DashboardRouter = () => {
           case 'recipe':
             return <RecipeManagement />;
           case 'items':
-            return <ItemManagement />;
+            return <InventoryHub initialTab="items" />;
           case 'menu-schedule':
             return <MenuScheduleManagement />;
           case 'menu-planner':
             return <MenuPlanner />;
           case 'stock':
-            return <StockManagement />;
+            return <InventoryHub initialTab="stock" />;
           case 'purchase-orders':
             return <PurchaseOrder />;
           case 'consumption':
@@ -337,7 +338,7 @@ const DashboardRouter = () => {
           case 'record-consumption':
             return <RecordAdhocConsumption />;
           case 'inventory':
-            return <InventoryManagement />;
+            return <InventoryHub />;
           case 'inventory-transactions':
             return <InventoryTransactions />;
           // Mapping is disabled. Existing links open the store master instead.
@@ -382,7 +383,9 @@ const DashboardRouter = () => {
 
   return (
     <Layout currentView={currentView} setCurrentView={setCurrentView} workspace={workspace} onWorkspaceChange={changeWorkspace}>
-      {renderComponent()}
+      {workspace === 'mess' && ['stock', 'inventory', 'inventory-transactions', 'items', 'purchase-by-store', 'purchase-orders',
+        'single-page-daily-entry', 'record-consumption', 'daily-consumption'].includes(currentView)
+        ? <InventoryWorkspace>{renderComponent()}</InventoryWorkspace> : renderComponent()}
     </Layout>
   );
 };

@@ -5,7 +5,7 @@ import api from './api';
 
 describe('entry hostel request handling',()=>{
   const originalAdapter=api.defaults.adapter;
-  afterEach(()=>{api.defaults.adapter=originalAdapter;vi.clearAllMocks();});
+  afterEach(()=>{api.defaults.adapter=originalAdapter;vi.clearAllMocks();sessionStorage.clear();});
   it('retries only that entry with the chosen hostel',async()=>{
     requestEntryHostel.mockResolvedValue(2);
     const calls=[];
@@ -26,5 +26,22 @@ describe('entry hostel request handling',()=>{
     api.defaults.adapter=async config=>{calls++;throw {config,response:{status:409,data:{code:'HOSTEL_REQUIRED',hostels:[]}}};};
     await expect(api.post('/mess/stock',{})).rejects.toThrow('Cancelled');
     expect(calls).toBe(1);
+  });
+  it('keeps the original inventory when a hostel confirmation retries the request',async()=>{
+    sessionStorage.setItem('selectedInventoryId','10');
+    requestEntryHostel.mockImplementation(async()=>{
+      sessionStorage.setItem('selectedInventoryId','20');
+      return 2;
+    });
+    const calls=[];
+    api.defaults.adapter=async config=>{
+      calls.push(config);
+      if(calls.length===1)throw {config,response:{status:409,data:{code:'HOSTEL_REQUIRED',hostels:[{id:2,name:'Hostel B'}]}}};
+      return {config,status:200,data:{success:true},headers:{}};
+    };
+    await api.post('/mess/consumption/bulk',{items:[]});
+    expect(calls[0].headers.get('X-Inventory-Id')).toBe('10');
+    expect(calls[1].headers.get('X-Inventory-Id')).toBe('10');
+    expect(calls[1].headers.get('X-Entry-Hostel-Id')).toBe('2');
   });
 });

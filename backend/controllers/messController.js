@@ -1,3 +1,6 @@
+import { inventoryScope } from '../services/inventoryScope.js';
+import { RECEIVED_ORDER_PREFIX, parseReceivedOrderNotes } from '../services/receivedPurchaseOrder.js';
+import { randomUUID } from 'node:crypto';
 import { getBillingDays } from '../services/billingDays.js';
 import { getMessCalculation } from '../services/messCalculation.js';
 import { buildMonthlyMessReport } from '../services/monthlyMessReport.js';
@@ -611,7 +614,7 @@ export const recalculateMenuCostWithFIFO = async (req, res) => {
         const batches = await InventoryBatch.findAll({
           where: {
             item_id: itemId,
-            hostel_id,
+            ...(await inventoryScope(hostel_id)),
             status: 'active',
             quantity_remaining: { [Op.gt]: 0 }
           },
@@ -848,18 +851,18 @@ export const getItems = async (req, res) => {
     let latestStocks = [];
 
     // FIX: Only run the SQL query if we actually have item IDs
-    if (itemIds.length > 0) {
+    if (itemIds.length > 0 && hostel_id) {
       latestStocks = await sequelize.query(`
         WITH RankedStocks AS (
           SELECT 
             id, item_id, current_stock, minimum_stock, last_purchase_date,
             ROW_NUMBER() OVER (PARTITION BY item_id ORDER BY updatedAt DESC) as rn
           FROM tbl_ItemStock
-          WHERE hostel_id = :hostel_id AND item_id IN (:itemIds)
+          WHERE inventory_id = :inventory_id AND item_id IN (:itemIds)
         )
         SELECT * FROM RankedStocks WHERE rn = 1
       `, {
-        replacements: { hostel_id, itemIds },
+        replacements: { ...(await inventoryScope(hostel_id)), itemIds },
         type: sequelize.QueryTypes.SELECT,
         raw: true
       });
@@ -1274,7 +1277,7 @@ const totals = await InventoryBatch.findOne({
   ],
   where: {
     item_id: menuItem.item_id,
-    hostel_id,
+    ...(await inventoryScope(hostel_id, transaction)),
     status: 'active',
     quantity_remaining: { [Op.gt]: 0 },
   },
@@ -1633,7 +1636,7 @@ export const getMessDashboardStats = async (req, res) => {
     // Low stock items
     const lowStockCount = await ItemStock.count({
       where: {
-        hostel_id,
+        ...(await inventoryScope(hostel_id)),
         [Op.where]: sequelize.where(
           sequelize.col('current_stock'),
           Op.lte,
@@ -1752,7 +1755,7 @@ export const getItemStockChartData = async (req, res) => {
     console.log(`[Chart Data] Fetching item stock data for hostel ${hostel_id}`);
 
     const itemStocks = await ItemStock.findAll({
-      where: { hostel_id },
+      where: { ...(await inventoryScope(hostel_id))},
       attributes: [
         'item_id',
         'current_stock',
@@ -1808,9 +1811,9 @@ export const updateItemStock = async (req, res) => {
     const { item_id, quantity, unit_price, purchase_date, expiry_date } = req.body;
 
     // Validate inputs
-    if (!item_id || !quantity || !unit_price) {
+    if (!item_id || !Number.isFinite(Number(quantity)) || Number(quantity) <= 0 || !Number.isFinite(Number(unit_price)) || Number(unit_price) < 0) {
       await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'Missing required fields: item_id, quantity, unit_price' });
+      return res.status(400).json({ success: false, message: 'Item, positive quantity, and a non-negative unit price are required.' });
     }
 
     // Ensure Item and Hostel exist
@@ -1827,7 +1830,7 @@ export const updateItemStock = async (req, res) => {
     }
 
     // Update or create ItemStock with the user's hostel_id
-    let itemStock = await ItemStock.findOne({ where: { item_id, hostel_id }, transaction });
+    let itemStock = await ItemStock.findOne({ where: { item_id, ...(await inventoryScope(hostel_id, transaction))}, transaction });
     if (itemStock) {
       await itemStock.update(
         {
@@ -1840,7 +1843,7 @@ export const updateItemStock = async (req, res) => {
       itemStock = await ItemStock.create(
         {
           item_id,
-          hostel_id,
+          hostel_id, ...(await inventoryScope(hostel_id, transaction)),
           current_stock: quantity,
           minimum_stock: 0,
           last_purchase_date: purchase_date || new Date()
@@ -1853,7 +1856,7 @@ export const updateItemStock = async (req, res) => {
     const batch = await InventoryBatch.create(
       {
         item_id,
-        hostel_id,
+        hostel_id, ...(await inventoryScope(hostel_id, transaction)),
         quantity_purchased: parseFloat(quantity),
         quantity_remaining: parseFloat(quantity),
         unit_price: parseFloat(unit_price),
@@ -1926,7 +1929,7 @@ export const createBulkStock = async (req, res) => {
         continue;
       }
 
-      let itemStock = await ItemStock.findOne({ where: { item_id: item.id, hostel_id }, transaction });
+      let itemStock = await ItemStock.findOne({ where: { item_id: item.id, ...(await inventoryScope(hostel_id, transaction))}, transaction });
       if (itemStock) {
         itemStock = await itemStock.update(
           {
@@ -1939,7 +1942,7 @@ export const createBulkStock = async (req, res) => {
         itemStock = await ItemStock.create(
           {
             item_id: item.id,
-            hostel_id,
+            hostel_id, ...(await inventoryScope(hostel_id, transaction)),
             current_stock: quantity,
             minimum_stock: 0,
             last_purchase_date: purchase_date
@@ -1951,7 +1954,7 @@ export const createBulkStock = async (req, res) => {
       await InventoryBatch.create(
         {
           item_id: item.id,
-          hostel_id,
+          hostel_id, ...(await inventoryScope(hostel_id, transaction)),
           quantity_purchased: parseFloat(quantity),
           quantity_remaining: parseFloat(quantity),
           unit_price: parseFloat(unit_price),
@@ -1996,19 +1999,24 @@ export const getItemStock = async (req, res) => {
           it.transaction_date,
           ROW_NUMBER() OVER (PARTITION BY it.item_id ORDER BY it.transaction_date DESC, it.id DESC) as rn
         FROM \`tbl_InventoryTransaction\` AS it
-        WHERE it.transaction_type = 'purchase' AND it.hostel_id = :hostel_id
+        WHERE it.transaction_type = 'purchase' AND it.inventory_id = :inventory_id
+      ),
+      BatchRate AS (
+        SELECT item_id, SUM(quantity_remaining * unit_price) / NULLIF(SUM(quantity_remaining), 0) AS average_unit_price
+        FROM \`tbl_InventoryBatch\`
+        WHERE inventory_id = :inventory_id AND status = 'active' AND quantity_remaining > 0
+        GROUP BY item_id
       ),
       FifoBatch AS (
         SELECT
           ib.item_id,
           ib.unit_price AS fifo_unit_price,
-          ib.quantity_remaining AS fifo_batch_remaining
+          ib.quantity_remaining AS fifo_batch_remaining,
+          ROW_NUMBER() OVER (PARTITION BY ib.item_id ORDER BY ib.purchase_date ASC, ib.id ASC) AS rn
         FROM \`tbl_InventoryBatch\` AS ib
-        WHERE ib.hostel_id = :hostel_id
+        WHERE ib.inventory_id = :inventory_id
           AND ib.status = 'active'
           AND ib.quantity_remaining > 0
-        ORDER BY ib.purchase_date ASC, ib.id ASC
-        LIMIT 1
       )
       SELECT
         stock.*,
@@ -2024,36 +2032,38 @@ export const getItemStock = async (req, res) => {
         store.name as last_bought_store_name,
         lp.store_id as last_bought_store_id,
         fb.fifo_unit_price,
-        fb.fifo_batch_remaining
+        fb.fifo_batch_remaining,
+        br.average_unit_price
       FROM \`tbl_ItemStock\` AS stock
       JOIN \`tbl_Item\` AS item ON item.id = stock.item_id
       LEFT JOIN \`tbl_ItemCategory\` AS category ON category.id = item.category_id
       LEFT JOIN \`tbl_UOM\` as uom ON uom.id = item.unit_id
       LEFT JOIN (SELECT * FROM LastPurchase WHERE rn = 1) AS lp ON lp.item_id = stock.item_id
       LEFT JOIN \`tbl_Store\` AS store ON store.id = lp.store_id
-      LEFT JOIN FifoBatch AS fb ON fb.item_id = stock.item_id -- Join with FIFO batch CTE
-      WHERE stock.hostel_id = :hostel_id
+      LEFT JOIN FifoBatch AS fb ON fb.item_id = stock.item_id AND fb.rn = 1
+      LEFT JOIN BatchRate AS br ON br.item_id = stock.item_id
+      WHERE stock.inventory_id = :inventory_id
       ${low_stock === 'true' ? "AND stock.current_stock <= stock.minimum_stock" : ""}
       ORDER BY item.name ASC;
     `;
     // --- END MODIFIED QUERY ---
 
     const itemStocks = await sequelize.query(query, {
-      replacements: { hostel_id },
+      replacements: { ...(await inventoryScope(hostel_id)) },
       type: sequelize.QueryTypes.SELECT,
       nest: false
     });
 
     // --- MODIFIED DATA MAPPING ---
     const formattedData = itemStocks.map(stock => {
-      // Determine the effective unit price to display in the main stock list
-      // Prioritize FIFO price if available, otherwise use last_bought_unit_price, then item base price
-      const effectiveUnitPrice = stock.fifo_unit_price
-        || stock.last_bought_unit_price
-        || stock['Item.base_unit_price']
-        || 0;
+      // Match the weighted rate used by consumption; preserve legitimate zero-cost stock.
+      const effectiveUnitPrice = stock.average_unit_price
+        ?? stock.last_bought_unit_price
+        ?? stock['Item.base_unit_price']
+        ?? 0;
       return {
         id: stock.id,
+        inventory_id: stock.inventory_id,
         item_id: stock.item_id,
         hostel_id: stock.hostel_id,
         current_stock: parseFloat(stock.current_stock),
@@ -2069,6 +2079,7 @@ export const getItemStock = async (req, res) => {
         fifo_batch_remaining: parseFloat(stock.fifo_batch_remaining || 0), // Quantity in that FIFO batch
         effective_unit_price: parseFloat(effectiveUnitPrice), // The price to show in the main list
         Item: {
+          id: stock.item_id,
           name: stock['Item.name'],
           category_id: stock['Item.category_id'],
           unit_id: stock['Item.unit_id'],
@@ -2173,7 +2184,7 @@ export const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_
 
     // Load all active batches
     const batches = await InventoryBatch.findAll({
-      where: { item_id, hostel_id, status: "active", quantity_remaining: { [Op.gt]: 0 } },
+      where: { item_id, ...(await inventoryScope(hostel_id, transaction)), status: "active", quantity_remaining: { [Op.gt]: 0 } },
       order: [["purchase_date", "ASC"], ["id", "ASC"]],
       transaction,
       lock: transaction.LOCK.UPDATE,
@@ -2225,6 +2236,7 @@ export const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_
 
     const dailyConsumption = await DailyConsumption.create({
       hostel_id,
+      ...(await inventoryScope(hostel_id, transaction)),
       item_id,
       consumption_date: consumption_date || new Date(),
       quantity_consumed: requiredQty,
@@ -2240,9 +2252,9 @@ const month = monthlyMoment.month() + 1;
 const year = monthlyMoment.year();
 
 const [restockPlan, created] = await RestockPlan.findOrCreate({
-  where: { hostel_id, item_id, month, year },
+  where: { ...(await inventoryScope(hostel_id, transaction)), item_id, month, year },
   defaults: {
-    hostel_id,
+    hostel_id, ...(await inventoryScope(hostel_id, transaction)),
     item_id,
     month,
     year,
@@ -2280,7 +2292,7 @@ if (!created) {
 
     // Update ItemStock
     const stock = await ItemStock.findOne({
-      where: { item_id, hostel_id },
+      where: { item_id, ...(await inventoryScope(hostel_id, transaction))},
       transaction,
       lock: transaction.LOCK.UPDATE,
     });
@@ -2318,7 +2330,7 @@ export const getItemFIFOPrice = async (req, res) => {
     const hostel_id = req.user.hostel_id;
 
     const batches = await InventoryBatch.findAll({
-      where: { item_id: id, hostel_id, status: "active", quantity_remaining: { [Op.gt]: 0 } },
+      where: { item_id: id, ...(await inventoryScope(hostel_id)), status: "active", quantity_remaining: { [Op.gt]: 0 } },
       attributes: ["quantity_remaining", "unit_price"],
     });
 
@@ -2356,8 +2368,7 @@ export const getItemBatches = async (req, res) => {
     const batches = await InventoryBatch.findAll({
       where: {
         item_id: id,
-        hostel_id
-      },
+        ...(await inventoryScope(hostel_id))},
       attributes: [
         'id', 'purchase_date', 'unit_price',
         'quantity_purchased', 'quantity_remaining',
@@ -2618,7 +2629,7 @@ for (const [itemId, totalQty] of itemTotals.entries()) {
 
   const stock = await ItemStock.findOne({
     where: {
-      hostel_id,
+      ...(await inventoryScope(hostel_id, transaction)),
       item_id: itemId
     },
     include: [
@@ -2696,6 +2707,16 @@ export const recordInventoryPurchase = async (req, res) => {
 
   const transaction = await sequelize.transaction();
   try {
+    const scope = await inventoryScope(hostel_id, transaction);
+    const orderNotes = req.receivedOrderReference ? `${RECEIVED_ORDER_PREFIX}${req.receivedOrderReference}\nReceipt: ${randomUUID()}` : null;
+    if (orderNotes) {
+      const previous = await InventoryTransaction.findAll({ where: { ...scope, store_id: items[0].store_id,
+        transaction_type: 'purchase', notes: { [Op.like]: `${RECEIVED_ORDER_PREFIX}%` } }, attributes: ['notes'], transaction, lock: transaction.LOCK.UPDATE });
+      if (previous.some(row => parseReceivedOrderNotes(row.notes)?.reference.toLowerCase() === req.receivedOrderReference.toLowerCase())) {
+        await transaction.rollback();
+        return res.status(409).json({ success: false, message: 'This supplier/order reference has already been received. Stock was not added again.' });
+      }
+    }
     const createdBatches = [];
     for (const item of items) {
       console.log(`[API LOOP] --- Processing item_id: ${item.item_id} ---`);
@@ -2703,6 +2724,9 @@ export const recordInventoryPurchase = async (req, res) => {
       // 1. Validate Item Data
       if (!item.item_id || !item.quantity || item.unit_price === undefined || !item.store_id) {
         throw new Error(`Missing required fields in item: ${JSON.stringify(item)}`);
+      }
+      if (!Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0 || !Number.isFinite(Number(item.unit_price)) || Number(item.unit_price) < 0) {
+        throw new Error('Purchase quantities must be positive and prices must be non-negative.');
       }
       console.log('[API LOOP] Step 1: Basic validation passed.');
 
@@ -2744,7 +2768,7 @@ export const recordInventoryPurchase = async (req, res) => {
       // 5. Create Inventory Batch
       console.log('[API LOOP] Step 5: Creating InventoryBatch...');
       const batch = await InventoryBatch.create({
-        item_id: item.item_id, hostel_id,
+        item_id: item.item_id, hostel_id, ...(await inventoryScope(hostel_id, transaction)),
         quantity_purchased: parseFloat(item.quantity), quantity_remaining: parseFloat(item.quantity),
         unit_price: parseFloat(item.unit_price), purchase_date: new Date(), status: 'active',
       }, { transaction });
@@ -2754,22 +2778,22 @@ export const recordInventoryPurchase = async (req, res) => {
       console.log('[API LOOP] Step 6: Creating InventoryTransaction...');
       const unitAbbreviation = uomRecord?.abbreviation || item.unit || 'unit';
       await InventoryTransaction.create({
-        item_id: item.item_id, hostel_id, store_id: item.store_id, transaction_date: batch.purchase_date,
+        item_id: item.item_id, hostel_id, ...(await inventoryScope(hostel_id, transaction)), store_id: item.store_id, transaction_date: batch.purchase_date,
         quantity: batch.quantity_purchased, unit: unitAbbreviation, unit_price: batch.unit_price,
-        transaction_type: 'purchase', recorded_by: user_id,
+        transaction_type: 'purchase', recorded_by: user_id, notes: orderNotes,
       }, { transaction });
       console.log('[API LOOP] Created InventoryTransaction.');
 
       // 7. Update Item Stock
       console.log('[API LOOP] Step 7: Updating ItemStock...');
-      let itemStock = await ItemStock.findOne({ where: { item_id: item.item_id, hostel_id }, transaction });
+      let itemStock = await ItemStock.findOne({ where: { item_id: item.item_id, ...(await inventoryScope(hostel_id, transaction))}, transaction });
       if (itemStock) {
         await itemStock.increment('current_stock', { by: parseFloat(item.quantity), transaction });
         await itemStock.update({ last_purchase_date: new Date() }, { transaction });
         console.log(`[API LOOP] Incremented stock for item ${item.item_id}.`);
       } else {
         await ItemStock.create({
-          item_id: item.item_id, hostel_id, current_stock: parseFloat(item.quantity),
+          item_id: item.item_id, hostel_id, ...(await inventoryScope(hostel_id, transaction)), current_stock: parseFloat(item.quantity),
           minimum_stock: 0, last_purchase_date: new Date(),
         }, { transaction });
         console.log(`[API LOOP] Created new stock record for item ${item.item_id}.`);
@@ -2796,7 +2820,7 @@ export const getInventoryTransactions = async (req, res) => {
     const { transaction_type, item_id, store_id, from_date, to_date } = req.query;
     const hostel_id = req.user.hostel_id;
 
-    let whereClause = { hostel_id };
+    let whereClause = { ...(await inventoryScope(hostel_id)) };
 
     if (transaction_type) {
       whereClause.transaction_type = transaction_type;
@@ -3493,7 +3517,7 @@ export const recordItemReturn = async (req, res) => {
 
       // 1. Find the most recently depleted or active batch for this item/hostel to credit back
       const latestBatch = await InventoryBatch.findOne({
-        where: { item_id, hostel_id, status: { [Op.in]: ['active', 'depleted'] } },
+        where: { item_id, ...(await inventoryScope(hostel_id, transaction)), status: { [Op.in]: ['active', 'depleted'] } },
         order: [['purchase_date', 'DESC'], ['id', 'DESC']],
         transaction,
         lock: transaction.LOCK.UPDATE,
@@ -3508,7 +3532,7 @@ export const recordItemReturn = async (req, res) => {
 
       // 3. Update ItemStock
       const stock = await ItemStock.findOne({
-        where: { item_id, hostel_id },
+        where: { item_id, ...(await inventoryScope(hostel_id, transaction))},
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
@@ -3521,10 +3545,11 @@ export const recordItemReturn = async (req, res) => {
       // 4. Log a negative consumption record (return transaction)
       const returnRecord = await DailyConsumption.create({
         hostel_id,
+        ...(await inventoryScope(hostel_id, transaction)),
         item_id,
         consumption_date: return_date || new Date(),
         quantity_consumed: -qty,           // negative = return
-        unit: payload.unit_id || latestBatch.item_id, // fallback
+        unit: payload.unit_id || (await Item.findByPk(item_id, { transaction }))?.unit_id,
         meal_type: 'snacks',
         recorded_by: user_id,
         total_cost: -(qty * parseFloat(latestBatch.unit_price)),
@@ -4752,11 +4777,11 @@ export const getLatestPurchaseReport = async (req, res) => {
     const { hostel_id } = req.user;
     const { store_id } = req.query;
 
-    const replacements = { hostel_id };
+    const replacements = { ...(await inventoryScope(hostel_id)) };
 
     const whereConditions = [
       `it.transaction_type = 'purchase'`,
-      `it.hostel_id = :hostel_id`
+      `it.inventory_id = :inventory_id`
     ];
 
     if (store_id) {
@@ -4812,10 +4837,13 @@ export const correctLastPurchase = async (req, res) => {
     if (!item_id || new_quantity === undefined || new_unit_price === undefined) {
       throw new Error("Item ID, new quantity, and new unit price are required.");
     }
+    if (!Number.isFinite(Number(new_quantity)) || Number(new_quantity) <= 0 || !Number.isFinite(Number(new_unit_price)) || Number(new_unit_price) < 0) {
+      throw new Error('Corrected quantity must be positive and price must be non-negative.');
+    }
 
     // 1. Find the latest inventory BATCH for this item
     const latestBatch = await InventoryBatch.findOne({
-      where: { item_id, hostel_id },
+      where: { item_id, ...(await inventoryScope(hostel_id, transaction))},
       order: [['purchase_date', 'DESC'], ['id', 'DESC']],
       transaction
     });
@@ -4825,15 +4853,15 @@ export const correctLastPurchase = async (req, res) => {
     }
 
     // 2. IMPORTANT: Check if items from this batch have already been consumed
-    if (latestBatch.quantity_remaining < latestBatch.quantity_purchased) {
-      throw new Error("Cannot correct purchase: Items from this batch have already been consumed. Please handle this as a stock adjustment.");
+    if (Number(latestBatch.quantity_remaining) !== Number(latestBatch.quantity_purchased)) {
+      throw new Error('Cannot correct purchase: this batch has consumption or returns. Use a stock adjustment.');
     }
 
     // 3. Find the corresponding inventory TRANSACTION to correct
     const latestTransaction = await InventoryTransaction.findOne({
       where: {
         item_id,
-        hostel_id,
+        ...(await inventoryScope(hostel_id, transaction)),
         transaction_type: 'purchase',
         // Match the transaction to the batch by date and price (this assumes one purchase per item per day, which is reasonable)
         // A better approach in the future would be to link transaction_id to batch_id
@@ -4866,7 +4894,7 @@ export const correctLastPurchase = async (req, res) => {
     }, { transaction });
 
     // 6. Adjust the main Item Stock total
-    const itemStock = await ItemStock.findOne({ where: { item_id, hostel_id }, transaction });
+    const itemStock = await ItemStock.findOne({ where: { item_id, ...(await inventoryScope(hostel_id, transaction))}, transaction });
     if (itemStock) {
       // Adjust by the difference
       itemStock.current_stock = parseFloat(itemStock.current_stock) + quantity_difference;
@@ -5640,7 +5668,7 @@ export const exportStockToExcel = async (req, res) => {
           SELECT ib.unit_price
           FROM \`tbl_InventoryBatch\` AS ib
           WHERE ib.item_id = \`is\`.item_id -- Reference outer alias with backticks
-            AND ib.hostel_id = \`is\`.hostel_id -- Reference outer alias with backticks
+            AND ib.inventory_id = \`is\`.inventory_id -- Reference outer alias with backticks
             AND ib.status = 'active'
             AND ib.quantity_remaining > 0
           ORDER BY ib.purchase_date ASC, ib.id ASC
@@ -5649,13 +5677,13 @@ export const exportStockToExcel = async (req, res) => {
       FROM \`tbl_ItemStock\` AS \`is\` -- Added backticks around alias 'is'
       JOIN \`tbl_Item\` AS \`i\` ON \`i\`.id = \`is\`.item_id -- Added backticks around alias 'i'
       LEFT JOIN \`tbl_UOM\` AS \`uom\` ON \`uom\`.id = \`i\`.unit_id -- Added backticks around alias 'uom'
-      WHERE \`is\`.hostel_id = :hostel_id -- Reference outer alias with backticks
+      WHERE \`is\`.inventory_id = :inventory_id -- Reference outer alias with backticks
       ORDER BY \`i\`.name ASC; -- Reference outer alias with backticks
     `;
     console.log("[Export] Executing SQL Query:", query);
 
     const stocks = await sequelize.query(query, {
-      replacements: { hostel_id },
+      replacements: { ...(await inventoryScope(hostel_id)) },
       type: sequelize.QueryTypes.SELECT
     });
     console.log(`[Export] Fetched ${stocks.length} stock items.`);
@@ -5951,7 +5979,7 @@ export const exportUnitRateCalculation = async (req, res) => {
                 ELSE 0 
               END AS opening_unit_rate
           FROM \`tbl_InventoryBatch\` AS ib
-          WHERE ib.hostel_id = :hostel_id
+          WHERE ib.inventory_id = :inventory_id
             AND ib.purchase_date <= :previousMonthEnd
             AND ib.status = 'active'
             AND ib.quantity_remaining > 0
@@ -5964,7 +5992,7 @@ export const exportUnitRateCalculation = async (req, res) => {
               SUM(ib.quantity_purchased) AS purchase_qty,
               SUM(ib.quantity_purchased * ib.unit_price) AS purchase_amount
           FROM \`tbl_InventoryBatch\` AS ib
-          WHERE ib.hostel_id = :hostel_id
+          WHERE ib.inventory_id = :inventory_id
             AND ib.purchase_date BETWEEN :startOfMonth AND :endOfMonth
             AND ib.quantity_purchased > 0 -- Only consider actual purchases
           GROUP BY ib.item_id
@@ -5978,10 +6006,10 @@ export const exportUnitRateCalculation = async (req, res) => {
           INNER JOIN (
               SELECT item_id, MAX(purchase_date) max_date
               FROM \`tbl_InventoryBatch\`
-              WHERE hostel_id = :hostel_id
+              WHERE inventory_id = :inventory_id
               GROUP BY item_id
           ) latest ON ib.item_id = latest.item_id AND ib.purchase_date = latest.max_date
-          WHERE ib.hostel_id = :hostel_id
+          WHERE ib.inventory_id = :inventory_id
       )
       -- Main SELECT to bring it all together for each item
       SELECT
@@ -6010,7 +6038,7 @@ export const exportUnitRateCalculation = async (req, res) => {
     `;
 
     const reportData = await sequelize.query(mainReportQuery, {
-      replacements: { hostel_id, startOfMonth, endOfMonth, previousMonthEnd },
+      replacements: { ...(await inventoryScope(hostel_id)), startOfMonth, endOfMonth, previousMonthEnd },
       type: sequelize.QueryTypes.SELECT,
     });
     console.log(`[UnitRateExport] Fetched ${reportData.length} aggregated item data rows.`);
@@ -6842,7 +6870,7 @@ export const getPurchaseOrders = async (req, res) => {
 
     const plans = await RestockPlan.findAll({
       where: {
-        hostel_id,
+        ...(await inventoryScope(hostel_id)),
         month: monthVal,
         year: yearVal,
         ...(includeCleared === 'true' ? {} : { is_cleared: false })
@@ -6858,7 +6886,7 @@ export const getPurchaseOrders = async (req, res) => {
 
     const itemIds = plans.map(p => p.item_id);
     const stockRows = await ItemStock.findAll({
-      where: { hostel_id, item_id: { [Op.in]: itemIds } }
+      where: { ...(await inventoryScope(hostel_id)), item_id: { [Op.in]: itemIds } }
     });
     const stockMap = new Map(stockRows.map(row => [row.item_id, parseFloat(row.current_stock)]));
 
@@ -6908,7 +6936,7 @@ export const clearPurchaseOrders = async (req, res) => {
 
     await RestockPlan.update(
       { is_cleared: true, cleared_at: new Date() },
-      { where: { id: { [Op.in]: ids }, hostel_id: req.user.hostel_id }, transaction }
+      { where: { id: { [Op.in]: ids }, ...(await inventoryScope(req.user.hostel_id, transaction))}, transaction }
     );
 
     await transaction.commit();

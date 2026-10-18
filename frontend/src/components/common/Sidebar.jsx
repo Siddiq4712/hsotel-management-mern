@@ -16,8 +16,7 @@ const MENU_STRUCTURE = {
     {
       title: 'Hostel Management',
       items: [
-        //{ id: 'hostels', label: 'Manage Hostels', icon: Building },
-        { id: 'create-hostel', label: 'Create Hostel', icon: Building },
+        { id: 'hostels', label: 'Manage Hostels', icon: Building },
 
         // ✅ UPDATED: Single room management entry
         { id: 'room-management', label: 'Manage Rooms', icon: Bed },
@@ -48,6 +47,7 @@ const MENU_STRUCTURE = {
         { id: 'income-types', label: 'Income Types', icon: DollarSign },
         { id: 'expense-types', label: 'Expense Types', icon: CreditCard },
         { id: 'consumption', label: 'Record Special Consumption', icon: ClipboardCheck },
+        { id: 'manage-inventories', label: 'Manage Inventories', icon: Database },
       ]
     },
     {
@@ -145,11 +145,10 @@ const MENU_STRUCTURE = {
     {
       title: 'Inventory & Stock',
       items: [
+        { id: 'manage-inventories', label: 'Manage Inventories', icon: Database, adminOnly: true },
         { id: 'single-page-daily-entry', label: 'Single-Page Meal Entry', icon: Zap },
-        { id: 'items', label: 'Manage Items', icon: Coffee },
+        { id: 'inventory', label: 'Inventory Management', icon: Package },
         { id: 'uoms', label: 'Units of Measure', icon: Settings },
-        { id: 'stock', label: 'Stock Management', icon: Database },
-        { id: 'inventory', label: 'Inventory Logs', icon: Package },
         { id: 'record-consumption', label: 'Record Consumption', icon: Clipboard },
       ]
     },
@@ -210,9 +209,9 @@ const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen, isCollapsed, 
     const query = searchQuery.trim().toLowerCase();
     return (MENU_STRUCTURE[role] || []).map(section => ({
       ...section,
-      items: section.items.filter(item => !query || item.label.toLowerCase().includes(query)),
+      items: section.items.filter(item => (!item.adminOnly || user?.role === 'admin') && (!query || item.label.toLowerCase().includes(query))),
     })).filter(section => section.items.length);
-  }, [role, searchQuery]);
+  }, [role, searchQuery, user?.role]);
 
   const items = filteredMenu.map(section => ({
     key: section.title, type: 'group', label: section.title,
@@ -238,7 +237,7 @@ const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen, isCollapsed, 
       <Input allowClear prefix={<Search size={16} />} placeholder="Find a page…" aria-label="Search navigation" value={searchQuery} onChange={event => setSearchQuery(event.target.value)} />
     </div>}
     <nav aria-label={mobile ? 'Mobile workspace navigation' : 'Workspace navigation'} className="workspace-nav-scroll">
-      {items.length ? <Menu theme="light" mode="inline" inlineCollapsed={collapsed} selectedKeys={[currentView]} items={items} onClick={selectItem} /> :
+      {items.length ? <Menu theme="light" mode="inline" inlineCollapsed={collapsed} selectedKeys={[currentView === 'create-hostel' ? 'hostels' : ['items', 'stock', 'inventory-transactions'].includes(currentView) ? 'inventory' : currentView]} items={items} onClick={selectItem} /> :
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No matching pages" />}
     </nav>
     <div className="workspace-sidebar-footer">

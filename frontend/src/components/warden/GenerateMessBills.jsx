@@ -1,6 +1,7 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Form, DatePicker, InputNumber, Button, message, Table, Tag, Space, 
+import {
+  Card, Form, InputNumber, Button, message, Table, Tag, Space,
   Statistic, Row, Col, Typography, Divider
 } from 'antd';
 import { wardenAPI } from '../../services/api';

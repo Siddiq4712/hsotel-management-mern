@@ -1,21 +1,14 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Table, Button, Space, Tag, Modal, Form,
-  Input, Select, InputNumber, Typography, Row, Col, 
-  ConfigProvider, theme, Skeleton, Divider, message
+  Input, Select, Row, Col,
+  ConfigProvider, message, Segmented
 } from 'antd';
-import {
-  Package, Tags, Plus, Search, Edit2, 
-  Database, Boxes, Info, CheckCircle2, X, RefreshCw, 
-  Layers, AlertTriangle, Calculator, DollarSign, UploadCloud, Download
-} from 'lucide-react';
+import { Package, Tags, Plus, Search, Edit2, RefreshCw, UploadCloud, Download } from 'lucide-react';
 import { messAPI } from '../../services/api';
-import moment from 'moment';
+import InventoryPageHeader, { inventoryTheme } from './InventoryPageHeader';
 import * as XLSX from 'xlsx';
 import { downloadItemBulkImportTemplate, validateItemExcelImportHeaders, mapExcelRowToItem } from '../../utils/bulkImportUtils';
-
-const { Option } = Select;
-const { Title, Text } = Typography;
 
 /* ─── Design Tokens (Synced with Enhanced Styles) ────────────────── */
 const T = {
@@ -40,11 +33,7 @@ const T = {
 const StatCard = ({ label, value, icon: Icon, accent, variant }) => {
   const isDanger = variant === "danger";
   return (
-    <div style={{
-      background: T.surface, border: `1px solid ${T.border}`,
-      borderRadius: T.radius, padding: '20px 24px',
-      display: 'flex', alignItems: 'center', gap: 16, boxShadow: T.shadow,
-    }}>
+    <div className="inventory-stat">
       <div style={{
         width: 44, height: 44, borderRadius: 10,
         background: isDanger ? T.dangerBg : (accent ? T.accentBg : T.bg),
@@ -54,7 +43,7 @@ const StatCard = ({ label, value, icon: Icon, accent, variant }) => {
       </div>
       <div>
         <div style={{ fontSize: 22, fontWeight: 700, color: T.ink, lineHeight: 1.2 }}>{value}</div>
-        <div style={{ fontSize: 12, color: T.inkSoft, marginTop: 2, fontWeight: 600 }}>{label.toUpperCase()}</div>
+        <div className="inventory-stat-label">{label}</div>
       </div>
     </div>
   );
@@ -66,34 +55,6 @@ const FieldLabel = ({ children }) => (
   </div>
 );
 
-const ActionBtn = ({ icon, children, onClick, variant }) => {
-  const styles = {
-    primary: { bg: T.accent, color: '#fff', border: 'transparent', hover: '#1447BD' },
-    danger:  { bg: T.dangerBg, color: T.danger, border: 'transparent', hover: '#FEE2E2' },
-    default: { bg: T.surface, color: T.inkMid, border: T.border, hover: T.bg },
-  };
-  const s = styles[variant] || styles.default;
-
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5,
-        padding: children ? '6px 12px' : '7px',
-        borderRadius: 8, border: `1px solid ${s.border}`,
-        background: s.bg, color: s.color,
-        fontSize: 12, fontWeight: 600, cursor: 'pointer',
-        transition: 'all 0.15s',
-      }}
-      onMouseEnter={e => e.currentTarget.style.background = s.hover}
-      onMouseLeave={e => e.currentTarget.style.background = s.bg}
-    >
-      {icon}{children}
-    </button>
-  );
-};
-
-/* ─── Main Component ─────────────────────────────────────────────── */
 const ItemManagement = () => {
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -221,19 +182,17 @@ const ItemManagement = () => {
     await handleItemImportFile(file);
   };
 
-  const stats = useMemo(() => {
-    const lowStock = items.filter(i => parseFloat(i.stock_quantity || 0) < 10).length;
-    const inventoryValue = items.reduce((acc, curr) => acc + (parseFloat(curr.stock_quantity || 0) * parseFloat(curr.unit_price || 0)), 0);
-    return { lowStock, inventoryValue };
-  }, [items]);
-
   const handleSaveItem = async (values) => {
     try {
       if (editingItem) {
-        await messAPI.updateItem(editingItem.id, values);
+        await messAPI.updateItem(editingItem.id, {
+          ...values,
+          unit_price: editingItem.unit_price ?? 0,
+          maximum_quantity: editingItem.maximum_quantity ?? null,
+        });
         message.success('Item updated');
       } else {
-        await messAPI.createItem(values);
+        await messAPI.createItem({ ...values, unit_price: 0 });
         message.success('New item added');
       }
       setModalVisible(false);
@@ -243,159 +202,97 @@ const ItemManagement = () => {
 
   const itemColumns = [
     { 
-      title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>MATERIAL NAME</span>,
+      title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>Item</span>,
       dataIndex: 'name',
       render: (t) => <span style={{ fontWeight: 600, color: T.ink }}>{t}</span>
     },
     { 
-      title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>CATEGORY</span>,
+      title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>Category</span>,
       dataIndex: ['tbl_ItemCategory', 'name'], 
       render: t => <Tag bordered={false} style={{ background: T.accentBg, color: T.accent, fontWeight: 600, borderRadius: 6 }}>{t || 'General'}</Tag> 
     },
-    { 
-      title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>STOCK LEVEL</span>,
-      key: 'stock', 
-      render: (_, r) => {
-        const qty = parseFloat(r.stock_quantity || 0);
-        const isLow = qty < 10;
-        return (
-          <div>
-            <div style={{ fontWeight: 700, color: isLow ? T.danger : T.success, fontSize: 15 }}>
-              {qty.toFixed(2)}
-              <span style={{ fontSize: 11, color: T.inkSoft, marginLeft: 4, fontWeight: 500 }}>{r.UOM?.abbreviation}</span>
-            </div>
-            {isLow && <div style={{ fontSize: 10, color: T.danger, fontWeight: 600 }}>LOW STOCK</div>}
-          </div>
-        );
-      }
-    },
-    { 
-      title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>UNIT PRICE</span>,
-      dataIndex: 'unit_price', 
-      render: p => <span style={{ fontFamily: 'DM Mono', fontWeight: 600 }}>₹{parseFloat(p || 0).toFixed(2)}</span> 
+    {
+      title: 'Unit',
+      dataIndex: ['UOM', 'abbreviation'],
+      render: (unit, item) => unit || item.UOM?.name || '-',
     },
     {
-      title: '',
+      title: 'Description',
+      dataIndex: 'description',
+      render: description => description || '-',
+    },
+    {
+      title: 'Actions',
       align: 'right',
       render: (_, record) => (
         <Space>
-          <ActionBtn icon={<Edit2 size={13}/>} onClick={() => { setEditingItem(record); form.setFieldsValue(record); setModalVisible(true); }}>Edit</ActionBtn>
+          <Button icon={<Edit2 size={13}/>} onClick={() => { setEditingItem(record); form.setFieldsValue(record); setModalVisible(true); }}>Edit</Button>
         </Space>
       ),
     },
   ];
 
   const categoryColumns = [
-    { title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>CATEGORY NAME</span>, dataIndex: 'name', render: t => <span style={{ fontWeight: 600 }}>{t}</span> },
-    { title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>DESCRIPTION</span>, dataIndex: 'description', render: d => <span style={{ color: T.inkSoft }}>{d || '-'}</span> },
+    { title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>Category</span>, dataIndex: 'name', render: t => <span style={{ fontWeight: 600 }}>{t}</span> },
+    { title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>Description</span>, dataIndex: 'description', render: d => <span style={{ color: T.inkSoft }}>{d || '-'}</span> },
     {
         title: '',
         align: 'right',
         render: (_, record) => (
           <Space>
-            <ActionBtn icon={<Edit2 size={13}/>} onClick={() => { setEditingCategory(record); categoryForm.setFieldsValue(record); setCategoryModalVisible(true); }}>Edit</ActionBtn>
+            <Button icon={<Edit2 size={13}/>} onClick={() => { setEditingCategory(record); categoryForm.setFieldsValue(record); setCategoryModalVisible(true); }}>Edit</Button>
           </Space>
         ),
       },
   ];
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: T.accent, borderRadius: 12 } }}>
-      <style>{`
-        .pm-table .ant-table-thead > tr > th { background: #F7F8FA !important; border-bottom: 1px solid ${T.border} !important; padding: 12px 16px !important; }
-        .pm-table .ant-table-tbody > tr > td { padding: 14px 16px !important; border-bottom: 1px solid ${T.border} !important; }
-        .pm-form-input .ant-input, .pm-form-input .ant-select-selector, .pm-form-input .ant-input-number { border-radius: 12px !important; }
-        .pm-modal .ant-modal-content { border-radius: 24px; overflow: hidden; }
-      `}</style>
-
+    <ConfigProvider theme={inventoryTheme}>
       <div className="module-page">
         
         {/* Page Header */}
-        <div className="module-page-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Database size={20} color={T.accent} />
-            </div>
-            <div>
-              <h1 className="module-title">Inventory Master</h1>
-              <div className="module-subtitle">Real-time stock tracking and raw material control</div>
-            </div>
-          </div>
-          <Space>
+        <InventoryPageHeader title="Items" description="Manage shared item names, categories, and units.">
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleItemImportChange} />
-            <ActionBtn icon={<UploadCloud size={14}/>} onClick={triggerItemImport} variant="default">
+            <Button icon={<UploadCloud size={16}/>} onClick={triggerItemImport} loading={importingItems}>
               {importingItems ? 'Importing...' : 'Import Excel'}
-            </ActionBtn>
-            <ActionBtn icon={<Download size={14}/>} onClick={() => downloadItemBulkImportTemplate()} variant="default">
+            </Button>
+            <Button icon={<Download size={16}/>} onClick={() => downloadItemBulkImportTemplate()}>
               Download Template
-            </ActionBtn>
-            <ActionBtn icon={<RefreshCw size={14}/>} onClick={fetchData}>Sync Stock</ActionBtn>
-            <button
+            </Button>
+            <Button icon={<RefreshCw size={16}/>} onClick={fetchData}>Refresh</Button>
+            <Button type="primary" icon={<Plus size={16} />}
               onClick={() => activeTab === 'items' ? (() => { setEditingItem(null); form.resetFields(); setModalVisible(true); })() : (() => { setEditingCategory(null); categoryForm.resetFields(); setCategoryModalVisible(true); })()}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8, background: T.accent, color: '#fff', border: 'none',
-                borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                boxShadow: `0 2px 8px rgba(26,86,219,0.3)`,
-              }}
             >
-              <Plus size={16} /> {activeTab === 'items' ? 'Add Material' : 'New Category'}
-            </button>
-          </Space>
-        </div>
+              {activeTab === 'items' ? 'Add Item' : 'New Category'}
+            </Button>
+        </InventoryPageHeader>
 
         <div className="space-y-6">
           
           {/* Stats Row */}
-          <div className="module-stat-grid">
-            <StatCard label="Total Materials" value={items.length} icon={Package} accent />
-            <StatCard label="Low Stock Items" value={stats.lowStock} icon={AlertTriangle} variant={stats.lowStock > 0 ? "danger" : "default"} />
+          <div className="module-stat-grid inventory-master-stats">
+            <StatCard label="Total Items" value={items.length} icon={Package} accent />
             <StatCard label="Categories" value={categories.length} icon={Tags} />
-            <StatCard label="Est. Stock Value" value={`₹${stats.inventoryValue.toLocaleString('en-IN', {maximumFractionDigits: 0})}`} icon={DollarSign} />
           </div>
 
           {/* Tab Switcher & Filter */}
-          <div style={{
-            background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius,
-            padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            marginBottom: 16, boxShadow: T.shadow
-          }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {['items', 'categories'].map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  style={{
-                    padding: '6px 16px', borderRadius: 8, border: 'none',
-                    background: activeTab === tab ? T.accentBg : 'transparent',
-                    color: activeTab === tab ? T.accent : T.inkMid,
-                    fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.1s'
-                  }}
-                >
-                  {tab === 'items' ? 'Items Master' : 'Material Categories'}
-                </button>
-              ))}
-            </div>
-            
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: '7px 12px', width: 280 }}>
-              <Search size={14} color={T.inkSoft} />
-              <input
-                placeholder="Search inventory..."
-                value={searchText}
-                onChange={e => setSearchText(e.target.value)}
-                style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: T.ink, width: '100%' }}
-              />
-            </div>
+          <div className="inventory-panel inventory-toolbar">
+            <Segmented value={activeTab} onChange={setActiveTab} options={[
+              { label: 'Items', value: 'items' }, { label: 'Categories', value: 'categories' },
+            ]} />
+            <Input className="inventory-search" prefix={<Search size={16} />} placeholder="Search items or categories..."
+              value={searchText} onChange={e => setSearchText(e.target.value)} allowClear />
           </div>
 
           {/* Table Container */}
-          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: 'hidden', boxShadow: T.shadow }}>
+          <div className="inventory-panel inventory-table">
             <Table
-              className="pm-table"
               columns={activeTab === 'items' ? itemColumns : categoryColumns}
               dataSource={(activeTab === 'items' ? items : categories).filter(i => i.name.toLowerCase().includes(searchText.toLowerCase()))}
               rowKey="id"
               loading={loading}
-              pagination={{ pageSize: 10, size: 'small' }}
+              pagination={{ defaultPageSize: 10, showSizeChanger: true }}
+              scroll={{ x: 760 }}
             />
           </div>
         </div>
@@ -408,7 +305,7 @@ const ItemManagement = () => {
               <div style={{ width: 32, height: 32, borderRadius: 8, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Plus size={15} color={T.accent} />
               </div>
-              <span style={{ fontSize: 15, fontWeight: 700 }}>{editingItem ? 'Update Material' : 'Add New Material'}</span>
+              <span style={{ fontSize: 15, fontWeight: 700 }}>{editingItem ? 'Edit Item' : 'Add Item'}</span>
             </div>
           }
           open={modalVisible}
@@ -417,7 +314,7 @@ const ItemManagement = () => {
           width={500}
         >
           <Form form={form} layout="vertical" onFinish={handleSaveItem} className="pm-form-input" style={{ marginTop: 12 }}>
-            <Form.Item name="name" label={<FieldLabel>Material Name</FieldLabel>} rules={[{ required: true }]}>
+            <Form.Item name="name" label={<FieldLabel>Item Name</FieldLabel>} rules={[{ required: true }]}>
               <Input placeholder="e.g., Basmati Rice" />
             </Form.Item>
             <Row gutter={12}>
@@ -432,10 +329,7 @@ const ItemManagement = () => {
                 </Form.Item>
               </Col>
             </Row>
-            <Form.Item name="unit_price" label={<FieldLabel>Avg. Purchase Price (₹)</FieldLabel>} rules={[{ required: true }]}>
-              <InputNumber style={{ width: '100%' }} precision={2} />
-            </Form.Item>
-            <Form.Item name="description" label={<FieldLabel>Internal Notes</FieldLabel>}>
+            <Form.Item name="description" label={<FieldLabel>Description</FieldLabel>}>
               <Input.TextArea rows={3} placeholder="Storage requirements or instructions..." />
             </Form.Item>
           </Form>

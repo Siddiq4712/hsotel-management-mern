@@ -1,301 +1,201 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Card, Form, Button, Input, Select, DatePicker, Table, 
-  Typography, Space, Modal, Row, Col, Tag, Popconfirm, 
-  Divider, Skeleton, ConfigProvider, theme, List, message,InputNumber
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import {
+  Alert, Button, Card, Col, Form, Input, InputNumber, List, Modal,
+  Popconfirm, Row, Select, Space, Table, Tag, Typography, message,
 } from 'antd';
-import { 
-  CreditCard, Plus, Edit3, Trash2, Search, 
-  LayoutGrid, RefreshCw, X, AlertCircle, CheckCircle2
-} from 'lucide-react';
-import { messAPI } from '../../services/api';
+import { CreditCard, Edit3, Filter, LayoutGrid, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import moment from 'moment';
+import { DatePicker } from '../common/MomentPickers';
+import { messAPI } from '../../services/api';
+import './MessExpenses.css';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
+const money = value => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(value) || 0);
+const emptyFilters = () => ({ search: '', category: undefined, range: null, hostel: undefined });
 
-// --- Specialized Skeleton for Expenses ---
-const ExpenseSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
-    <div className="space-y-6">
-      <div className="flex justify-between">
-        <Skeleton.Input active style={{ width: 250 }} />
-        <Skeleton.Button active style={{ width: 120 }} />
-      </div>
-      {[...Array(5)].map((_, i) => (
-        <div key={i} className="flex gap-4 items-center border-b border-slate-50 pb-6">
-          <Skeleton.Avatar active shape="square" size="large" />
-          <div className="flex-1">
-            <Skeleton active title={{ width: '40%' }} paragraph={{ rows: 1, width: '20%' }} />
-          </div>
-          <Skeleton.Button active style={{ width: 80 }} />
-        </div>
-      ))}
-    </div>
-  </Card>
-);
-
-const MessExpenses = () => {
+export default function MessExpenses() {
   const [form] = Form.useForm();
   const [typeForm] = Form.useForm();
-  
-  // --- States ---
   const [dailyExpenses, setDailyExpenses] = useState([]);
   const [expenseTypes, setExpenseTypes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [showTypeModal, setShowTypeModal] = useState(false);
   const [editingType, setEditingType] = useState(null);
+  const [typeSubmitting, setTypeSubmitting] = useState(false);
+  const [filters, setFilters] = useState(emptyFilters);
+  const [sort, setSort] = useState({ field: 'expense_date', order: 'descend' });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const request = useRef(0);
+  const formSection = useRef(null);
 
-  // --- Fetch Data ---
   const fetchData = useCallback(async () => {
-    setLoading(true);
+    const sequence = ++request.current;
+    setLoading(true); setLoadError('');
     try {
-      const [typesRes, expensesRes] = await Promise.all([
-        messAPI.getExpenseTypes(),
-        messAPI.getMessDailyExpenses()
-      ]);
+      const [typesRes, expensesRes] = await Promise.all([messAPI.getExpenseTypes(), messAPI.getMessDailyExpenses()]);
+      if (sequence !== request.current) return;
       setExpenseTypes(typesRes.data.data || []);
       setDailyExpenses(expensesRes.data.data || []);
-    } finally {
-      setTimeout(() => setLoading(false), 1000);
-    }
+    } catch (error) {
+      if (sequence === request.current) setLoadError(error.response?.data?.message || 'Unable to load expenses. Please refresh and try again.');
+    } finally { if (sequence === request.current) setLoading(false); }
   }, []);
+  useEffect(() => { fetchData(); return () => { request.current += 1; }; }, [fetchData]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  // --- Daily Expense Handlers ---
-  const handleDailySubmit = async (values) => {
+  const resetEntry = () => {
+    form.resetFields(); form.setFieldsValue({ expense_date: moment() }); setEditingId(null);
+  };
+  const handleDailySubmit = async values => {
     setSubmitting(true);
     try {
-      const payload = {
-        ...values,
-        expense_date: values.expense_date.format('YYYY-MM-DD')
-      };
-      if (editingId) {
-        await messAPI.updateMessDailyExpense(editingId, payload);
-        message.success('Expense updated successfully');
-      } else {
-        await messAPI.createMessDailyExpense(payload);
-        message.success('Expense added successfully');
-      }
-      form.resetFields();
-      setEditingId(null);
-      fetchData();
-    } finally {
-      setSubmitting(false);
-    }
+      const payload = { ...values, expense_date: values.expense_date.format('YYYY-MM-DD') };
+      if (editingId) await messAPI.updateMessDailyExpense(editingId, payload);
+      else await messAPI.createMessDailyExpense(payload);
+      message.success(editingId ? 'Expense updated successfully' : 'Expense added successfully');
+      resetEntry(); await fetchData();
+    } catch (error) { message.error(error.response?.data?.message || 'Unable to save this expense. Please try again.'); }
+    finally { setSubmitting(false); }
   };
-
-  const handleEditExpense = (record) => {
+  const handleEditExpense = record => {
     setEditingId(record.id);
-    form.setFieldsValue({
-      ...record,
-      expense_date: moment(record.expense_date)
-    });
+    form.setFieldsValue({ expense_type_id: record.expense_type_id, amount: Number(record.amount),
+      expense_date: moment(record.expense_date), description: record.description || '' });
+    formSection.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
   };
-
-  // --- Expense Type Handlers ---
-  const handleTypeSubmit = async (values) => {
+  const deleteExpense = async record => {
+    setDeletingId(record.id);
     try {
-      if (editingType) {
-        await messAPI.updateExpenseType(editingType.id, values);
-        message.success('Category updated');
-      } else {
-        await messAPI.createExpenseType(values);
-        message.success('Category created');
-      }
-      typeForm.resetFields();
-      setEditingType(null);
-      setShowTypeModal(false);
-      fetchData();
-    } catch (err) {
-      message.error(err.response?.data?.message || 'Action failed');
-    }
+      await messAPI.deleteMessDailyExpense(record.id);
+      if (editingId === record.id) resetEntry();
+      message.success('Expense deleted'); await fetchData();
+    } catch (error) { message.error(error.response?.data?.message || 'Unable to delete this expense.'); throw error; }
+    finally { setDeletingId(null); }
+  };
+  const closeTypes = () => { setShowTypeModal(false); setEditingType(null); typeForm.resetFields(); };
+  const handleTypeSubmit = async values => {
+    setTypeSubmitting(true);
+    try {
+      if (editingType) await messAPI.updateExpenseType(editingType.id, values);
+      else await messAPI.createExpenseType(values);
+      message.success(editingType ? 'Category updated' : 'Category created');
+      closeTypes(); await fetchData();
+    } catch (error) { message.error(error.response?.data?.message || 'Unable to save category.'); }
+    finally { setTypeSubmitting(false); }
+  };
+  const deleteType = async id => {
+    try {
+      await messAPI.deleteExpenseType(id);
+      if (editingType?.id === id) { setEditingType(null); typeForm.resetFields(); }
+      message.success('Category deleted'); await fetchData();
+    } catch (error) { message.error(error.response?.data?.message || 'Unable to delete category.'); throw error; }
   };
 
-  const columns = [
-    {
-      title: 'Date & Category',
-      key: 'info',
-      render: (_, r) => (
-        <Space direction="vertical" size={0}>
-          <Text strong className="text-slate-700">{moment(r.expense_date).format('DD MMM YYYY')}</Text>
-          <Tag color="blue" className="rounded-full px-3 py-0 border-none text-[10px] font-bold uppercase tracking-wider">
-            {r.ExpenseType?.name || 'General'}
-          </Tag>
-        </Space>
-      )
-    },
-    {
-      title: 'Amount',
-      dataIndex: 'amount',
-      render: (val) => <Text className="text-blue-600 font-bold">₹{parseFloat(val).toFixed(2)}</Text>,
-      sorter: (a, b) => a.amount - b.amount
-    },
-    {
-      title: 'Description',
-      dataIndex: 'description',
-      ellipsis: true,
-      render: (text) => <Text className="text-slate-500 italic text-xs">{text || '—'}</Text>
-    },
-    {
-      title: 'Actions',
-      align: 'right',
-      render: (_, r) => (
-        <Space>
-          <Button icon={<Edit3 size={14}/>} onClick={() => handleEditExpense(r)} className="rounded-lg h-8" />
-          <Popconfirm title="Delete this record?" onConfirm={() => messAPI.deleteMessDailyExpense(r.id).then(fetchData)}>
-            <Button danger icon={<Trash2 size={14}/>} className="rounded-lg h-8" />
-          </Popconfirm>
-        </Space>
-      )
+  const hostelOptions = useMemo(() => [...new Map(dailyExpenses.filter(row => row.hostel_name)
+    .map(row => [row.hostel_id, { value: row.hostel_id, label: row.hostel_name }])).values()], [dailyExpenses]);
+  const filteredExpenses = useMemo(() => dailyExpenses.filter(row => {
+    const query = filters.search.trim().toLowerCase();
+    const searchable = [row.description, row.ExpenseType?.name, row.hostel_name, row.RecordedBy?.userName,
+      row.amount, moment(row.expense_date).format('DD MMM YYYY')].join(' ').toLowerCase();
+    if (query && !searchable.includes(query)) return false;
+    if (filters.category !== undefined && String(row.expense_type_id) !== String(filters.category)) return false;
+    if (filters.hostel !== undefined && String(row.hostel_id) !== String(filters.hostel)) return false;
+    if (filters.range?.[0] && filters.range?.[1]) {
+      const date = moment(row.expense_date).format('YYYY-MM-DD');
+      if (date < filters.range[0].format('YYYY-MM-DD') || date > filters.range[1].format('YYYY-MM-DD')) return false;
     }
+    return true;
+  }), [dailyExpenses, filters]);
+  const total = filteredExpenses.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const updateFilter = (key, value) => { setFilters(current => ({ ...current, [key]: value })); setPage(1); };
+  const clearFilters = () => { setFilters(emptyFilters()); setSort({ field: 'expense_date', order: 'descend' }); setPage(1); };
+  const sorted = key => sort.field === key ? sort.order : null;
+  const categoryOptions = expenseTypes.map(type => ({ value: type.id, label: type.name }));
+  const columns = [
+    { title: 'Date', key: 'expense_date', dataIndex: 'expense_date', width: 145,
+      render: date => moment(date).format('DD MMM YYYY'), sorter: (a, b) => moment(a.expense_date).valueOf() - moment(b.expense_date).valueOf(), sortOrder: sorted('expense_date') },
+    { title: 'Category', key: 'category', width: 160, render: (_, row) => <Tag color="blue">{row.ExpenseType?.name || 'General'}</Tag>,
+      sorter: (a, b) => (a.ExpenseType?.name || '').localeCompare(b.ExpenseType?.name || ''), sortOrder: sorted('category') },
+    ...(hostelOptions.length ? [{ title: 'Hostel', key: 'hostel', dataIndex: 'hostel_name', width: 170,
+      sorter: (a, b) => (a.hostel_name || '').localeCompare(b.hostel_name || ''), sortOrder: sorted('hostel') }] : []),
+    { title: 'Notes', key: 'description', dataIndex: 'description', render: text => <span className="expense-notes">{text || '—'}</span>,
+      sorter: (a, b) => (a.description || '').localeCompare(b.description || ''), sortOrder: sorted('description') },
+    { title: 'Amount', key: 'amount', dataIndex: 'amount', width: 150, align: 'right', render: value => <span className="expense-amount">{money(value)}</span>,
+      sorter: (a, b) => Number(a.amount) - Number(b.amount), sortOrder: sorted('amount') },
+    { title: 'Recorded by', key: 'recorded_by', width: 150, render: (_, row) => row.RecordedBy?.userName || '—' },
+    { title: 'Actions', key: 'actions', width: 110, align: 'right', render: (_, row) => <Space size={4}>
+      <Button type="text" aria-label={`Edit expense ${row.id}`} title="Edit expense" icon={<Edit3 size={16} />}
+        disabled={submitting || Boolean(deletingId)} onClick={() => handleEditExpense(row)} />
+      <Popconfirm title="Delete this expense?" description="This entry will be removed from daily expenses." okText="Delete" okButtonProps={{ danger: true }} onConfirm={() => deleteExpense(row)}>
+        <Button type="text" danger aria-label={`Delete expense ${row.id}`} title="Delete expense" icon={<Trash2 size={16} />} loading={deletingId === row.id} disabled={submitting || Boolean(deletingId)} />
+      </Popconfirm>
+    </Space> },
   ];
 
-  return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="module-page p-8 bg-slate-50 min-h-screen">
-        
-        {/* Header */}
-        <div className="module-page-header flex justify-between items-center mb-8">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
-              <CreditCard className="text-white" size={24} />
-            </div>
-            <div>
-              <Title level={2} style={{ margin: 0 }}>Mess Operations</Title>
-              <Text type="secondary">Track miscellaneous expenses and financial overheads</Text>
-            </div>
-          </div>
-          <Button 
-            type="primary" 
-            icon={<LayoutGrid size={18}/>} 
-            onClick={() => setShowTypeModal(true)}
-            className="rounded-xl h-12 shadow-lg shadow-blue-100 font-semibold"
-          >
-            Manage Categories
-          </Button>
-        </div>
-
-        <Row gutter={24}>
-          {/* Left Column: Form */}
-          <Col lg={8} xs={24}>
-            <Card className="border-none shadow-sm rounded-[32px] sticky top-8">
-              <div className="flex justify-between items-center mb-6">
-                <Title level={4} style={{ margin: 0 }}>
-                  {editingId ? 'Edit Expense' : 'New Expense'}
-                </Title>
-                {editingId && <Button type="text" danger icon={<X size={16}/>} onClick={() => { setEditingId(null); form.resetFields(); }} />}
-              </div>
-
-              <Form form={form} layout="vertical" onFinish={handleDailySubmit} initialValues={{ expense_date: moment() }}>
-                <Form.Item name="expense_type_id" label="Category" rules={[{ required: true }]}>
-                  <Select placeholder="Select type" className="h-11">
-                    {expenseTypes.map(t => <Select.Option key={t.id} value={t.id}>{t.name}</Select.Option>)}
-                  </Select>
-                </Form.Item>
-
-                <Form.Item name="amount" label="Amount (₹)" rules={[{ required: true }]}>
-                  <InputNumber className="w-full h-11 flex items-center rounded-xl" prefix="₹" precision={2} />
-                </Form.Item>
-
-                <Form.Item name="expense_date" label="Date" rules={[{ required: true }]}>
-                  <DatePicker className="w-full h-11 rounded-xl" />
-                </Form.Item>
-
-                <Form.Item name="description" label="Notes">
-                  <Input.TextArea rows={3} placeholder="Provide details..." className="rounded-xl" />
-                </Form.Item>
-
-                <Button 
-                  type="primary" 
-                  htmlType="submit" 
-                  block 
-                  size="large" 
-                  loading={submitting}
-                  icon={<Plus size={18} />}
-                  className="h-14 rounded-2xl shadow-lg shadow-blue-100 font-bold"
-                >
-                  {editingId ? 'Update Expense' : 'Record Expense'}
-                </Button>
-              </Form>
-            </Card>
-          </Col>
-
-          {/* Right Column: List */}
-          <Col lg={16} xs={24}>
-            {loading ? <ExpenseSkeleton /> : (
-              <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
-                <div className="p-6 pb-0 flex justify-between items-center">
-                  <Title level={4}>Expense History</Title>
-                  <Button icon={<RefreshCw size={14}/>} onClick={fetchData} type="text">Sync</Button>
-                </div>
-                <Table 
-                  dataSource={dailyExpenses} 
-                  columns={columns} 
-                  pagination={{ pageSize: 8 }} 
-                  rowKey="id" 
-                />
-              </Card>
-            )}
-          </Col>
-        </Row>
-
-        {/* Categories Modal */}
-        <Modal
-          title={<div className="flex items-center gap-2 text-blue-600"><LayoutGrid size={18}/> Manage Categories</div>}
-          open={showTypeModal}
-          onCancel={() => { setShowTypeModal(false); setEditingType(null); typeForm.resetFields(); }}
-          footer={null}
-          width={600}
-          className="rounded-2xl"
-        >
-          <Form form={typeForm} layout="vertical" onFinish={handleTypeSubmit} className="mb-8">
-            <Row gutter={12}>
-              <Col span={14}>
-                <Form.Item name="name" rules={[{ required: true }]} noStyle>
-                  <Input placeholder="Category Name (e.g., Gas, Labour)" className="h-10 rounded-xl" />
-                </Form.Item>
-              </Col>
-              <Col span={10}>
-                <Button type="primary" htmlType="submit" block className="h-10 rounded-xl font-bold">
-                  {editingType ? 'Update' : 'Add Category'}
-                </Button>
-              </Col>
-            </Row>
-          </Form>
-          
-          <Divider className="my-0 mb-4" />
-          
-          <List
-            dataSource={expenseTypes}
-            className="max-h-64 overflow-y-auto pr-2 custom-scrollbar"
-            renderItem={t => (
-              <List.Item className="px-0">
-                <div className="flex justify-between items-center w-full">
-                  <Space direction="vertical" size={0}>
-                    <Text strong>{t.name}</Text>
-                    <Text className="text-[10px] text-slate-400">ID: {t.id}</Text>
-                  </Space>
-                  <Space>
-                    <Button 
-                      icon={<Edit3 size={14}/>} 
-                      onClick={() => { setEditingType(t); typeForm.setFieldsValue(t); }} 
-                      type="text" 
-                    />
-                    <Popconfirm title="Delete category?" onConfirm={() => messAPI.deleteExpenseType(t.id).then(fetchData)}>
-                      <Button icon={<Trash2 size={14}/>} type="text" danger />
-                    </Popconfirm>
-                  </Space>
-                </div>
-              </List.Item>
-            )}
-          />
-        </Modal>
+  return <div className="module-page mess-expenses-page">
+    <div className="module-page-header expense-page-header">
+      <div className="expense-heading"><span className="expense-heading-icon"><CreditCard size={24} /></span>
+        <div><Title level={2}>Daily Expenses</Title><Text type="secondary">Record daily spending and review your expense history.</Text></div>
       </div>
-    </ConfigProvider>
-  );
-};
+      <Space wrap><Button icon={<RefreshCw size={16} />} onClick={fetchData} loading={loading}>Refresh</Button>
+        <Button icon={<LayoutGrid size={16} />} onClick={() => setShowTypeModal(true)}>Manage categories</Button></Space>
+    </div>
+    {loadError && <Alert type="error" showIcon title={loadError} className="expense-load-error" />}
 
-export default MessExpenses;
+    <section ref={formSection} className="expense-entry-section" aria-label="Expense entry">
+      <Card title={editingId ? 'Edit expense' : 'New expense'} extra={editingId ? <Tag color="gold">Editing entry #{editingId}</Tag> : <Text type="secondary">Daily entry</Text>}>
+        <Typography.Paragraph type="secondary">Record additional expenses here. Stock purchases belong in Purchase Orders; ingredient costs are included in daily mess calculations when stock is consumed.</Typography.Paragraph>
+        <Form name="daily-expense-entry" form={form} layout="vertical" onFinish={handleDailySubmit} initialValues={{ expense_date: moment() }} disabled={submitting}>
+          <Row gutter={[20, 0]}>
+            <Col xs={24} md={8}><Form.Item name="expense_type_id" label="Category" rules={[{ required: true, message: 'Select an expense category.' }]}>
+              <Select showSearch optionFilterProp="label" placeholder="Select category" options={categoryOptions} />
+            </Form.Item></Col>
+            <Col xs={24} sm={12} md={8}><Form.Item name="expense_date" label="Expense date" rules={[{ required: true, message: 'Select a date.' }]}>
+              <DatePicker format="DD MMM YYYY" className="expense-full-width" />
+            </Form.Item></Col>
+            <Col xs={24} sm={12} md={8}><Form.Item name="amount" label="Amount (₹)" rules={[{ required: true, message: 'Enter an amount.' }, { type: 'number', min: 0.01, message: 'Amount must be greater than zero.' }]}>
+              <InputNumber min={0.01} precision={2} prefix="₹" placeholder="0.00" className="expense-full-width" />
+            </Form.Item></Col>
+            <Col xs={24}><Form.Item name="description" label="Notes (optional)"><Input.TextArea rows={2} placeholder="What was this expense for?" /></Form.Item></Col>
+          </Row>
+          <div className="expense-form-actions"><Text type="secondary">{editingId ? 'Review the details before saving your changes.' : 'Choose a category, date, and amount to record an expense.'}</Text>
+            <Space wrap><Button onClick={resetEntry} disabled={submitting} icon={editingId ? <X size={15} /> : undefined}>{editingId ? 'Cancel edit' : 'Clear form'}</Button>
+              <Button type="primary" htmlType="submit" loading={submitting} icon={<Plus size={16} />}>{editingId ? 'Save changes' : 'Record expense'}</Button></Space>
+          </div>
+        </Form>
+      </Card>
+    </section>
+
+    <Card className="expense-history-card" title="Expense history" extra={<Text type="secondary">Sort using the column headings</Text>}>
+      <div className="expense-filters" aria-label="Expense filters">
+        <div className="expense-filter expense-search"><label htmlFor="expense-search">Search</label><Input id="expense-search" aria-label="Search expenses" prefix={<Search size={16} />} placeholder="Search notes, category, or person" allowClear value={filters.search} onChange={event => updateFilter('search', event.target.value)} /></div>
+        <div className="expense-filter"><label htmlFor="expense-category-filter">Category</label><Select id="expense-category-filter" aria-label="Filter by category" allowClear showSearch optionFilterProp="label" placeholder="All categories" options={categoryOptions} value={filters.category} onChange={value => updateFilter('category', value)} /></div>
+        <div className="expense-filter expense-date-filter"><label>Date range</label><DatePicker.RangePicker aria-label="Filter by date range" placeholder={['From date', 'To date']} format="DD MMM YYYY" value={filters.range} onChange={value => updateFilter('range', value)} /></div>
+        {hostelOptions.length > 1 && <div className="expense-filter"><label htmlFor="expense-hostel-filter">Hostel</label><Select id="expense-hostel-filter" aria-label="Filter by hostel" placeholder="All hostels" allowClear options={hostelOptions} value={filters.hostel} onChange={value => updateFilter('hostel', value)} /></div>}
+        <Button className="expense-clear-filters" icon={<Filter size={15} />} onClick={clearFilters}>Clear filters</Button>
+      </div>
+      <div className="expense-results-summary" aria-live="polite"><Text type="secondary">{filteredExpenses.length} of {dailyExpenses.length} expenses</Text><span>Filtered total <strong>{money(total)}</strong></span></div>
+      <Table rowKey="id" dataSource={filteredExpenses} columns={columns} loading={loading} scroll={{ x: hostelOptions.length ? 1120 : 950 }}
+        pagination={{ current: page, pageSize, showSizeChanger: true, pageSizeOptions: [10, 20, 50], showTotal: count => `${count} expenses` }}
+        onChange={(pagination, _columnFilters, sorter) => { setPage(pagination.current); setPageSize(pagination.pageSize); setSort({ field: sorter.columnKey, order: sorter.order }); }}
+        locale={{ emptyText: dailyExpenses.length ? 'No expenses match your filters.' : 'No daily expenses recorded yet.' }} />
+    </Card>
+
+    <Modal title="Manage expense categories" open={showTypeModal} onCancel={() => !typeSubmitting && closeTypes()} footer={null} width={640}>
+      <Form name="expense-category" form={typeForm} layout="vertical" onFinish={handleTypeSubmit} disabled={typeSubmitting} className="expense-category-form">
+        <Row gutter={16}><Col xs={24} sm={14}><Form.Item name="name" label="Category name" rules={[{ required: true, whitespace: true, message: 'Enter a category name.' }]}><Input placeholder="e.g. Gas or Labour" /></Form.Item></Col>
+          <Col xs={24} sm={10}><Form.Item name="description" label="Description (optional)"><Input placeholder="Category details" /></Form.Item></Col></Row>
+        <Space><Button type="primary" htmlType="submit" loading={typeSubmitting}>{editingType ? 'Save category' : 'Add category'}</Button>
+          {editingType && <Button onClick={() => { setEditingType(null); typeForm.resetFields(); }}>Cancel category edit</Button>}</Space>
+      </Form>
+      <List dataSource={expenseTypes} renderItem={type => <List.Item><div><Text strong>{type.name}</Text>{type.description && <div><Text type="secondary">{type.description}</Text></div>}</div>
+        <Space><Button type="text" aria-label={`Edit category ${type.name}`} icon={<Edit3 size={16} />} disabled={typeSubmitting} onClick={() => { setEditingType(type); typeForm.setFieldsValue(type); }} />
+          <Popconfirm title="Delete this category?" okText="Delete" onConfirm={() => deleteType(type.id)}><Button type="text" danger aria-label={`Delete category ${type.name}`} icon={<Trash2 size={16} />} disabled={typeSubmitting} /></Popconfirm></Space>
+      </List.Item>} />
+    </Modal>
+  </div>;
+}

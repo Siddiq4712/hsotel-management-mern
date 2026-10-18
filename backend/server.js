@@ -13,6 +13,7 @@ import { installActivityRecorder } from './services/activityRecorder.js';
 import { reconcileInterruptedActivities } from './services/activityContext.js';
 import { ensureReductionSchema } from './services/reductionSchema.js';
 import { ensureMenuPlanningSchema } from './services/menuPlanningSchema.js';
+import { ensureInventorySchema } from './services/inventorySchema.js';
 
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
@@ -25,6 +26,7 @@ import parentRoutes from './routes/parent.js';
 import chatRoutes from './routes/chat.js';
 import notificationRoutes from './routes/notifications.js';
 import menuPlanningRoutes from './routes/menuPlanning.js';
+import inventoryRoutes from './routes/inventories.js';
 
 import { verifyEmailConnection } from './utils/emailUtils.js';
 
@@ -68,6 +70,7 @@ app.use('/api/parent', parentRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/menu-planning', menuPlanningRoutes);
+app.use('/api/inventories', inventoryRoutes);
 
 /* =======================
    CREATE DEFAULT ADMIN
@@ -123,6 +126,7 @@ installActivityRecorder(models);
 ensureReductionSchema(sequelize)
   .then(() => ensureMenuPlanningSchema())
   .then(() => sequelize.sync())
+  .then(() => ensureInventorySchema())
   // .sync({alter : true})
   .then(async () => {
     console.log('✅ Database synced successfully');

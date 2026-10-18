@@ -1,3 +1,4 @@
+import { inventoryScope } from '../services/inventoryScope.js';
 import express from 'express';
 import { Op } from 'sequelize';
 import { auth } from '../middleware/auth.js';
@@ -185,7 +186,7 @@ async function pendingLeavesText(role, hostelId) {
 async function stockText(hostelId) {
   if (!hostelId) return 'I need a hostel assignment before I can show stock.';
   const stock = await ItemStock.findAll({
-    where: { hostel_id: hostelId }, include: [{ model: Item, attributes: ['name'] }], order: [['last_updated', 'DESC']], limit: 10
+    where: await inventoryScope(hostelId), include: [{ model: Item, attributes: ['name'] }], order: [['last_updated', 'DESC']], limit: 10
   });
   if (!stock.length) return '📦 **Current Stock**\nNo inventory records were found.';
   return `📦 **Current Stock**\n${stock.map((entry) => `• ${entry.Item?.name || 'Item'} — ${entry.current_stock}`).join('\n')}`;

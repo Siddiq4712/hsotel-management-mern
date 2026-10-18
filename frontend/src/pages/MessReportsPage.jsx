@@ -1,5 +1,6 @@
+import { DatePicker } from '../components/common/MomentPickers';
 import React, { useState } from 'react';
-import { Card, Tabs, DatePicker, Button, Select, Form, Row, Col, Spin, Empty, message, Divider } from 'antd';
+import { Card, Tabs, Button, Select, Form, Row, Col, Spin, Empty, message, Divider } from 'antd';
 import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Printer } from "lucide-react";
 import moment from 'moment';

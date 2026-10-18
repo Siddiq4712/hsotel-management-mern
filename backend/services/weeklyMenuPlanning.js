@@ -1,3 +1,4 @@
+import { inventoryScope } from './inventoryScope.js';
 import { Op } from 'sequelize';
 import sequelize from '../config/database.js';
 import { Hostel, Item, UOM, Menu, MenuItem, ItemStock, InventoryBatch, MenuSchedule } from '../models/index.js';
@@ -46,7 +47,7 @@ export async function planningMetadata(req) {
     WeeklyMenuPlan.findAll({ where: { hostel_id }, order: [['effective_from', 'DESC']], raw: true }),
     Menu.findAll({ where: { hostel_id }, attributes: ['id', 'name', 'estimated_servings'], order: [['name', 'ASC']], raw: true }),
     Item.findAll({ include: [{ model: UOM, as: 'UOM' }], order: [['name', 'ASC']] }),
-    ItemStock.findAll({ where: { hostel_id }, raw: true }),
+    ItemStock.findAll({ where: { ...(await inventoryScope(hostel_id))}, raw: true }),
     MenuPlanningChange.findAll({ where: { hostel_id }, order: [['id', 'DESC']], limit: 100, raw: true })
   ]);
   const permissions = Object.fromEntries(['plan', 'override', 'consume', 'settings'].map(action => [action, canEdit(settings.configuration, req.user.role, action)]));
@@ -153,10 +154,10 @@ export async function consumeDailyMeal(req) {
     const consumptions = [];
     for (const row of actual) {
       const item = await Item.findByPk(row.item_id, { transaction: scope.transaction });
-      const stock = await ItemStock.findOne({ where: { item_id: row.item_id, hostel_id: scope.hostel_id }, transaction: scope.transaction, lock: scope.transaction.LOCK.UPDATE });
+      const stock = await ItemStock.findOne({ where: { item_id: row.item_id, ...(await inventoryScope(scope.hostel_id, scope.transaction)) }, transaction: scope.transaction, lock: scope.transaction.LOCK.UPDATE });
       if (!item || !stock || Number(stock.current_stock) < row.quantity) fail(`Insufficient inventory stock for ingredient ${row.item_id}`);
       if (!item.unit_id) fail(`Configure the inventory base unit for ${item.name} before recording consumption`);
-      const batches = await InventoryBatch.findAll({ where: { item_id: row.item_id, hostel_id: scope.hostel_id, status: 'active', quantity_remaining: { [Op.gt]: 0 } }, transaction: scope.transaction, lock: scope.transaction.LOCK.UPDATE });
+      const batches = await InventoryBatch.findAll({ where: { item_id: row.item_id, ...(await inventoryScope(scope.hostel_id, scope.transaction)), status: 'active', quantity_remaining: { [Op.gt]: 0 } }, transaction: scope.transaction, lock: scope.transaction.LOCK.UPDATE });
       if (batches.reduce((sum, batch) => sum + Number(batch.quantity_remaining), 0) < row.quantity) fail(`Insufficient active stock batches for ${item.name}`);
       consumptions.push({ item_id: item.id, quantity_consumed: row.quantity, unit: item.unit_id,
         consumption_date: date, meal_type: meal.slot.category });

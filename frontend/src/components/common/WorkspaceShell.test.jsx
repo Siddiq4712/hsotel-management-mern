@@ -45,14 +45,25 @@ describe('Shared workspace navigation', { timeout: 30000 }, () => {
     mount();
     fireEvent.click(screen.getByLabelText('Open navigation'));
     const nav = await screen.findByRole('navigation', { name: 'Mobile workspace navigation' });
-    fireEvent.click(within(nav).getByText('Create Hostel'));
+    fireEvent.click(within(nav).getByText('Manage Hostels'));
     expect(screen.getByLabelText('Open navigation')).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByTestId('location')).toHaveTextContent('/create-hostel?workspace=admin');
+    expect(screen.getByTestId('location')).toHaveTextContent('/hostels?workspace=admin');
   });
   it('offers working account sign out', async () => {
     mount();
     fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
     expect(useAuth().logout).toHaveBeenCalledOnce();
+  });
+  it('groups inventory tools under one navigation entry and highlights legacy stock links', () => {
+    mount({ workspace: 'mess', currentView: 'stock' });
+    const nav = screen.getByRole('navigation', { name: 'Workspace navigation' });
+    expect(within(nav).queryByText('Manage Items')).not.toBeInTheDocument();
+    expect(within(nav).queryByText('Stock Management')).not.toBeInTheDocument();
+    expect(within(nav).queryByText('Inventory Logs')).not.toBeInTheDocument();
+    const inventory = within(nav).getByRole('menuitem', { name: 'Inventory Management' });
+    expect(inventory).toHaveClass('ant-menu-item-selected');
+    fireEvent.click(inventory);
+    expect(screen.getByTestId('location')).toHaveTextContent('/inventory?workspace=mess');
   });
 });

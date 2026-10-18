@@ -24,11 +24,20 @@ api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   const workspace = localStorage.getItem('adminWorkspace');
   if (['admin', 'warden', 'mess'].includes(workspace)) config.headers['X-Workspace'] = workspace;
+  const inventoryId = sessionStorage.getItem('selectedInventoryId');
+  if (inventoryId && config.url?.startsWith('/mess/') && !config.headers['X-Inventory-Id']) config.headers['X-Inventory-Id'] = inventoryId;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
+
+export const inventoryAPI = {
+  delete: id => api.delete(`/inventories/${id}`),
+  list: () => api.get('/inventories'),
+  create: data => api.post('/inventories', data),
+  update: (id, data) => api.put(`/inventories/${id}`, data),
+};
 
 // Response interceptor to handle errors
 api.interceptors.response.use(
@@ -407,6 +416,8 @@ export const messAPI = {
   getDailyConsumption: (params) => api.get('/mess/consumption', { params }), // params: { date, meal_type, item_id }
   // Expected data: { items: [{ item_id, quantity, unit_price, transaction_date, expiry_date }] }
   recordInventoryPurchase: (data) => api.post('/mess/inventory-purchase', data),
+  receivePurchaseOrder: (data) => api.post('/mess/purchase-orders/receive', data),
+  getReceivedPurchaseOrders: () => api.get('/mess/purchase-orders/received'),
   getInventoryTransactions: (params) => api.get('/mess/inventory-transactions', { params }), // params: { transaction_type, item_id, store_id, from_date, to_date }
   recordItemReturn: (data) => api.post('/mess/consumption/return', data),
 

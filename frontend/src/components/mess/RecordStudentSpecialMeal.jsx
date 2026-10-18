@@ -1,6 +1,7 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  App as AntdApp, Card, Form, Button, Select, InputNumber, DatePicker,
+  App as AntdApp, Card, Form, Button, Select, InputNumber,
   Row, Col, Typography, Input, ConfigProvider, theme
 } from 'antd';
 import { Plus, Trash2, Save, Utensils, User, Calendar, ClipboardList, CreditCard, Info, ChevronDown } from 'lucide-react';

@@ -1,6 +1,7 @@
+import { Calendar, DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
 import {
-  Card, Calendar, Badge, Button, Modal, Form, Select, DatePicker,
+  Card, Badge, Button, Modal, Form, Select,
   InputNumber, Typography, Space, List, Tag, Popconfirm, Row, Col,
   Tooltip, Spin, Divider, ConfigProvider, theme, Skeleton, App as AntdApp
 } from 'antd';

@@ -1,4 +1,5 @@
 import express from 'express';
+import { receivePurchaseOrder, listReceivedPurchaseOrders } from '../controllers/receivedPurchaseOrderController.js';
 import { installAdminWorkspace } from '../middleware/adminWorkspace.js';
 import { body } from 'express-validator';
 import rateLimit from 'express-rate-limit';
@@ -377,6 +378,8 @@ router.get('/sessions', authorize(['mess', 'warden', 'admin']), getSessions);
 router.get('/students', authorize(['mess', 'admin']), getStudents);
 router.post('/student-special-consumption-staff', authorize(['mess', 'admin']), recordStaffRecordedSpecialFoodConsumption);
 router.get('/purchase-orders', authorize(['mess', 'admin']), getPurchaseOrders);
+router.get('/purchase-orders/received', authorize(['mess', 'admin']), listReceivedPurchaseOrders);
+router.post('/purchase-orders/receive', authorize(['mess', 'admin']), receivePurchaseOrder);
 router.put('/purchase-orders/clear', authorize(['mess', 'admin']), clearPurchaseOrders);
 
 /* ---------- RECIPES ---------- */

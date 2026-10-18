@@ -1,8 +1,9 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Table, Badge, Tag, Space, Button, message, 
+import {
+  Card, Table, Badge, Tag, Space, Button, message,
   Drawer, Descriptions, Tabs, List, Avatar, Typography,
-  Select, DatePicker, Form, Radio, Divider
+  Select, Form, Radio, Divider
 } from 'antd';
 import {
   CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined,

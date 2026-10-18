@@ -1,6 +1,7 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/database.js';
 export { MenuPlanningSettings, WeeklyMenuPlan, PlannedDailyMeal, MenuPlanningChange } from './menuPlanning.js';
+export { Inventory, InventoryHostel } from './inventory.js';
 
 // ==========================================
 // 1. IDENTITY & STAFF MODELS
@@ -471,6 +472,7 @@ export const Item = sequelize.define('Item', {
 }, { tableName: 'tbl_Item', timestamps: true });
 
 export const ItemStock = sequelize.define('ItemStock', {
+  inventory_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Inventory', key: 'id' } },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   item_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Item', key: 'id' } },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
@@ -485,6 +487,7 @@ export const ItemStock = sequelize.define('ItemStock', {
 });
 
 export const InventoryBatch = sequelize.define('InventoryBatch', {
+  inventory_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Inventory', key: 'id' } },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   item_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Item', key: 'id' } },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
@@ -521,6 +524,7 @@ export const ItemStore = sequelize.define('ItemStore', {
 }, { tableName: 'tbl_ItemStore', timestamps: true });
 
 export const InventoryTransaction = sequelize.define('InventoryTransaction', {
+  inventory_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Inventory', key: 'id' } },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   item_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Item', key: 'id' } },
@@ -539,6 +543,7 @@ export const InventoryTransaction = sequelize.define('InventoryTransaction', {
 }, { tableName: 'tbl_InventoryTransaction', timestamps: true });
 
 export const RestockPlan = sequelize.define('RestockPlan', {
+  inventory_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Inventory', key: 'id' } },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false },
   item_id: { type: DataTypes.INTEGER, allowNull: false },
@@ -602,6 +607,7 @@ export const RecipeItem = sequelize.define('RecipeItem', {
 }, { tableName: 'tbl_RecipeItem', timestamps: false });
 
 export const DailyConsumption = sequelize.define('DailyConsumption', {
+  inventory_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Inventory', key: 'id' } },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   item_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Item', key: 'id' } },
@@ -1280,6 +1286,9 @@ export const initAssociations = () => {
   Hostel.hasMany(RestockPlan, { foreignKey: 'hostel_id' });
 
   InventoryBatch.belongsTo(Item, { foreignKey: 'item_id' });
+  InventoryTransaction.belongsTo(Item, { foreignKey: 'item_id' });
+  InventoryTransaction.belongsTo(Store, { foreignKey: 'store_id' });
+  InventoryTransaction.belongsTo(User, { foreignKey: 'recorded_by', targetKey: 'userId', as: 'RecordedBy' });
   InventoryBatch.belongsTo(Hostel, { foreignKey: 'hostel_id' });
   Item.hasMany(InventoryBatch, { foreignKey: 'item_id' });
   Hostel.hasMany(InventoryBatch, { foreignKey: 'hostel_id', as: 'InventoryBatches' });
