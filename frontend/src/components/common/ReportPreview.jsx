@@ -3,6 +3,7 @@ import { Button, Input, Select, Space, Table, Typography } from 'antd';
 import * as XLSX from 'xlsx';
 import { exportWorkbook, printTables } from '../../utils/reportExport';
 import { reportFieldType, reportKeys, reportText, reportView, reportViewDescription } from '../../utils/reportView';
+import './ReportPreview.css';
 
 export default function ReportPreview({ rows, title, metadata = [], label = key => key, filename = 'Report.xlsx', disabled = false, compact = false, formatValue = reportText, searchPlaceholder = 'Search report' }) {
   const [search, setSearch] = useState('');
@@ -30,25 +31,25 @@ export default function ReportPreview({ rows, title, metadata = [], label = key 
         onChange={order => { setSort(current => ({ ...current, order })); setPage(1); }} />
       <Button onClick={() => { setSearch(''); setFilters({}); setSort({}); setPage(1); }}>Clear filters and sorting</Button>
     </>;
-  return <div aria-label="Report preview">
-    <Space wrap style={{ marginBottom: 16 }}>
+  return <div aria-label="Report preview" className="report-preview">
+    <Space wrap className="report-preview-toolbar" style={{ marginBottom: 16 }}>
       <Input aria-label="Search report" placeholder={searchPlaceholder} allowClear value={search} style={{ width: 260 }} onChange={event => { setSearch(event.target.value); setPage(1); }} />
       {!compact && sortingControls}
       <Button disabled={disabled || !visible.length} onClick={() => printTables(tables(), title)}>Print</Button>
       <Button disabled={disabled || !visible.length} onClick={exportRows}>Export</Button>
     </Space>
     <details style={{ marginBottom: 16 }}><summary style={{ cursor: 'pointer' }}>{compact ? 'Filters & sorting' : 'Column filters'}</summary>
-      {compact && <Space wrap style={{ marginTop: 16 }}>{sortingControls}</Space>}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, paddingTop: 16 }}>
+      {compact && <div className="report-sort-controls">{sortingControls}</div>}
+      <div className="report-filter-grid">
         {keys.map(key => {
           const type = reportFieldType(rows, key), filter = filters[key] || {};
-          return <div key={key}><Typography.Text strong>{label(key)}</Typography.Text><br />
-            {type === 'text' ? <Select aria-label={`Filter ${label(key)}`} mode="multiple" allowClear showSearch optionFilterProp="label" style={{ width: '100%' }} placeholder={`All ${label(key)}`} value={filter.values || []}
+          return <div key={key} className="report-filter-field"><Typography.Text strong>{label(key)}</Typography.Text>
+            {type === 'text' ? <div className="report-filter-select"><Select aria-label={`Filter ${label(key)}`} mode="multiple" maxTagCount="responsive" allowClear showSearch optionFilterProp="label" style={{ width: '100%' }} placeholder={`All ${label(key)}`} value={filter.values || []}
               options={[...new Set(rows.map(row => reportText(row[key])))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(value => ({ value, label: value || '(Blank)' }))}
-              onChange={values => updateFilter(key, { values })} />
-              : <div style={{ display: 'flex', gap: 8 }}>{(type === 'date' ? ['from', 'to'] : ['min', 'max']).map(bound => <label key={bound} style={{ flex: 1, minWidth: 0 }}>
+              onChange={values => updateFilter(key, { values })} /></div>
+              : <div className="report-filter-range">{(type === 'date' ? ['from', 'to'] : ['min', 'max']).map(bound => <label key={bound}>
                 {({ from: 'From', to: 'To', min: 'Minimum', max: 'Maximum' })[bound]}<input aria-label={`${label(key)} ${bound}`} type={type === 'date' ? 'date' : 'number'} step="any" value={filter[bound] ?? ''}
-                  onChange={event => updateFilter(key, { [bound]: event.target.value })} style={{ width: '100%', border: '1px solid #d9d9d9', borderRadius: 6, padding: 6 }} />
+                  onChange={event => updateFilter(key, { [bound]: event.target.value })} />
               </label>)}</div>}
           </div>;
         })}

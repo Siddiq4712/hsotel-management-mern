@@ -1,0 +1,19 @@
+.report-sort-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding-top: 16px; }
+.report-filter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); align-items: start; gap: 16px; padding-top: 16px; }
+.report-filter-field { display: grid; grid-template-rows: 20px 64px; gap: 4px; min-width: 0; }
+.report-filter-field > .ant-typography { margin: 0; line-height: 20px; }
+.report-filter-select { align-self: end; min-width: 0; }
+.report-filter-range { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.report-filter-range > label { display: grid; grid-template-rows: 20px 40px; gap: 4px; min-width: 0; line-height: 20px; }
+.report-filter-range input { box-sizing: border-box; width: 100%; min-width: 0; height: 40px; padding: 8px 10px; border: 1px solid #d9d9d9; border-radius: 8px; background: #fff; font: inherit; color: inherit; }
+.report-filter-range input:focus { outline: 2px solid #bfdbfe; outline-offset: 1px; border-color: #2563eb; }
+.report-preview .report-filter-select .ant-select,
+.report-preview .report-sort-controls .ant-select,
+.report-preview .report-sort-controls .ant-btn,
+.report-preview .report-preview-toolbar .ant-select,
+.report-preview .report-preview-toolbar .ant-btn,
+.report-preview .report-preview-toolbar .ant-input-affix-wrapper { height: 40px; min-height: 40px; }
+@media (max-width: 600px) {
+  .report-sort-controls > .ant-select { flex: 1 1 140px; min-width: 0 !important; }
+  .report-sort-controls > .ant-btn { width: 100%; }
+}
