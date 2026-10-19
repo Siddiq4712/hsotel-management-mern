@@ -28,6 +28,7 @@ const MENU_STRUCTURE = {
       title: 'User Management',
       items: [
         { id: 'create-user', label: 'Create User', icon: UserPlus },
+        { id: 'staff-access', label: 'Staff Access Settings', icon: UserPlus },
         { id: 'sessions', label: 'Manage Batches', icon: Calendar },
         { id: 'monthly-attendance-import', label: 'Monthly Attendance Import', icon: ClipboardCheck },
         { id: 'outpass-logs', label: 'Outpass Logs', icon: FileText },

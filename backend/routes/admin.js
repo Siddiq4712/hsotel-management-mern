@@ -1,5 +1,6 @@
 import { uploadReductionDocument, reductionDocument, reviseReduction, decideReduction } from '../controllers/reductionController.js';
 import express from 'express';
+import { getStaffAccess, updateStaffAccess } from '../controllers/staffAccessController.js';
 import { getBatches, saveBatch, archiveBatch, previewAllocation, applyAllocation, assignHostelBatches } from '../controllers/batchController.js';
 import { listActivities, getActivity, previewActivityReversal, applyActivityReversal, correctActivityRecord, deleteActivityRecord } from '../controllers/activityController.js';
 import {
@@ -51,6 +52,8 @@ const router = express.Router();
 // Apply auth and admin authorization to all routes
 router.use(auth);
 router.use(authorize(['admin']));
+router.get('/staff-access', getStaffAccess);
+router.put('/staff-access/:id', updateStaffAccess);
 router.get('/activities', listActivities);
 router.get('/activities/:id', getActivity);
 router.get('/activities/:id/reversal-preview', previewActivityReversal);

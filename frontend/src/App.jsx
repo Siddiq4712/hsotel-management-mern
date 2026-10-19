@@ -20,6 +20,7 @@ import OAuthCallback from './components/auth/OAuthCallback';
 import AdminDashboard from './components/admin/AdminDashboard';
 import CreateHostel from './components/admin/CreateHostel';
 import CreateUser from './components/admin/CreateUser';
+import StaffAccessSettings from './components/admin/StaffAccessSettings';
 import ManageHostels from './components/admin/ManageHostels';
 import ManageSessions from './components/admin/ManageSessions';
 import ManageFacilityTypes from './components/admin/ManageFacilityTypes';
@@ -174,6 +175,8 @@ const DashboardRouter = () => {
 
           case 'create-user':
             return <CreateUser />;
+          case 'staff-access':
+            return <StaffAccessSettings />;
           case 'sessions':
             return <ManageSessions />;
           case 'monthly-attendance-import':

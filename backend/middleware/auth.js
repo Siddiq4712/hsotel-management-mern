@@ -61,7 +61,7 @@ export const auth = async (req, res, next) => {
     req.user = {
       ...user.toJSON(),
       role: resolvedRole,
-      hostel_id: user.hostel_id ?? decoded.hostelId ?? null
+      hostel_id: user.hostel_id ?? null
     };
 
     return withNotificationRequest(req, () => withActivityRequest(req, res, next));

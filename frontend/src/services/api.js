@@ -99,6 +99,8 @@ export const authAPI = {
 
 // Admin API - Complete CRUD operations
 export const adminAPI = {
+  getStaffAccess: () => api.get('/admin/staff-access'),
+  updateStaffAccess: (id, data) => api.put(`/admin/staff-access/${id}`, data),
   getActivities: (params) => api.get('/admin/activities', {params}),
   getActivity: (id, params) => api.get(`/admin/activities/${id}`, {params}),
   previewActivityReversal: (id) => api.get(`/admin/activities/${id}/reversal-preview`),
