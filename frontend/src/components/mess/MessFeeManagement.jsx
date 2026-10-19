@@ -1,5 +1,5 @@
 import { DatePicker } from '../common/MomentPickers';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Card, Table, message, Button, Space, Typography, Row, Col,
   Statistic, Modal, Form, Select, InputNumber, Input, Divider,
@@ -7,7 +7,7 @@ import {
 import { 
   ChevronLeft, ChevronRight, Calculator, FileDown, 
   Plus, RefreshCw, User, Calendar, Users, 
-  Receipt, Wallet, Info, CheckCircle2, Mail
+  Receipt, Wallet, Info, CheckCircle2, Mail, Search
 } from 'lucide-react';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
@@ -47,10 +47,22 @@ const MessFeeManagement = () => {
   const [generatingBills, setGeneratingBills] = useState(false);
   const [selectedDate, setSelectedDate] = useState(initialBillingDate);
   const [selectedCollege, setSelectedCollege] = useState('all');
+  const [searchText, setSearchText] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [students, setStudents] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  const filteredReportData = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+    if (!query) return reportData;
+    return reportData.filter(row => [
+      row.name, row.userName, row.username,
+      row.regNo, row.roll_number, row.registerNumber
+    ].some(value => String(value ?? '').toLowerCase().includes(query)));
+  }, [reportData, searchText]);
+
+  useEffect(() => { setCurrentPage(1); }, [searchText, selectedCollege, selectedDate]);
 
   // --- Navigation Controls ---
   const changeMonth = (offset) => setSelectedDate(prev => prev.clone().add(offset, 'month'));
@@ -197,6 +209,7 @@ const MessFeeManagement = () => {
     { 
       title: 'Student Name', 
       key: 'name', 
+      sorter: (a, b) => String(a.name || a.userName || a.username || '').localeCompare(String(b.name || b.userName || b.username || ''), undefined, { sensitivity: 'base', numeric: true }),
       width: 220, 
       fixed: 'left', 
       render: (_, r) => <Text strong className="text-slate-700 uppercase">{r.name || r.userName || r.username || 'N/A'}</Text> 
@@ -204,6 +217,7 @@ const MessFeeManagement = () => {
     { 
       title: 'Reg No', 
       key: 'regNo', 
+      sorter: (a, b) => String(a.regNo || a.roll_number || a.registerNumber || '').localeCompare(String(b.regNo || b.roll_number || b.registerNumber || ''), undefined, { sensitivity: 'base', numeric: true }),
       width: 120, 
       render: (_, r) => <span className="font-mono font-bold text-xs">{r.regNo || r.roll_number || r.registerNumber || 'N/A'}</span> 
     },
@@ -234,7 +248,7 @@ const MessFeeManagement = () => {
       dataIndex: 'finalAmount', 
       align: 'right', 
       fixed: 'right', 
-      width: 150, 
+      width: 150,
       render: (v) => (
         <div className="bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 text-right">
           <Text strong className="text-blue-600 text-base">₹{v}</Text>
@@ -310,14 +324,25 @@ const MessFeeManagement = () => {
 
         {/* Filter Toolbar */}
         <Card className="border-none shadow-sm rounded-2xl mb-6">
-          <div className="flex justify-between items-center">
-            <Space size="large">
+          <div className="flex flex-wrap justify-between items-center gap-4">
+            <Space size="large" wrap>
+              <Input
+                aria-label="Search students by name or roll number"
+                placeholder="Search name or roll number"
+                prefix={<Search size={16} className="text-slate-400" />}
+                allowClear
+                value={searchText}
+                onChange={event => setSearchText(event.target.value)}
+                style={{ width: 280, maxWidth: '100%' }}
+                className="h-10"
+              />
               <Select value={selectedCollege} className="w-56 h-10" onChange={setSelectedCollege}>
                 <Option value="all">All Institutions</Option>
                 <Option value="nec">National Engineering College</Option>
                 <Option value="lapc">Lakshmi Ammal Polytech</Option>
               </Select>
               <Button type="primary" ghost icon={<RefreshCw size={16}/>} onClick={fetchReportData} className="rounded-xl h-10">Refresh Data</Button>
+              <Text type="secondary">Showing {filteredReportData.length} of {reportData.length} students</Text>
             </Space>
             <div className="flex items-center gap-2 text-slate-400">
               <Info size={14} />
@@ -330,15 +355,31 @@ const MessFeeManagement = () => {
         {loading ? <FeeSkeleton /> : (
           <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
             <Table 
-              columns={columns.map(column => ({ ...column, render: (value, row, index) => row.breakdownUnavailable && ['messDays', 'dailyRate', 'bedCharges', 'hinduIndianExpress', 'additionalAmount'].includes(column.dataIndex)
+              columns={columns.map(column => ({ ...column,
+                ...(column.dataIndex ? { sorter: (a, b) => {
+                  const numericValue = row => {
+                    if (row.breakdownUnavailable && ['messDays', 'dailyRate', 'bedCharges', 'hinduIndianExpress', 'additionalAmount'].includes(column.dataIndex)) return -Infinity;
+                    const value = row[column.dataIndex];
+                    return value == null || !Number.isFinite(Number(value)) ? -Infinity : Number(value);
+                  };
+                  const left = numericValue(a);
+                  const right = numericValue(b);
+                  return left === right ? 0 : left < right ? -1 : 1;
+                } } : {}),
+                render: (value, row, index) => row.breakdownUnavailable && ['messDays', 'dailyRate', 'bedCharges', 'hinduIndianExpress', 'additionalAmount'].includes(column.dataIndex)
                 ? <Text type="secondary">Unavailable</Text> : column.render ? column.render(value, row, index) : value }))}
-              dataSource={reportData} 
+              dataSource={filteredReportData}
+              onChange={(pagination, filters, sorter, extra) => {
+                if (extra.action === 'sort') setCurrentPage(1);
+              }}
+              locale={{ emptyText: searchText.trim() ? 'No students match your search' : 'No students available for this month' }}
               rowKey="studentId" 
-              scroll={{ x: 1400 }} 
+              scroll={{ x: 1400 }}
               pagination={{ 
                 current: currentPage, pageSize: pageSize,
                 onChange: (p, s) => { setCurrentPage(p); setPageSize(s); },
                 showSizeChanger: true,
+                showTotal: total => `${total} students`,
                 className: "p-6"
               }}
             />
