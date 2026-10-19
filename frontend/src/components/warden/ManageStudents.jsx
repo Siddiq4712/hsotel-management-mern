@@ -119,6 +119,7 @@ const ManageStudents = () => {
         registerNumber: String(student.registerNumber || student.roll_number || '').trim(),
         username: String(student.studentName || student.username || student.userName || student.name || '').trim(),
         email: String(student.email || student.userMail || student.personal_email || '').trim(),
+        gender: student.gender || student.Gender || student.sex || student.student_gender,
         erp_batch_year: student.batch ?? student.erp_batch_year ?? null
       })));
       setAcademicsFetchedAt(new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Calcutta' }));
@@ -131,13 +132,18 @@ const ManageStudents = () => {
 
   const academicsCandidates = useMemo(() => {
     const localByRoll = new Map(students.map(student => [String(student.roll_number || student.registerNumber || '').trim(), student]));
-    return academicsStudents.map(student => {
-      const batch = studentBatch(student.erp_batch_year, academicsBatches);
+    const scoped = academicsStudents.filter(student => {
+      if (user?.role === 'admin') return true;
+      const batch = studentBatch(student.erp_batch_year, academicsBatches, student.gender);
+      // The backend returns batches for the warden's current DB assignment.
+      return Boolean(batch);
+    });
+    return scoped.map(student => {
+      const batch = studentBatch(student.erp_batch_year, academicsBatches, student.gender);
       const existing = localByRoll.get(student.registerNumber);
       let blocked = '';
       if (!student.registerNumber || !student.username) blocked = 'Name or roll number missing';
-      else if (!batch) blocked = 'Missing or unconfigured ERP batch year';
-      else if (user?.role !== 'admin' && Number(batch.hostel_id) !== Number(user?.hostel_id || user?.hostelId)) blocked = `Assigned to ${batch.hostel_name || 'another hostel'}`;
+      else if (!batch) blocked = 'Missing or unconfigured batch year and gender';
       else if (existing && Number(existing.erp_batch_year) === Number(student.erp_batch_year) && Number(existing.hostel_id) === Number(batch.hostel_id) && Number(existing.session_id ?? existing.tbl_Enrollment?.[0]?.session_id) === Number(batch.id)) blocked = 'Already enrolled';
       return { ...student, matchedBatch: batch, existing, blocked };
     });
@@ -154,6 +160,7 @@ const ManageStudents = () => {
         roll_number: student.registerNumber,
         email: student.email || undefined,
         erp_batch_year: Number(student.erp_batch_year),
+        gender: student.gender,
         college: String(student.college || student.existing?.college || 'nec').toLowerCase() === 'lapc' ? 'lapc' : 'nec',
         requires_bed: student.existing
           ? Boolean(student.existing.requires_bed ?? student.existing.tbl_Enrollment?.[0]?.requires_bed)
@@ -472,7 +479,7 @@ const ManageStudents = () => {
             </Button>,
             <Button key="import" type="primary" loading={academicsImporting} disabled={academicsLoading || !academicsSelected.length} onClick={() => Modal.confirm({
               title: `Import ${academicsSelected.length} selected students?`,
-              content: 'Students will be saved to the hostel assigned to their ERP batch year. Existing login passwords are preserved.',
+              content: 'Students will be saved to the hostel assigned to their ERP batch year and gender. Existing login passwords are preserved.',
               okText: 'Import Students', onOk: importAcademicsStudents
             })}>Import Selected Students ({academicsSelected.length})</Button>
           ]}
@@ -508,7 +515,7 @@ const ManageStudents = () => {
             )}
 
             {academicsLoading && <Alert type="info" showIcon title="Fetching students from Academics…" description="The request may take up to 20 seconds." />}
-            {academicsFetchedAt && !academicsLoading && <Alert type={academicsStudents.length ? 'success' : 'warning'} showIcon title={`Fetched ${academicsStudents.length} hosteller students at ${academicsFetchedAt}. Select students and click Import Selected Students to save them.`} />}
+            {academicsFetchedAt && !academicsLoading && <Alert type={academicsStudents.length ? 'success' : 'warning'} showIcon title={`Fetched ${academicsCandidates.length} matching hosteller students at ${academicsFetchedAt}. Select students and click Import Selected Students to save them.`} />}
             {academicsImportResult && <Alert showIcon type={academicsImportResult.errors?.length ? 'warning' : 'success'} title={`Imported ${academicsImportResult.successful || 0} students; ${academicsImportResult.skipped || 0} skipped; ${academicsImportResult.errors?.length || 0} failed.`} description={academicsImportResult.errors?.map((failure, index) => <div key={index}>{failure.name}: {failure.error}</div>)} />}
 
             {academicsStudents.length > 0 && (

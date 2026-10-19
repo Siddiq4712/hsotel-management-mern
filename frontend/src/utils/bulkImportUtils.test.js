@@ -18,19 +18,19 @@ describe('bulk import helpers', () => {
   it('returns the required bulk import columns for the enrollment template', () => {
     const columns = getRequiredImportColumns();
 
-    expect(columns.map(column => column.key)).toEqual(['name', 'roll_number', 'email', 'erp_batch_year']);
+    expect(columns.map(column => column.key)).toEqual(['name', 'roll_number', 'email', 'erp_batch_year', 'gender']);
     expect(columns.find(column => column.key === 'erp_batch_year').aliases).toContain('batch');
   });
 
   it('reads admission year from Batch independently of the roll number', () => {
-    const payload = mapExcelRowToStudent({ Name: 'Arun Kumar', 'Roll Number': '23104085', Email: 'arun@example.invalid', Batch: 2024 });
-    expect(payload).toEqual(expect.objectContaining({ userName: 'Arun Kumar', roll_number: '23104085', email: 'arun@example.invalid', erp_batch_year: 2024, requires_bed: false }));
+    const payload = mapExcelRowToStudent({ Name: 'Arun Kumar', 'Roll Number': '23104085', Email: 'arun@example.invalid', Batch: 2024, Gender: 'Female' });
+    expect(payload).toEqual(expect.objectContaining({ userName: 'Arun Kumar', roll_number: '23104085', email: 'arun@example.invalid', erp_batch_year: 2024, gender: 'female', requires_bed: false }));
     expect(mapExcelRowToStudent({ Name: 'Arun', 'Roll Number': '24104085' }).erp_batch_year).toBeNull();
   });
 
   it('requires an explicit Batch column in student import sheets', () => {
-    expect(validateExcelImportHeaders(['Name', 'Roll Number', 'Email'])).toEqual({ isValid: false, missingColumns: ['Batch'] });
-    expect(validateExcelImportHeaders(['Name', 'Roll Number', 'Email', 'Batch']).isValid).toBe(true);
+    expect(validateExcelImportHeaders(['Name', 'Roll Number', 'Email'])).toEqual({ isValid: false, missingColumns: ['Batch', 'Gender'] });
+    expect(validateExcelImportHeaders(['Name', 'Roll Number', 'Email', 'Batch', 'Gender']).isValid).toBe(true);
   });
 
   it('returns the item import template columns', () => {

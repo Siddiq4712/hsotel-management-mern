@@ -68,7 +68,8 @@ export const enrollStudent = async (req, res) => {
       if (!normalizedRollNumber) throw new Error("Roll number is required.");
 
       // ERP admission year is authoritative; roll numbers never determine the batch.
-      const matchedBatch = await resolveStudentBatch(req.body.erp_batch_year ?? req.body.batch, req.user, transaction);
+      const matchedBatch = await resolveStudentBatch(req.body.erp_batch_year ?? req.body.batch, req.user, transaction, req.body.gender);
+      const studentGender = matchedBatch.gender;
       const resolvedSessionId = matchedBatch.id;
       const hostel_id = matchedBatch.hostel_id;
 
@@ -92,7 +93,8 @@ export const enrollStudent = async (req, res) => {
          if (!studentRoleIds.includes(Number(student.roleId))) {
             throw new Error('This email/roll belongs to a non-student account. Use a different email/roll number.');
          }
-         await student.update({ 
+         await student.update({
+            gender: studentGender,
             hostel_id: hostel_id, 
             roleId: studentRole.roleId, // Use dynamic ID
             status: true,
@@ -107,6 +109,7 @@ export const enrollStudent = async (req, res) => {
          const hashedPassword = await bcrypt.hash(defaultPassword, salt);
 
          student = await User.create({
+            gender: studentGender,
             userName,
             userMail: normalizedEmail,
             password: hashedPassword,
@@ -160,6 +163,8 @@ export const enrollStudent = async (req, res) => {
 export const getStudents = async (req, res) => {
    try {
       const warden_hostel_id = getHostelId(req.user);
+      if (req.user.role !== 'admin' && !warden_hostel_id) return res.status(403).json({ success: false, message: 'Assign a hostel before fetching students.' });
+      if (req.user.role !== 'admin' && !warden_hostel_id) return res.status(403).json({ success: false, message: 'Assign a hostel before fetching students.' });
       const enrollmentYear = req.query.enrollment_year?.toString().trim();
       const authHeader = req.headers.authorization;
       const hostellersOnly = req.query.all !== 'true';
@@ -168,6 +173,7 @@ export const getStudents = async (req, res) => {
       const erpStudents = req.query.source === 'erp' ? await fetchStudentsFromERP({
          authHeader,
          hostellersOnly,
+         hostelId: warden_hostel_id,
          enrollmentYear: enrollmentYear || null
       }) : [];
 
@@ -175,7 +181,7 @@ export const getStudents = async (req, res) => {
          const batches = await listBatches();
          const scopedStudents = erpStudents.flatMap(student => {
             try {
-               const batch = matchBatch(student.erp_batch_year ?? student.batch, batches);
+               const batch = matchBatch(student.erp_batch_year ?? student.batch, batches, student.gender);
                if (Number(batch.hostel_id) !== Number(warden_hostel_id)) return [];
                return [{ ...student, batch_name: batch.name, assigned_hostel: batch.hostel_name }];
             } catch { return []; } // Full ERP preview reports unmatched years separately.
@@ -300,7 +306,8 @@ export const bulkEnrollStudents = async (req, res) => {
           const defaultDomain = studentCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in';
           const generatedEmail = normalizedRollNumber ? `${normalizedRollNumber}@${defaultDomain}`.toLowerCase() : '';
           const normalizedEmail = String(studentData.email || studentData.userMail || generatedEmail).trim().toLowerCase();
-          const matchedBatch = await resolveStudentBatch(studentData.erp_batch_year ?? studentData.batch, req.user, transaction);
+          const matchedBatch = await resolveStudentBatch(studentData.erp_batch_year ?? studentData.batch, req.user, transaction, studentData.gender);
+          const studentGender = matchedBatch.gender;
           const resolvedSessionId = matchedBatch.id;
           const hostel_id = matchedBatch.hostel_id;
           const requiresBed = Boolean(studentData.requires_bed);
@@ -321,6 +328,7 @@ export const bulkEnrollStudents = async (req, res) => {
           if (!user) {
             const studentPass = studentData.password ? await bcrypt.hash(studentData.password, salt) : defaultPassword;
             user = await User.create({
+              gender: studentGender,
               userName: studentName,
               userMail: normalizedEmail,
               password: studentPass,
@@ -334,6 +342,7 @@ export const bulkEnrollStudents = async (req, res) => {
           } else {
             await assertCanMove(user.userId, hostel_id, transaction);
             await user.update({
+              gender: studentGender,
               hostel_id,
               roleId: studentRole.roleId,
               status: true,
@@ -1334,7 +1343,7 @@ export const getMonthlyComplaints = async (req, res) => {
 // SESSIONS
 // ==========================================
 export const getSessions = async (req, res) => {
-  try { res.json({ success: true, data: (await listBatches()).filter(batch => batch.is_active) }); }
+  try { res.json({ success: true, data: (await listBatches()).filter(batch => batch.is_active && (req.user.role === 'admin' || Number(batch.hostel_id) === Number(getHostelId(req.user)))) }); }
   catch (error) { res.status(500).json({ success: false, message: error.message }); }
 };
 
@@ -2020,15 +2029,9 @@ export const getMessBills = async (req, res) => {
          order: [['status', 'ASC'], ['createdAt', 'DESC']]
       });
 
-      let hostelName = '';
-      if (hostel_id) {
-        const hostel = await Hostel.findByPk(hostel_id);
-        if (hostel) hostelName = hostel.name;
-      }
-
       const erpStudents = await fetchStudentsFromERP({
         authHeader: req.headers.authorization,
-        hostelName,
+        hostelId: hostel_id,
         hostellersOnly: false
       });
 
@@ -2566,14 +2569,11 @@ export const getErpSyncStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Hostel ID not found.' });
     }
 
-    let hostelName = '';
-    const hostel = await Hostel.findByPk(warden_hostel_id);
-    if (hostel) hostelName = hostel.name;
-
     // 1. Fetch live hosteller students from ERP API
     const erpStudents = await fetchStudentsFromERP({
       authHeader: req.headers.authorization,
-      hostellersOnly: true
+      hostellersOnly: true,
+      hostelId: req.user.role === 'admin' ? null : warden_hostel_id
     });
 
     if (!erpStudents || erpStudents.length === 0) {
@@ -2638,7 +2638,7 @@ export const getErpSyncStatus = async (req, res) => {
       const erpCollege = String(erp.college || 'NEC').trim().toUpperCase();
       let matchedBatch;
       try {
-        matchedBatch = matchBatch(erp.erp_batch_year ?? erp.batch, configuredBatches);
+        matchedBatch = matchBatch(erp.erp_batch_year ?? erp.batch, configuredBatches, erp.gender);
         if (req.user.role !== 'admin' && matchedBatch.hostel_id !== Number(warden_hostel_id)) return;
         const targetHostel = hostelsById.get(matchedBatch.hostel_id);
         if (!targetHostel?.is_active) throw new Error('The assigned hostel is inactive.');
@@ -2728,14 +2728,11 @@ export const syncErpRecords = async (req, res) => {
     const warden_hostel_id = getHostelId(req.user);
     if (!warden_hostel_id) throw new Error("Hostel ID not found.");
 
-    let hostelName = '';
-    const hostel = await Hostel.findByPk(warden_hostel_id, { transaction });
-    if (hostel) hostelName = hostel.name;
-
     // 1. Fetch live hostellers from ERP
     const erpStudents = await fetchStudentsFromERP({
       authHeader: req.headers.authorization,
-      hostellersOnly: true
+      hostellersOnly: true,
+      hostelId: req.user.role === 'admin' ? null : warden_hostel_id
     });
 
     if (!erpStudents || erpStudents.length === 0) {
@@ -2770,9 +2767,10 @@ export const syncErpRecords = async (req, res) => {
       if (!studentName || !normalizedRollNumber) continue;
 
       // Resolve batch and hostel using the configured ERP batch year.
-      const configured = matchBatch(erp.erp_batch_year ?? erp.batch, configuredBatches);
+      const configured = matchBatch(erp.erp_batch_year ?? erp.batch, configuredBatches, erp.gender);
       if (req.user.role !== 'admin' && configured.hostel_id !== Number(warden_hostel_id)) continue;
-      const matchedBatch = await resolveStudentBatch(erp.erp_batch_year ?? erp.batch, req.user, transaction);
+      const matchedBatch = await resolveStudentBatch(erp.erp_batch_year ?? erp.batch, req.user, transaction, erp.gender);
+      const studentGender = matchedBatch.gender;
       const resolvedSessionId = matchedBatch.id;
       const assignedHostel = matchedBatch.hostel_id;
 
@@ -2789,6 +2787,7 @@ export const syncErpRecords = async (req, res) => {
 
       if (!user) {
         user = await User.create({
+          gender: studentGender,
           userName: studentName,
           userMail: normalizedEmail,
           password: defaultPassword,
@@ -2802,6 +2801,7 @@ export const syncErpRecords = async (req, res) => {
         if (!studentRoleIds.includes(Number(user.roleId))) throw new Error(`Roll ${normalizedRollNumber} belongs to a non-student account.`);
         await assertCanMove(user.userId, assignedHostel, transaction);
         await user.update({
+          gender: studentGender,
           userName: studentName,
           hostel_id: assignedHostel,
           roleId: studentRole.roleId,

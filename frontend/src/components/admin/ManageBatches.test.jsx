@@ -28,9 +28,11 @@ it('uses ERP admission year 2024 for 2024-2028 and saves its chosen hostel befor
   await waitFor(() => expect(within(dialog).getByLabelText('ERP Batch Year')).toHaveValue('2024'));
   expect(within(dialog).queryByLabelText('Roll Number Prefix')).not.toBeInTheDocument();
   expect(within(dialog).getByRole('spinbutton', { name: 'End Year' })).toHaveValue('2028');
+  fireEvent.mouseDown(within(dialog).getByRole('combobox', { name: 'Gender' }));
+  fireEvent.click(await screen.findByTitle('Male'));
   fireEvent.mouseDown(within(dialog).getByRole('combobox', { name: 'Assigned Hostel' }));
   fireEvent.click(await screen.findByTitle('BOYS HOSTEL 2'));
   fireEvent.click(within(dialog).getByRole('button', { name: 'Save Batch' }));
-  await waitFor(() => expect(adminAPI.createSession).toHaveBeenCalledWith(expect.objectContaining({ start_year: 2024, end_year: 2028, hostel_id: 2 })));
+  await waitFor(() => expect(adminAPI.createSession).toHaveBeenCalledWith(expect.objectContaining({ start_year: 2024, end_year: 2028, hostel_id: 2, gender: 'male' })));
   await waitFor(() => expect(adminAPI.previewBatchAllocation).toHaveBeenCalled());
 }, 30000);

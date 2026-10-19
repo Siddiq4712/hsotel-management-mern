@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, Picker, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, Switch, ScrollView } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import { User, Lock, Hash, Mail, GraduationCap, Bed } from 'lucide-react-native';
 
 const EnrollStudentScreen = () => {
   const [formData, setFormData] = useState({
-    userName: '', password: '', roll_number: '', email: '', session_id: '', college: '', requires_bed: false
+    userName: '', password: '', roll_number: '', email: '', session_id: '', erp_batch_year: '', gender: '', college: 'nec', requires_bed: false
   });
   const [sessions, setSessions] = useState([]);
   const [step, setStep] = useState(1); // Multi-step form
@@ -24,11 +25,14 @@ const EnrollStudentScreen = () => {
     }
   };
 
+  const matchedBatch = sessions.find(batch => batch.is_active && Number(batch.erp_batch_year) === Number(formData.erp_batch_year) && batch.gender === formData.gender);
+
   const enroll = async () => {
+    if (!matchedBatch) { Alert.alert('Batch required', 'Enter an admission year and gender configured for your hostel.'); return; }
     try {
-      await wardenAPI.enrollStudent(formData);
+      await wardenAPI.enrollStudent({ ...formData, erp_batch_year: Number(formData.erp_batch_year), session_id: matchedBatch.id });
       Alert.alert('Success', 'Student enrolled');
-      setFormData({ userName: '', password: '', roll_number: '', email: '', session_id: '', college: '', requires_bed: false });
+      setFormData({ userName: '', password: '', roll_number: '', email: '', session_id: '', erp_batch_year: '', gender: '', college: 'nec', requires_bed: false });
       setStep(1);
     } catch (error) {
       Alert.alert('Error', error.message);
@@ -56,9 +60,13 @@ const EnrollStudentScreen = () => {
               <Picker.Item label="NEC" value="nec" />
               <Picker.Item label="LAPC" value="lapc" />
             </Picker>
-            <Picker selectedValue={formData.session_id} onValueChange={(v) => setFormData({...formData, session_id: v})}>
-              {sessions.map(s => <Picker.Item key={s.id} label={s.name} value={s.id} />)}
+            <TextInput accessibilityLabel="Batch Admission Year" placeholder="Batch admission year (e.g. 2024)" keyboardType="number-pad" maxLength={4} value={formData.erp_batch_year} onChangeText={value => setFormData({ ...formData, erp_batch_year: value })} className="border p-3 rounded mb-3" />
+            <Picker accessibilityLabel="Gender" selectedValue={formData.gender} onValueChange={value => setFormData({ ...formData, gender: value })}>
+              <Picker.Item label="Choose gender" value="" />
+              <Picker.Item label="Male" value="male" />
+              <Picker.Item label="Female" value="female" />
             </Picker>
+            <Text className="mb-3">{matchedBatch ? `${matchedBatch.name} - ${matchedBatch.hostel_name}` : 'No matching batch and gender configured'}</Text>
             <View className="flex-row items-center mb-3">
               <Switch value={formData.requires_bed} onValueChange={(v) => setFormData({...formData, requires_bed: v})} />
               <Text className="ml-2">Requires Bed</Text>
