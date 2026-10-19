@@ -528,7 +528,7 @@ export const messAPI = {
 
   recordStaffRecordedSpecialFoodConsumption: (data) => api.post('/mess/student-special-consumption-staff', data),
   generateMessBills: (data, config) => api.post('/mess/generate-mess-bills', data, config),
-  createBedFee: (data) => api.post('/bed-fees', data),
+  createBedFee: (data) => api.post('/mess/bed-fees', data),
   getAllBedFees: (params) => api.get('/bed-fees', { params }),
   getStudentBedFees: (studentId) => api.get(`/students/${studentId}/bed-fees`),
   createBulkBedFees: (data) => api.post('/bed-fees/bulk', data),

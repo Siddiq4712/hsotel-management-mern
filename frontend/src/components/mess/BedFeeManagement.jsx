@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Card, Table, Button, Modal, Form, Input, Select, message, Popconfirm, 
   Space, Typography, Checkbox, Row, Col, ConfigProvider, 
@@ -46,6 +46,17 @@ const BedFeeManagement = () => {
   const [isBulkModalVisible, setIsBulkModalVisible] = useState(false);
   const [generateFeeForm] = Form.useForm();
   const [bulkForm] = Form.useForm();
+  const [addStudentForm] = Form.useForm();
+  const [isAddStudentVisible, setIsAddStudentVisible] = useState(false);
+  const [addStudentLoading, setAddStudentLoading] = useState(false);
+  const [addingStudent, setAddingStudent] = useState(false);
+  const [addStudentError, setAddStudentError] = useState('');
+  const [availableStudents, setAvailableStudents] = useState([]);
+  const [existingBedStudentIds, setExistingBedStudentIds] = useState([]);
+  const [studentSearch, setStudentSearch] = useState('');
+  const [studentSession, setStudentSession] = useState(undefined);
+  const [studentCollege, setStudentCollege] = useState(undefined);
+  const [studentToAdd, setStudentToAdd] = useState(null);
 
   // State for Filters
   const [selectedDate, setSelectedDate] = useState(moment());
@@ -77,6 +88,65 @@ const BedFeeManagement = () => {
   }, [selectedDate, selectedSessionId]);
 
   useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
+
+  const filteredStudents = useMemo(() => {
+    const query = studentSearch.trim().toLowerCase();
+    return availableStudents.filter(student =>
+      (!studentSession || String(student.session_id) === String(studentSession)) &&
+      (!studentCollege || student.college?.toLowerCase() === studentCollege) &&
+      [student.userName, student.name, student.username, student.roll_number, student.registerNumber]
+        .some(value => String(value ?? '').toLowerCase().includes(query))
+    );
+  }, [availableStudents, studentSearch, studentSession, studentCollege]);
+
+  const openAddStudent = async () => {
+    setStudentSearch('');
+    setStudentSession(selectedSessionId);
+    setStudentCollege(undefined);
+    setStudentToAdd(null);
+    setAvailableStudents([]);
+    setExistingBedStudentIds([]);
+    setAddStudentError('');
+    addStudentForm.resetFields();
+    setIsAddStudentVisible(true);
+    setAddStudentLoading(true);
+    try {
+      const [studentsRes, feesRes] = await Promise.all([
+        messAPI.getStudents({ requires_bed: 'true' }),
+        messAPI.getStudentFees({ month: selectedDate.month() + 1, year: selectedDate.year(), fee_type: 'bed_charge' })
+      ]);
+      setAvailableStudents(studentsRes.data.data || []);
+      setExistingBedStudentIds((feesRes.data.data || []).map(fee => String(fee.student_id)));
+    } catch (error) {
+      setAddStudentError('Unable to load students and existing fees. Close this window and try again.');
+      message.error('Failed to load students for bed fees');
+    } finally {
+      setAddStudentLoading(false);
+    }
+  };
+
+  const handleAddStudent = async values => {
+    if (!studentToAdd) return message.warning('Select a student from the list');
+    setAddingStudent(true);
+    try {
+      await messAPI.createBedFee({
+        student_id: studentToAdd.id,
+        ...(studentToAdd.hostel_id ? { hostel_id: studentToAdd.hostel_id } : {}),
+        amount: values.amount,
+        month: selectedDate.month() + 1,
+        year: selectedDate.year(),
+        description: values.description || `Bed fee for ${selectedDate.format('MMMM YYYY')}`
+      });
+      message.success('Student added to bed fees');
+      setIsAddStudentVisible(false);
+      if (selectedSessionId !== undefined) setSelectedSessionId(undefined);
+      else await fetchInitialData();
+    } catch (error) {
+      message.error(error.response?.data?.message || error.message || 'Failed to add bed fee');
+    } finally {
+      setAddingStudent(false);
+    }
+  };
 
   // --- 2. FETCH ELIGIBLE STUDENTS (Requires Bed = 1) ---
   // This is triggered when the Generate Modal opens or the Session dropdown inside it changes
@@ -203,6 +273,7 @@ const BedFeeManagement = () => {
               <Button type="text" icon={<ChevronRight size={16} />} onClick={() => setSelectedDate(prev => prev.clone().add(1, 'month'))} />
             </div>
             <Space>
+              <Button icon={<Plus size={18}/>} onClick={openAddStudent}>Add Student</Button>
               <Button icon={<LayoutGrid size={18}/>} onClick={() => setIsBulkModalVisible(true)}>Session Bulk</Button>
               <Button icon={<Download size={18} />} onClick={() => downloadStudentBulkImportTemplate()}>Excel Template</Button>
               <Button type="primary" icon={<FilePlus size={18}/>} onClick={() => setIsGenerateFeeModalVisible(true)}>Generate New Fees</Button>
@@ -255,6 +326,86 @@ const BedFeeManagement = () => {
             />
           </Card>
         )}
+
+        <Modal
+          title={`Add Student to Bed Fees — ${selectedDate.format('MMMM YYYY')}`}
+          open={isAddStudentVisible}
+          width={850}
+          onCancel={() => { if (!addingStudent) setIsAddStudentVisible(false); }}
+          onOk={() => addStudentForm.submit()}
+          okText="Add Bed Fee"
+          confirmLoading={addingStudent}
+          okButtonProps={{ disabled: addStudentLoading || Boolean(addStudentError) || !studentToAdd }}
+          cancelButtonProps={{ disabled: addingStudent }}
+          closable={!addingStudent}
+          mask={{ closable: !addingStudent }}
+        >
+          <Text type="secondary">Choose an active student who requires a bed, then enter their fee for this month.</Text>
+          <Space wrap className="mt-4 mb-4">
+            <Input
+              aria-label="Search bed fee students"
+              placeholder="Search name or roll number"
+              prefix={<Search size={16} />}
+              allowClear
+              value={studentSearch}
+              onChange={event => { setStudentSearch(event.target.value); setStudentToAdd(null); }}
+              style={{ width: 260 }}
+              disabled={addingStudent}
+            />
+            <Select
+              aria-label="Filter students by session"
+              placeholder="All sessions"
+              allowClear
+              value={studentSession}
+              onChange={value => { setStudentSession(value); setStudentToAdd(null); }}
+              style={{ width: 180 }}
+              disabled={addingStudent}
+              options={sessions.map(session => ({ value: session.id, label: session.name }))}
+            />
+            <Select
+              aria-label="Filter students by college"
+              placeholder="All colleges"
+              allowClear
+              value={studentCollege}
+              onChange={value => { setStudentCollege(value); setStudentToAdd(null); }}
+              style={{ width: 160 }}
+              disabled={addingStudent}
+              options={[{ value: 'nec', label: 'NEC' }, { value: 'lapc', label: 'LAPC' }]}
+            />
+          </Space>
+          {addStudentError && <div role="alert"><Text type="danger">{addStudentError}</Text></div>}
+          <Table
+            size="small"
+            loading={addStudentLoading}
+            rowKey="id"
+            dataSource={filteredStudents}
+            scroll={{ x: 650, y: 260 }}
+            pagination={{ pageSize: 8, showSizeChanger: false, showTotal: total => `${total} students` }}
+            rowSelection={{
+              type: 'radio',
+              selectedRowKeys: studentToAdd ? [studentToAdd.id] : [],
+              onChange: (keys, rows) => setStudentToAdd(rows[0] || null),
+              getCheckboxProps: student => ({ disabled: addingStudent || existingBedStudentIds.includes(String(student.id)) })
+            }}
+            columns={[
+              { title: 'Student', key: 'name', render: (_, student) => student.userName || student.name || student.username },
+              { title: 'Roll Number', key: 'roll', render: (_, student) => student.roll_number || student.registerNumber },
+              { title: 'College', dataIndex: 'college', render: value => value?.toUpperCase() },
+              { title: 'Session', dataIndex: 'session_name' },
+              { title: 'Bed Fee', key: 'status', render: (_, student) => existingBedStudentIds.includes(String(student.id)) ? <Tag>Already added</Tag> : <Tag color="green">Available</Tag> }
+            ]}
+            locale={{ emptyText: addStudentError || 'No eligible students match these filters' }}
+          />
+          <Form form={addStudentForm} layout="vertical" onFinish={handleAddStudent} disabled={addingStudent} className="mt-4">
+            {studentToAdd && <Text strong>Selected: {studentToAdd.userName || studentToAdd.name} ({studentToAdd.roll_number || studentToAdd.registerNumber})</Text>}
+            <Form.Item name="amount" label="Bed Fee Amount (₹)" rules={[{ required: true, message: 'Enter the bed fee amount' }, { type: 'number', min: 0.01, message: 'Amount must be greater than zero' }]}>
+              <InputNumber prefix="₹" min={0.01} precision={2} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="description" label="Description">
+              <Input placeholder="Optional remark" />
+            </Form.Item>
+          </Form>
+        </Modal>
 
         {/* Modal: Selective Generation */}
         <Modal
@@ -333,7 +484,7 @@ const BedFeeManagement = () => {
               <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex gap-3 mb-6">
                   <Info size={18} className="text-amber-500 shrink-0" />
                   <Text className="text-[11px] text-amber-700">
-                    This action will generate bed fees for <b>every active student</b> in the selected session 
+                    This action will generate bed fees for <b>every active student</b> in the selected session
                     who has <b>Requires Bed = Yes</b> in their enrollment record.
                   </Text>
               </div>
