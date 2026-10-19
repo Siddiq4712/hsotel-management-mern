@@ -560,11 +560,11 @@ export const INTENTS = [
   },
   {
     intent: "MANAGE_SESSIONS",
-    keywords: ["sessions", "manage sessions", "academic sessions", "session settings"],
+    keywords: ["batches", "manage batches", "academic batches", "batch settings", "sessions", "manage sessions"],
     roles: ["admin"],
     action: "navigate",
     navigationPath: "/sessions",
-    response: "Opening Academic Sessions setup..."
+    response: "Opening Manage Batches..."
   },
   {
     intent: "OUTPASS_LOGS_ADMIN",

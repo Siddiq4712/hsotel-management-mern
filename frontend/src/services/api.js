@@ -146,6 +146,9 @@ export const adminAPI = {
   // Session Management - Complete CRUD
   createSession: (data) => api.post('/admin/sessions', data),
   getSessions: (params) => api.get('/admin/sessions', { params }),
+  previewBatchAllocation: () => api.get('/admin/batches/allocation-preview'),
+  applyBatchAllocation: data => api.post('/admin/batches/allocate', data),
+  assignHostelBatches: (hostelId, data) => api.put(`/admin/hostels/${hostelId}/batches`, data),
   updateSession: (id, data) => api.put(`/admin/sessions/${id}`, data),
   deleteSession: (id) => api.delete(`/admin/sessions/${id}`),
 

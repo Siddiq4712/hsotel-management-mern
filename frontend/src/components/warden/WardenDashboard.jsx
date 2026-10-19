@@ -10,7 +10,7 @@ import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import {
   Card, Typography, Row, Col, Statistic, Button,
   ConfigProvider, Skeleton, Modal, Table, Tag, Badge,
-  message, Tabs, Tooltip
+  message, Tabs, Tooltip, Alert
 } from 'antd';
 
 import {
@@ -119,6 +119,7 @@ const WardenDashboard = ({ setCurrentView }) => {
   }
 
   const newStudentsColumns = [
+    { title: 'Assigned Hostel', dataIndex: 'assigned_hostel', key: 'assigned_hostel' },
     {
       title: 'Roll Number',
       dataIndex: 'roll_number',
@@ -138,7 +139,7 @@ const WardenDashboard = ({ setCurrentView }) => {
       render: (text) => <Tag color="geekblue">{text || 'General'}</Tag>
     },
     {
-      title: 'Batch / Session',
+      title: 'Batch',
       dataIndex: 'batch',
       key: 'batch',
       render: (text) => <Tag color="purple">{text || 'Default'}</Tag>
@@ -158,6 +159,7 @@ const WardenDashboard = ({ setCurrentView }) => {
   ];
 
   const updatedStudentsColumns = [
+    { title: 'Assigned Hostel', dataIndex: 'assigned_hostel', key: 'assigned_hostel' },
     {
       title: 'Roll Number',
       dataIndex: 'roll_number',
@@ -471,6 +473,7 @@ const WardenDashboard = ({ setCurrentView }) => {
               key="sync"
               type="primary"
               loading={syncing}
+              disabled={Boolean(erpSync?.allocationConflicts?.length)}
               icon={<RefreshCcw size={16} className={syncing ? "animate-spin" : ""} />}
               onClick={handleSyncNow}
               className="rounded-xl font-bold bg-blue-600 hover:bg-blue-500 h-10 px-6"
@@ -481,6 +484,7 @@ const WardenDashboard = ({ setCurrentView }) => {
         >
           {erpSync && (
             <div className="space-y-6 pt-2">
+              {Boolean(erpSync.allocationConflicts?.length) && <Alert type="warning" showIcon title="Batch allocation needs attention" description="Configure the unmatched batch prefixes and assigned hostels in Manage Batches, then check ERP status again before synchronizing." />}
               {/* Quick Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -505,6 +509,11 @@ const WardenDashboard = ({ setCurrentView }) => {
               <Tabs
                 defaultActiveKey="new"
                 items={[
+                  {
+                    key: 'allocation-conflicts',
+                    label: `Allocation Conflicts (${erpSync.allocationConflicts?.length || 0})`,
+                    children: <Table dataSource={erpSync.allocationConflicts || []} rowKey="id" pagination={{ pageSize: 5 }} columns={[{ title: 'Roll Number', dataIndex: 'roll_number' }, { title: 'Student', dataIndex: 'name' }, { title: 'Needs Attention', dataIndex: 'reason' }]} />
+                  },
                   {
                     key: 'new',
                     label: `New Hostellers (${erpSync.newCount})`,

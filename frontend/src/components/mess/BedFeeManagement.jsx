@@ -209,7 +209,7 @@ const BedFeeManagement = () => {
         month: selectedDate.month() + 1,
         year: selectedDate.year()
       });
-      message.success('Bulk bed fees generated for the session');
+      message.success('Bulk bed fees generated for the batch');
       setIsBulkModalVisible(false);
       bulkForm.resetFields();
       fetchInitialData();
@@ -274,7 +274,7 @@ const BedFeeManagement = () => {
             </div>
             <Space>
               <Button icon={<Plus size={18}/>} onClick={openAddStudent}>Add Student</Button>
-              <Button icon={<LayoutGrid size={18}/>} onClick={() => setIsBulkModalVisible(true)}>Session Bulk</Button>
+              <Button icon={<LayoutGrid size={18}/>} onClick={() => setIsBulkModalVisible(true)}>Batch Bulk</Button>
               <Button icon={<Download size={18} />} onClick={() => downloadStudentBulkImportTemplate()}>Excel Template</Button>
               <Button type="primary" icon={<FilePlus size={18}/>} onClick={() => setIsGenerateFeeModalVisible(true)}>Generate New Fees</Button>
             </Space>
@@ -285,7 +285,7 @@ const BedFeeManagement = () => {
         <Card className="border-none shadow-sm rounded-xl mb-6">
           <div className="flex flex-wrap items-center gap-4">
             <Select
-              placeholder="Filter List by Session"
+              placeholder="Filter List by Batch"
               className="w-64"
               allowClear
               value={selectedSessionId}
@@ -353,8 +353,8 @@ const BedFeeManagement = () => {
               disabled={addingStudent}
             />
             <Select
-              aria-label="Filter students by session"
-              placeholder="All sessions"
+              aria-label="Filter students by batch"
+              placeholder="All batches"
               allowClear
               value={studentSession}
               onChange={value => { setStudentSession(value); setStudentToAdd(null); }}
@@ -391,7 +391,7 @@ const BedFeeManagement = () => {
               { title: 'Student', key: 'name', render: (_, student) => student.userName || student.name || student.username },
               { title: 'Roll Number', key: 'roll', render: (_, student) => student.roll_number || student.registerNumber },
               { title: 'College', dataIndex: 'college', render: value => value?.toUpperCase() },
-              { title: 'Session', dataIndex: 'session_name' },
+              { title: 'Batch', dataIndex: 'session_name' },
               { title: 'Bed Fee', key: 'status', render: (_, student) => existingBedStudentIds.includes(String(student.id)) ? <Tag>Already added</Tag> : <Tag color="green">Available</Tag> }
             ]}
             locale={{ emptyText: addStudentError || 'No eligible students match these filters' }}
@@ -420,8 +420,8 @@ const BedFeeManagement = () => {
           <Form form={generateFeeForm} layout="vertical" onFinish={handleGenerateBedFees} className="mt-4">
             <Row gutter={16}>
               <Col span={12}>
-                <Form.Item name="session_id_for_modal" label="Filter Students by Session" rules={[{ required: true, message: 'Select session to see students' }]}>
-                  <Select placeholder="Select Session" onChange={setSessionForModalFilter}>
+                <Form.Item name="session_id_for_modal" label="Filter Students by Batch" rules={[{ required: true, message: 'Select batch to see students' }]}>
+                  <Select placeholder="Select Batch" onChange={setSessionForModalFilter}>
                     {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
                   </Select>
                 </Form.Item>
@@ -447,7 +447,7 @@ const BedFeeManagement = () => {
                     Select All Eligible ({studentsForSelection.length})
                   </Checkbox>
                   <div className="max-h-48 overflow-y-auto mt-4 pr-2">
-                    {studentsForSelection.length === 0 && <Text type="secondary" className="block text-center py-4">No students found in this session with 'Requires Bed' status.</Text>}
+                    {studentsForSelection.length === 0 && <Text type="secondary" className="block text-center py-4">No students found in this batch with 'Requires Bed' status.</Text>}
                     <Checkbox.Group className="w-full" value={selectedStudentIds} onChange={setSelectedStudentIds}>
                       <Row gutter={[0, 8]}>
                         {studentsForSelection.map(s => (
@@ -473,7 +473,7 @@ const BedFeeManagement = () => {
 
         {/* Modal: Bulk Session Create */}
         <Modal
-          title={<div className="flex items-center gap-2 text-blue-600"><LayoutGrid size={18}/> Session Bulk Creation</div>}
+          title={<div className="flex items-center gap-2 text-blue-600"><LayoutGrid size={18}/> Batch Bulk Creation</div>}
           open={isBulkModalVisible}
           onCancel={() => setIsBulkModalVisible(false)}
           onOk={() => bulkForm.submit()}
@@ -484,12 +484,12 @@ const BedFeeManagement = () => {
               <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex gap-3 mb-6">
                   <Info size={18} className="text-amber-500 shrink-0" />
                   <Text className="text-[11px] text-amber-700">
-                    This action will generate bed fees for <b>every active student</b> in the selected session
+                    This action will generate bed fees for <b>every active student</b> in the selected batch
                     who has <b>Requires Bed = Yes</b> in their enrollment record.
                   </Text>
               </div>
-              <Form.Item name="session_id" label="Target Session" rules={[{ required: true }]}>
-                <Select placeholder="Select Session">
+              <Form.Item name="session_id" label="Target Batch" rules={[{ required: true }]}>
+                <Select placeholder="Select Batch">
                   {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
                 </Select>
               </Form.Item>

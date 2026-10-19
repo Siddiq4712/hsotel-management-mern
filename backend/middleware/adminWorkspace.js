@@ -120,7 +120,7 @@ export function installAdminWorkspace(router, portal) {
         const shared=portal==='mess' && (sharedMess.test(path) || /^\/items(?:\/[^/]+)?$/.test(path) || /^\/items\/(bulk|:item_id\/stores)$/.test(path));
         const inventoryId = req.get('X-Inventory-Id') || req.body?.inventory_id || req.query.inventory_id;
         const poolRequest = portal === 'mess' && (inventoryPath.test(path) || consumptionWrite.test(path) || path === '/chart-data/monthly-expenses' || (method === 'get' && path === '/items' && inventoryId));
-        if((shared && !poolRequest) || path==='/sessions')return handler(req,res,next);
+        if((shared && !poolRequest) || path==='/sessions' || (portal==='warden' && method==='post' && (path==='/students' || path==='/students/bulk-import')))return handler(req,res,next);
         try {
           if (poolRequest && inventoryId) {
             if (!Number.isInteger(Number(inventoryId)) || Number(inventoryId) <= 0) throw new Error('Choose a valid inventory.');

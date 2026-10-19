@@ -1,3 +1,4 @@
+import { resolveStudentBatch, assertCanMove, listBatches, matchBatch } from '../services/batchAllocation.js';
 import bcrypt from 'bcryptjs';
 import { Op } from 'sequelize';
 import moment from 'moment';
@@ -29,86 +30,6 @@ const getStudentRoleIds = async (transaction = null) => {
   return roleRows.map((r) => Number(r.roleId)).filter((id) => Number.isFinite(id));
 };
 
-/**
- * Resolves an existing Session or creates a new Session in tbl_Session based on batch/session identifier.
- * Supports strings like "2021-2025", "2022-2026", "2024", "Batch 2023-2027", or numeric session_id.
- */
-export const getOrCreateSessionByBatch = async (batchInput, transaction = null) => {
-  // If input is a pure numeric ID, check if it exists in DB
-  if (batchInput !== null && batchInput !== undefined && !isNaN(batchInput) && !String(batchInput).includes('-') && !String(batchInput).includes('/')) {
-    const numId = parseInt(batchInput, 10);
-    if (Number.isFinite(numId) && numId > 0) {
-      const existingById = await Session.findByPk(numId, { transaction: transaction || undefined });
-      if (existingById) return existingById.id;
-    }
-  }
-
-  const rawBatch = String(batchInput || '').trim();
-
-  // If no batch provided, fallback to active or latest session
-  if (!rawBatch || rawBatch.toLowerCase() === 'null' || rawBatch.toLowerCase() === 'undefined' || rawBatch.toLowerCase() === 'n/a') {
-    let activeSession = await Session.findOne({
-      where: { is_active: true },
-      order: [['start_date', 'DESC'], ['id', 'DESC']],
-      transaction: transaction || undefined
-    });
-    if (!activeSession) {
-      activeSession = await Session.findOne({ order: [['id', 'DESC']], transaction: transaction || undefined });
-    }
-    if (activeSession) return activeSession.id;
-
-    // If completely empty tbl_Session, create a default 4-year session
-    const currentYear = new Date().getFullYear();
-    const createdSession = await Session.create({
-      name: `${currentYear}-${currentYear + 4}`,
-      start_date: new Date(`${currentYear}-06-01`),
-      end_date: new Date(`${currentYear + 4}-05-31`),
-      is_active: true
-    }, { transaction: transaction || undefined });
-    return createdSession.id;
-  }
-
-  // Check if session with exact or matching name already exists
-  let session = await Session.findOne({
-    where: {
-      [Op.or]: [
-        { name: rawBatch },
-        { name: { [Op.like]: `%${rawBatch}%` } }
-      ]
-    },
-    transaction: transaction || undefined
-  });
-
-  if (session) return session.id;
-
-  // Extract years from batch name (e.g., "2022-2026", "2023 - 2027", "2024")
-  const years = rawBatch.match(/\b(20\d{2}|19\d{2})\b/g);
-  let startDate = new Date();
-  let endDate = new Date();
-
-  if (years && years.length >= 2) {
-    startDate = new Date(`${years[0]}-06-01`);
-    endDate = new Date(`${years[1]}-05-31`);
-  } else if (years && years.length === 1) {
-    const yr = parseInt(years[0], 10);
-    startDate = new Date(`${yr}-06-01`);
-    endDate = new Date(`${yr + 4}-05-31`);
-  } else {
-    const curr = new Date().getFullYear();
-    startDate = new Date(`${curr}-06-01`);
-    endDate = new Date(`${curr + 4}-05-31`);
-  }
-
-  const newSession = await Session.create({
-    name: rawBatch,
-    start_date: startDate,
-    end_date: endDate,
-    is_active: true
-  }, { transaction: transaction || undefined });
-
-  return newSession.id;
-};
-
 // ==========================================
 // STUDENT ENROLLMENT
 // ==========================================
@@ -120,11 +41,6 @@ export const enrollStudent = async (req, res) => {
          userName: userNameRaw,
          username,
          email, 
-         session_id,
-         batch,
-         batch_year,
-         academic_year,
-         session,
          requires_bed, 
          paid_initial_emi,
          college,
@@ -142,20 +58,19 @@ export const enrollStudent = async (req, res) => {
          throw new Error("Only students with type 'hosteller' can be stored in the database.");
       }
       
-      const hostel_id = getHostelId(req.user);
       const normalizedRollNumber = String(roll_number || '').trim();
       const defaultDomain = String(college || 'nec').toLowerCase() === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in';
       const generatedEmail = normalizedRollNumber ? `${normalizedRollNumber}@${defaultDomain}` : '';
       const normalizedEmail = String(email || generatedEmail).trim().toLowerCase();
 
-      if (!hostel_id) throw new Error("Warden's hostel ID not found.");
       if (!userName) throw new Error("Student name is required.");
       if (!normalizedEmail) throw new Error("Email is required (or provide roll number for auto-email).");
       if (!normalizedRollNumber) throw new Error("Roll number is required.");
 
-      // Resolve or automatically create the batch/session in tbl_Session
-      const rawBatch = batch || session_id || batch_year || academic_year || session;
-      const resolvedSessionId = await getOrCreateSessionByBatch(rawBatch, transaction);
+      // Prefix configuration is authoritative; imported batch IDs cannot override it.
+      const matchedBatch = await resolveStudentBatch(normalizedRollNumber, req.user, transaction);
+      const resolvedSessionId = matchedBatch.id;
+      const hostel_id = matchedBatch.hostel_id;
 
       // DYNAMIC ROLE RETRIEVAL: Find 'student' role ID
       const studentRole = await Role.findOne({ 
@@ -173,6 +88,7 @@ export const enrollStudent = async (req, res) => {
       });
 
       if (student) {
+         await assertCanMove(student.userId, hostel_id, transaction);
          if (!studentRoleIds.includes(Number(student.roleId))) {
             throw new Error('This email/roll belongs to a non-student account. Use a different email/roll number.');
          }
@@ -204,8 +120,7 @@ export const enrollStudent = async (req, res) => {
       // Check if enrollment exists and update or create
       let existingEnrollment = await Enrollment.findOne({
          where: {
-            student_id: student.userId,
-            hostel_id: hostel_id
+            student_id: student.userId
          },
          transaction
       });
@@ -213,7 +128,7 @@ export const enrollStudent = async (req, res) => {
       if (!existingEnrollment) {
          await Enrollment.create({
             student_id: student.userId,
-            hostel_id: hostel_id, 
+            hostel_id,
             session_id: resolvedSessionId,
             requires_bed: !!requires_bed,
             college: college || 'nec',
@@ -222,6 +137,7 @@ export const enrollStudent = async (req, res) => {
          }, { transaction });
       } else {
          await existingEnrollment.update({
+            hostel_id,
             session_id: resolvedSessionId,
             requires_bed: !!requires_bed,
             college: college || 'nec',
@@ -349,10 +265,8 @@ export const getStudents = async (req, res) => {
 export const bulkEnrollStudents = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const { students = [], session_id: defaultSessionId, college: defaultCollege } = req.body;
-    const hostel_id = getHostelId(req.user) || req.user.hostelId || req.user.hostel_id;
+    const { students = [], college: defaultCollege } = req.body;
 
-    if (!hostel_id) throw new Error("Hostel ID not found. Please re-login.");
     if (!Array.isArray(students) || students.length === 0) {
       throw new Error("No student records provided for bulk enrollment.");
     }
@@ -373,85 +287,90 @@ export const bulkEnrollStudents = async (req, res) => {
 
     for (const studentData of students) {
       try {
-        const rawType = String(studentData.student_type || studentData.studentType || studentData.type || 'hosteller').trim().toLowerCase();
-        if (rawType && rawType !== 'hosteller') {
-          results.skipped++;
-          continue;
-        }
+        await sequelize.transaction({ transaction }, async transaction => {
+          const rawType = String(studentData.student_type || studentData.studentType || studentData.type || 'hosteller').trim().toLowerCase();
+          if (rawType && rawType !== 'hosteller') {
+            results.skipped++;
+            return;
+          }
 
-        const rawName = studentData.userName || studentData.name || '';
-        const studentName = rawName.trim().toUpperCase();
-        const normalizedRollNumber = String(studentData.roll_number || studentData.roll || '').trim();
-        const studentCollege = String(studentData.college || defaultCollege || 'nec').trim().toLowerCase();
-        const defaultDomain = studentCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in';
-        const generatedEmail = normalizedRollNumber ? `${normalizedRollNumber}@${defaultDomain}`.toLowerCase() : '';
-        const normalizedEmail = String(studentData.email || studentData.userMail || generatedEmail).trim().toLowerCase();
-        const rawBatch = studentData.batch || studentData.batch_year || studentData.session || studentData.academic_year || studentData.session_id || defaultSessionId;
-        const resolvedSessionId = await getOrCreateSessionByBatch(rawBatch, transaction);
-        const requiresBed = Boolean(studentData.requires_bed);
+          const rawName = studentData.userName || studentData.name || '';
+          const studentName = rawName.trim().toUpperCase();
+          const normalizedRollNumber = String(studentData.roll_number || studentData.roll || '').trim();
+          const studentCollege = String(studentData.college || defaultCollege || 'nec').trim().toLowerCase();
+          const defaultDomain = studentCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in';
+          const generatedEmail = normalizedRollNumber ? `${normalizedRollNumber}@${defaultDomain}`.toLowerCase() : '';
+          const normalizedEmail = String(studentData.email || studentData.userMail || generatedEmail).trim().toLowerCase();
+          const matchedBatch = await resolveStudentBatch(normalizedRollNumber, req.user, transaction);
+          const resolvedSessionId = matchedBatch.id;
+          const hostel_id = matchedBatch.hostel_id;
+          const requiresBed = Boolean(studentData.requires_bed);
 
-        if (!studentName) {
-          throw new Error(`Student name is required for roll ${normalizedRollNumber || 'unknown'}`);
-        }
-        if (!normalizedRollNumber) {
-          throw new Error(`Roll number is required for student ${studentName}`);
-        }
+          if (!studentName) {
+            throw new Error(`Student name is required for roll ${normalizedRollNumber || 'unknown'}`);
+          }
+          if (!normalizedRollNumber) {
+            throw new Error(`Roll number is required for student ${studentName}`);
+          }
 
-        // 1. Create/Update User (Login Credentials)
-        let user = await User.findOne({ 
-          where: { [Op.or]: [{ roll_number: normalizedRollNumber }, { userMail: normalizedEmail }] },
-          transaction 
+          // 1. Create/Update User (Login Credentials)
+          let user = await User.findOne({
+            where: { [Op.or]: [{ roll_number: normalizedRollNumber }, { userMail: normalizedEmail }] },
+            transaction
+          });
+
+          if (!user) {
+            const studentPass = studentData.password ? await bcrypt.hash(studentData.password, salt) : defaultPassword;
+            user = await User.create({
+              userName: studentName,
+              userMail: normalizedEmail,
+              password: studentPass,
+              roleId: studentRole.roleId,
+              hostel_id,
+              roll_number: normalizedRollNumber,
+              status: true
+            }, { transaction });
+          } else if (!studentRoleIds.includes(Number(user.roleId))) {
+            throw new Error(`Existing account for ${normalizedRollNumber} is not a student account`);
+          } else {
+            await assertCanMove(user.userId, hostel_id, transaction);
+            await user.update({
+              hostel_id,
+              roleId: studentRole.roleId,
+              status: true,
+              roll_number: normalizedRollNumber
+            }, { transaction });
+          }
+
+          // 2. Create/Update Enrollment Record (The Batch/Session link)
+          let existingEnrollment = await Enrollment.findOne({
+            where: { student_id: user.userId },
+            transaction
+          });
+
+          if (!existingEnrollment) {
+            await Enrollment.create({
+              student_id: user.userId,
+              hostel_id,
+              session_id: resolvedSessionId,
+              roll_number: normalizedRollNumber,
+              college: studentCollege || 'nec',
+              requires_bed: requiresBed,
+              status: 'active'
+            }, { transaction });
+            results.successful++;
+          } else {
+            await existingEnrollment.update({
+              hostel_id,
+              session_id: resolvedSessionId,
+              requires_bed: requiresBed,
+              college: studentCollege || 'nec',
+              roll_number: normalizedRollNumber,
+              status: 'active'
+            }, { transaction });
+            results.successful++;
+          }
         });
-
-        if (!user) {
-          const studentPass = studentData.password ? await bcrypt.hash(studentData.password, salt) : defaultPassword;
-          user = await User.create({
-            userName: studentName,
-            userMail: normalizedEmail,
-            password: studentPass,
-            roleId: studentRole.roleId,
-            hostel_id,
-            roll_number: normalizedRollNumber,
-            status: true 
-          }, { transaction });
-        } else if (!studentRoleIds.includes(Number(user.roleId))) {
-          throw new Error(`Existing account for ${normalizedRollNumber} is not a student account`);
-        } else {
-          await user.update({
-            hostel_id,
-            roleId: studentRole.roleId,
-            status: true,
-            roll_number: normalizedRollNumber
-          }, { transaction });
-        }
-
-        // 2. Create/Update Enrollment Record (The Batch/Session link)
-        let existingEnrollment = await Enrollment.findOne({
-          where: { student_id: user.userId, hostel_id },
-          transaction
-        });
-
-        if (!existingEnrollment) {
-          await Enrollment.create({
-            student_id: user.userId,
-            hostel_id,
-            session_id: resolvedSessionId,
-            roll_number: normalizedRollNumber,
-            college: studentCollege || 'nec',
-            requires_bed: requiresBed, 
-            status: 'active'
-          }, { transaction });
-          results.successful++;
-        } else {
-          await existingEnrollment.update({
-            session_id: resolvedSessionId,
-            requires_bed: requiresBed,
-            college: studentCollege || 'nec',
-            roll_number: normalizedRollNumber,
-            status: 'active'
-          }, { transaction });
-          results.successful++;
-        }
       } catch (err) {
         results.errors.push({ name: studentData.userName || studentData.name || studentData.roll_number, error: err.message });
       }
@@ -1414,16 +1333,8 @@ export const getMonthlyComplaints = async (req, res) => {
 // SESSIONS
 // ==========================================
 export const getSessions = async (req, res) => {
-   try {
-      const sessions = await Session.findAll({ 
-         where: { is_active: true }, 
-         order: [['createdAt', 'DESC']] 
-      });
-      res.json({ success: true, data: sessions });
-   } catch (error) {
-      console.error('Sessions fetch error:', error);
-      res.status(500).json({ success: false, message: 'Server error' });
-   }
+  try { res.json({ success: true, data: (await listBatches()).filter(batch => batch.is_active) }); }
+  catch (error) { res.status(500).json({ success: false, message: error.message }); }
 };
 
 // ==========================================
@@ -2716,13 +2627,26 @@ export const getErpSyncStatus = async (req, res) => {
 
     const newStudents = [];
     const updatedStudents = [];
+    const allocationConflicts = [];
+    const configuredBatches = await listBatches();
+    const hostelsById = new Map((await Hostel.findAll()).map(hostel => [hostel.id, hostel]));
 
     erpStudents.forEach(erp => {
       const erpRoll = String(erp.roll_number || erp.registerNumber || '').trim().toUpperCase();
       const erpEmail = String(erp.email || erp.userMail || '').trim().toLowerCase();
       const erpName = String(erp.userName || erp.username || '').trim();
       const erpCollege = String(erp.college || 'NEC').trim().toUpperCase();
-      const erpBatch = String(erp.batch || erp.batch_year || erp.academic_year || erp.academicYear || erp.session || '').trim();
+      let matchedBatch;
+      try {
+        matchedBatch = matchBatch(erpRoll, configuredBatches);
+        if (req.user.role !== 'admin' && matchedBatch.hostel_id !== Number(warden_hostel_id)) throw new Error(`This batch belongs to ${matchedBatch.hostel_name}.`);
+        const targetHostel = hostelsById.get(matchedBatch.hostel_id);
+        if (!targetHostel?.is_active) throw new Error('The assigned hostel is inactive.');
+      } catch (error) {
+        allocationConflicts.push({ id: erp.id || erpRoll, name: erpName, roll_number: erpRoll, reason: error.message });
+        return;
+      }
+      const erpBatch = matchedBatch.name;
 
       const existing = (erpRoll ? localByRoll.get(erpRoll) : null) || (erpEmail ? localByEmail.get(erpEmail) : null);
 
@@ -2735,7 +2659,8 @@ export const getErpSyncStatus = async (req, res) => {
           college: erpCollege,
           gender: erp.gender,
           department: erp.course || erp.session,
-          batch: erpBatch || 'N/A'
+          batch: erpBatch,
+          assigned_hostel: matchedBatch.hostel_name
         });
       } else {
         const dbName = String(existing.user.userName || '').trim();
@@ -2758,6 +2683,7 @@ export const getErpSyncStatus = async (req, res) => {
             newCollege: erpCollege,
             oldBatch: dbBatch,
             newBatch: erpBatch,
+            assigned_hostel: matchedBatch.hostel_name,
             diffSummary: [
               nameDiffers ? `Name: "${dbName}" → "${erpName}"` : null,
               collegeDiffers ? `College: "${dbCollege}" → "${erpCollege}"` : null,
@@ -2768,7 +2694,7 @@ export const getErpSyncStatus = async (req, res) => {
       }
     });
 
-    const totalDifferences = newStudents.length + updatedStudents.length;
+    const totalDifferences = newStudents.length + updatedStudents.length + allocationConflicts.length;
 
     res.json({
       success: true,
@@ -2777,8 +2703,9 @@ export const getErpSyncStatus = async (req, res) => {
         totalDifferences,
         newCount: newStudents.length,
         updatedCount: updatedStudents.length,
-        newStudents: newStudents.slice(0, 50),
-        updatedStudents: updatedStudents.slice(0, 50),
+        newStudents,
+        updatedStudents,
+        allocationConflicts,
         totalErpCount: erpStudents.length,
         totalDbCount: localEnrollments.length
       }
@@ -2791,7 +2718,7 @@ export const getErpSyncStatus = async (req, res) => {
 
 /**
  * Automatically syncs hosteller records from ERP API into tbl_users & tbl_Enrollment,
- * ensuring batch/session from ERP is automatically resolved/created in tbl_Session.
+ * matching roll prefixes to configured batches and hostels.
  */
 export const syncErpRecords = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -2825,6 +2752,7 @@ export const syncErpRecords = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const defaultPassword = await bcrypt.hash('12345678', salt);
 
+    const studentRoleIds = await getStudentRoleIds(transaction);
     let addedCount = 0;
     let updatedCount = 0;
 
@@ -2836,12 +2764,13 @@ export const syncErpRecords = async (req, res) => {
       const defaultDomain = studentCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in';
       const generatedEmail = normalizedRollNumber ? `${normalizedRollNumber}@${defaultDomain}`.toLowerCase() : '';
       const normalizedEmail = String(erp.email || erp.userMail || generatedEmail).trim().toLowerCase();
-      const erpBatch = String(erp.batch || erp.batch_year || erp.academic_year || erp.academicYear || erp.session || '').trim();
 
       if (!studentName || !normalizedRollNumber) continue;
 
-      // Automatically find or create batch/session in tbl_Session
-      const resolvedSessionId = await getOrCreateSessionByBatch(erpBatch, transaction);
+      // Resolve batch and hostel using the configured roll number prefix.
+      const matchedBatch = await resolveStudentBatch(normalizedRollNumber, req.user, transaction);
+      const resolvedSessionId = matchedBatch.id;
+      const assignedHostel = matchedBatch.hostel_id;
 
       // Find or create User
       let user = await User.findOne({
@@ -2860,15 +2789,17 @@ export const syncErpRecords = async (req, res) => {
           userMail: normalizedEmail,
           password: defaultPassword,
           roleId: studentRole.roleId,
-          hostel_id: warden_hostel_id,
+          hostel_id: assignedHostel,
           roll_number: normalizedRollNumber,
           status: true
         }, { transaction });
         addedCount++;
       } else {
+        if (!studentRoleIds.includes(Number(user.roleId))) throw new Error(`Roll ${normalizedRollNumber} belongs to a non-student account.`);
+        await assertCanMove(user.userId, assignedHostel, transaction);
         await user.update({
           userName: studentName,
-          hostel_id: warden_hostel_id,
+          hostel_id: assignedHostel,
           roleId: studentRole.roleId,
           roll_number: normalizedRollNumber,
           status: true
@@ -2878,8 +2809,7 @@ export const syncErpRecords = async (req, res) => {
       // Find or create Enrollment
       let existingEnrollment = await Enrollment.findOne({
         where: {
-          student_id: user.userId,
-          hostel_id: warden_hostel_id
+          student_id: user.userId
         },
         transaction
       });
@@ -2887,7 +2817,7 @@ export const syncErpRecords = async (req, res) => {
       if (!existingEnrollment) {
         await Enrollment.create({
           student_id: user.userId,
-          hostel_id: warden_hostel_id,
+          hostel_id: assignedHostel,
           session_id: resolvedSessionId,
           roll_number: normalizedRollNumber,
           college: studentCollege === 'lapc' ? 'lapc' : 'nec',
@@ -2896,6 +2826,7 @@ export const syncErpRecords = async (req, res) => {
         }, { transaction });
       } else {
         await existingEnrollment.update({
+          hostel_id: assignedHostel,
           session_id: resolvedSessionId,
           roll_number: normalizedRollNumber,
           college: studentCollege === 'lapc' ? 'lapc' : 'nec',

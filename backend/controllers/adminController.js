@@ -91,7 +91,8 @@ export const getHostels = async (req, res) => {
     const where = req.query.include_inactive === 'true' ? {} : { is_active: true };
     if (search) where[Op.or] = [{ name: { [Op.like]: `%${search}%` } }, { address: { [Op.like]: `%${search}%` } }];
     const hostels = await Hostel.findAll({ where, include: [{ model: HostelRoom, include: [{ model: RoomType }] }], order: [['createdAt', 'DESC'], ['id', 'DESC']] });
-    return res.json({ success: true, data: hostels });
+    const batches = await Session.findAll({ where: { is_active: true }, attributes: ['id', 'name', 'hostel_id', 'roll_prefix'] });
+    return res.json({ success: true, data: hostels.map(hostel => ({ ...hostel.toJSON(), batches: batches.filter(batch => batch.hostel_id === hostel.id) })) });
   } catch (error) { return hostelFailure(res, error); }
 };
 
@@ -245,6 +246,7 @@ export const createUser = async (req, res) => {
     }
 
     const roleNameLower = roleData.roleName?.toLowerCase() || '';
+    if (['student', 'lapc'].includes(roleNameLower)) return res.status(400).json({ success: false, message: 'Use Student Admission to create students with automatic batch and hostel allocation.' });
     const isHostelRequired = ['warden', 'student', 'mess'].includes(roleNameLower);
     if (isHostelRequired && !hostel_id) {
       return res.status(400).json({
@@ -366,7 +368,12 @@ export const updateUser = async (req, res) => {
     }
 
     const roleNameLower = roleData.roleName?.toLowerCase() || '';
-    const isHostelRequired = ['warden', 'student', 'mess'].includes(roleNameLower);
+    const currentRole = await Role.findByPk(user.roleId);
+    const currentIsStudent = ['student', 'lapc'].includes(currentRole?.roleName?.toLowerCase());
+    const targetIsStudent = ['student', 'lapc'].includes(roleNameLower);
+    if (currentIsStudent !== targetIsStudent) return res.status(400).json({ success: false, message: 'Use Student Admission to change student enrollment. Student roles cannot be changed in user management.' });
+    if (targetIsStudent && Number(hostel_id) !== Number(user.hostel_id)) return res.status(400).json({ success: false, message: 'Student hostel follows their batch. Change it in Manage Batches and review allocation.' });
+    const isHostelRequired = ['warden', 'student', 'lapc', 'mess'].includes(roleNameLower);
     if (isHostelRequired && !hostel_id) {
       return res.status(400).json({
         success: false,
@@ -622,63 +629,8 @@ export const deleteRoom = async (req, res) => {
   }
 };
 
-// SESSION MANAGEMENT
-export const createSession = async (req, res) => {
-  try {
-    const { name, start_date, end_date } = req.body;
-    if (!name || !start_date || !end_date) {
-      return res.status(400).json({ success: false, message: 'Name, start date, and end date are required' });
-    }
-    const session = await Session.create({ name, start_date, end_date });
-    res.status(201).json({ success: true, data: session, message: 'Session created successfully' });
-  } catch (error) {
-    console.error('Session creation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-export const getSessions = async (req, res) => {
-  try {
-    const { search, is_active } = req.query;
-    let whereClause = {};
-    if (is_active !== undefined && is_active !== 'all') whereClause.is_active = is_active === 'true';
-    if (search) whereClause.name = { [Op.iLike]: `%${search}%` };
-
-    const sessions = await Session.findAll({ where: whereClause, order: [['createdAt', 'DESC']] });
-    res.json({ success: true, data: sessions });
-  } catch (error) {
-    console.error('Sessions fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-export const updateSession = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, start_date, end_date, is_active } = req.body;
-    const session = await Session.findByPk(id);
-    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
-
-    await session.update({ name, start_date, end_date, is_active });
-    res.json({ success: true, data: session, message: 'Session updated successfully' });
-  } catch (error) {
-    console.error('Session update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-export const deleteSession = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const session = await Session.findByPk(id);
-    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
-    await session.update({ is_active: false });
-    res.json({ success: true, message: 'Session deactivated successfully' });
-  } catch (error) {
-    console.error('Session deletion error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
+// Academic batch routes retain their existing /sessions API names.
+export { saveBatch as createSession, getBatches as getSessions, saveBatch as updateSession, archiveBatch as deleteSession } from './batchController.js';
 
 // FACILITY TYPE MANAGEMENT
 export const createFacilityType = async (req, res) => {

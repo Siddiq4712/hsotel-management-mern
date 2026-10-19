@@ -1,3 +1,4 @@
+import { studentBatch } from '../../utils/batchMatching';
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { 
@@ -43,6 +44,7 @@ const FormSkeleton = () => (
 
 const EnrollStudent = () => {
   const [form] = Form.useForm();
+  const watchedRoll = Form.useWatch('roll_number', form);
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
@@ -54,7 +56,7 @@ const EnrollStudent = () => {
   // Bulk Import & Preview State
   const [previewStudents, setPreviewStudents] = useState([]);
   const [selectedCollege, setSelectedCollege] = useState('nec'); // 'nec' or 'lapc' common to preview
-  const [bulkDefaultBatch, setBulkDefaultBatch] = useState(null);
+
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
   const requiredImportColumns = getRequiredImportColumns();
@@ -69,15 +71,15 @@ const EnrollStudent = () => {
       const response = await wardenAPI.getSessions();
       const sessionData = response.data?.data || [];
       setSessions(sessionData);
-      if (sessionData.length > 0) {
-        setBulkDefaultBatch(sessionData[0].id);
-      }
+
     } catch (error) {
       message.error('Failed to load academic years.');
     } finally {
       setTimeout(() => setSessionsLoading(false), 600);
     }
   };
+
+  useEffect(() => { form.setFieldValue('session_id', studentBatch(watchedRoll, sessions)?.id); }, [watchedRoll, sessions, form]);
 
   // --- EXCEL FILE UPLOAD & PARSER ---
   const handleExcelUpload = (file) => {
@@ -97,7 +99,7 @@ const EnrollStudent = () => {
           return;
         }
 
-        const defaultSession = bulkDefaultBatch || (sessions.length > 0 ? sessions[0].id : null);
+
 
         const mapped = json
           .map((row, index) => {
@@ -106,7 +108,7 @@ const EnrollStudent = () => {
             return {
               ...mappedStudent,
               key: mappedStudent.key || `student_${index}_${Date.now()}`,
-              session_id: defaultSession,
+              session_id: studentBatch(mappedStudent.roll_number, sessions)?.id,
               requires_bed: false // Initially not checked
             };
           })
@@ -136,23 +138,9 @@ const EnrollStudent = () => {
     );
   };
 
-  const handleStudentBatchChange = (key, sessionId) => {
-    setPreviewStudents((prev) =>
-      prev.map((student) => (student.key === key ? { ...student, session_id: sessionId } : student))
-    );
-  };
-
   const handleRemoveStudentRow = (key) => {
     setPreviewStudents((prev) => prev.filter((student) => student.key !== key));
     message.info('Student removed from preview.');
-  };
-
-  const handleApplyBatchToAll = (sessionId) => {
-    setBulkDefaultBatch(sessionId);
-    setPreviewStudents((prev) =>
-      prev.map((student) => ({ ...student, session_id: sessionId }))
-    );
-    message.success('Batch applied to all students in preview.');
   };
 
   const handleToggleAllBeds = (status) => {
@@ -175,9 +163,9 @@ const EnrollStudent = () => {
     }
 
     // Verify all rows have batch selected
-    const missingBatch = previewStudents.some((s) => !s.session_id);
+    const missingBatch = previewStudents.some((s) => !studentBatch(s.roll_number, sessions));
     if (missingBatch) {
-      message.error('Please ensure all students have an Academic Year / Batch selected.');
+      message.error('Some roll numbers have no configured batch and hostel. Configure their prefixes in Manage Batches first.');
       return;
     }
 
@@ -185,13 +173,13 @@ const EnrollStudent = () => {
     try {
       const payload = {
         college: selectedCollege,
-        session_id: bulkDefaultBatch,
+
         students: previewStudents.map((s) => ({
           userName: s.name || s.userName,
           roll_number: s.roll_number,
           email: s.email || `${s.roll_number}@${selectedCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in'}`.toLowerCase(),
           college: selectedCollege,
-          session_id: s.session_id || bulkDefaultBatch,
+          session_id: studentBatch(s.roll_number, sessions)?.id,
           requires_bed: Boolean(s.requires_bed)
         }))
       };
@@ -254,7 +242,7 @@ const EnrollStudent = () => {
       userName: finalUsername,
       password: allValues.password,
       email: allValues.email || `${baseName.toLowerCase()}@hostel.com`,
-      session_id: parseInt(allValues.session_id),
+      session_id: studentBatch(allValues.roll_number, sessions)?.id,
       roll_number: allValues.roll_number || "",
       college: allValues.college || "nec",
       requires_bed: allValues.requires_bed || false
@@ -346,21 +334,12 @@ const EnrollStudent = () => {
       )
     },
     {
-      title: 'Batch / Academic Year',
-      key: 'session_id',
-      width: 200,
-      render: (_, record) => (
-        <Select
-          value={record.session_id}
-          onChange={(val) => handleStudentBatchChange(record.key, val)}
-          className="w-full h-10 rounded-xl"
-          placeholder="Select Batch"
-        >
-          {sessions.map((s) => (
-            <Option key={s.id} value={s.id}>{s.name}</Option>
-          ))}
-        </Select>
-      )
+      title: 'Batch', key: 'session_id', width: 170,
+      render: (_, record) => studentBatch(record.roll_number, sessions)?.name || <Tag color="error">No batch match</Tag>
+    },
+    {
+      title: 'Assigned Hostel', key: 'assigned_hostel', width: 190,
+      render: (_, record) => studentBatch(record.roll_number, sessions)?.hostel_name || <Tag color="error">Unassigned</Tag>
     },
     {
       title: 'Need Bed',
@@ -519,7 +498,7 @@ const EnrollStudent = () => {
                       {/* STEP 1: ACADEMIC */}
                       <div className={currentStep === 1 ? "block animate-in fade-in duration-500" : "hidden"}>
                         <Form.Item name="roll_number" label={<Text strong>Roll Number / UID</Text>} rules={[{ required: true, message: 'Please enter roll number' }]}>
-                          <Input prefix={<Hash size={16} className="text-slate-400"/>} placeholder="e.g. 2024CS101" className="h-12 rounded-xl" />
+                          <Input prefix={<Hash size={16} className="text-slate-400"/>} placeholder="e.g. 24104085" className="h-12 rounded-xl" />
                         </Form.Item>
                         <Form.Item name="college" label={<Text strong>College / Campus</Text>} rules={[{ required: true, message: 'Please select college' }]}>
                           <Select className="h-12 rounded-xl" placeholder="Select Affiliated College">
@@ -527,11 +506,10 @@ const EnrollStudent = () => {
                             <Option value="lapc">LAPC Campus</Option>
                           </Select>
                         </Form.Item>
-                        <Form.Item name="session_id" label={<Text strong>Academic Year / Batch</Text>} rules={[{ required: true, message: 'Please select batch' }]}>
-                          <Select className="h-12 rounded-xl" placeholder="Select Admission Year">
-                            {sessions.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
-                          </Select>
+                        <Form.Item name="session_id" label={<Text strong>Batch</Text>} rules={[{ required: true, message: 'No configured batch matches this roll number' }]}>
+                          <Select disabled placeholder="Matched automatically from roll number" options={sessions.map(batch => ({ value: batch.id, label: batch.name }))} />
                         </Form.Item>
+                        <Form.Item label="Assigned Hostel"><Input readOnly value={studentBatch(watchedRoll, sessions)?.hostel_name || 'No batch configured for this roll number prefix'} /></Form.Item>
                         <Form.Item name="requires_bed" valuePropName="checked" className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
                           <Checkbox>
                             <Text strong className="text-blue-700 ml-2 text-sm">Allocate Room/Bed</Text>
@@ -807,37 +785,7 @@ const EnrollStudent = () => {
                         </p>
                       </div>
 
-                      {/* Quick Apply Batch to All */}
-                      <div className="md:col-span-4 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
-                            <Layers size={16} className="text-slate-500" />
-                            Default Batch
-                          </label>
-                          <span className="text-[10px] text-slate-400">Quick Apply</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <Select
-                            value={bulkDefaultBatch}
-                            onChange={(val) => setBulkDefaultBatch(val)}
-                            className="flex-1 h-12 rounded-xl"
-                            placeholder="Select Batch"
-                            loading={sessionsLoading}
-                          >
-                            {sessions.map((s) => (
-                              <Option key={s.id} value={s.id}>{s.name}</Option>
-                            ))}
-                          </Select>
-                          <Button
-                            type="primary"
-                            onClick={() => handleApplyBatchToAll(bulkDefaultBatch)}
-                            disabled={!bulkDefaultBatch}
-                            className="h-12 rounded-xl px-4 bg-slate-800 hover:bg-slate-900 border-none font-semibold text-xs"
-                          >
-                            Apply All
-                          </Button>
-                        </div>
-                      </div>
+                      <div className="md:col-span-4"><Alert type="info" showIcon title="Automatic batch and hostel allocation" description="Each roll number is matched to its configured batch prefix. Unmatched prefixes must be configured in Manage Batches before importing." /></div>
 
                       {/* Quick Bed Toggle Actions */}
                       <div className="md:col-span-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 flex flex-col justify-between">

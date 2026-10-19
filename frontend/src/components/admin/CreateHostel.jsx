@@ -14,6 +14,7 @@ import {
 import moment from 'moment';
 import { adminAPI } from '../../services/api';
 import HostelDetailsModal from './HostelDetailsModal';
+import AssignHostelBatches from './AssignHostelBatches';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -264,6 +265,7 @@ const CreateHostelSection = ({ onCreated }) => {
 // ─── Manage Hostels Section ──────────────────────────────────
 
 const ManageHostelsSection = () => {
+  const [batchHostel, setBatchHostel] = useState(null);
   const [hostels, setHostels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -387,6 +389,7 @@ const ManageHostelsSection = () => {
                       </div>
                     </div>
 
+                    <div className="mb-3"><Text type="secondary">Batches: </Text>{hostel.batches?.length ? hostel.batches.map(batch => <Tag color="blue" key={batch.id}>{batch.name}</Tag>) : <Text type="secondary">None assigned</Text>}</div>
                     <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
                       <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
                         <span>Resource Load</span>
@@ -418,7 +421,8 @@ const ManageHostelsSection = () => {
                       <Calendar size={12} />
                       <Text className="text-[10px] font-bold uppercase">Registry: {moment(hostel.createdAt).format('YYYY')}</Text>
                     </div>
-                    <Space>
+                    <Space wrap>
+                      <Button onClick={() => setBatchHostel(hostel)} disabled={!hostel.is_active}>Assign Batches</Button>
                       <Button onClick={() => setSelectedHostelId(hostel.id)} disabled={Boolean(deletingId)} aria-label={`Edit ${hostel.name}`}>
                         Edit details <ChevronRight size={14} />
                       </Button>
@@ -450,6 +454,7 @@ const ManageHostelsSection = () => {
       )}
       <HostelDetailsModal hostelId={selectedHostelId} onClose={() => setSelectedHostelId(null)}
         onSaved={() => { setSelectedHostelId(null); fetchHostels(); }} />
+      <AssignHostelBatches hostel={batchHostel} onClose={() => setBatchHostel(null)} onSaved={fetchHostels} />
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import { uploadReductionDocument, reductionDocument, reviseReduction, decideReduction } from '../controllers/reductionController.js';
 import express from 'express';
+import { getBatches, saveBatch, archiveBatch, previewAllocation, applyAllocation, assignHostelBatches } from '../controllers/batchController.js';
 import { listActivities, getActivity, previewActivityReversal, applyActivityReversal, correctActivityRecord, deleteActivityRecord } from '../controllers/activityController.js';
 import {
   // Hostel Management
@@ -13,9 +14,6 @@ import {
 
   // Room Management
   createRoom, getRooms, updateRoom, deleteRoom,
-
-  // Session Management
-  createSession, getSessions, updateSession, deleteSession,
 
   // Facility Type Management
   createFacilityType, getFacilityTypes, updateFacilityType, deleteFacilityType,
@@ -97,10 +95,13 @@ router.put('/rooms/:id', updateRoom);
 router.delete('/rooms/:id', deleteRoom);
 
 // Session Management
-router.post('/sessions', createSession);
-router.get('/sessions', getSessions);
-router.put('/sessions/:id', updateSession);
-router.delete('/sessions/:id', deleteSession);
+router.post('/sessions', saveBatch);
+router.get('/sessions', getBatches);
+router.put('/sessions/:id', saveBatch);
+router.delete('/sessions/:id', archiveBatch);
+router.get('/batches/allocation-preview', previewAllocation);
+router.post('/batches/allocate', applyAllocation);
+router.put('/hostels/:id/batches', assignHostelBatches);
 
 // Facility Type Management
 router.post('/facility-types', createFacilityType);

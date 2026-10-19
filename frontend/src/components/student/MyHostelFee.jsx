@@ -116,7 +116,7 @@ const MyHostelFee = () => {
                  ) : (
                    <Result
                     status="info"
-                    subTitle="No recent hostel fee transactions found for this academic session."
+                    subTitle="No recent hostel fee transactions found for this academic batch."
                     style={{ padding: '20px 0' }}
                    />
                  )}

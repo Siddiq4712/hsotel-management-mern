@@ -221,8 +221,8 @@ const handleDeleteBatch = async (batch) => {
               </Title>
               
               <Form form={form} layout="vertical" onFinish={onFinish}>
-                <Form.Item name="session_id" label="Target Batch/Session" rules={[{ required: true }]}>
-                  <Select placeholder="Choose session" className="h-11 rounded-xl">
+                <Form.Item name="session_id" label="Target Batch" rules={[{ required: true }]}>
+                  <Select placeholder="Choose batch" className="h-11 rounded-xl">
                     {sessions.map((s) => (
                       <Option key={s.id} value={s.id}>{s.name}</Option>
                     ))}

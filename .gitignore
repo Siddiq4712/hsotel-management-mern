@@ -1,5 +1,6 @@
 .env
 config.json
+/backend/backups/batch-*-allocation-*.json
 /backend/private/
 /mobile-app/.reduction-build-check/
 .expo
