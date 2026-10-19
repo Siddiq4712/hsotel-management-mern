@@ -93,13 +93,13 @@ const ViewLayout = () => {
   );
 
   return (
-    <div className="min-h-screen bg-[#fcfdff] p-8 font-serif">
-      <header className="max-w-[1400px] mx-auto flex justify-between items-center border-b-2 border-blue-900 pb-6 mb-8">
+    <div className="module-page min-h-screen bg-[#fcfdff] p-8 font-serif">
+      <header className="module-page-header">
         <div className="flex items-center gap-4">
           <div className="p-2 bg-blue-900 text-white rounded-sm shadow-xl"><Layers size={24} /></div>
           <div>
             <h1 className="text-2xl font-black uppercase tracking-tighter text-blue-900 italic">Hostel Blueprint View</h1>
-            <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Read-Only Architectural Map | {layoutConfig.building_type}-Shape</p>
+            <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Hostel room layout | {layoutConfig.building_type}-Shape</p>
           </div>
         </div>
         <div className="flex gap-4">
@@ -110,7 +110,7 @@ const ViewLayout = () => {
         </div>
       </header>
 
-      <main className="max-w-[1400px] mx-auto bg-white p-12 border-2 border-blue-100 shadow-2xl relative overflow-auto min-h-[800px]">
+      <main className="bg-white rounded-3xl p-4 md:p-8 border border-slate-200 shadow-sm relative overflow-auto min-h-[500px]">
         {/* Blueprint Grid Background */}
         <div className="absolute inset-0 opacity-[0.04] pointer-events-none" 
              style={{ backgroundImage: 'linear-gradient(#1e3a8a 1px, transparent 1px), linear-gradient(90deg, #1e3a8a 1px, transparent 1px)', backgroundSize: '40px 40px' }} 

@@ -1,7 +1,7 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Table, Tag, Spin, Empty, Typography, Statistic, Row, Col, 
-  DatePicker, Button, message, Tooltip 
+import {
+  Card, Table, Tag, Spin, Empty, Typography, Statistic, Row, Col, Button, message, Tooltip
 } from 'antd';
 import { 
   DollarSign, AlertTriangle, CheckCircle, Calendar, 
@@ -217,7 +217,7 @@ const ViewBills = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="module-page-header flex justify-between items-center">
         <Title level={2}>My Mess Bills</Title>
         <DatePicker 
           picker="month" 

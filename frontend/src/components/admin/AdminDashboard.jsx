@@ -185,11 +185,11 @@ const AdminDashboard = () => {
   if (loading || !stats) return <Skeleton active className="p-8" />;
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: GOOGLE_VIVID.BLUE, borderRadius: 20 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen space-y-8 animate-in fade-in duration-700">
+    <ConfigProvider>
+      <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6 animate-in fade-in duration-700">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="module-page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100">
               <LayoutDashboard className="text-blue-500" size={26} />

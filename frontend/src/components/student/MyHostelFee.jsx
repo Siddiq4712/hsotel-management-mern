@@ -33,7 +33,7 @@ const MyHostelFee = () => {
 
   if (loading) {
     return (
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         <Skeleton active paragraph={{ rows: 10 }} />
       </div>
     );
@@ -44,7 +44,7 @@ const MyHostelFee = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+      <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Header */}
         <div className="flex items-center gap-4">
@@ -116,7 +116,7 @@ const MyHostelFee = () => {
                  ) : (
                    <Result
                     status="info"
-                    subTitle="No recent hostel fee transactions found for this academic session."
+                    subTitle="No recent hostel fee transactions found for this academic batch."
                     style={{ padding: '20px 0' }}
                    />
                  )}

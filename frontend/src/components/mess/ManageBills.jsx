@@ -1,5 +1,7 @@
+import { requestReportFormat } from '../../services/reportFormat';
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Select, DatePicker, Space, Tag, Modal, Form, message, Tabs } from 'antd';
+import { Card, Table, Button, Select, Space, Tag, Modal, Form, message, Tabs } from 'antd';
 import { ExportOutlined, DollarOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '../../services/api';
 import moment from 'moment';
@@ -123,7 +125,8 @@ const ManageBills = () => {
     }
   };
 
-  const handleExportBills = () => {
+  const handleExportBills = async () => {
+    if (!await requestReportFormat({ title: 'Choose report format', formats: ['csv'] })) return;
     let csvContent = 'data:text/csv;charset=utf-8,';
     csvContent += 'Student,Month,Year,Amount,Status,Due Date\n';
     

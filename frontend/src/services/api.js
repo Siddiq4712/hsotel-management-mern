@@ -1,5 +1,7 @@
 // src/services/api.js
 import axios from 'axios';
+import { requestEntryHostel } from './entryHostel';
+import { requestReportFormat } from './reportFormat';
 
 // Vite uses import.meta.env instead of process.env
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/api';
@@ -8,19 +10,52 @@ const api = axios.create({
   baseURL: API_BASE_URL,
 });
 
+export const menuPlanningAPI = {
+  hostels: () => api.get('/menu-planning/hostels'),
+  metadata: hostel_id => api.get('/menu-planning/metadata', { params: { hostel_id } }),
+  day: (hostel_id, date) => api.get(`/menu-planning/day/${date}`, { params: { hostel_id } }),
+  publish: (hostel_id, data) => api.post('/menu-planning/plans', { ...data, hostel_id }),
+  settings: (hostel_id, data) => api.put('/menu-planning/settings', { ...data, hostel_id }),
+  override: (hostel_id, date, slot, data) => api.put(`/menu-planning/day/${date}/${slot}`, { ...data, hostel_id }),
+  consume: (hostel_id, date, slot, data) => api.post(`/menu-planning/day/${date}/${slot}/consumption`, { ...data, hostel_id })
+};
+
 // Request interceptor to add token
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
+  if (config.responseType === 'blob' && /\/mess\/.*(report|export)/i.test(config.url || '') && !config.reportFormatConfirmed) {
+    const format = await requestReportFormat({ title: 'Choose export format', formats: ['xlsx'] });
+    if (!format) throw new axios.CanceledError('Report generation cancelled.');
+    config.reportFormatConfirmed = true;
+  }
   const token = localStorage.getItem('token');
+  const workspace = localStorage.getItem('adminWorkspace');
+  if (['admin', 'warden', 'mess'].includes(workspace)) config.headers['X-Workspace'] = workspace;
+  const inventoryId = sessionStorage.getItem('selectedInventoryId');
+  if (inventoryId && config.url?.startsWith('/mess/') && !config.headers['X-Inventory-Id']) config.headers['X-Inventory-Id'] = inventoryId;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
+export const inventoryAPI = {
+  policy: (id, date) => api.get(`/inventories/${id}/policy`, { params: { date } }),
+  report: (id, params) => api.get(`/inventories/${id}/reports`, { params }),
+  delete: id => api.delete(`/inventories/${id}`),
+  list: () => api.get('/inventories'),
+  create: data => api.post('/inventories', data),
+  update: (id, data) => api.put(`/inventories/${id}`, data),
+};
+
 // Response interceptor to handle errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    if (error.response?.status === 409 && error.response?.data?.code === 'HOSTEL_REQUIRED' && !error.config?.entryHostelRetry) {
+      const hostelId = await requestEntryHostel(error.response.data.hostels);
+      return api.request({ ...error.config, entryHostelRetry: true,
+        headers: { ...error.config.headers, 'X-Entry-Hostel-Id': hostelId } });
+    }
     const status = error.response?.status;
     const backendMessage = String(error.response?.data?.message || '').toLowerCase();
     const requestUrl = String(error.config?.url || '');
@@ -46,6 +81,12 @@ api.interceptors.response.use(
   }
 );
 
+export const notificationAPI = {
+  getNotifications: (params) => api.get('/notifications', {params}),
+  markRead: (id) => api.patch(`/notifications/${id}/read`),
+  markAllRead: (data) => api.patch('/notifications/read-all', data),
+};
+
 // Auth API
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
@@ -58,6 +99,18 @@ export const authAPI = {
 
 // Admin API - Complete CRUD operations
 export const adminAPI = {
+  getStaffAccess: () => api.get('/admin/staff-access'),
+  updateStaffAccess: (id, data) => api.put(`/admin/staff-access/${id}`, data),
+  getActivities: (params) => api.get('/admin/activities', {params}),
+  getActivity: (id, params) => api.get(`/admin/activities/${id}`, {params}),
+  previewActivityReversal: (id) => api.get(`/admin/activities/${id}/reversal-preview`),
+  revertActivity: (id, data) => api.post(`/admin/activities/${id}/revert`, data),
+  correctActivityRecord: (id, changeId, data) => api.patch(`/admin/activities/${id}/records/${changeId}`, data),
+  deleteActivityRecord: (id, changeId, data) => api.delete(`/admin/activities/${id}/records/${changeId}`, {data}),
+  getMonthlyAttendanceRoster: (params) => api.get('/admin/monthly-attendance/roster', { params }),
+  previewMonthlyAttendance: (data) => api.post('/admin/monthly-attendance/preview', data),
+  importMonthlyAttendance: (data) => api.post('/admin/monthly-attendance/import', data),
+  getMonthlyAttendanceImports: (params) => api.get('/admin/monthly-attendance/imports', { params }),
   // Dashboard
   getDashboardStats: () => api.get('/admin/dashboard-stats'),
   getAdminChartData: () => api.get('/admin/chart-data'), // ADD THIS LINE
@@ -95,6 +148,9 @@ export const adminAPI = {
   // Session Management - Complete CRUD
   createSession: (data) => api.post('/admin/sessions', data),
   getSessions: (params) => api.get('/admin/sessions', { params }),
+  previewBatchAllocation: () => api.get('/admin/batches/allocation-preview'),
+  applyBatchAllocation: data => api.post('/admin/batches/allocate', data),
+  assignHostelBatches: (hostelId, data) => api.put(`/admin/hostels/${hostelId}/batches`, data),
   updateSession: (id, data) => api.put(`/admin/sessions/${id}`, data),
   deleteSession: (id) => api.delete(`/admin/sessions/${id}`),
 
@@ -145,8 +201,8 @@ export const adminAPI = {
 
   updateHostelFeeSettings: (id, data) => api.put(`/admin/hostels/${id}/fee-settings`, data),
 
-  getNotifications: () => api.get('/admin/notifications'),
-  markNotificationRead: (id) => api.put(`/admin/notifications/${id}/read`),
+  getNotifications: () => notificationAPI.getNotifications({pageSize:50}),
+  markNotificationRead: (id) => notificationAPI.markRead(id),
 
   // Add to messAPI
   notifyAdmin: (data) => api.post('/mess/notify-admin', data),
@@ -191,6 +247,8 @@ export const wardenAPI = {
 
   // Attendance Management
   markAttendance: (data) => api.post('/warden/attendance', data),
+  bulkMarkAttendance: (data) => api.post('/warden/attendance/bulk', data),
+  getAttendanceRoster: () => api.get('/warden/attendance/roster'),
   getAttendance: (params) => api.get('/warden/attendance', { params }),
   updateAttendance: (id, data) => api.put(`/warden/attendance/${id}`, data),
 
@@ -371,6 +429,8 @@ export const messAPI = {
   getDailyConsumption: (params) => api.get('/mess/consumption', { params }), // params: { date, meal_type, item_id }
   // Expected data: { items: [{ item_id, quantity, unit_price, transaction_date, expiry_date }] }
   recordInventoryPurchase: (data) => api.post('/mess/inventory-purchase', data),
+  receivePurchaseOrder: (data) => api.post('/mess/purchase-orders/receive', data),
+  getReceivedPurchaseOrders: () => api.get('/mess/purchase-orders/received'),
   getInventoryTransactions: (params) => api.get('/mess/inventory-transactions', { params }), // params: { transaction_type, item_id, store_id, from_date, to_date }
   recordItemReturn: (data) => api.post('/mess/consumption/return', data),
 
@@ -401,12 +461,14 @@ export const messAPI = {
   getSpecialFoodItemById: (id) => api.get(`/mess/special-food-items/${id}`),
   updateSpecialFoodItem: (id, data) => api.put(`/mess/special-food-items/${id}`, data), // Expected data: { name, description, price, preparation_time_minutes, category, image_url, is_available }
   deleteSpecialFoodItem: (id) => api.delete(`/mess/special-food-items/${id}`),
+  updateSpecialFoodAvailability: (id, is_available) => api.patch(`/mess/special-food-items/${id}/availability`, { is_available }),
 
   // Food Orders - Complete CRUD
   // Expected data: { items: [{ food_item_id, quantity, special_instructions }], requested_time, notes }
   // Note: Rate-limited endpoint (10 requests per 15 minutes per user)
   createFoodOrder: (data) => api.post('/mess/food-orders', data),
   getFoodOrders: (params) => api.get('/mess/food-orders', { params }), // params: { status, from_date, to_date, student_id }
+  getAdditionalFoodStudentReport: (params) => api.get('/mess/reports/additional-food-students', { params }),
   getFoodOrderById: (id) => api.get(`/mess/food-orders/${id}`),
   updateFoodOrderStatus: (id, data) => api.put(`/mess/food-orders/${id}/status`, data), // Expected data: { status }
   updatePaymentStatus: (id, data) => api.put(`/mess/food-orders/${id}/payment`, data), // Expected data: { payment_status }
@@ -471,7 +533,7 @@ export const messAPI = {
 
   recordStaffRecordedSpecialFoodConsumption: (data) => api.post('/mess/student-special-consumption-staff', data),
   generateMessBills: (data, config) => api.post('/mess/generate-mess-bills', data, config),
-  createBedFee: (data) => api.post('/bed-fees', data),
+  createBedFee: (data) => api.post('/mess/bed-fees', data),
   getAllBedFees: (params) => api.get('/bed-fees', { params }),
   getStudentBedFees: (studentId) => api.get(`/students/${studentId}/bed-fees`),
   createBulkBedFees: (data) => api.post('/bed-fees/bulk', data),
@@ -513,3 +575,12 @@ export const parentAPI = {
 };
 
 export default api;
+
+// Evidence is fetched with the same authenticated client; it is never public.
+export const reductionAPI = {
+  list: (role, params) => api.get('/' + role + '/day-reduction-requests', { params }),
+  submit: data => api.post('/student/day-reduction-requests', data),
+  revise: (id, data) => api.put('/student/day-reduction-requests/' + id, data),
+  decide: (role, id, data) => api.put('/' + role + '/day-reduction-requests/' + id + '/status', data),
+  document: (role, id) => api.get('/' + role + '/day-reduction-requests/' + id + '/document', { responseType: 'blob' })
+};

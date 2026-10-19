@@ -208,10 +208,10 @@ const ManageIncomeTypes = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#059669', borderRadius: 14 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header Section */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-10">
+        <div className="module-page-header flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-10">
           <div className="flex items-center gap-5">
             <div className="p-4 bg-emerald-600 rounded-2xl shadow-xl shadow-emerald-200 rotate-3 transition-transform">
               <DollarSign className="text-white" size={28} strokeWidth={1.5} />

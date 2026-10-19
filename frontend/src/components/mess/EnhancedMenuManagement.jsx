@@ -26,7 +26,7 @@ const T = {
   ink:       '#141820',
   inkMid:    '#4B5263',
   inkSoft:   '#8B92A5',
-  accent:    '#1A56DB',
+  accent:    '#2563eb',
   accentBg:  '#EBF2FF',
   danger:    '#DC2626',
   dangerBg:  '#FEF2F2',
@@ -339,23 +339,16 @@ const EnhancedMenuManagement = () => {
           font-family: 'DM Sans', sans-serif !important;
         }
         .pm-search-input .ant-input-prefix { color: ${T.inkSoft}; }
-        .pm-modal .ant-modal-content { border-radius: 14px; overflow: hidden; }
+        .pm-modal .ant-modal-content { border-radius: 24px; overflow: hidden; }
         .pm-modal .ant-modal-header { border-bottom: 1px solid ${T.border}; padding: 18px 24px; }
         .pm-modal .ant-modal-body { padding: 24px; }
         .pm-drawer .ant-drawer-header { border-bottom: 1px solid ${T.border}; }
       `}</style>
 
-      <div style={{ minHeight: '100vh', background: T.bg, fontFamily: "'DM Sans', sans-serif" }}>
+      <div className="module-page">
 
         {/* ── Page Header ── */}
-        <div style={{
-          background: T.surface,
-          borderBottom: `1px solid ${T.border}`,
-          padding: '20px 32px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
+        <div className="module-page-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{
               width: 40, height: 40, borderRadius: 10,
@@ -365,9 +358,9 @@ const EnhancedMenuManagement = () => {
               <ChefHat size={20} color={T.accent} />
             </div>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: T.ink, letterSpacing: '-0.02em' }}>
+              <h1 className="module-title">
                 Menu Management
-              </div>
+              </h1>
               <div style={{ fontSize: 12, color: T.inkSoft, marginTop: 1 }}>
                 Create and manage standardized meal templates
               </div>
@@ -393,10 +386,10 @@ const EnhancedMenuManagement = () => {
           </button>
         </div>
 
-        <div style={{ padding: '28px 32px' }}>
+        <div className="space-y-6">
 
           {/* ── Stats Row ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+          <div className="module-stat-grid">
             <StatCard label="Total Menus" value={menus.length} icon={LayoutGrid} accent />
             <StatCard label="Total Components" value={totalItems} icon={Utensils} />
             <StatCard label="Breakfast / Lunch" value={`${mealCounts.breakfast || 0} / ${mealCounts.lunch || 0}`} icon={ChefHat} />
@@ -794,7 +787,7 @@ const ActionBtn = ({ icon, children, onClick, variant }) => {
 
   return (
     <button
-      className="pm-action-btn"
+      className="pm-action-btn module-action"
       onClick={onClick}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,

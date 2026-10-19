@@ -185,10 +185,10 @@ const handleDeleteBatch = async (batch) => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header */}
-        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
+        <div className="module-page-header flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
               <Newspaper className="text-white" size={24} />
@@ -221,8 +221,8 @@ const handleDeleteBatch = async (batch) => {
               </Title>
               
               <Form form={form} layout="vertical" onFinish={onFinish}>
-                <Form.Item name="session_id" label="Target Batch/Session" rules={[{ required: true }]}>
-                  <Select placeholder="Choose session" className="h-11 rounded-xl">
+                <Form.Item name="session_id" label="Target Batch" rules={[{ required: true }]}>
+                  <Select placeholder="Choose batch" className="h-11 rounded-xl">
                     {sessions.map((s) => (
                       <Option key={s.id} value={s.id}>{s.name}</Option>
                     ))}

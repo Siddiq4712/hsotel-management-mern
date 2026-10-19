@@ -10,7 +10,7 @@ import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import {
   Card, Typography, Row, Col, Statistic, Button,
   ConfigProvider, Skeleton, Modal, Table, Tag, Badge,
-  message, Tabs, Tooltip
+  message, Tabs, Tooltip, Alert
 } from 'antd';
 
 import {
@@ -119,6 +119,8 @@ const WardenDashboard = ({ setCurrentView }) => {
   }
 
   const newStudentsColumns = [
+    { title: 'ERP Batch Year', dataIndex: 'erp_batch_year', key: 'erp_batch_year' },
+    { title: 'Assigned Hostel', dataIndex: 'assigned_hostel', key: 'assigned_hostel' },
     {
       title: 'Roll Number',
       dataIndex: 'roll_number',
@@ -138,7 +140,7 @@ const WardenDashboard = ({ setCurrentView }) => {
       render: (text) => <Tag color="geekblue">{text || 'General'}</Tag>
     },
     {
-      title: 'Batch / Session',
+      title: 'Batch',
       dataIndex: 'batch',
       key: 'batch',
       render: (text) => <Tag color="purple">{text || 'Default'}</Tag>
@@ -158,6 +160,8 @@ const WardenDashboard = ({ setCurrentView }) => {
   ];
 
   const updatedStudentsColumns = [
+    { title: 'ERP Batch Year', dataIndex: 'erp_batch_year', key: 'erp_batch_year' },
+    { title: 'Assigned Hostel', dataIndex: 'assigned_hostel', key: 'assigned_hostel' },
     {
       title: 'Roll Number',
       dataIndex: 'roll_number',
@@ -185,11 +189,11 @@ const WardenDashboard = ({ setCurrentView }) => {
   ];
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: '#2563eb', borderRadius: 24, fontFamily: 'Inter, sans-serif' } }}>
-      <div className="p-4 md:p-10 bg-[#f8fafc] min-h-screen">
+    <ConfigProvider>
+      <div className="module-page p-4 md:p-10 bg-[#f8fafc] min-h-screen">
         
         {/* HEADER */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        <div className="module-page-header flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div>
             <Title level={2} style={{ margin: 0 }}>Hostel Overview</Title>
             <Text type="secondary">Welcome back, Warden • Academic Year 2024-25</Text>
@@ -471,6 +475,7 @@ const WardenDashboard = ({ setCurrentView }) => {
               key="sync"
               type="primary"
               loading={syncing}
+              disabled={Boolean(erpSync?.allocationConflicts?.length)}
               icon={<RefreshCcw size={16} className={syncing ? "animate-spin" : ""} />}
               onClick={handleSyncNow}
               className="rounded-xl font-bold bg-blue-600 hover:bg-blue-500 h-10 px-6"
@@ -481,6 +486,7 @@ const WardenDashboard = ({ setCurrentView }) => {
         >
           {erpSync && (
             <div className="space-y-6 pt-2">
+              {Boolean(erpSync.allocationConflicts?.length) && <Alert type="warning" showIcon title="Batch allocation needs attention" description="Configure the missing or unconfigured ERP batch admission years and assigned hostels in Manage Batches, then check ERP status again before synchronizing." />}
               {/* Quick Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -505,6 +511,11 @@ const WardenDashboard = ({ setCurrentView }) => {
               <Tabs
                 defaultActiveKey="new"
                 items={[
+                  {
+                    key: 'allocation-conflicts',
+                    label: `Allocation Conflicts (${erpSync.allocationConflicts?.length || 0})`,
+                    children: <Table dataSource={erpSync.allocationConflicts || []} rowKey="id" pagination={{ pageSize: 5 }} columns={[{ title: 'Roll Number', dataIndex: 'roll_number' }, { title: 'Student', dataIndex: 'name' }, { title: 'Needs Attention', dataIndex: 'reason' }]} />
+                  },
                   {
                     key: 'new',
                     label: `New Hostellers (${erpSync.newCount})`,

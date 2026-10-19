@@ -1,5 +1,7 @@
+import { exportWorkbook } from '../../utils/reportExport';
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState } from 'react';
-import { Card, Button, DatePicker, Row, Col, Table, message, Spin, Descriptions, Tag, Typography } from 'antd';
+import { Card, Button, Row, Col, Table, message, Spin, Descriptions, Tag, Typography } from 'antd';
 import { DownloadOutlined, CalculatorOutlined } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
@@ -47,7 +49,7 @@ const MessBillReport = () => {
     }
   };
   
-  const handleExport = () => {
+  const handleExport = async () => {
      if (!summaryData || reportData.length === 0) {
       message.warn('No data to export. Please generate a report first.');
       return;
@@ -96,7 +98,8 @@ const MessBillReport = () => {
     XLSX.utils.book_append_sheet(workbook, summaryWorksheet, 'Daily Rate Calculation');
     XLSX.utils.book_append_sheet(workbook, studentWorksheet, 'Student Bills');
     
-    XLSX.writeFile(workbook, `Mess_Bill_Report_${selectedMonth.format('YYYY_MM')}.xlsx`);
+    const exported = await exportWorkbook(workbook, `Mess_Bill_Report_${selectedMonth.format('YYYY_MM')}.xlsx`);
+    if (!exported) return;
     message.success('Report exported successfully!');
   };
 

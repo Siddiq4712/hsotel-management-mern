@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { DatePicker } from '../common/MomentPickers';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  App as AntdApp, Card, Form, Button, Select, InputNumber, DatePicker,
+  App as AntdApp, Card, Form, Button, Select, InputNumber,
   Row, Col, Typography, Input, ConfigProvider, theme
 } from 'antd';
 import { Plus, Trash2, Save, Utensils, User, Calendar, ClipboardList, CreditCard, Info, ChevronDown } from 'lucide-react';
-import { messAPI } from '../../services/api';
+import { messAPI, adminAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import StudentMealSelection from './StudentMealSelection';
 import moment from 'moment';
 
 const { Option } = Select;
@@ -12,7 +15,7 @@ const { Title, Text } = Typography;
 
 /* ─── Skeleton ─── */
 const FormSkeleton = () => (
-  <div className="ssm-shell">
+  <div className="module-page ssm-shell">
     <div className="ssm-skeleton-pulse" style={{ height: 56, borderRadius: 16, marginBottom: 32 }} />
     <div style={{ display: 'flex', gap: 24 }}>
       <div style={{ flex: 2 }}>
@@ -40,8 +43,8 @@ const TotalAmount = ({ items, foodMap }) => {
   return (
     <div className="ssm-total-banner">
       <div>
-        <span className="ssm-total-label">Total Billing Amount</span>
-        <span className="ssm-total-note">Will be debited automatically</span>
+        <span className="ssm-total-label">Amount Per Student</span>
+        <span className="ssm-total-note">Same dishes and quantities for each selected student</span>
       </div>
       <span className="ssm-total-value">₹{total.toFixed(2)}</span>
     </div>
@@ -51,25 +54,44 @@ const TotalAmount = ({ items, foodMap }) => {
 /* ─── Main Component ─── */
 const RecordStudentSpecialMeal = ({ onSuccess }) => {
   const { message } = AntdApp.useApp();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [students, setStudents] = useState([]);
   const [specialFoodItems, setSpecialFoodItems] = useState([]);
   const [watchItems, setWatchItems] = useState([{ quantity: 1 }]);
+  const [hostels, setHostels] = useState([]);
+  const [hostelId, setHostelId] = useState(isAdmin ? undefined : user?.hostel_id);
+  const [studentsLoading, setStudentsLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const saving = useRef(false);
 
   const foodMap = Object.fromEntries(specialFoodItems.map(i => [i.id, i.price]));
+  const amountPerStudent = watchItems.reduce((sum, item) => sum + (Number(foodMap[item?.food_item_id]) || 0) * (Number(item?.quantity) || 0), 0);
 
   useEffect(() => { fetchInitialData(); }, []);
+  useEffect(() => {
+    let active = true;
+    setStudents([]); setSelectedIds([]);
+    if (!hostelId) return () => { active = false; };
+    setStudentsLoading(true);
+    messAPI.getStudents({ hostel_id: hostelId }).then(response => {
+      if (active) setStudents((response.data.data || []).map(s => ({ ...s, id: Number(s.userId ?? s.id), userName: s.userName || s.username })));
+    }).catch(error => { if (active) message.error(error.message || 'Failed to load students'); })
+      .finally(() => { if (active) setStudentsLoading(false); });
+    return () => { active = false; };
+  }, [hostelId]);
 
   const fetchInitialData = async () => {
     setLoading(true);
     try {
-      const [studentsRes, foodRes] = await Promise.all([
-        messAPI.getStudents(),
-        messAPI.getSpecialFoodItems()
+      const [hostelsRes, foodRes] = await Promise.all([
+        isAdmin ? adminAPI.getHostels() : Promise.resolve(null),
+        messAPI.getSpecialFoodItems({ is_available: true })
       ]);
-      setStudents(studentsRes.data.data || []);
+      if (hostelsRes) setHostels((hostelsRes.data.data || []).filter(h => h.is_active));
       setSpecialFoodItems(foodRes.data.data || []);
     } catch {
       message.error('Failed to load required data');
@@ -81,6 +103,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
   const handleValuesChange = (_, all) => setWatchItems(all.foodItems || []);
 
   const handleSubmit = async (values) => {
+    if (saving.current) return;
     const items = (values.foodItems || [])
       .filter(i => i?.food_item_id && i?.quantity > 0)
       .map(i => ({
@@ -90,21 +113,26 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
       }));
 
     if (!items.length) return message.warning('Add at least one valid dish.');
+    if (!selectedIds.length) return message.warning('Select at least one student from the table.');
+    saving.current = true;
     setSubmitting(true);
     try {
-      await messAPI.recordStaffRecordedSpecialFoodConsumption({
-        student_id: values.student_id,
+      const response = await messAPI.recordStaffRecordedSpecialFoodConsumption({
+        student_ids: selectedIds,
+        hostel_id: hostelId,
         consumption_date: values.consumption_date.format('YYYY-MM-DD'),
         items,
         description: values.description,
       });
-      message.success('Special meal recorded & billed!');
+      message.success(`Additional food recorded for ${response.data.data.studentCount} students.`);
       form.resetFields();
       setWatchItems([{ quantity: 1 }]);
+      setSelectedIds([]);
       onSuccess?.();
     } catch (err) {
       message.error(err.message || 'Failed to record meal');
     } finally {
+      saving.current = false;
       setSubmitting(false);
     }
   };
@@ -114,30 +142,33 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
   return (
     <>
       <style>{CSS}</style>
+
       <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#1a56db', borderRadius: 12, fontFamily: 'DM Sans, sans-serif' } }}>
-        <div className="ssm-shell">
+        <div className="module-page ssm-shell">
           <Form
             form={form}
             onFinish={handleSubmit}
             onValuesChange={handleValuesChange}
+            disabled={submitting}
             layout="vertical"
             initialValues={{ consumption_date: moment(), foodItems: [{ quantity: 1 }] }}
           >
             {/* ── Top Bar ── */}
-            <div className="ssm-topbar">
+            <div className="module-page-header ssm-topbar">
               <div className="ssm-topbar-left">
                 <div className="ssm-icon-badge">
                   <Utensils size={20} />
                 </div>
                 <div>
-                  <h1 className="ssm-heading">Special Meal Entry</h1>
-                  <p className="ssm-subheading">Record off-menu orders · Automate billing</p>
+                  <h1 className="module-title ssm-heading">Additional Food Entry</h1>
+                  <p className="module-subtitle ssm-subheading">Record off-menu orders · Automate billing</p>
                 </div>
               </div>
               <Button
                 type="primary"
                 htmlType="submit"
                 loading={submitting}
+                disabled={!selectedIds.length || studentsLoading}
                 icon={<Save size={16} />}
                 className="ssm-save-btn"
               >
@@ -154,32 +185,17 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
                     <span>Basic Information</span>
                   </div>
 
-                  <Form.Item name="student_id" label="Student Beneficiary" rules={[{ required: true, message: 'Select a student' }]}>
-                    <Select
-                      placeholder="Search by name or roll number…"
-                      showSearch
-                      optionFilterProp="children"
-                      className="ssm-select"
-                      suffixIcon={<User size={14} />}
-                    >
-                      {students.map((s, index) => {
-                        const studentId = s.userId ?? s.id ?? `student-${index}`;
-                        const name = s.userName || s.username || 'Student';
-                        const roll = s.roll_number || s.registerNumber || '';
-                        return (
-                          <Option key={studentId} value={studentId}>
-                            {name} {roll ? `(${roll})` : ''}
-                          </Option>
-                        );
-                      })}
-                    </Select>
-                  </Form.Item>
+                  {isAdmin && <div style={{ marginBottom: 24 }}><label>Hostel</label>
+                    <Select aria-label="Hostel" placeholder="Select a hostel" value={hostelId} style={{ width: '100%' }}
+                      disabled={submitting} onChange={id => { setHostelId(id); setSelectedIds([]); }}
+                      options={hostels.map(h => ({ label: h.name, value: h.id }))} />
+                  </div>}
 
                   <Form.Item name="consumption_date" label="Date of Consumption" rules={[{ required: true }]}>
                     <DatePicker className="w-full ssm-datepicker" suffixIcon={<Calendar size={14} />} />
                   </Form.Item>
 
-                  <Form.Item name="description" label="Notes / Reason (optional)">
+                  <Form.Item name="description" label="Supervisor notes / reason (optional)" extra="Record only extra food actually served, excluding quantities students already ordered. This adds a separate additional bill charge and can be recorded after the student deadline.">
                     <Input.TextArea
                       rows={3}
                       placeholder="e.g., Birthday celebration, dietary request…"
@@ -189,7 +205,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
 
                   <div className="ssm-info-card">
                     <Info size={15} className="ssm-info-icon" />
-                    <p>Amounts are automatically debited from the student's mess account on submission.</p>
+                    <p>Select dishes and quantities, then choose the students in the table below. Each selected student is charged the displayed amount.</p>
                   </div>
                 </div>
               </Col>
@@ -252,7 +268,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
                                   rules={[{ required: true, message: '' }]}
                                   style={{ flex: 2, margin: 0 }}
                                 >
-                                  <InputNumber min={1} className="ssm-qty" />
+                                  <InputNumber min={1} max={1000} precision={0} className="ssm-qty" />
                                 </Form.Item>
 
                                 <div className="ssm-subtotal">
@@ -260,7 +276,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
                                 </div>
 
                                 {fields.length > 1 && (
-                                  <button type="button" className="ssm-delete-btn" onClick={() => remove(name)}>
+                                  <button type="button" disabled={submitting} className="ssm-delete-btn" onClick={() => remove(name)}>
                                     <Trash2 size={14} />
                                   </button>
                                 )}
@@ -269,7 +285,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
                           })}
                         </div>
 
-                        <button type="button" className="ssm-add-btn" onClick={() => add({ quantity: 1 })}>
+                        <button type="button" disabled={submitting} className="ssm-add-btn" onClick={() => add({ quantity: 1 })}>
                           <Plus size={15} />
                           Add another dish
                         </button>
@@ -281,6 +297,15 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
                 </div>
               </Col>
             </Row>
+            <StudentMealSelection key={hostelId || 'no-hostel'} students={students} selectedIds={selectedIds}
+              onChange={setSelectedIds} disabled={submitting || !hostelId} loading={studentsLoading} />
+            <div className="ssm-total-banner" style={{ marginTop: 20 }}>
+              <div><span className="ssm-total-label">{selectedIds.length} students × ₹{amountPerStudent.toFixed(2)} per student</span>
+                <span className="ssm-total-note">Total additional meal charges</span></div>
+              <span className="ssm-total-value">₹{(amountPerStudent * selectedIds.length).toFixed(2)}</span>
+            </div>
+            <Button type="primary" htmlType="submit" loading={submitting} disabled={!selectedIds.length || studentsLoading}
+              style={{ marginTop: 20 }} icon={<Save size={16} />}>Confirm & Save for {selectedIds.length} Students</Button>
           </Form>
         </div>
       </ConfigProvider>
@@ -289,6 +314,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
 };
 
 /* ─────────────────────── CSS ─────────────────────── */
+
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap');
 

@@ -1,6 +1,7 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Card, Form, Select, Input, InputNumber, Button, message, Table,DatePicker,
+  Card, Form, Select, Input, InputNumber, Button, message, Table,
   Row, Col, Typography, ConfigProvider, theme, Skeleton, Space, Divider, Tag, Tooltip
 } from 'antd';
 import { 
@@ -139,10 +140,10 @@ const IncomeEntryManager = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header with Nav Controllers */}
-        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
+        <div className="module-page-header flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
               <Wallet className="text-white" size={24} />

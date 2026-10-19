@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Card, Table, Input, Button, Tag, Space, Typography, 
-  Modal, Descriptions, Badge, Empty, Skeleton, ConfigProvider, theme, Alert
+  Modal, Descriptions, Badge, Empty, Skeleton, ConfigProvider, theme, Alert, Checkbox, message
 } from 'antd';
 import { 
   Users, User, Bed, Search, RefreshCw, Eye, 
@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { wardenAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { studentBatch } from '../../utils/batchMatching';
 import moment from 'moment';
 
 const { Title, Text } = Typography;
@@ -36,6 +38,7 @@ const DirectorySkeleton = () => (
 );
 
 const ManageStudents = () => {
+  const { user } = useAuth();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,49 +54,117 @@ const ManageStudents = () => {
   const [academicsLoading, setAcademicsLoading] = useState(false);
   const [academicsToken, setAcademicsToken] = useState(localStorage.getItem('token') || '');
   const [academicsError, setAcademicsError] = useState('');
+  const [academicsBatches, setAcademicsBatches] = useState([]);
+  const [academicsFetchedAt, setAcademicsFetchedAt] = useState(null);
+  const [academicsSelected, setAcademicsSelected] = useState([]);
+  const [academicsImporting, setAcademicsImporting] = useState(false);
+  const [academicsImportResult, setAcademicsImportResult] = useState(null);
+  const [academicsSearch, setAcademicsSearch] = useState('');
+  const [academicsPage, setAcademicsPage] = useState(1);
+  const [academicsPageSize, setAcademicsPageSize] = useState(5);
+  const [academicsRequiresBed, setAcademicsRequiresBed] = useState(false);
 
-  const fetchStudents = useCallback(async () => {
-    setLoading(true);
+  const fetchStudents = useCallback(async ({ background = false } = {}) => {
+    if (!background) setLoading(true);
     try {
       const response = await wardenAPI.getStudents();
-      setStudents(response.data.data || []);
+      const roster = response.data.data || [];
+      setStudents(roster);
+      return roster;
     } catch (error) {
       console.error('Directory Sync Error:', error);
     } finally {
-      setTimeout(() => setLoading(false), 800);
+      if (!background) setTimeout(() => setLoading(false), 800);
     }
   }, []);
 
   useEffect(() => { fetchStudents(); }, [fetchStudents]);
 
   const fetchAcademicsStudents = async () => {
+    const token = academicsToken.trim().replace(/^Bearer\s+/i, '');
+    if (!token) { setAcademicsError('Enter your Academics authorization token first.'); return; }
     setAcademicsLoading(true);
     setAcademicsError('');
+    setAcademicsStudents([]);
+    setAcademicsSelected([]);
+    setAcademicsFetchedAt(null);
+    setAcademicsImportResult(null);
+    setAcademicsPage(1);
+    setAcademicsSearch('');
     try {
       const endpoint = import.meta.env.DEV
         ? '/erp-api/institute_management_system/students'
         : 'https://erp.nec.edu.in/institute_management_system/students';
 
-      const response = await axios.get(endpoint, {
+      const [response, batches] = await Promise.all([axios.get(endpoint, {
         headers: {
-          Authorization: `Bearer ${academicsToken}`
-        }
-      });
-      const data = Array.isArray(response.data) ? response.data : (response.data.data || []);
+          Authorization: `Bearer ${token}`
+        },
+        timeout: 20000
+      }), wardenAPI.getSessions()]);
+      if (response.data?.success === false) throw new Error(response.data.message || 'Academics could not return students.');
+      const data = Array.isArray(response.data) ? response.data : response.data?.data;
+      if (!Array.isArray(data)) throw new Error('Academics returned an unexpected response. Expected a list of students.');
+      setAcademicsBatches(batches.data.data || []);
       
       // Filter only hosteller students (checking student_type or studentType case-insensitively)
       const hostellers = data.filter(student => {
         const type = student.student_type || student.studentType || '';
-        return type.trim().toLowerCase() === 'hosteller';
+        return String(type).trim().toLowerCase() === 'hosteller';
       });
       
-      setAcademicsStudents(hostellers);
+      setAcademicsStudents(hostellers.map((student, index) => ({
+        ...student,
+        importKey: String(student.registerNumber || student.roll_number || `missing-roll-${index}`).trim(),
+        registerNumber: String(student.registerNumber || student.roll_number || '').trim(),
+        username: String(student.studentName || student.username || student.userName || student.name || '').trim(),
+        email: String(student.email || student.userMail || student.personal_email || '').trim(),
+        erp_batch_year: student.batch ?? student.erp_batch_year ?? null
+      })));
+      setAcademicsFetchedAt(new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Calcutta' }));
     } catch (error) {
-      console.error('Error fetching from Academics API:', error);
-      setAcademicsError(error.response?.data?.message || error.message || 'Failed to fetch. Check your authorization token or console for CORS/network errors.');
+      setAcademicsError(error.code === 'ECONNABORTED' ? 'The Academics request timed out after 20 seconds. Try again.' : error.response?.data?.message || error.message || 'Failed to fetch students.');
     } finally {
       setAcademicsLoading(false);
     }
+  };
+
+  const academicsCandidates = useMemo(() => {
+    const localByRoll = new Map(students.map(student => [String(student.roll_number || student.registerNumber || '').trim(), student]));
+    return academicsStudents.map(student => {
+      const batch = studentBatch(student.erp_batch_year, academicsBatches);
+      const existing = localByRoll.get(student.registerNumber);
+      let blocked = '';
+      if (!student.registerNumber || !student.username) blocked = 'Name or roll number missing';
+      else if (!batch) blocked = 'Missing or unconfigured ERP batch year';
+      else if (user?.role !== 'admin' && Number(batch.hostel_id) !== Number(user?.hostel_id || user?.hostelId)) blocked = `Assigned to ${batch.hostel_name || 'another hostel'}`;
+      else if (existing && Number(existing.erp_batch_year) === Number(student.erp_batch_year) && Number(existing.hostel_id) === Number(batch.hostel_id) && Number(existing.session_id ?? existing.tbl_Enrollment?.[0]?.session_id) === Number(batch.id)) blocked = 'Already enrolled';
+      return { ...student, matchedBatch: batch, existing, blocked };
+    });
+  }, [academicsStudents, academicsBatches, students, user]);
+  const filteredAcademics = academicsCandidates.filter(student => `${student.username} ${student.registerNumber} ${student.erp_batch_year ?? ''}`.toLowerCase().includes(academicsSearch.trim().toLowerCase()));
+  const academicsEligibleKeys = filteredAcademics.filter(student => !student.blocked).map(student => student.importKey);
+  const importAcademicsStudents = async () => {
+    const selected = academicsCandidates.filter(student => academicsSelected.includes(student.importKey) && !student.blocked);
+    if (!selected.length) return message.warning('Select students with a configured batch and hostel.');
+    setAcademicsImporting(true); setAcademicsError(''); setAcademicsImportResult(null);
+    try {
+      const response = await wardenAPI.bulkEnrollStudents({ students: selected.map(student => ({
+        userName: student.username,
+        roll_number: student.registerNumber,
+        email: student.email || undefined,
+        erp_batch_year: Number(student.erp_batch_year),
+        college: String(student.college || student.existing?.college || 'nec').toLowerCase() === 'lapc' ? 'lapc' : 'nec',
+        requires_bed: student.existing
+          ? Boolean(student.existing.requires_bed ?? student.existing.tbl_Enrollment?.[0]?.requires_bed)
+          : academicsRequiresBed
+      })) });
+      if (response.data?.success === false) throw new Error(response.data.message || 'Import failed.');
+      setAcademicsImportResult(response.data.data || { successful: 0, skipped: 0, errors: [] });
+      setAcademicsSelected([]);
+      await fetchStudents({ background: true });
+    } catch (error) { setAcademicsError(error.response?.data?.message || error.message || 'Unable to import students.'); }
+    finally { setAcademicsImporting(false); }
   };
 
   const filteredStudents = useMemo(() => {
@@ -207,10 +278,10 @@ const ManageStudents = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+      <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="module-page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
               <Users className="text-white" size={24} />
@@ -252,7 +323,7 @@ const ManageStudents = () => {
               onClick={() => setAcademicsModalVisible(true)} 
               className="rounded-xl h-12 flex items-center justify-center border-slate-200 bg-emerald-600 hover:bg-emerald-700 border-none shadow-md" 
             >
-              Test Academics API
+              Fetch from Academics
             </Button>
           </div>
         </Card>
@@ -382,33 +453,43 @@ const ManageStudents = () => {
 
         {/* Academics API Connection Testing Modal */}
         <Modal
-          title={<div className="flex items-center gap-2 text-emerald-600"><Server size={20}/> Academics API Connection Test</div>}
+          title={<div className="flex items-center gap-2 text-emerald-600"><Server size={20}/> Fetch and Import Students</div>}
           open={academicsModalVisible}
-          onCancel={() => setAcademicsModalVisible(false)}
+          onCancel={() => { if (!academicsLoading && !academicsImporting) setAcademicsModalVisible(false); }}
           footer={[
-            <Button key="close" onClick={() => setAcademicsModalVisible(false)} className="rounded-xl">
+            <Button key="close" disabled={academicsLoading || academicsImporting} onClick={() => setAcademicsModalVisible(false)} className="rounded-xl">
               Close
             </Button>,
             <Button 
               key="fetch" 
               type="primary" 
               loading={academicsLoading} 
+              disabled={academicsImporting}
               onClick={fetchAcademicsStudents} 
               className="rounded-xl bg-emerald-600 hover:bg-emerald-700"
             >
               Fetch Students
-            </Button>
+            </Button>,
+            <Button key="import" type="primary" loading={academicsImporting} disabled={academicsLoading || !academicsSelected.length} onClick={() => Modal.confirm({
+              title: `Import ${academicsSelected.length} selected students?`,
+              content: 'Students will be saved to the hostel assigned to their ERP batch year. Existing login passwords are preserved.',
+              okText: 'Import Students', onOk: importAcademicsStudents
+            })}>Import Selected Students ({academicsSelected.length})</Button>
           ]}
-          width={800}
+          width={1100}
+          closable={!academicsLoading && !academicsImporting}
+          mask={{ closable: !academicsLoading && !academicsImporting }}
         >
           <div className="space-y-4 my-4">
             <Text type="secondary">
-              Use this tool to test fetching students from the Academics database directly from the Warden view.
+              Fetch students to preview their batch and hostel, then select and import them into this system.
             </Text>
             
             <div>
               <Text strong className="block mb-2">Authorization Token (JWT Bearer Token):</Text>
               <Input.Password
+                aria-label="Academics authorization token"
+                disabled={academicsLoading || academicsImporting}
                 value={academicsToken}
                 onChange={e => setAcademicsToken(e.target.value)}
                 placeholder="Paste Warden / SuperAdmin JWT Token..."
@@ -418,7 +499,7 @@ const ManageStudents = () => {
 
             {academicsError && (
               <Alert 
-                message="Error Fetching Data" 
+                title="Student fetch or import needs attention"
                 description={academicsError} 
                 type="error" 
                 showIcon 
@@ -426,19 +507,33 @@ const ManageStudents = () => {
               />
             )}
 
+            {academicsLoading && <Alert type="info" showIcon title="Fetching students from Academics…" description="The request may take up to 20 seconds." />}
+            {academicsFetchedAt && !academicsLoading && <Alert type={academicsStudents.length ? 'success' : 'warning'} showIcon title={`Fetched ${academicsStudents.length} hosteller students at ${academicsFetchedAt}. Select students and click Import Selected Students to save them.`} />}
+            {academicsImportResult && <Alert showIcon type={academicsImportResult.errors?.length ? 'warning' : 'success'} title={`Imported ${academicsImportResult.successful || 0} students; ${academicsImportResult.skipped || 0} skipped; ${academicsImportResult.errors?.length || 0} failed.`} description={academicsImportResult.errors?.map((failure, index) => <div key={index}>{failure.name}: {failure.error}</div>)} />}
+
             {academicsStudents.length > 0 && (
               <div className="space-y-4">
-                <Alert 
-                  message={`Successfully fetched ${academicsStudents.length} students from Academics database!`} 
-                  type="success" 
-                  showIcon 
-                />
+                <Space wrap>
+                  <Input aria-label="Search Academics students" allowClear placeholder="Search name, roll number or batch year" value={academicsSearch} disabled={academicsImporting} onChange={event => { setAcademicsSearch(event.target.value); setAcademicsPage(1); setAcademicsSelected([]); }} />
+                  <Button disabled={academicsLoading || academicsImporting || !academicsEligibleKeys.length} onClick={() => setAcademicsSelected(academicsEligibleKeys)}>Select all matching eligible students ({academicsEligibleKeys.length})</Button>
+                  <Button disabled={academicsImporting || !academicsSelected.length} onClick={() => setAcademicsSelected([])}>Clear selection</Button>
+                  <Checkbox checked={academicsRequiresBed} disabled={academicsImporting} onChange={event => setAcademicsRequiresBed(event.target.checked)}>New students require a bed</Checkbox>
+                </Space>
                 
                 <Table
-                  dataSource={academicsStudents}
-                  rowKey="id"
-                  pagination={{ pageSize: 5 }}
+                  dataSource={filteredAcademics}
+                  rowKey="importKey"
+                  loading={academicsLoading || academicsImporting}
+                  scroll={{ x: 1250 }}
+                  pagination={{ current: academicsPage, pageSize: academicsPageSize, showSizeChanger: true, pageSizeOptions: [5, 10, 20, 50, 100], onChange: (page, size) => { setAcademicsPage(size === academicsPageSize ? page : 1); setAcademicsPageSize(size); }, showTotal: total => `${total} students` }}
+                  rowSelection={{ selectedRowKeys: academicsSelected, onChange: setAcademicsSelected, preserveSelectedRowKeys: true,
+                    columnTitle: <Checkbox aria-label="Select all eligible Academics students" checked={academicsEligibleKeys.length > 0 && academicsEligibleKeys.every(key => academicsSelected.includes(key))} indeterminate={academicsSelected.length > 0 && !academicsEligibleKeys.every(key => academicsSelected.includes(key))} disabled={academicsLoading || academicsImporting || !academicsEligibleKeys.length} onChange={event => setAcademicsSelected(event.target.checked ? academicsEligibleKeys : [])} />,
+                    getCheckboxProps: student => ({ disabled: academicsLoading || academicsImporting || Boolean(student.blocked) }) }}
                   columns={[
+                    { title: 'ERP Batch Year', dataIndex: 'erp_batch_year', width: 120 },
+                    { title: 'Batch', key: 'batch', width: 140, render: (_, student) => student.matchedBatch?.name || 'Unconfigured' },
+                    { title: 'Assigned Hostel', key: 'hostel', width: 170, render: (_, student) => student.matchedBatch?.hostel_name || 'Unassigned' },
+                    { title: 'Import Status', key: 'importStatus', width: 210, render: (_, student) => <Tag color={student.blocked ? 'orange' : 'green'}>{student.blocked || (student.existing ? 'Update enrollment' : 'Ready to import')}</Tag> },
                     {
                       title: 'Register No',
                       dataIndex: 'registerNumber',

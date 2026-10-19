@@ -1,7 +1,8 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  Card, Table, Tag, Button, Input, Select, DatePicker, 
-  Typography, Row, Col, Statistic, Space, Skeleton, 
+import {
+  Card, Table, Tag, Button, Input, Select,
+  Typography, Row, Col, Statistic, Space, Skeleton,
   Modal, Badge, Divider, Empty, message, ConfigProvider, theme, Form
 } from 'antd';
 import { 
@@ -232,10 +233,10 @@ const HolidayManagement = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#059669', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+        <div className="module-page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-emerald-600 rounded-2xl shadow-lg shadow-emerald-100">
               <CalendarDays className="text-white" size={24} />

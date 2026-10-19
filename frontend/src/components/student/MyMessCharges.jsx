@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
-  Card, Typography, Row, Col, Statistic, Button, Space, 
+  Alert, Card, Typography, Row, Col, Statistic, Button, Space,
   Divider, ConfigProvider, theme, Skeleton, Badge, 
   Tooltip, Table, Tag, Empty 
 } from 'antd';
@@ -16,7 +16,7 @@ import moment from 'moment';
 const { Title, Text } = Typography;
 
 const ChargeSkeleton = () => (
-  <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
+  <div className="module-page p-8 space-y-6 bg-slate-50 min-h-screen">
     <div className="flex justify-between items-center">
       <Skeleton.Input active style={{ width: 300 }} />
       <Skeleton.Button active style={{ width: 120 }} />
@@ -69,7 +69,8 @@ const MyMessCharges = () => {
       setSummaryData({
         dailyRate: data.monthlySummary.monthlyCalculatedDailyRate || 0,
         manDays: data.monthlySummary.studentTotalManDaysForMonth || 0,
-        specialFood: data.monthlySummary.totalMonthlySpecialFoodCost || 0
+        specialFood: data.monthlySummary.totalMonthlySpecialFoodCost || 0,
+        baseDays: data.monthlySummary.baseDays, reductionDays: data.monthlySummary.approvedReductionDays, historicalTotal: data.monthlySummary.historicalFinalAmount, historicalMess: data.monthlySummary.historicalMessAmount
       });
     } catch (error) {
       console.error('Fetch Error:', error);
@@ -85,7 +86,7 @@ const MyMessCharges = () => {
   , [monthlyFlatFees]);
 
   const totalBill = useMemo(() => 
-    (summaryData.dailyRate * summaryData.manDays) + summaryData.specialFood + totalFlatFees
+    summaryData.historicalTotal ?? ((summaryData.dailyRate * summaryData.manDays) + summaryData.specialFood + totalFlatFees)
   , [summaryData, totalFlatFees]);
 
   const columns = [
@@ -111,13 +112,13 @@ const MyMessCharges = () => {
       }
     },
     {
-      title: 'Base Charge',
+      title: 'Food Charge',
       dataIndex: 'baseMessCharge',
       align: 'right',
       render: (v) => <Text className="text-slate-500">₹{parseFloat(v).toFixed(2)}</Text>
     },
     {
-      title: 'Token Add-ons',
+      title: 'Additional Food',
       dataIndex: 'specialFoodCost',
       align: 'right',
       render: (v) => parseFloat(v) > 0 ? <Text className="text-orange-500 font-medium">+ ₹{parseFloat(v).toFixed(2)}</Text> : <Text className="text-slate-300">—</Text>
@@ -140,10 +141,10 @@ const MyMessCharges = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+      <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Header & Navigation */}
-        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
+        <div className="module-page-header flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
               <Receipt className="text-white" size={24} />
@@ -177,18 +178,23 @@ const MyMessCharges = () => {
                <Row gutter={16}>
                  <Col span={12}>
                    <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100">
-                     <Text className="text-[10px] uppercase font-bold text-slate-400 block">Daily Man-Day Rate</Text>
+                     <Text className="text-[10px] uppercase font-bold text-slate-400 block">Food daily rate</Text>
                      <Title level={3} style={{ margin: 0 }}>₹{summaryData.dailyRate.toFixed(2)}</Title>
                    </div>
                  </Col>
                  <Col span={12}>
                     <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100">
-                      <Text className="text-[10px] uppercase font-bold text-slate-400 block">Net Man-Days</Text>
+                      <Text className="text-[10px] uppercase font-bold text-slate-400 block">Billable food days</Text>
                       <Title level={3} style={{ margin: 0 }}>{summaryData.manDays} Days</Title>
                     </div>
                  </Col>
                </Row>
+               <Alert className="mt-4" type="info" message={`Base days: ${summaryData.baseDays ?? "Legacy"} · Approved reductions: ${summaryData.reductionDays ?? "Legacy"}`} description="Only approved operational dates reduce food charges. Attendance status does not grant a reduction. Water and other charges are unchanged." />
                <div className="mt-6 space-y-2">
+                  <div className="flex justify-between py-2 border-b border-slate-50">
+                    <Text className="text-slate-500">Additional food bill</Text>
+                    <Text strong>₹{Number(summaryData.specialFood).toFixed(2)}</Text>
+                  </div>
                   {monthlyFlatFees.length > 0 ? monthlyFlatFees.map((f, i) => (
                     <div key={i} className="flex justify-between py-2 border-b border-slate-50">
                       <Text className="text-slate-500 capitalize">{f.fee_type.replace(/_/g, ' ')}</Text>

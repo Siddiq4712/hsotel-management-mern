@@ -43,171 +43,103 @@ const resolveRoleRecord = async ({ roleId, role }) => {
 const normalizeRoleName = (name) => String(name || '').trim();
 
 // HOSTEL MANAGEMENT
+const hostelFields = (body, partial = false) => {
+  const values = {};
+  const invalid = message => { throw Object.assign(new Error(message), { status: 400 }); };
+  if (!partial || Object.hasOwn(body, 'name')) {
+    if (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 255) invalid('Enter a hostel name of 1–255 characters.');
+    values.name = body.name.trim();
+  }
+  if (!partial || Object.hasOwn(body, 'capacity')) {
+    if (!Number.isInteger(Number(body.capacity)) || Number(body.capacity) < 1 || Number(body.capacity) > 2147483647) invalid('Capacity must be a whole number between 1 and 2147483647.');
+    values.capacity = Number(body.capacity);
+  }
+  for (const key of ['address', 'contact_number', 'email']) {
+    if (Object.hasOwn(body, key)) values[key] = String(body[key] ?? '').trim() || null;
+    if (key !== 'address' && values[key]?.length > 255) invalid(`${key === 'email' ? 'Email' : 'Contact number'} cannot exceed 255 characters.`);
+  }
+  if (Object.hasOwn(body, 'is_active')) {
+    if (typeof body.is_active !== 'boolean') invalid('Hostel status must be active or inactive.');
+    values.is_active = body.is_active;
+  }
+  if (!Object.keys(values).length) invalid('Enter hostel details to update.');
+  return values;
+};
+const hostelFailure = (res, error) => {
+  if (error.name === 'SequelizeUniqueConstraintError') return res.status(409).json({ success: false, message: 'A hostel with this name already exists.' });
+  if (error.name === 'SequelizeValidationError') return res.status(400).json({ success: false, message: error.errors.map(item => item.message).join(' ') });
+  return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Unable to complete the hostel operation. Please try again.' });
+};
+const hostelId = value => {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id < 1) throw Object.assign(new Error('Choose a valid hostel.'), { status: 400 });
+  return id;
+};
+
 export const createHostel = async (req, res) => {
   try {
-    const { name, address, contact_number, email, capacity } = req.body;
-
-    if (!String(name || '').trim() || !Number.isInteger(Number(capacity)) || Number(capacity) < 1) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please enter a hostel name and a whole-number capacity of at least 1.'
-      });
-    }
-
-    const existingHostel = await Hostel.findOne({ where: { name: String(name).trim() } });
-    if (existingHostel) {
-      return res.status(409).json({ success: false, message: 'A hostel with this name already exists.' });
-    }
-
-    const hostel = await Hostel.create({
-      name: String(name).trim(),
-      address,
-      contact_number,
-      email,
-      capacity: Number(capacity)
-    });
-
-    res.status(201).json({
-      success: true,
-      data: hostel,
-      message: 'Hostel created successfully'
-    });
-  } catch (error) {
-    console.error('Hostel creation error:', error);
-    if (error.name === 'SequelizeValidationError') {
-      return res.status(400).json({ success: false, message: error.errors.map((item) => item.message).join(' ') });
-    }
-    if (error.name === 'SequelizeUniqueConstraintError') {
-      return res.status(409).json({ success: false, message: 'A hostel with this name already exists.' });
-    }
-    res.status(500).json({ success: false, message: 'Unable to create the hostel. Please check the server log and try again.' });
-  }
+    const values = hostelFields(req.body);
+    if (await Hostel.findOne({ where: { name: values.name } })) return res.status(409).json({ success: false, message: 'A hostel with this name already exists.' });
+    const hostel = await Hostel.create(values);
+    return res.status(201).json({ success: true, data: hostel, message: 'Hostel created successfully' });
+  } catch (error) { return hostelFailure(res, error); }
 };
 
 export const getHostels = async (req, res) => {
   try {
-    const { search } = req.query;
-
-    let whereClause = { is_active: true };
-
-    if (search) {
-      whereClause[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { address: { [Op.iLike]: `%${search}%` } }
-      ];
-    }
-
-    const hostels = await Hostel.findAll({
-      where: whereClause,
-      include: [
-        {
-          model: HostelRoom,
-          include: [{ model: RoomType }]
-        }
-      ],
-      order: [['createdAt', 'DESC']]
-    });
-
-    res.json({ success: true, data: hostels });
-  } catch (error) {
-    console.error('Hostels fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+    const search = String(req.query.search || '').trim();
+    const where = req.query.include_inactive === 'true' ? {} : { is_active: true };
+    if (search) where[Op.or] = [{ name: { [Op.like]: `%${search}%` } }, { address: { [Op.like]: `%${search}%` } }];
+    const hostels = await Hostel.findAll({ where, include: [{ model: HostelRoom, include: [{ model: RoomType }] }], order: [['createdAt', 'DESC'], ['id', 'DESC']] });
+    const batches = await Session.findAll({ where: { is_active: true }, attributes: ['id', 'name', 'hostel_id', 'erp_batch_year'] });
+    return res.json({ success: true, data: hostels.map(hostel => ({ ...hostel.toJSON(), batches: batches.filter(batch => batch.hostel_id === hostel.id) })) });
+  } catch (error) { return hostelFailure(res, error); }
 };
 
 export const getHostelById = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const hostel = await Hostel.findByPk(id, {
-      include: [
-        {
-          model: HostelRoom,
-          include: [{ model: RoomType }]
-        }
-      ]
-    });
-
-    if (!hostel) {
-      return res.status(404).json({
-        success: false,
-        message: 'Hostel not found'
-      });
-    }
-
-    res.json({ success: true, data: hostel });
-  } catch (error) {
-    console.error('Hostel fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+    const hostel = await Hostel.findByPk(hostelId(req.params.id), { include: [{ model: HostelRoom, include: [{ model: RoomType }] }] });
+    if (!hostel) return res.status(404).json({ success: false, message: 'Hostel not found' });
+    return res.json({ success: true, data: hostel });
+  } catch (error) { return hostelFailure(res, error); }
 };
 
 export const updateHostel = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { name, address, contact_number, email, capacity } = req.body;
-
+    const id = hostelId(req.params.id);
+    const values = hostelFields(req.body, true);
     const hostel = await Hostel.findByPk(id);
-
-    if (!hostel) {
-      return res.status(404).json({
-        success: false,
-        message: 'Hostel not found'
-      });
+    if (!hostel) return res.status(404).json({ success: false, message: 'Hostel not found' });
+    if (values.name && await Hostel.findOne({ where: { name: values.name, id: { [Op.ne]: id } } })) return res.status(409).json({ success: false, message: 'A hostel with this name already exists.' });
+    if (values.capacity !== undefined) {
+      const occupied = Number(await HostelRoom.sum('occupancy_count', { where: { hostel_id: id } }) || 0);
+      if (values.capacity < occupied) return res.status(400).json({ success: false, message: `Capacity cannot be below the ${occupied} currently occupied beds.` });
     }
-
-    await hostel.update({
-      name,
-      address,
-      contact_number,
-      email,
-      capacity
-    });
-
-    res.json({
-      success: true,
-      data: hostel,
-      message: 'Hostel updated successfully'
-    });
-  } catch (error) {
-    console.error('Hostel update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+    await hostel.update(values);
+    return res.json({ success: true, data: hostel, message: 'Hostel updated successfully' });
+  } catch (error) { return hostelFailure(res, error); }
 };
 
 export const deleteHostel = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const hostel = await Hostel.findByPk(id);
-
-    if (!hostel) {
-      return res.status(404).json({
-        success: false,
-        message: 'Hostel not found'
-      });
-    }
-
-    const usersCount = await User.count({ where: { hostel_id: id } });
-    const roomsCount = await HostelRoom.count({ where: { hostel_id: id } });
-
-    if (usersCount > 0 || roomsCount > 0) {
-      await hostel.update({ is_active: false });
-      res.json({
-        success: true,
-        message: 'Hostel deactivated successfully (has associated records)'
-      });
-    } else {
-      await hostel.destroy();
-      res.json({
-        success: true,
-        message: 'Hostel deleted successfully'
-      });
-    }
-  } catch (error) {
-    console.error('Hostel deletion error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+    const id = hostelId(req.params.id);
+    const deactivated = await sequelize.transaction(async transaction => {
+      const hostel = await Hostel.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!hostel) throw Object.assign(new Error('Hostel not found'), { status: 404 });
+      // Preserve every linked record, including inventory assignments and
+      // financial history, even when the hostel has no rooms or current users.
+      for (const model of Object.values(sequelize.models)) {
+        if (!model.rawAttributes?.hostel_id) continue;
+        if (await model.count({ where: { hostel_id: id }, transaction })) {
+          await hostel.update({ is_active: false }, { transaction });
+          return true;
+        }
+      }
+      await hostel.destroy({ transaction });
+      return false;
+    });
+    return res.json({ success: true, deactivated, message: deactivated ? 'Hostel deactivated; its linked records and history are preserved.' : 'Hostel deleted successfully.' });
+  } catch (error) { return hostelFailure(res, error); }
 };
 
 // USER MANAGEMENT
@@ -314,6 +246,7 @@ export const createUser = async (req, res) => {
     }
 
     const roleNameLower = roleData.roleName?.toLowerCase() || '';
+    if (['student', 'lapc'].includes(roleNameLower)) return res.status(400).json({ success: false, message: 'Use Student Admission to create students with automatic batch and hostel allocation.' });
     const isHostelRequired = ['warden', 'student', 'mess'].includes(roleNameLower);
     if (isHostelRequired && !hostel_id) {
       return res.status(400).json({
@@ -435,7 +368,12 @@ export const updateUser = async (req, res) => {
     }
 
     const roleNameLower = roleData.roleName?.toLowerCase() || '';
-    const isHostelRequired = ['warden', 'student', 'mess'].includes(roleNameLower);
+    const currentRole = await Role.findByPk(user.roleId);
+    const currentIsStudent = ['student', 'lapc'].includes(currentRole?.roleName?.toLowerCase());
+    const targetIsStudent = ['student', 'lapc'].includes(roleNameLower);
+    if (currentIsStudent !== targetIsStudent) return res.status(400).json({ success: false, message: 'Use Student Admission to change student enrollment. Student roles cannot be changed in user management.' });
+    if (targetIsStudent && Number(hostel_id) !== Number(user.hostel_id)) return res.status(400).json({ success: false, message: 'Student hostel follows their batch. Change it in Manage Batches and review allocation.' });
+    const isHostelRequired = ['warden', 'student', 'lapc', 'mess'].includes(roleNameLower);
     if (isHostelRequired && !hostel_id) {
       return res.status(400).json({
         success: false,
@@ -691,63 +629,8 @@ export const deleteRoom = async (req, res) => {
   }
 };
 
-// SESSION MANAGEMENT
-export const createSession = async (req, res) => {
-  try {
-    const { name, start_date, end_date } = req.body;
-    if (!name || !start_date || !end_date) {
-      return res.status(400).json({ success: false, message: 'Name, start date, and end date are required' });
-    }
-    const session = await Session.create({ name, start_date, end_date });
-    res.status(201).json({ success: true, data: session, message: 'Session created successfully' });
-  } catch (error) {
-    console.error('Session creation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-export const getSessions = async (req, res) => {
-  try {
-    const { search, is_active } = req.query;
-    let whereClause = {};
-    if (is_active !== undefined && is_active !== 'all') whereClause.is_active = is_active === 'true';
-    if (search) whereClause.name = { [Op.iLike]: `%${search}%` };
-
-    const sessions = await Session.findAll({ where: whereClause, order: [['createdAt', 'DESC']] });
-    res.json({ success: true, data: sessions });
-  } catch (error) {
-    console.error('Sessions fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-export const updateSession = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, start_date, end_date, is_active } = req.body;
-    const session = await Session.findByPk(id);
-    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
-
-    await session.update({ name, start_date, end_date, is_active });
-    res.json({ success: true, data: session, message: 'Session updated successfully' });
-  } catch (error) {
-    console.error('Session update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-export const deleteSession = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const session = await Session.findByPk(id);
-    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
-    await session.update({ is_active: false });
-    res.json({ success: true, message: 'Session deactivated successfully' });
-  } catch (error) {
-    console.error('Session deletion error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
+// Academic batch routes retain their existing /sessions API names.
+export { saveBatch as createSession, getBatches as getSessions, saveBatch as updateSession, archiveBatch as deleteSession } from './batchController.js';
 
 // FACILITY TYPE MANAGEMENT
 export const createFacilityType = async (req, res) => {
@@ -1243,18 +1126,20 @@ export const getDashboardStats = async (req, res) => {
   try {
     const totalHostels = await Hostel.count({ where: { is_active: true } });
     
-    // Use user.role directly; role-table join is unreliable with current schema.
+    // User.roleId is a foreign key, not the role name.
+    const dashboardRoles = await Role.findAll({ attributes: ['roleId', 'roleName'], raw: true });
+    const idsForRoles = names => dashboardRoles.filter(role => names.includes(String(role.roleName).toLowerCase())).map(role => role.roleId);
     const totalWardens = await User.count({
       where: {
         status: 'Active',
-        roleId: { [Op.in]: ['warden'] }
+        roleId: { [Op.in]: idsForRoles(['warden']) }
       }
     });
 
     const totalStudents = await User.count({
       where: {
         status: 'Active',
-        roleId: { [Op.in]: ['student', 'lapc'] }
+        roleId: { [Op.in]: idsForRoles(['student', 'lapc']) }
       }
     });
 
@@ -1297,6 +1182,8 @@ export const getDashboardStats = async (req, res) => {
 export const getAdminChartData = async (req, res) => {
   try {
     const chartData = {};
+    const roles = await Role.findAll({ attributes: ['roleId', 'roleName'], raw: true });
+    const roleNames = new Map(roles.map(role => [String(role.roleId), role.roleName]));
 
     const userRoleCounts = await User.findAll({
       attributes: ['roleId', [fn('COUNT', col('id')), 'count']],
@@ -1308,7 +1195,7 @@ export const getAdminChartData = async (req, res) => {
     const labels = [];
     const counts = [];
     userRoleCounts.forEach(item => {
-      const roleName = String(item.roleId || '').trim();
+      const roleName = String(roleNames.get(String(item.roleId)) || `Unknown role (${item.roleId})`).trim();
       labels.push(roleName ? roleName.charAt(0).toUpperCase() + roleName.slice(1).toLowerCase() : 'Unknown');
       counts.push(parseInt(item.count, 10));
     });
@@ -1359,91 +1246,9 @@ export const getAdminChartData = async (req, res) => {
   }
 };
 
-export const getDayReductionRequestsForAdmin = async (req, res) => {
-  try {
-    const { status, hostel_id, student_id, from_date, to_date } = req.query;
-    let whereClause = {};
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    } else {
-      whereClause.status = { [Op.in]: ['pending_admin', 'approved_by_admin', 'rejected_by_admin', 'approved_by_warden', 'rejected_by_warden'] };
-    }
-    if (hostel_id) whereClause.hostel_id = hostel_id;
-    if (student_id) whereClause.student_id = student_id;
-    if (from_date && to_date) {
-      whereClause[Op.and] = [{ from_date: { [Op.lte]: to_date } }, { to_date: { [Op.gte]: from_date } }];
-    }
+export { listReductions as getDayReductionRequestsForAdmin } from './reductionController.js';
 
-    const requests = await DayReductionRequest.findAll({
-      where: whereClause,
-      include: [
-        { model: User, as: 'Student', attributes: ['userId', 'userName', 'userMail', 'roll_number'] }, // Changed attributes
-        { model: User, as: 'AdminProcessor', attributes: ['userId', 'userName'], required: false }, // Changed attributes
-        { model: User, as: 'WardenProcessor', attributes: ['userId', 'userName'], required: false }, // Changed attributes
-        { model: Hostel, as: 'Hostel', attributes: ['id', 'name'] }
-      ],
-      order: [['createdAt', 'DESC']]
-    });
-    res.json({ success: true, data: requests });
-  } catch (error) {
-    console.error('Error fetching requests:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
-
-export const updateDayReductionRequestStatusByAdmin = async (req, res) => {
-  const transaction = await sequelize.transaction();
-  try {
-    const { id } = req.params;
-    const { action, admin_remarks } = req.body;
-    const admin_id = req.user.userId; // Changed to userId
-
-    const request = await DayReductionRequest.findByPk(id, { transaction });
-    if (!request || request.status !== 'pending_admin') {
-      await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'Request not found or invalid status' });
-    }
-
-    let newStatus = action === 'approve' ? 'approved_by_admin' : 'rejected_by_admin';
-
-    await request.update({ status: newStatus, admin_id, admin_remarks }, { transaction });
-
-    if (newStatus === 'approved_by_admin') {
-      const { student_id, from_date, to_date, hostel_id } = request;
-      let currentDate = moment(from_date);
-      const endDate = moment(to_date);
-
-      while (currentDate.isSameOrBefore(endDate)) {
-        const dateString = currentDate.format('YYYY-MM-DD');
-        let existingAttendance = await Attendance.findOne({ where: { student_id, hostel_id, date: dateString }, transaction });
-
-        if (existingAttendance) {
-          if (existingAttendance.status !== 'P') {
-            await existingAttendance.update({
-              status: 'OD',
-              totalManDays: 1,
-              remarks: (existingAttendance.remarks || '') + '; Day reduction approved by Admin',
-              marked_by: admin_id
-            }, { transaction });
-          }
-        } else {
-          await Attendance.create({
-            student_id, hostel_id, date: dateString, status: 'OD', totalManDays: 1,
-            remarks: 'Day reduction request approved by Admin', marked_by: admin_id
-          }, { transaction });
-        }
-        currentDate.add(1, 'day');
-      }
-    }
-
-    await transaction.commit();
-    res.json({ success: true, data: request, message: `Request ${newStatus} successfully.` });
-  } catch (error) {
-    await transaction.rollback();
-    console.error('Error updating status:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
+export { decideReduction as updateDayReductionRequestStatusByAdmin } from './reductionController.js';
 
 export const updateHostelFeeSettings = async (req, res) => {
   try {

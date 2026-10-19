@@ -1,4 +1,8 @@
+import { uploadReductionDocument, reductionDocument, reviseReduction, decideReduction } from '../controllers/reductionController.js';
 import express from 'express';
+import { getStaffAccess, updateStaffAccess } from '../controllers/staffAccessController.js';
+import { getBatches, saveBatch, archiveBatch, previewAllocation, applyAllocation, assignHostelBatches } from '../controllers/batchController.js';
+import { listActivities, getActivity, previewActivityReversal, applyActivityReversal, correctActivityRecord, deleteActivityRecord } from '../controllers/activityController.js';
 import {
   // Hostel Management
   createHostel, getHostels, getHostelById, updateHostel, deleteHostel,
@@ -11,9 +15,6 @@ import {
 
   // Room Management
   createRoom, getRooms, updateRoom, deleteRoom,
-
-  // Session Management
-  createSession, getSessions, updateSession, deleteSession,
 
   // Facility Type Management
   createFacilityType, getFacilityTypes, updateFacilityType, deleteFacilityType,
@@ -44,12 +45,26 @@ import {
 } from '../controllers/adminController.js'; // Added .js extension
 
 import { auth, authorize } from '../middleware/auth.js'; // Added .js extension
+import { getMonthlyAttendanceRoster, previewMonthlyAttendance, importMonthlyAttendance, getMonthlyAttendanceImports } from '../controllers/monthlyAttendanceController.js';
 
 const router = express.Router();
 
 // Apply auth and admin authorization to all routes
 router.use(auth);
 router.use(authorize(['admin']));
+router.get('/staff-access', getStaffAccess);
+router.put('/staff-access/:id', updateStaffAccess);
+router.get('/activities', listActivities);
+router.get('/activities/:id', getActivity);
+router.get('/activities/:id/reversal-preview', previewActivityReversal);
+router.post('/activities/:id/revert', applyActivityReversal);
+router.patch('/activities/:id/records/:changeId', correctActivityRecord);
+router.delete('/activities/:id/records/:changeId', deleteActivityRecord);
+
+router.get('/monthly-attendance/roster', getMonthlyAttendanceRoster);
+router.get('/monthly-attendance/imports', getMonthlyAttendanceImports);
+router.post('/monthly-attendance/preview', previewMonthlyAttendance);
+router.post('/monthly-attendance/import', importMonthlyAttendance);
 
 // Dashboard
 router.get('/dashboard-stats', getDashboardStats);
@@ -83,10 +98,13 @@ router.put('/rooms/:id', updateRoom);
 router.delete('/rooms/:id', deleteRoom);
 
 // Session Management
-router.post('/sessions', createSession);
-router.get('/sessions', getSessions);
-router.put('/sessions/:id', updateSession);
-router.delete('/sessions/:id', deleteSession);
+router.post('/sessions', saveBatch);
+router.get('/sessions', getBatches);
+router.put('/sessions/:id', saveBatch);
+router.delete('/sessions/:id', archiveBatch);
+router.get('/batches/allocation-preview', previewAllocation);
+router.post('/batches/allocate', applyAllocation);
+router.put('/hostels/:id/batches', assignHostelBatches);
 
 // Facility Type Management
 router.post('/facility-types', createFacilityType);
@@ -131,6 +149,7 @@ router.put('/uoms/:id', updateUOM);
 router.delete('/uoms/:id', deleteUOM);
 
 // Day Reduction Requests
+router.get('/day-reduction-requests/:id/document', reductionDocument);
 router.get('/day-reduction-requests', getDayReductionRequestsForAdmin);
 router.put('/day-reduction-requests/:id/status', updateDayReductionRequestStatusByAdmin);
 

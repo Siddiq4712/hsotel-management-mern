@@ -5,6 +5,7 @@ import StudentTabNavigator from './StudentTabNavigator';
 import WardenTabNavigator from './WardenTabNavigator';
 import SecurityNavigator from './SecurityNavigator';
 import ParentNavigator from './ParentNavigator';
+import WebAccountScreen from '../screens/WebAccountScreen';
 import { useAuth } from '../hooks/useAuth';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { normalizeRole } from '../utils/role';
@@ -40,7 +41,7 @@ const AppNavigator = () => {
         ) : resolvedRole === 'parent' ? (
           <ParentNavigator />
         ) : (
-          <AuthNavigator />
+          <WebAccountScreen />
         )
       ) : (
         <AuthNavigator />

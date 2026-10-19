@@ -1,6 +1,8 @@
+import { resolveStudentBatch, assertCanMove, listBatches, matchBatch } from '../services/batchAllocation.js';
 import bcrypt from 'bcryptjs';
 import { Op } from 'sequelize';
 import moment from 'moment';
+import { getHistoricalBilling } from '../utils/historicalBilling.js';
 import { 
   User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,
   Attendance, GPSAttendance, Leave, Complaint, Suspension, Holiday, Fee, MessBill, Hostel, RoomRequest,
@@ -28,86 +30,6 @@ const getStudentRoleIds = async (transaction = null) => {
   return roleRows.map((r) => Number(r.roleId)).filter((id) => Number.isFinite(id));
 };
 
-/**
- * Resolves an existing Session or creates a new Session in tbl_Session based on batch/session identifier.
- * Supports strings like "2021-2025", "2022-2026", "2024", "Batch 2023-2027", or numeric session_id.
- */
-export const getOrCreateSessionByBatch = async (batchInput, transaction = null) => {
-  // If input is a pure numeric ID, check if it exists in DB
-  if (batchInput !== null && batchInput !== undefined && !isNaN(batchInput) && !String(batchInput).includes('-') && !String(batchInput).includes('/')) {
-    const numId = parseInt(batchInput, 10);
-    if (Number.isFinite(numId) && numId > 0) {
-      const existingById = await Session.findByPk(numId, { transaction: transaction || undefined });
-      if (existingById) return existingById.id;
-    }
-  }
-
-  const rawBatch = String(batchInput || '').trim();
-
-  // If no batch provided, fallback to active or latest session
-  if (!rawBatch || rawBatch.toLowerCase() === 'null' || rawBatch.toLowerCase() === 'undefined' || rawBatch.toLowerCase() === 'n/a') {
-    let activeSession = await Session.findOne({
-      where: { is_active: true },
-      order: [['start_date', 'DESC'], ['id', 'DESC']],
-      transaction: transaction || undefined
-    });
-    if (!activeSession) {
-      activeSession = await Session.findOne({ order: [['id', 'DESC']], transaction: transaction || undefined });
-    }
-    if (activeSession) return activeSession.id;
-
-    // If completely empty tbl_Session, create a default 4-year session
-    const currentYear = new Date().getFullYear();
-    const createdSession = await Session.create({
-      name: `${currentYear}-${currentYear + 4}`,
-      start_date: new Date(`${currentYear}-06-01`),
-      end_date: new Date(`${currentYear + 4}-05-31`),
-      is_active: true
-    }, { transaction: transaction || undefined });
-    return createdSession.id;
-  }
-
-  // Check if session with exact or matching name already exists
-  let session = await Session.findOne({
-    where: {
-      [Op.or]: [
-        { name: rawBatch },
-        { name: { [Op.like]: `%${rawBatch}%` } }
-      ]
-    },
-    transaction: transaction || undefined
-  });
-
-  if (session) return session.id;
-
-  // Extract years from batch name (e.g., "2022-2026", "2023 - 2027", "2024")
-  const years = rawBatch.match(/\b(20\d{2}|19\d{2})\b/g);
-  let startDate = new Date();
-  let endDate = new Date();
-
-  if (years && years.length >= 2) {
-    startDate = new Date(`${years[0]}-06-01`);
-    endDate = new Date(`${years[1]}-05-31`);
-  } else if (years && years.length === 1) {
-    const yr = parseInt(years[0], 10);
-    startDate = new Date(`${yr}-06-01`);
-    endDate = new Date(`${yr + 4}-05-31`);
-  } else {
-    const curr = new Date().getFullYear();
-    startDate = new Date(`${curr}-06-01`);
-    endDate = new Date(`${curr + 4}-05-31`);
-  }
-
-  const newSession = await Session.create({
-    name: rawBatch,
-    start_date: startDate,
-    end_date: endDate,
-    is_active: true
-  }, { transaction: transaction || undefined });
-
-  return newSession.id;
-};
-
 // ==========================================
 // STUDENT ENROLLMENT
 // ==========================================
@@ -119,11 +41,6 @@ export const enrollStudent = async (req, res) => {
          userName: userNameRaw,
          username,
          email, 
-         session_id,
-         batch,
-         batch_year,
-         academic_year,
-         session,
          requires_bed, 
          paid_initial_emi,
          college,
@@ -141,20 +58,19 @@ export const enrollStudent = async (req, res) => {
          throw new Error("Only students with type 'hosteller' can be stored in the database.");
       }
       
-      const hostel_id = getHostelId(req.user);
       const normalizedRollNumber = String(roll_number || '').trim();
       const defaultDomain = String(college || 'nec').toLowerCase() === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in';
       const generatedEmail = normalizedRollNumber ? `${normalizedRollNumber}@${defaultDomain}` : '';
       const normalizedEmail = String(email || generatedEmail).trim().toLowerCase();
 
-      if (!hostel_id) throw new Error("Warden's hostel ID not found.");
       if (!userName) throw new Error("Student name is required.");
       if (!normalizedEmail) throw new Error("Email is required (or provide roll number for auto-email).");
       if (!normalizedRollNumber) throw new Error("Roll number is required.");
 
-      // Resolve or automatically create the batch/session in tbl_Session
-      const rawBatch = batch || session_id || batch_year || academic_year || session;
-      const resolvedSessionId = await getOrCreateSessionByBatch(rawBatch, transaction);
+      // ERP admission year is authoritative; roll numbers never determine the batch.
+      const matchedBatch = await resolveStudentBatch(req.body.erp_batch_year ?? req.body.batch, req.user, transaction);
+      const resolvedSessionId = matchedBatch.id;
+      const hostel_id = matchedBatch.hostel_id;
 
       // DYNAMIC ROLE RETRIEVAL: Find 'student' role ID
       const studentRole = await Role.findOne({ 
@@ -172,6 +88,7 @@ export const enrollStudent = async (req, res) => {
       });
 
       if (student) {
+         await assertCanMove(student.userId, hostel_id, transaction);
          if (!studentRoleIds.includes(Number(student.roleId))) {
             throw new Error('This email/roll belongs to a non-student account. Use a different email/roll number.');
          }
@@ -203,8 +120,7 @@ export const enrollStudent = async (req, res) => {
       // Check if enrollment exists and update or create
       let existingEnrollment = await Enrollment.findOne({
          where: {
-            student_id: student.userId,
-            hostel_id: hostel_id
+            student_id: student.userId
          },
          transaction
       });
@@ -212,8 +128,9 @@ export const enrollStudent = async (req, res) => {
       if (!existingEnrollment) {
          await Enrollment.create({
             student_id: student.userId,
-            hostel_id: hostel_id, 
+            hostel_id,
             session_id: resolvedSessionId,
+            erp_batch_year: matchedBatch.erp_batch_year,
             requires_bed: !!requires_bed,
             college: college || 'nec',
             roll_number: normalizedRollNumber,
@@ -221,7 +138,9 @@ export const enrollStudent = async (req, res) => {
          }, { transaction });
       } else {
          await existingEnrollment.update({
+            hostel_id,
             session_id: resolvedSessionId,
+            erp_batch_year: matchedBatch.erp_batch_year,
             requires_bed: !!requires_bed,
             college: college || 'nec',
             roll_number: normalizedRollNumber,
@@ -237,7 +156,7 @@ export const enrollStudent = async (req, res) => {
    }
 };
 
-// 2. GET STUDENTS: Fetches student records from ERP API directly without inserting to DB
+// Student roster: saved enrollments by default; explicitly requested ERP candidates are batch-scoped.
 export const getStudents = async (req, res) => {
    try {
       const warden_hostel_id = getHostelId(req.user);
@@ -245,37 +164,36 @@ export const getStudents = async (req, res) => {
       const authHeader = req.headers.authorization;
       const hostellersOnly = req.query.all !== 'true';
 
-      let hostelName = '';
-      if (warden_hostel_id) {
-         const hostel = await Hostel.findByPk(warden_hostel_id);
-         if (hostel) {
-            hostelName = hostel.name;
-         }
-      }
-
-      // 1. Fetch live students from ERP API (filtered by hostel gender & showing all courses)
-      const erpStudents = await fetchStudentsFromERP({
+      // Local enrollments are the normal roster. ERP candidates are explicit and batch-scoped.
+      const erpStudents = req.query.source === 'erp' ? await fetchStudentsFromERP({
          authHeader,
          hostellersOnly,
-         hostelName,
          enrollmentYear: enrollmentYear || null
-      });
+      }) : [];
 
-      if (erpStudents && erpStudents.length > 0) {
+      if (req.query.source === 'erp') {
+         const batches = await listBatches();
+         const scopedStudents = erpStudents.flatMap(student => {
+            try {
+               const batch = matchBatch(student.erp_batch_year ?? student.batch, batches);
+               if (Number(batch.hostel_id) !== Number(warden_hostel_id)) return [];
+               return [{ ...student, batch_name: batch.name, assigned_hostel: batch.hostel_name }];
+            } catch { return []; } // Full ERP preview reports unmatched years separately.
+         });
          return res.status(200).json({
             success: true,
-            data: erpStudents
+            data: scopedStudents
          });
       }
 
-      // 2. Fallback: If ERP API returns empty or is unreachable in offline dev environment, query local records
+      // Saved local enrollments provide stable user IDs and the current batch/hostel roster.
       const studentRoleIds = await getStudentRoleIds();
 
       const enrollmentInclude = {
          model: Enrollment,
          as: 'tbl_Enrollment',
-         where: { status: 'active' },
-         required: Boolean(enrollmentYear),
+         where: { status: 'active', ...(warden_hostel_id ? { hostel_id: warden_hostel_id } : {}) },
+         required: true,
          include: [
             {
               model: Session,
@@ -286,9 +204,6 @@ export const getStudents = async (req, res) => {
          ]
       };
 
-      if (!enrollmentYear) {
-         enrollmentInclude.required = false;
-      }
 
       const studentsWithModels = await User.findAll({
          where: { 
@@ -326,6 +241,7 @@ export const getStudents = async (req, res) => {
             session: enrollmentSessionName || 'N/A',
             enrollment_year: enrollmentSessionName,
             session_id: plain.tbl_Enrollment?.[0]?.session_id || null,
+            erp_batch_year: plain.tbl_Enrollment?.[0]?.erp_batch_year ?? null,
             college: plain.tbl_Enrollment?.[0]?.college || 'N/A',
             room_number: activeRoom ? activeRoom.room_number : null
          };
@@ -348,10 +264,8 @@ export const getStudents = async (req, res) => {
 export const bulkEnrollStudents = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const { students = [], session_id: defaultSessionId, college: defaultCollege } = req.body;
-    const hostel_id = getHostelId(req.user) || req.user.hostelId || req.user.hostel_id;
+    const { students = [], college: defaultCollege } = req.body;
 
-    if (!hostel_id) throw new Error("Hostel ID not found. Please re-login.");
     if (!Array.isArray(students) || students.length === 0) {
       throw new Error("No student records provided for bulk enrollment.");
     }
@@ -372,85 +286,92 @@ export const bulkEnrollStudents = async (req, res) => {
 
     for (const studentData of students) {
       try {
-        const rawType = String(studentData.student_type || studentData.studentType || studentData.type || 'hosteller').trim().toLowerCase();
-        if (rawType && rawType !== 'hosteller') {
-          results.skipped++;
-          continue;
-        }
+        await sequelize.transaction({ transaction }, async transaction => {
+          const rawType = String(studentData.student_type || studentData.studentType || studentData.type || 'hosteller').trim().toLowerCase();
+          if (rawType && rawType !== 'hosteller') {
+            results.skipped++;
+            return;
+          }
 
-        const rawName = studentData.userName || studentData.name || '';
-        const studentName = rawName.trim().toUpperCase();
-        const normalizedRollNumber = String(studentData.roll_number || studentData.roll || '').trim();
-        const studentCollege = String(studentData.college || defaultCollege || 'nec').trim().toLowerCase();
-        const defaultDomain = studentCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in';
-        const generatedEmail = normalizedRollNumber ? `${normalizedRollNumber}@${defaultDomain}`.toLowerCase() : '';
-        const normalizedEmail = String(studentData.email || studentData.userMail || generatedEmail).trim().toLowerCase();
-        const rawBatch = studentData.batch || studentData.batch_year || studentData.session || studentData.academic_year || studentData.session_id || defaultSessionId;
-        const resolvedSessionId = await getOrCreateSessionByBatch(rawBatch, transaction);
-        const requiresBed = Boolean(studentData.requires_bed);
+          const rawName = studentData.userName || studentData.name || '';
+          const studentName = rawName.trim().toUpperCase();
+          const normalizedRollNumber = String(studentData.roll_number || studentData.roll || '').trim();
+          const studentCollege = String(studentData.college || defaultCollege || 'nec').trim().toLowerCase();
+          const defaultDomain = studentCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in';
+          const generatedEmail = normalizedRollNumber ? `${normalizedRollNumber}@${defaultDomain}`.toLowerCase() : '';
+          const normalizedEmail = String(studentData.email || studentData.userMail || generatedEmail).trim().toLowerCase();
+          const matchedBatch = await resolveStudentBatch(studentData.erp_batch_year ?? studentData.batch, req.user, transaction);
+          const resolvedSessionId = matchedBatch.id;
+          const hostel_id = matchedBatch.hostel_id;
+          const requiresBed = Boolean(studentData.requires_bed);
 
-        if (!studentName) {
-          throw new Error(`Student name is required for roll ${normalizedRollNumber || 'unknown'}`);
-        }
-        if (!normalizedRollNumber) {
-          throw new Error(`Roll number is required for student ${studentName}`);
-        }
+          if (!studentName) {
+            throw new Error(`Student name is required for roll ${normalizedRollNumber || 'unknown'}`);
+          }
+          if (!normalizedRollNumber) {
+            throw new Error(`Roll number is required for student ${studentName}`);
+          }
 
-        // 1. Create/Update User (Login Credentials)
-        let user = await User.findOne({ 
-          where: { [Op.or]: [{ roll_number: normalizedRollNumber }, { userMail: normalizedEmail }] },
-          transaction 
+          // 1. Create/Update User (Login Credentials)
+          let user = await User.findOne({
+            where: { [Op.or]: [{ roll_number: normalizedRollNumber }, { userMail: normalizedEmail }] },
+            transaction
+          });
+
+          if (!user) {
+            const studentPass = studentData.password ? await bcrypt.hash(studentData.password, salt) : defaultPassword;
+            user = await User.create({
+              userName: studentName,
+              userMail: normalizedEmail,
+              password: studentPass,
+              roleId: studentRole.roleId,
+              hostel_id,
+              roll_number: normalizedRollNumber,
+              status: true
+            }, { transaction });
+          } else if (!studentRoleIds.includes(Number(user.roleId))) {
+            throw new Error(`Existing account for ${normalizedRollNumber} is not a student account`);
+          } else {
+            await assertCanMove(user.userId, hostel_id, transaction);
+            await user.update({
+              hostel_id,
+              roleId: studentRole.roleId,
+              status: true,
+              roll_number: normalizedRollNumber
+            }, { transaction });
+          }
+
+          // 2. Create/Update Enrollment Record (The Batch/Session link)
+          let existingEnrollment = await Enrollment.findOne({
+            where: { student_id: user.userId },
+            transaction
+          });
+
+          if (!existingEnrollment) {
+            await Enrollment.create({
+              student_id: user.userId,
+              hostel_id,
+              session_id: resolvedSessionId,
+              erp_batch_year: matchedBatch.erp_batch_year,
+              roll_number: normalizedRollNumber,
+              college: studentCollege || 'nec',
+              requires_bed: requiresBed,
+              status: 'active'
+            }, { transaction });
+            results.successful++;
+          } else {
+            await existingEnrollment.update({
+              hostel_id,
+              session_id: resolvedSessionId,
+              erp_batch_year: matchedBatch.erp_batch_year,
+              requires_bed: requiresBed,
+              college: studentCollege || 'nec',
+              roll_number: normalizedRollNumber,
+              status: 'active'
+            }, { transaction });
+            results.successful++;
+          }
         });
-
-        if (!user) {
-          const studentPass = studentData.password ? await bcrypt.hash(studentData.password, salt) : defaultPassword;
-          user = await User.create({
-            userName: studentName,
-            userMail: normalizedEmail,
-            password: studentPass,
-            roleId: studentRole.roleId,
-            hostel_id,
-            roll_number: normalizedRollNumber,
-            status: true 
-          }, { transaction });
-        } else if (!studentRoleIds.includes(Number(user.roleId))) {
-          throw new Error(`Existing account for ${normalizedRollNumber} is not a student account`);
-        } else {
-          await user.update({
-            hostel_id,
-            roleId: studentRole.roleId,
-            status: true,
-            roll_number: normalizedRollNumber
-          }, { transaction });
-        }
-
-        // 2. Create/Update Enrollment Record (The Batch/Session link)
-        let existingEnrollment = await Enrollment.findOne({
-          where: { student_id: user.userId, hostel_id },
-          transaction
-        });
-
-        if (!existingEnrollment) {
-          await Enrollment.create({
-            student_id: user.userId,
-            hostel_id,
-            session_id: resolvedSessionId,
-            roll_number: normalizedRollNumber,
-            college: studentCollege || 'nec',
-            requires_bed: requiresBed, 
-            status: 'active'
-          }, { transaction });
-          results.successful++;
-        } else {
-          await existingEnrollment.update({
-            session_id: resolvedSessionId,
-            requires_bed: requiresBed,
-            college: studentCollege || 'nec',
-            roll_number: normalizedRollNumber,
-            status: 'active'
-          }, { transaction });
-          results.successful++;
-        }
       } catch (err) {
         results.errors.push({ name: studentData.userName || studentData.name || studentData.roll_number, error: err.message });
       }
@@ -477,7 +398,7 @@ export const getAttendanceSummary = async (req, res) => {
     }
 
     const totalStudents = await User.count({
-      where: { roleId: 2, hostel_id, status: 'Active' }
+      where: { roleId: { [Op.in]: await getStudentRoleIds() }, hostel_id, status: 'Active' }
     });
 
     const presentCount = await Attendance.count({
@@ -548,7 +469,7 @@ export const allotRoom = async (req, res) => {
       }
 
       const student = await User.findOne({ 
-         where: { userId: student_id, hostel_id, roleId: 2, status: 'Active' } 
+         where: { userId: student_id, hostel_id, roleId: { [Op.in]: await getStudentRoleIds() }, status: 'Active' }
       });
       if (!student) throw new Error('Student not found in this hostel.');
       
@@ -1111,9 +1032,9 @@ export const getDashboardStats = async (req, res) => {
         return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
       }
 
-      // Total Students - Use roleId: 2 and status: 'Active'
+      // Resolve configured Student/LAPC roles rather than assuming a numeric role ID.
       const totalStudents = await User.count({ 
-         where: { roleId: 2, hostel_id, status: 'Active' } 
+         where: { roleId: { [Op.in]: await getStudentRoleIds() }, hostel_id, status: 'Active' }
       });
 
       // Room Occupancy Stats
@@ -1279,102 +1200,7 @@ export const getDashboardStats = async (req, res) => {
 // ==========================================
 // BULK MONTH-END MANDAYS
 // ==========================================
-export const bulkMonthEndMandays = async (req, res) => {
-  const transaction = await sequelize.transaction();
-  try {
-    const { month, year, total_operational_days, student_reductions = [] } = req.body;
-    const hostel_id = getHostelId(req.user);
-    const marked_by = req.user.userId;
-
-    if (!hostel_id) {
-      throw new Error('Hostel binding missing.');
-    }
-
-    if (!month || !year || total_operational_days === undefined) {
-      throw new Error('Month, year, and total_operational_days are required');
-    }
-
-    const monthNum = parseInt(month, 10);
-    const yearNum = parseInt(year, 10);
-    if (monthNum < 1 || monthNum > 12) {
-      throw new Error('Invalid month (should be 1-12)');
-    }
-
-    const monthFormatted = String(monthNum).padStart(2, '0');
-    const lastDayOfMonth = new Date(yearNum, monthNum, 0).getDate();
-    const startDate = `${yearNum}-${monthFormatted}-01`;
-    const endDate = `${yearNum}-${monthFormatted}-${String(lastDayOfMonth).padStart(2, '0')}`;
-
-    // Get all active students in the hostel
-    const students = await User.findAll({
-      where: { 
-        hostel_id,
-        roleId: 2, 
-        status: 'Active'
-      },
-      attributes: ['userId'],
-      transaction
-    });
-
-    if (students.length === 0) {
-      throw new Error('No active students found in this hostel');
-    }
-
-    // Create a map for quick lookup of reductions
-    const reductionMap = {};
-    student_reductions.forEach(({ student_id, reduction_days }) => {
-      reductionMap[student_id] = parseInt(reduction_days) || 0;
-    });
-
-    // Delete existing attendance records for this month for all students
-    await Attendance.destroy({
-      where: {
-        student_id: { [Op.in]: students.map(s => s.userId) },
-        date: {
-          [Op.between]: [startDate, endDate]
-        }
-      },
-      transaction
-    });
-
-    // Create monthly summary record for each student
-    const createdRecords = [];
-    for (const student of students) {
-      const reduction = reductionMap[student.userId] || 0;
-      const mandays = Math.max(0, total_operational_days - reduction);
-
-      const monthlyRecord = await Attendance.create({
-        student_id: student.userId,
-        hostel_id,
-        date: startDate,
-        status: 'P',
-        totalManDays: mandays,
-        is_monthly: true,
-        marked_by,
-        remarks: `Monthly mandays entry: ${mandays} present out of ${total_operational_days} operational days (reduction: ${reduction})`
-      }, { transaction });
-
-      createdRecords.push(monthlyRecord);
-    }
-
-    await transaction.commit();
-
-    res.status(201).json({
-      success: true,
-      message: `Monthly mandays entry completed for ${createdRecords.length} students`,
-      data: {
-        month,
-        year,
-        total_operational_days,
-        records_created: createdRecords.length
-      }
-    });
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    console.error('Bulk month-end mandays error:', error);
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
+export const bulkMonthEndMandays = async (req, res) => res.status(410).json({ success: false, message: 'Manual month-end reductions are retired. Submit a documented reduction request for warden or admin approval.' });
 
 // ==========================================
 // MONTHLY ATTENDANCE
@@ -1389,7 +1215,7 @@ export const getMonthlyAttendance = async (req, res) => {
     }
 
     const totalStudents = await User.count({ 
-      where: { roleId: 2, hostel_id, status: 'Active' } 
+      where: { roleId: { [Op.in]: await getStudentRoleIds() }, hostel_id, status: 'Active' }
     });
     
     if (totalStudents === 0) {
@@ -1508,431 +1334,20 @@ export const getMonthlyComplaints = async (req, res) => {
 // SESSIONS
 // ==========================================
 export const getSessions = async (req, res) => {
-   try {
-      const sessions = await Session.findAll({ 
-         where: { is_active: true }, 
-         order: [['createdAt', 'DESC']] 
-      });
-      res.json({ success: true, data: sessions });
-   } catch (error) {
-      console.error('Sessions fetch error:', error);
-      res.status(500).json({ success: false, message: 'Server error' });
-   }
+  try { res.json({ success: true, data: (await listBatches()).filter(batch => batch.is_active) }); }
+  catch (error) { res.status(500).json({ success: false, message: error.message }); }
 };
 
 // ==========================================
 // ATTENDANCE MANAGEMENT
 // ==========================================
-export const markAttendance = async (req, res) => {
-   const transaction = await sequelize.transaction();
-   try {
-      const { student_id, date, status, from_date, to_date, reason, remarks } = req.body;
-      const marked_by = req.user.userId;
-      const hostel_id = getHostelId(req.user);
+export { markAttendance } from './attendanceController.js';
 
-      if (!hostel_id) {
-        throw new Error('Hostel binding missing.');
-      }
+export { updateAttendance } from './attendanceController.js';
 
-      // Validate inputs
-      if (!student_id || !date || !status) {
-         throw new Error('Missing required fields: student_id, date, and status are required');
-      }
-      if (!['P', 'A', 'OD'].includes(status)) {
-         throw new Error('Invalid status. Must be P, A, or OD');
-      }
-      if (status === 'OD' && (!from_date || !to_date)) {
-         throw new Error('from_date and to_date are required for OD status');
-      }
+export { bulkMarkAttendance } from './attendanceController.js';
 
-      const studentRoleIds = await getStudentRoleIds();
-      if (!studentRoleIds.length) {
-         throw new Error('Student/LAPC roles are not configured.');
-      }
-
-      // Validate student
-      const student = await User.findOne({
-         where: {
-            userId: student_id,
-            roleId: { [Op.in]: studentRoleIds },
-            hostel_id,
-            status: { [Op.in]: ['Active', 'active'] }
-         },
-         transaction
-      });
-      if (!student) {
-         throw new Error('Student not found in this hostel');
-      }
-
-      // Validate marked_by
-      if (!marked_by) {
-         throw new Error('Invalid user authentication');
-      }
-
-      // Validate dates
-      const parsedDate = new Date(date);
-      if (isNaN(parsedDate)) {
-         throw new Error('Invalid date format. Use YYYY-MM-DD');
-      }
-      let startDate, endDate;
-      if (status === 'OD') {
-         startDate = new Date(from_date);
-         endDate = new Date(to_date);
-         if (isNaN(startDate) || isNaN(endDate)) {
-            throw new Error('Invalid from_date or to_date format. Use YYYY-MM-DD');
-         }
-         if (startDate > endDate) {
-            throw new Error('from_date cannot be later than to_date');
-         }
-      }
-
-      const attendanceData = {
-         student_id,
-         date,
-         status,
-         marked_by,
-         hostel_id,
-         reason,
-         remarks,
-         from_date: status === 'OD' ? from_date : null,
-         to_date: status === 'OD' ? to_date : null,
-         totalManDays: status === 'A' ? 0 : 1
-      };
-
-      const [attendance, created] = await Attendance.findOrCreate({
-         where: { student_id, date },
-         defaults: attendanceData,
-         transaction
-      });
-      if (!created) await attendance.update(attendanceData, { transaction });
-
-      // Handle OD ranges
-      if (status === 'OD' && from_date && to_date) {
-         let curr = moment(from_date);
-         let end = moment(to_date);
-         while (curr.isSameOrBefore(end)) {
-            const dStr = curr.format('YYYY-MM-DD');
-            if (dStr !== date) {
-               await Attendance.upsert({ 
-                  student_id, 
-                  date: dStr, 
-                  status: 'OD', 
-                  from_date, 
-                  to_date, 
-                  marked_by, 
-                  hostel_id, 
-                  reason, 
-                  remarks, 
-                  totalManDays: 1 
-               }, { transaction });
-            }
-            curr.add(1, 'days');
-         }
-      }
-
-      await transaction.commit();
-      res.json({ success: true, data: attendance, message: 'Attendance marked successfully' });
-   } catch (error) {
-      if (transaction) await transaction.rollback();
-      console.error('Attendance marking error:', {
-         message: error.message,
-         stack: error.stack,
-         requestBody: req.body,
-         user: req.user
-      });
-      res.status(error.message.includes('not found') ? 404 : 400).json({ success: false, message: error.message });
-   }
-};
-
-export const updateAttendance = async (req, res) => {
-   const transaction = await sequelize.transaction();
-   try {
-      const { id } = req.params;
-      const { status, reason, remarks, from_date, to_date } = req.body;
-      const hostel_id = getHostelId(req.user);
-      const marked_by = req.user.userId;
-
-      if (!hostel_id) {
-        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
-      }
-
-      if (!['P', 'A', 'OD'].includes(status)) {
-         return res.status(400).json({ success: false, message: 'Invalid status. Must be P, A, or OD' });
-      }
-
-      const oldAttendance = await Attendance.findOne({
-         where: { id },
-         include: [{ model: User, as: 'Student', where: { hostel_id } }],
-         transaction
-      });
-
-      if (!oldAttendance) {
-         await transaction.rollback();
-         return res.status(404).json({ success: false, message: 'Attendance record not found' });
-      }
-
-      const oldStatus = oldAttendance.status;
-      const student_id = oldAttendance.student_id;
-      const currentDate = oldAttendance.date;
-
-      const updateData = {
-         status,
-         reason,
-         remarks,
-         from_date: status === 'OD' ? from_date : null,
-         to_date: status === 'OD' ? to_date : null,
-         marked_by,
-         hostel_id,
-         totalManDays: status === 'A' ? 0 : 1
-      };
-
-      // Validate dates for OD
-      if (status === 'OD') {
-         if (!from_date || !to_date) {
-            await transaction.rollback();
-            return res.status(400).json({ success: false, message: 'from_date and to_date are required for OD status' });
-         }
-         const startDate = new Date(from_date);
-         const endDate = new Date(to_date);
-         if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) {
-            await transaction.rollback();
-            return res.status(400).json({ success: false, message: 'Invalid from_date or to_date' });
-         }
-      }
-
-      // Handle range cleanup/creation
-      if (oldStatus === 'OD' && status !== 'OD') {
-         const oldStart = new Date(oldAttendance.from_date);
-         const oldEnd = new Date(oldAttendance.to_date);
-         for (let d = new Date(oldStart); d <= oldEnd; d.setDate(d.getDate() + 1)) {
-            const rangeDate = d.toISOString().split('T')[0];
-            if (rangeDate === currentDate) continue;
-            await Attendance.destroy({
-               where: { student_id, date: rangeDate },
-               transaction
-            });
-         }
-      } else if (status === 'OD' && oldStatus !== 'OD') {
-         const startDate = new Date(from_date);
-         const endDate = new Date(to_date);
-         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-            const rangeDate = d.toISOString().split('T')[0];
-            await Attendance.upsert(
-               {
-                  student_id,
-                  date: rangeDate,
-                  status: 'OD',
-                  from_date,
-                  to_date,
-                  marked_by,
-                  hostel_id,
-                  reason,
-                  remarks,
-                  totalManDays: 1
-               },
-               { transaction }
-            );
-         }
-      }
-
-      // Update the current record
-      await oldAttendance.update(updateData, { transaction });
-
-      await transaction.commit();
-
-      // Refetch the updated record for response
-      const updatedAttendance = await Attendance.findByPk(id, {
-         include: [
-            { model: User, as: 'Student', attributes: ['userId', 'userName', 'userMail'] },
-            { model: User, as: 'MarkedBy', attributes: ['userId', 'userName'] }
-         ]
-      });
-
-      res.json({ success: true, data: updatedAttendance, message: 'Attendance updated successfully' });
-   } catch (error) {
-      if (transaction) await transaction.rollback();
-      console.error('Attendance update error:', error);
-      res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-   }
-};
-
-export const bulkMarkAttendance = async (req, res) => {
-   const { date, attendanceData } = req.body;
-   const marked_by = req.user.userId;
-   const hostel_id = getHostelId(req.user);
-   const transaction = await sequelize.transaction();
-   try {
-      if (!hostel_id) {
-        throw new Error('Hostel binding missing.');
-      }
-
-      if (!date || !Array.isArray(attendanceData)) throw new Error("Date and attendance data are required.");
-      
-      const studentRoleIds = await getStudentRoleIds();
-      if (!studentRoleIds.length) {
-         throw new Error('Student/LAPC roles are not configured.');
-      }
-
-      // Validate all students belong to the hostel
-      const studentIds = attendanceData.map(record => record.student_id);
-      const students = await User.findAll({
-         where: { 
-            userId: { [Op.in]: studentIds },
-            roleId: { [Op.in]: studentRoleIds },
-            hostel_id,
-            status: { [Op.in]: ['Active', 'active'] }
-         },
-         attributes: ['userId']
-      });
-      if (students.length !== studentIds.length) {
-         throw new Error('One or more students not found in this hostel');
-      }
-
-      for (const record of attendanceData) {
-         const { student_id, status, from_date, to_date, reason, remarks } = record;
-
-         if (!['P', 'A', 'OD'].includes(status)) {
-            throw new Error(`Invalid status for student ${student_id}: ${status}`);
-         }
-
-         const upsertData = {
-            student_id,
-            date,
-            status,
-            marked_by,
-            hostel_id,
-            reason: status === 'OD' ? (reason || null) : null,
-            remarks: status === 'OD' ? (remarks || null) : null,
-            from_date: status === 'OD' ? (from_date || null) : null,
-            to_date: status === 'OD' ? (to_date || null) : null,
-            totalManDays: status === 'A' ? 0 : 1
-         };
-
-         await Attendance.upsert(upsertData, { transaction });
-
-         // If OD, create range entries
-         if (status === 'OD' && from_date && to_date) {
-            const startDate = new Date(from_date);
-            const endDate = new Date(to_date);
-            if (isNaN(startDate) || isNaN(endDate) || startDate > endDate) {
-               throw new Error(`Invalid OD date range for student ${student_id}`);
-            }
-            if (!reason) {
-               throw new Error(`Reason required for OD for student ${student_id}`);
-            }
-
-            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-               const rangeDate = d.toISOString().split('T')[0];
-               if (rangeDate === date) continue;
-               await Attendance.upsert({
-                  student_id,
-                  date: rangeDate,
-                  status: 'OD',
-                  from_date,
-                  to_date,
-                  marked_by,
-                  hostel_id,
-                  reason,
-                  remarks,
-                  totalManDays: 1
-               }, { transaction });
-            }
-         }
-      }
-      await transaction.commit();
-      res.json({ success: true, message: 'Attendance saved successfully.' });
-   } catch (error) {
-      if (transaction) await transaction.rollback();
-      console.error('Bulk attendance marking error:', error);
-      res.status(400).json({ success: false, message: error.message });
-   }
-};
-
-export const getAttendance = async (req, res) => {
-   try {
-      const { date, month, year, is_monthly } = req.query;
-      const hostel_id = getHostelId(req.user);
-
-      if (!hostel_id) {
-        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
-      }
-
-      let whereClause = { hostel_id };
-
-      if (month && year) {
-        const monthNum = parseInt(month, 10);
-        const yearNum = parseInt(year, 10);
-        const monthFormatted = String(monthNum).padStart(2, '0');
-        const lastDayOfMonth = new Date(yearNum, monthNum, 0).getDate();
-        const startDate = `${yearNum}-${monthFormatted}-01`;
-        const endDate = `${yearNum}-${monthFormatted}-${String(lastDayOfMonth).padStart(2, '0')}`;
-        
-        whereClause.date = { [Op.between]: [startDate, endDate] };
-        if (is_monthly !== undefined) {
-          whereClause.is_monthly = is_monthly === 'true' || is_monthly === true;
-        }
-      } else if (date) {
-        whereClause.date = date;
-      }
-
-      const attendance = await Attendance.findAll({
-         where: whereClause,
-         include: [{ 
-            model: User, 
-            as: 'Student', 
-            where: { hostel_id }, 
-            attributes: ['userId', 'userName'] 
-         }],
-      });
-
-      // If querying monthly summary records specifically, return directly
-      if (month && year && (is_monthly === 'true' || is_monthly === true)) {
-        return res.json({ success: true, data: attendance });
-      }
-
-      // Merge GPS attendance records for the same date so mobile Attendance page
-      // reflects GPS session status as well. Manual attendance takes priority.
-      const gpsAttendance = date ? await GPSAttendance.findAll({
-         where: { attendance_date: date, hostel_id },
-         include: [{
-            model: User,
-            where: { hostel_id },
-            attributes: ['userId', 'userName']
-         }]
-      }) : [];
-
-      const mergedByStudent = new Map();
-      attendance.forEach((record) => {
-         mergedByStudent.set(Number(record.student_id), record.toJSON ? record.toJSON() : record);
-      });
-
-      gpsAttendance.forEach((record) => {
-         const studentId = Number(record.user_id);
-         if (mergedByStudent.has(studentId)) return;
-
-         const plain = record.toJSON ? record.toJSON() : record;
-         mergedByStudent.set(studentId, {
-            id: `gps-${plain.id}`,
-            student_id: studentId,
-            date: plain.attendance_date,
-            status: plain.status,
-            from_date: null,
-            to_date: null,
-            reason: null,
-            remarks: `GPS ${String(plain.session || '').toLowerCase()} session`,
-            marked_by: null,
-            hostel_id: plain.hostel_id,
-            source: 'GPS',
-            Student: plain.Student || plain.User || null
-         });
-      });
-
-      res.json({ success: true, data: Array.from(mergedByStudent.values()) });
-   } catch (error) {
-      console.error('Attendance fetch error:', error);
-      res.status(500).json({ success: false, message: 'Server error' });
-   }
-};
+export { getAttendance } from './attendanceController.js';
 
 // ==========================================
 // LEAVE MANAGEMENT
@@ -2265,7 +1680,7 @@ export const createSuspension = async (req, res) => {
       }
 
       const student = await User.findOne({
-         where: { userId: student_id, roleId: 2, hostel_id, status: 'Active' }
+         where: { userId: student_id, roleId: { [Op.in]: await getStudentRoleIds() }, hostel_id, status: 'Active' }
       });
 
       if (!student) {
@@ -2503,7 +1918,7 @@ export const createAdditionalCollection = async (req, res) => {
       }
 
       const student = await User.findOne({
-         where: { userId: student_id, roleId: 2, hostel_id, status: 'Active' }
+         where: { userId: student_id, roleId: { [Op.in]: await getStudentRoleIds() }, hostel_id, status: 'Active' }
       });
 
       if (!student) {
@@ -2572,146 +1987,7 @@ export const getAdditionalCollections = async (req, res) => {
 // ==========================================
 // MESS BILL MANAGEMENT
 // ==========================================
-export const generateMessBills = async (req, res) => {
-   const transaction = await sequelize.transaction();
-   try {
-      const { month, year, amount_per_day } = req.body;
-      const hostel_id = getHostelId(req.user);
-      
-      if (!hostel_id) {
-        await transaction.rollback();
-        return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
-      }
-
-      if (!month || !year || !amount_per_day) {
-         await transaction.rollback();
-         return res.status(400).json({ 
-            success: false, 
-            message: 'Month, year and amount per day are required' 
-         });
-      }
-      
-      const monthNum = parseInt(month, 10);
-      const yearNum = parseInt(year, 10);
-      
-      if (monthNum < 1 || monthNum > 12) {
-         await transaction.rollback();
-         return res.status(400).json({ 
-            success: false, 
-            message: 'Invalid month (should be 1-12)' 
-         });
-      }
-      
-      const startDate = new Date(yearNum, monthNum - 1, 1);
-      const endDate = new Date(yearNum, monthNum, 0);
-      
-      // Get all students in the hostel
-      const students = await User.findAll({
-         where: { 
-            hostel_id,
-            roleId: 2,
-            status: 'Active'
-         },
-         attributes: ['userId']
-      });
-      
-      if (students.length === 0) {
-         await transaction.rollback();
-         return res.status(404).json({
-            success: false,
-            message: 'No active students found in this hostel'
-         });
-      }
-      
-      // Get all attendance records for this month
-      const attendanceRecords = await Attendance.findAll({
-         where: {
-            date: {
-               [Op.between]: [startDate.toISOString().split('T')[0], endDate.toISOString().split('T')[0]]
-            },
-            student_id: {
-               [Op.in]: students.map(student => student.userId)
-            }
-         },
-         transaction
-      });
-      
-      // Create a map to track attendance for each student
-      const studentAttendance = {};
-      
-      students.forEach(student => {
-         studentAttendance[student.userId] = {
-            odDays: 0,
-            presentDays: 0
-         };
-      });
-      
-      attendanceRecords.forEach(record => {
-         if (record.status === 'OD') {
-            studentAttendance[record.student_id].odDays++;
-         } else if (record.status === 'P') {
-            studentAttendance[record.student_id].presentDays++;
-         }
-      });
-      
-      const daysInMonth = new Date(yearNum, monthNum, 0).getDate();
-      
-      const createdBills = [];
-      for (const student of students) {
-         const odDays = studentAttendance[student.userId].odDays || 0;
-         const chargeableDays = daysInMonth - odDays;
-         const totalAmount = chargeableDays * amount_per_day;
-         
-         const dueMonth = monthNum === 12 ? 1 : monthNum + 1;
-         const dueYear = monthNum === 12 ? yearNum + 1 : yearNum;
-         const dueDate = new Date(dueYear, dueMonth - 1, 10);
-         
-         const [bill, created] = await MessBill.findOrCreate({
-            where: {
-               student_id: student.userId,
-               hostel_id,
-               month: monthNum,
-               year: yearNum
-            },
-            defaults: {
-               amount: totalAmount,
-               status: 'pending',
-               due_date: dueDate
-            },
-            transaction
-         });
-         
-         if (!created) {
-            await bill.update({
-               amount: totalAmount,
-               due_date: dueDate
-            }, { transaction });
-         }
-         
-         createdBills.push(bill);
-      }
-      
-      await transaction.commit();
-      
-      res.status(201).json({
-         success: true,
-         message: `Mess bills generated for ${createdBills.length} students for ${month}/${year}`,
-         data: {
-            billCount: createdBills.length,
-            month: monthNum,
-            year: yearNum
-         }
-      });
-      
-   } catch (error) {
-      if (transaction) await transaction.rollback();
-      console.error('Mess bill generation error:', error);
-      res.status(500).json({ 
-         success: false, 
-         message: 'Server error: ' + error.message 
-      });
-   }
-};
+export { generateMessBills } from './messController.js';
 
 export const getMessBills = async (req, res) => {
    try {
@@ -3092,148 +2368,9 @@ export const decideRoomRequest = async (req, res) => {
 // ==========================================
 // DAY REDUCTION REQUESTS
 // ==========================================
-export const getDayReductionRequestsForWarden = async (req, res) => {
-  try {
-    const wardenHostelId = getHostelId(req.user);
-    if (!wardenHostelId) {
-      return res.status(403).json({ success: false, message: 'Warden is not assigned to a hostel.' });
-    }
+export { listReductions as getDayReductionRequestsForWarden } from './reductionController.js';
 
-    const { status, student_id, from_date, to_date } = req.query;
-
-    let whereClause = {
-      hostel_id: wardenHostelId
-    };
-
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    } else {
-      whereClause.status = { [Op.in]: ['approved_by_admin', 'approved_by_warden', 'rejected_by_warden'] };
-    }
-
-    if (student_id) whereClause.student_id = student_id;
-    if (from_date && to_date) {
-      whereClause[Op.and] = [
-        { from_date: { [Op.lte]: to_date } },
-        { to_date: { [Op.gte]: from_date } }
-      ];
-    }
-
-    const requests = await DayReductionRequest.findAll({
-      where: whereClause,
-      include: [
-        { model: User, as: 'Student', attributes: ['userId', 'userName', 'userMail', 'roll_number'] },
-        { model: User, as: 'AdminProcessor', attributes: ['userId', 'userName'], required: false },
-        { model: User, as: 'WardenProcessor', attributes: ['userId', 'userName'], required: false },
-        { model: Hostel, as: 'Hostel', attributes: ['id', 'name'] }
-      ],
-      order: [['createdAt', 'DESC']]
-    });
-
-    res.json({ success: true, data: requests });
-  } catch (error) {
-    console.error('Error fetching day reduction requests for warden:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-  }
-};
-
-export const updateDayReductionRequestStatusByWarden = async (req, res) => {
-  const transaction = await sequelize.transaction();
-  try {
-    const { id } = req.params;
-    const { action, warden_remarks } = req.body;
-    const warden_id = req.user.userId;
-    const wardenHostelId = getHostelId(req.user);
-
-    if (!wardenHostelId) {
-      await transaction.rollback();
-      return res.status(403).json({ success: false, message: 'Warden is not assigned to a hostel.' });
-    }
-
-    const request = await DayReductionRequest.findByPk(id, { transaction });
-
-    if (!request) {
-      await transaction.rollback();
-      return res.status(404).json({ success: false, message: 'Day reduction request not found.' });
-    }
-
-    if (request.hostel_id !== wardenHostelId) {
-        await transaction.rollback();
-        return res.status(403).json({ success: false, message: 'You are not authorized to process requests for this hostel.' });
-    }
-
-    if (request.status !== 'approved_by_admin') {
-      await transaction.rollback();
-      return res.status(400).json({ success: false, message: `Request not in 'approved_by_admin' status. Current status: ${request.status}.` });
-    }
-
-    let newStatus;
-    if (action === 'approve') {
-      newStatus = 'approved_by_warden';
-    } else if (action === 'reject') {
-      newStatus = 'rejected_by_warden';
-    } else {
-      await transaction.rollback();
-      return res.status(400).json({ success: false, message: 'Invalid action. Must be "approve" or "reject".' });
-    }
-
-    await request.update({
-      status: newStatus,
-      warden_id,
-      warden_remarks,
-    }, { transaction });
-
-    if (newStatus === 'approved_by_warden') {
-      const { student_id, from_date, to_date, hostel_id } = request;
-      const startDate = moment(from_date);
-      const endDate = moment(to_date);
-
-      let currentDate = moment(startDate);
-      while (currentDate.isSameOrBefore(endDate)) {
-        const dateString = currentDate.format('YYYY-MM-DD');
-
-        let existingAttendance = await Attendance.findOne({
-          where: {
-            student_id,
-            hostel_id,
-            date: dateString
-          },
-          transaction
-        });
-
-        if (existingAttendance) {
-          if (existingAttendance.status !== 'P') {
-             await existingAttendance.update({
-              status: 'OD',
-              totalManDays: 1,
-              remarks: existingAttendance.remarks ? `${existingAttendance.remarks}; Day reduction request approved (ID: ${id})` : `Day reduction request approved (ID: ${id})`,
-              marked_by: warden_id
-            }, { transaction });
-          }
-        } else {
-          await Attendance.create({
-            student_id,
-            hostel_id,
-            date: dateString,
-            status: 'OD',
-            totalManDays: 1,
-            remarks: `Day reduction request approved (ID: ${id})`,
-            marked_by: warden_id
-          }, { transaction });
-        }
-        currentDate.add(1, 'day');
-      }
-    }
-
-    await transaction.commit();
-    res.json({ success: true, data: request, message: `Day reduction request ${newStatus.replace('_', ' ')} successfully.` });
-
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    console.error('Error updating day reduction request status by warden:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-  }
-};
+export { decideReduction as updateDayReductionRequestStatusByWarden } from './reductionController.js';
 
 // ==========================================
 // REBATES
@@ -3317,37 +2454,7 @@ export const getRebates = async (req, res) => {
   }
 };
 
-export const updateRebateStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, amount } = req.body;
-    const warden_id = req.user.userId;
-
-    const rebate = await Rebate.findByPk(id);
-    if (!rebate) return res.status(404).json({ success: false, message: 'Rebate not found' });
-
-    if (status === 'approved') {
-      if (!amount || parseFloat(amount) <= 0) {
-        return res.status(400).json({ success: false, message: 'Please provide a valid manual amount' });
-      }
-
-      await rebate.update({
-        status: 'approved',
-        amount: parseFloat(amount).toFixed(2),
-        approved_by: warden_id
-      });
-
-      return res.json({ success: true, message: `Rebate approved for ₹${amount}` });
-    }
-
-    await rebate.update({ status: 'rejected', approved_by: warden_id });
-    res.json({ success: true, message: 'Rebate rejected' });
-
-  } catch (error) {
-    console.error("Update Rebate Error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
+export const updateRebateStatus = async (req, res) => res.status(410).json({ message: 'Legacy rebate decisions are read-only. Use the documented mess reduction workflow.' });
 
 export const getLatestDailyRate = async (req, res) => {
   try {
@@ -3466,7 +2573,6 @@ export const getErpSyncStatus = async (req, res) => {
     // 1. Fetch live hosteller students from ERP API
     const erpStudents = await fetchStudentsFromERP({
       authHeader: req.headers.authorization,
-      hostelName,
       hostellersOnly: true
     });
 
@@ -3521,13 +2627,26 @@ export const getErpSyncStatus = async (req, res) => {
 
     const newStudents = [];
     const updatedStudents = [];
+    const allocationConflicts = [];
+    const configuredBatches = await listBatches();
+    const hostelsById = new Map((await Hostel.findAll()).map(hostel => [hostel.id, hostel]));
 
     erpStudents.forEach(erp => {
       const erpRoll = String(erp.roll_number || erp.registerNumber || '').trim().toUpperCase();
       const erpEmail = String(erp.email || erp.userMail || '').trim().toLowerCase();
       const erpName = String(erp.userName || erp.username || '').trim();
       const erpCollege = String(erp.college || 'NEC').trim().toUpperCase();
-      const erpBatch = String(erp.batch || erp.batch_year || erp.academic_year || erp.academicYear || erp.session || '').trim();
+      let matchedBatch;
+      try {
+        matchedBatch = matchBatch(erp.erp_batch_year ?? erp.batch, configuredBatches);
+        if (req.user.role !== 'admin' && matchedBatch.hostel_id !== Number(warden_hostel_id)) return;
+        const targetHostel = hostelsById.get(matchedBatch.hostel_id);
+        if (!targetHostel?.is_active) throw new Error('The assigned hostel is inactive.');
+      } catch (error) {
+        allocationConflicts.push({ id: erp.id || erpRoll, name: erpName, roll_number: erpRoll, reason: error.message });
+        return;
+      }
+      const erpBatch = matchedBatch.name;
 
       const existing = (erpRoll ? localByRoll.get(erpRoll) : null) || (erpEmail ? localByEmail.get(erpEmail) : null);
 
@@ -3540,7 +2659,9 @@ export const getErpSyncStatus = async (req, res) => {
           college: erpCollege,
           gender: erp.gender,
           department: erp.course || erp.session,
-          batch: erpBatch || 'N/A'
+          batch: erpBatch,
+          erp_batch_year: matchedBatch.erp_batch_year,
+          assigned_hostel: matchedBatch.hostel_name
         });
       } else {
         const dbName = String(existing.user.userName || '').trim();
@@ -3551,7 +2672,7 @@ export const getErpSyncStatus = async (req, res) => {
         const nameDiffers = erpName.toLowerCase() !== dbName.toLowerCase();
         const rollDiffers = erpRoll && dbRoll && erpRoll !== dbRoll;
         const collegeDiffers = erpCollege !== dbCollege;
-        const batchDiffers = erpBatch && dbBatch && erpBatch.toLowerCase() !== dbBatch.toLowerCase();
+        const batchDiffers = erpBatch !== dbBatch || Number(existing.enroll.erp_batch_year) !== Number(matchedBatch.erp_batch_year);
 
         if (nameDiffers || rollDiffers || collegeDiffers || batchDiffers) {
           updatedStudents.push({
@@ -3563,6 +2684,8 @@ export const getErpSyncStatus = async (req, res) => {
             newCollege: erpCollege,
             oldBatch: dbBatch,
             newBatch: erpBatch,
+            erp_batch_year: matchedBatch.erp_batch_year,
+            assigned_hostel: matchedBatch.hostel_name,
             diffSummary: [
               nameDiffers ? `Name: "${dbName}" → "${erpName}"` : null,
               collegeDiffers ? `College: "${dbCollege}" → "${erpCollege}"` : null,
@@ -3573,7 +2696,7 @@ export const getErpSyncStatus = async (req, res) => {
       }
     });
 
-    const totalDifferences = newStudents.length + updatedStudents.length;
+    const totalDifferences = newStudents.length + updatedStudents.length + allocationConflicts.length;
 
     res.json({
       success: true,
@@ -3582,8 +2705,9 @@ export const getErpSyncStatus = async (req, res) => {
         totalDifferences,
         newCount: newStudents.length,
         updatedCount: updatedStudents.length,
-        newStudents: newStudents.slice(0, 50),
-        updatedStudents: updatedStudents.slice(0, 50),
+        newStudents,
+        updatedStudents,
+        allocationConflicts,
         totalErpCount: erpStudents.length,
         totalDbCount: localEnrollments.length
       }
@@ -3596,7 +2720,7 @@ export const getErpSyncStatus = async (req, res) => {
 
 /**
  * Automatically syncs hosteller records from ERP API into tbl_users & tbl_Enrollment,
- * ensuring batch/session from ERP is automatically resolved/created in tbl_Session.
+ * matching ERP admission years to configured batches and hostels.
  */
 export const syncErpRecords = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -3611,7 +2735,6 @@ export const syncErpRecords = async (req, res) => {
     // 1. Fetch live hostellers from ERP
     const erpStudents = await fetchStudentsFromERP({
       authHeader: req.headers.authorization,
-      hostelName,
       hostellersOnly: true
     });
 
@@ -3630,6 +2753,8 @@ export const syncErpRecords = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const defaultPassword = await bcrypt.hash('12345678', salt);
 
+    const studentRoleIds = await getStudentRoleIds(transaction);
+    const configuredBatches = await listBatches(transaction);
     let addedCount = 0;
     let updatedCount = 0;
 
@@ -3641,12 +2766,15 @@ export const syncErpRecords = async (req, res) => {
       const defaultDomain = studentCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in';
       const generatedEmail = normalizedRollNumber ? `${normalizedRollNumber}@${defaultDomain}`.toLowerCase() : '';
       const normalizedEmail = String(erp.email || erp.userMail || generatedEmail).trim().toLowerCase();
-      const erpBatch = String(erp.batch || erp.batch_year || erp.academic_year || erp.academicYear || erp.session || '').trim();
 
       if (!studentName || !normalizedRollNumber) continue;
 
-      // Automatically find or create batch/session in tbl_Session
-      const resolvedSessionId = await getOrCreateSessionByBatch(erpBatch, transaction);
+      // Resolve batch and hostel using the configured ERP batch year.
+      const configured = matchBatch(erp.erp_batch_year ?? erp.batch, configuredBatches);
+      if (req.user.role !== 'admin' && configured.hostel_id !== Number(warden_hostel_id)) continue;
+      const matchedBatch = await resolveStudentBatch(erp.erp_batch_year ?? erp.batch, req.user, transaction);
+      const resolvedSessionId = matchedBatch.id;
+      const assignedHostel = matchedBatch.hostel_id;
 
       // Find or create User
       let user = await User.findOne({
@@ -3665,15 +2793,17 @@ export const syncErpRecords = async (req, res) => {
           userMail: normalizedEmail,
           password: defaultPassword,
           roleId: studentRole.roleId,
-          hostel_id: warden_hostel_id,
+          hostel_id: assignedHostel,
           roll_number: normalizedRollNumber,
           status: true
         }, { transaction });
         addedCount++;
       } else {
+        if (!studentRoleIds.includes(Number(user.roleId))) throw new Error(`Roll ${normalizedRollNumber} belongs to a non-student account.`);
+        await assertCanMove(user.userId, assignedHostel, transaction);
         await user.update({
           userName: studentName,
-          hostel_id: warden_hostel_id,
+          hostel_id: assignedHostel,
           roleId: studentRole.roleId,
           roll_number: normalizedRollNumber,
           status: true
@@ -3683,8 +2813,7 @@ export const syncErpRecords = async (req, res) => {
       // Find or create Enrollment
       let existingEnrollment = await Enrollment.findOne({
         where: {
-          student_id: user.userId,
-          hostel_id: warden_hostel_id
+          student_id: user.userId
         },
         transaction
       });
@@ -3692,8 +2821,9 @@ export const syncErpRecords = async (req, res) => {
       if (!existingEnrollment) {
         await Enrollment.create({
           student_id: user.userId,
-          hostel_id: warden_hostel_id,
+          hostel_id: assignedHostel,
           session_id: resolvedSessionId,
+          erp_batch_year: matchedBatch.erp_batch_year,
           roll_number: normalizedRollNumber,
           college: studentCollege === 'lapc' ? 'lapc' : 'nec',
           requires_bed: true,
@@ -3701,7 +2831,9 @@ export const syncErpRecords = async (req, res) => {
         }, { transaction });
       } else {
         await existingEnrollment.update({
+          hostel_id: assignedHostel,
           session_id: resolvedSessionId,
+          erp_batch_year: matchedBatch.erp_batch_year,
           roll_number: normalizedRollNumber,
           college: studentCollege === 'lapc' ? 'lapc' : 'nec',
           status: 'active'

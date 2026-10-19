@@ -2,48 +2,58 @@ import React, { useState } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import { useAuth } from '../../context/AuthContext';
+import { ConfigProvider } from 'antd';
+import workspaceTheme from '../../theme/workspaceTheme';
+import '../../styles/workspace.css';
 
-const Layout = ({ children, currentView, setCurrentView }) => {
+const Layout = ({ children, currentView, setCurrentView, workspace, onWorkspaceChange }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // Default to collapsed so it expands on hover
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    try { return localStorage.getItem('hostel-sidebar-collapsed') === 'true'; }
+    catch { return false; }
+  });
+  const toggleCollapsed = () => setIsCollapsed(current => {
+    try { localStorage.setItem('hostel-sidebar-collapsed', String(!current)); } catch { /* Storage may be unavailable. */ }
+    return !current;
+  });
   const { user } = useAuth();
 
   const isParent = user?.role === 'parent';
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <Header onMenuClick={() => {
+    <ConfigProvider theme={workspaceTheme}>
+    <div className="workspace-ui min-h-screen bg-slate-50 flex flex-col">
+      <a className="workspace-skip-link" href="#workspace-main">Skip to content</a>
+      <Header isCollapsed={isCollapsed} onCollapse={toggleCollapsed} sidebarOpen={sidebarOpen} workspace={workspace} onWorkspaceChange={onWorkspaceChange} onMenuClick={() => {
         if (!isParent) {
           setSidebarOpen(!sidebarOpen);
-          setIsCollapsed(false); // Fully open when toggled on mobile
         }
       }} />
 
       <div className="flex flex-1">
         {!isParent && (
           <Sidebar
+            workspace={workspace}
             currentView={currentView}
             setCurrentView={setCurrentView}
             isOpen={sidebarOpen}
             setIsOpen={setSidebarOpen}
             isCollapsed={isCollapsed}
-            setIsCollapsed={setIsCollapsed}
           />
         )}
 
-        <main 
-          className={`flex-1 transition-all duration-300 pt-16 min-h-screen
+        <main id="workspace-main" tabIndex={-1}
+          className={`workspace-main flex-1 min-w-0 transition-all duration-300 pt-16 min-h-screen
             ${isParent ? 'lg:ml-0' : (isCollapsed ? 'lg:ml-20' : 'lg:ml-72')} 
-            ${sidebarOpen ? 'max-lg:blur-sm max-lg:pointer-events-none' : ''}
           `}
         >
-          <div className="p-4 lg:p-8 max-w-[1600px] mx-auto">
+          <div className="workspace-content" data-workspace={workspace || user?.role}>
             {children}
           </div>
         </main>
       </div>
     </div>
+    </ConfigProvider>
   );
 };
 

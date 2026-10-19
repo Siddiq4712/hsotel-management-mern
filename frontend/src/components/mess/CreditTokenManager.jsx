@@ -1,6 +1,7 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
 import {
-  Card, Form, Select, Input, InputNumber, Button, message, Spin, Table, Row, Col, DatePicker, Typography, Modal, Switch, Popconfirm, Space
+  Card, Form, Select, Input, InputNumber, Button, message, Spin, Table, Row, Col, Typography, Modal, Switch, Popconfirm, Space
 } from 'antd';
 import { PlusOutlined, SyncOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { messAPI } from '../../services/api';

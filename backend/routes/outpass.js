@@ -1,4 +1,5 @@
 import express from 'express';
+import { installAdminWorkspace } from '../middleware/adminWorkspace.js';
 import { auth, authorize } from '../middleware/auth.js';
 import {
   createOutpass,
@@ -17,6 +18,7 @@ import {
 } from '../controllers/outpassController.js';
 
 const router = express.Router();
+installAdminWorkspace(router, 'outpass');
 
 // Apply auth middleware to all outpass routes
 router.use(auth);

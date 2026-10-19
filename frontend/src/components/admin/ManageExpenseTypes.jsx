@@ -208,10 +208,10 @@ const ManageExpenseTypes = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#e11d48', borderRadius: 14 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header Section */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-10">
+        <div className="module-page-header flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-10">
           <div className="flex items-center gap-5">
             <div className="p-4 bg-rose-600 rounded-2xl shadow-xl shadow-rose-200 -rotate-2 transition-transform">
               <CreditCard className="text-white" size={28} strokeWidth={1.5} />

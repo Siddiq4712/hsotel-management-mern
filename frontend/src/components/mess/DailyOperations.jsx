@@ -163,7 +163,7 @@ const DailyOperations = () => {
         <Col xs={24} sm={12} lg={6}>
           <Statistic 
             loading={statsLoading}
-            title="Special Orders"
+            title="Additional Food Orders"
             value={dashboardData.pendingOrders || 0}
             prefix={<FileTextOutlined />}
           />

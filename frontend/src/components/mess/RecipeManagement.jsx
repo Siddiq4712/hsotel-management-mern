@@ -23,7 +23,7 @@ const T = {
   ink:       '#141820',
   inkMid:    '#4B5263',
   inkSoft:   '#8B92A5',
-  accent:    '#1A56DB',
+  accent:    '#2563eb',
   accentBg:  '#EBF2FF',
   danger:    '#DC2626',
   dangerBg:  '#FEF2F2',
@@ -241,24 +241,24 @@ const RecipeManagement = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: T.accent, borderRadius: 8, fontFamily: "'DM Sans', sans-serif" } }}>
+    <ConfigProvider theme={{ token: { colorPrimary: T.accent, borderRadius: 12 } }}>
       <style>{`
         .pm-table .ant-table-thead > tr > th { background: #F7F8FA !important; border-bottom: 1px solid ${T.border} !important; padding: 11px 16px !important; }
         .pm-table .ant-table-tbody > tr > td { border-bottom: 1px solid ${T.border} !important; padding: 14px 16px !important; }
-        .pm-form-input .ant-input, .pm-form-input .ant-select-selector, .pm-form-input .ant-input-number { border-radius: 8px !important; }
-        .pm-modal .ant-modal-content { border-radius: 14px; overflow: hidden; }
+        .pm-form-input .ant-input, .pm-form-input .ant-select-selector, .pm-form-input .ant-input-number { border-radius: 12px !important; }
+        .pm-modal .ant-modal-content { border-radius: 24px; overflow: hidden; }
       `}</style>
 
-      <div style={{ minHeight: '100vh', background: T.bg, paddingBottom: 40 }}>
+      <div className="module-page">
         {/* Page Header */}
-        <div style={{ background: T.surface, borderBottom: `1px solid ${T.border}`, padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="module-page-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <BookOpen size={20} color={T.accent} />
             </div>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: T.ink }}>Recipe Master</div>
-              <div style={{ fontSize: 12, color: T.inkSoft }}>Standardize ingredient ratios for mass cooking</div>
+              <h1 className="module-title">Recipe Master</h1>
+              <div className="module-subtitle">Standardize ingredient ratios for mass cooking</div>
             </div>
           </div>
           <button onClick={() => { setEditingRecipe(null); form.resetFields(); setModalVisible(true); }} style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: `0 2px 8px rgba(26,86,219,0.3)` }}>
@@ -266,7 +266,7 @@ const RecipeManagement = () => {
           </button>
         </div>
 
-        <div style={{ padding: '28px 32px' }}>
+        <div className="space-y-6">
           {/* Stats */}
           {/* <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
             <StatCard label="Total Recipes" value={stats.totalRecipes} icon={LayoutGrid} accent />

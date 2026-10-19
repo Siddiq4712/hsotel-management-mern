@@ -1,5 +1,7 @@
+import { requestPrint } from '../../utils/reportExport';
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Button, Select, Input, DatePicker, message, Table, InputNumber, Space, Divider, Typography } from 'antd';
+import { Card, Form, Button, Select, Input, message, Table, InputNumber, Space, Divider, Typography } from 'antd';
 import { PlusOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
 import { Printer } from "lucide-react";
 import api from '../../services/api';
@@ -260,7 +262,7 @@ const PurchaseOrderForm = () => {
             <Button
               icon={<Printer />}
               disabled={selectedItems.length === 0}
-              onClick={() => window.print()}
+              onClick={() => requestPrint()}
             >
               Print Preview
             </Button>

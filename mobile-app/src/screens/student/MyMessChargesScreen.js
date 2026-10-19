@@ -13,6 +13,7 @@ const MyMessChargesScreen = () => {
   const [studentTotalManDaysForMonth, setStudentTotalManDaysForMonth] = useState(0);
   const [totalMonthlySpecialFoodCost, setTotalMonthlySpecialFoodCost] = useState(0);
 
+  const [reductionSummary, setReductionSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(moment().month() + 1);
   const [currentYear, setCurrentYear] = useState(moment().year());
@@ -29,6 +30,7 @@ const MyMessChargesScreen = () => {
       const data = response.data.data;
       
       setDailyCharges(data.dailyCharges || []);
+      setReductionSummary(data.monthlySummary || {});
       setMonthlyFlatFees(data.monthlySummary.flatFees || []);
       setMonthlyCalculatedDailyRate(data.monthlySummary.monthlyCalculatedDailyRate || 0);
       setStudentTotalManDaysForMonth(data.monthlySummary.studentTotalManDaysForMonth || 0);
@@ -42,9 +44,9 @@ const MyMessChargesScreen = () => {
     }
   };
 
-  const attendanceBasedMessCharge = monthlyCalculatedDailyRate * studentTotalManDaysForMonth;
+  const foodCharge = reductionSummary.historicalMessAmount ?? (monthlyCalculatedDailyRate * studentTotalManDaysForMonth);
   const totalFlatFeesSum = monthlyFlatFees.reduce((sum, fee) => sum + parseFloat(fee.amount || 0), 0);
-  const totalMonthlyBill = attendanceBasedMessCharge + totalMonthlySpecialFoodCost + totalFlatFeesSum;
+  const totalMonthlyBill = reductionSummary.historicalFinalAmount ?? (foodCharge + totalMonthlySpecialFoodCost + totalFlatFeesSum);
 
   const handleMonthChange = (value) => {
     const [year, month] = value.split('-');
@@ -88,6 +90,7 @@ const MyMessChargesScreen = () => {
   return (
     <View className="flex-1 bg-gray-50">
       <Header />
+      <Text className="p-3 bg-blue-50">Base days: {reductionSummary.baseDays ?? "Legacy"} · Approved reductions: {reductionSummary.approvedReductionDays ?? "Legacy"}. Only approved operational days reduce food charges; water and other charges are unchanged.</Text>
       <ScrollView className="p-4">
         <Text className="text-3xl font-bold text-gray-900 mb-2">My Mess Charges</Text>
         <Text className="text-gray-600 mb-6">Detailed daily breakdown of your mess fees.</Text>
@@ -124,10 +127,10 @@ const MyMessChargesScreen = () => {
               </View>
               <View className="flex-row items-center justify-between border-t border-gray-100 pt-2">
                   <Text className="text-lg text-gray-700">Total Mess Charges:</Text>
-                  <Text className="text-lg font-bold text-gray-800">₹{attendanceBasedMessCharge.toFixed(2)}</Text>
+                  <Text className="text-lg font-bold text-gray-800">₹{foodCharge.toFixed(2)}</Text>
               </View>
               <View className="flex-row items-center justify-between border-t border-gray-100 pt-2">
-                  <Text className="text-lg text-gray-700">Additional Token:</Text>
+                  <Text className="text-lg text-gray-700">Additional food bill:</Text>
                   <Text className="text-lg font-bold text-gray-800">₹{totalMonthlySpecialFoodCost.toFixed(2)}</Text>
               </View>
 
@@ -174,7 +177,7 @@ const MyMessChargesScreen = () => {
                 <Text className="flex-2 text-left text-xs font-medium text-gray-500 uppercase">Date</Text>
                 <Text className="flex-2 text-left text-xs font-medium text-gray-500 uppercase">Att.</Text>
                 <Text className="flex-2 text-right text-xs font-medium text-gray-500 uppercase">Base</Text>
-                <Text className="flex-2 text-right text-xs font-medium text-gray-500 uppercase">Special</Text>
+                <Text className="flex-2 text-right text-xs font-medium text-gray-500 uppercase">Additional</Text>
                 <Text className="flex-2 text-right text-xs font-medium text-gray-500 uppercase">Total</Text>
               </View>
               {dailyCharges.map((charge) => {
@@ -221,9 +224,9 @@ const MyMessChargesScreen = () => {
                             </View>
                           </View>
 
-                          {/* Special Food Orders Details */}
+                          {/* Additional Food Orders Details */}
                           <View>
-                            <Text className="font-semibold text-gray-800 mb-2">Special Food Orders (Pending Payment)</Text>
+                            <Text className="font-semibold text-gray-800 mb-2">Additional Food Orders (Pending Payment)</Text>
                             <View className="space-y-1">
                               <View className="flex-row justify-between">
                                 <Text className="font-medium">Amount:</Text>
@@ -232,7 +235,7 @@ const MyMessChargesScreen = () => {
                                 </Text>
                               </View>
                               <Text className="text-sm text-gray-600 italic">
-                                This is the cost of special food items you ordered for this day, which is still pending payment and added to your bill.
+                                This is the cost of additional food items you ordered for this day, which is still pending payment and added to your bill.
                               </Text>
                             </View>
                           </View>

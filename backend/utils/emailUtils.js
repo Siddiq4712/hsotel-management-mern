@@ -1,4 +1,6 @@
 import nodemailer from 'nodemailer';
+import { ActivityDelivery } from '../models/activity.js';
+import { ensureActivity, getActivityContext } from '../services/activityContext.js';
 
 /**
  * REUSABLE TRANSPORTER WITH POOLING
@@ -22,7 +24,14 @@ const transporter = nodemailer.createTransport({
  * Core function to send email notification
  */
 export const sendEmail = async ({ to, subject, html, text }) => {
+  let delivery;
   try {
+    const context = getActivityContext();
+    if (context) {
+      await ensureActivity(context);
+      delivery = await ActivityDelivery.create({operation_id:context.id,recipient:String(to).slice(0,255),
+        subject:String(subject).slice(0,255),status:'attempted'});
+    }
     const mailOptions = {
       from: `"${process.env.SMTP_FROM_NAME || 'Hostel Management'}" <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`,
       to,
@@ -32,10 +41,12 @@ export const sendEmail = async ({ to, subject, html, text }) => {
     };
 
     const info = await transporter.sendMail(mailOptions);
+    if (delivery) await delivery.update({status:'sent'}).catch(error => console.error('Email delivery status update failed:', error.message));
     console.log(`[Email] ✅ Sent to: ${to}`);
 
     return { success: true, messageId: info.messageId };
   } catch (error) {
+    if (delivery) await delivery.update({status:'failed'}).catch(() => {});
     console.error(`[Email] ❌ Failed for ${to}:`, error.message);
     return { success: false, error: error.message };
   }

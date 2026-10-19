@@ -24,7 +24,7 @@ const { Title, Text } = Typography;
 
 // --- 1. Meaningful Skeleton for Dashboard ---
 const DashboardSkeleton = () => (
-  <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
+  <div className="module-page p-8 space-y-6 bg-slate-50 min-h-screen">
     <div className="flex justify-between items-center">
       <Skeleton active title={{ width: 200 }} paragraph={{ rows: 1 }} />
       <Skeleton.Button active style={{ width: 150 }} />
@@ -160,11 +160,11 @@ const StudentDashboard = ({ setCurrentView }) => {
   if (loading) return <DashboardSkeleton />;
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+    <ConfigProvider>
+      <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Header Section */}
-        <div className="flex justify-between items-center">
+        <div className="module-page-header flex justify-between items-center">
           <div>
             <Title level={2} style={{ margin: 0 }}>Dashboard</Title>
             <Text type="secondary">Welcome back, {profile?.userName}👋</Text>

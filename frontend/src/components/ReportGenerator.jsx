@@ -1,3 +1,4 @@
+import { exportWorkbook } from '../utils/reportExport';
 // components/ReportGenerator.jsx
 import React, { useState } from 'react';
 import { Download, Filter, RefreshCw } from 'lucide-react';
@@ -37,7 +38,7 @@ const ReportGenerator = ({
   };
 
   // Download Excel function
-  const downloadExcel = () => {
+  const downloadExcel = async () => {
     // Prepare data for export - exclude hidden columns
     const exportData = filteredData.map(row => {
       const exportRow = {};
@@ -62,7 +63,8 @@ const ReportGenerator = ({
     XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
     
     // Generate Excel file
-    XLSX.writeFile(workbook, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    const exported = await exportWorkbook(workbook, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    if (!exported) return;
   };
 
   return (

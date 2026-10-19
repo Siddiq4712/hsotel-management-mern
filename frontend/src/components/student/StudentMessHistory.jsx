@@ -1,5 +1,6 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { Card, Table, message, Spin, Typography, Tag, Select, DatePicker, Row, Col, Statistic } from 'antd';
+import { Card, Table, message, Spin, Typography, Tag, Select, Row, Col, Statistic } from 'antd';
 import { CheckCircle, XCircle, Clock, Calendar } from 'lucide-react';
 import { studentAPI } from '../../services/api';
 import moment from 'moment';

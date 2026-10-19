@@ -1,17 +1,21 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
 import {
-  Card, DatePicker, Button, message, Table, Row, Col,
+  Card, Button, message, Table, Row, Col,
   Typography, Tooltip, Popconfirm, Spin, Collapse, Badge, Empty, Alert
 } from 'antd';
 import {
   DollarSign, Calendar, CheckCircle, XCircle, AlertTriangle,
   RefreshCw, FileText, Coffee, Calculator, Clock, ChevronDown
 } from 'lucide-react';
-import { wardenAPI, messAPI } from '../../services/api';
+import { wardenAPI, messAPI, adminAPI } from '../../services/api';
+import { requestEntryHostel } from '../../services/entryHostel';
+import { useAuth } from '../../context/AuthContext';
 import moment from 'moment';
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
 const MessBillManagement = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [billsLoading, setBillsLoading] = useState(false);
   const [messBills, setMessBills] = useState([]);
@@ -160,8 +164,20 @@ const MessBillManagement = () => {
     try {
       const month = selectedMonth.month() + 1;
       const year = selectedMonth.year();
+      let hostelId;
+      let amountPerDay = summary.averageDailyCost;
+      if (user?.role === 'admin') {
+        const response = await adminAPI.getHostels();
+        hostelId = await requestEntryHostel(response.data.data || []);
+        const schedules = await messAPI.getMenuSchedule({hostel_id:hostelId,
+          start_date:selectedMonth.clone().startOf('month').format('YYYY-MM-DD'),
+          end_date:selectedMonth.clone().endOf('month').format('YYYY-MM-DD')});
+        const served = schedules.data.data.filter(menu => menu.status === 'served');
+        const servedDays = new Set(served.filter(menu => Number(menu.cost_per_serving) > 0).map(menu => menu.scheduled_date));
+        amountPerDay = servedDays.size ? served.reduce((total,menu) => total + Number(menu.cost_per_serving || 0),0) / servedDays.size : 0;
+      }
      
-      if (summary.averageDailyCost <= 0) {
+      if (amountPerDay <= 0) {
         message.warning('No served menus found for this month. Please ensure menus are served before generating bills.');
         return;
       }
@@ -169,7 +185,8 @@ const MessBillManagement = () => {
       await wardenAPI.generateMessBills({
         month,
         year,
-        amount_per_day: summary.averageDailyCost
+        amount_per_day: amountPerDay,
+        ...(hostelId ? {hostel_id:hostelId} : {})
       });
      
       message.success('Mess bills generated successfully');
@@ -351,7 +368,7 @@ const MessBillManagement = () => {
   };
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="module-page-header flex justify-between items-center">
         <Title level={2}>Mess Bill Register</Title>
       </div>
      
@@ -419,7 +436,7 @@ const MessBillManagement = () => {
               <ul className="list-disc pl-5 space-y-1">
                 <li>Bills are calculated based on meals actually served</li>
                 <li>Daily rate is the sum of breakfast, lunch, and dinner</li>
-                <li>Students on 'OD Leave' will not be charged for those days</li>
+                <li>Only documented reductions approved by a warden or admin reduce food charges; attendance alone does not.</li>
                 <li>Ensure mess manager has marked all meals as 'Served'</li>
               </ul>
             </div>

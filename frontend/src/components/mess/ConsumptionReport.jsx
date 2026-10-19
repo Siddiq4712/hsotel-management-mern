@@ -1,8 +1,10 @@
+import { exportWorkbook } from '../../utils/reportExport';
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Table, Button, DatePicker, Space, Typography, 
-  ConfigProvider, theme, Skeleton, Row, Col, Statistic, 
-  message, Divider, Tooltip 
+import {
+  Card, Table, Button, Space, Typography,
+  ConfigProvider, theme, Skeleton, Row, Col, Statistic,
+  message, Divider, Tooltip
 } from 'antd';
 import { 
   FileText, Download, BarChart3, Calendar, 
@@ -119,7 +121,8 @@ const ConsumptionReport = () => {
       const ws3 = XLSX.utils.json_to_sheet(particularsData);
       XLSX.utils.book_append_sheet(workbook, ws3, "Particulars");
       
-      XLSX.writeFile(workbook, `Full_Consumption_${selectedDate.format('MMM_YYYY')}.xlsx`);
+      const exported = await exportWorkbook(workbook, `Full_Consumption_${selectedDate.format('MMM_YYYY')}.xlsx`);
+    if (!exported) return;
       message.success('Full report downloaded');
     } finally {
       hide();
@@ -152,10 +155,10 @@ const ConsumptionReport = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header Section */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="module-page-header flex justify-between items-center mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
               <BarChart3 className="text-white" size={24} />

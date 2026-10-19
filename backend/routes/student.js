@@ -1,3 +1,4 @@
+import { uploadReductionDocument, reductionDocument, reviseReduction, decideReduction } from '../controllers/reductionController.js';
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import {
@@ -133,7 +134,10 @@ router.post('/room-requests', requestRoomBooking);
 router.delete('/room-requests/:id', cancelRoomRequest);
 
 /* ---------- REDUCTIONS & REBATES ---------- */
-router.post('/day-reduction-requests', applyDayReduction);
+router.post('/day-reduction-requests', uploadReductionDocument, applyDayReduction);
+router.put('/day-reduction-requests/:id', uploadReductionDocument, reviseReduction);
+router.put('/day-reduction-requests/:id/status', decideReduction);
+router.get('/day-reduction-requests/:id/document', reductionDocument);
 router.get('/day-reduction-requests', getMyDayReductionRequests);
 router.post('/rebates', applyRebate);
 router.get('/rebates', getMyRebates);

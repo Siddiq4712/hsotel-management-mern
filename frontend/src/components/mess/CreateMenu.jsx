@@ -25,7 +25,7 @@ const T = {
   ink:       '#141820',
   inkMid:    '#4B5263',
   inkSoft:   '#8B92A5',
-  accent:    '#1A56DB',
+  accent:    '#2563eb',
   accentBg:  '#EBF2FF',
   danger:    '#DC2626',
   dangerBg:  '#FEF2F2',
@@ -260,23 +260,23 @@ const CreateMenu = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: T.accent, borderRadius: 8, fontFamily: "'DM Sans', sans-serif" } }}>
+    <ConfigProvider theme={{ token: { colorPrimary: T.accent, borderRadius: 12 } }}>
       <style>{`
         .pm-table .ant-table-thead > tr > th { background: #F7F8FA !important; border-bottom: 1px solid ${T.border} !important; padding: 12px 16px !important; }
         .pm-table .ant-table-tbody > tr > td { padding: 14px 16px !important; border-bottom: 1px solid ${T.border} !important; }
-        .pm-form-input .ant-input, .pm-form-input .ant-select-selector, .pm-form-input .ant-input-number { border-radius: 8px !important; }
+        .pm-form-input .ant-input, .pm-form-input .ant-select-selector, .pm-form-input .ant-input-number { border-radius: 12px !important; }
       `}</style>
 
-      <div style={{ minHeight: '100vh', background: T.bg, fontFamily: "'DM Sans', sans-serif" }}>
+      <div className="module-page">
         
-        <div style={{ background: T.surface, borderBottom: `1px solid ${T.border}`, padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="module-page-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <ChefHat size={20} color={T.accent} />
             </div>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: T.ink }}>Create New Menu</div>
-              <div style={{ fontSize: 12, color: T.inkSoft }}>Plan dishes and analyze inventory requirements</div>
+              <h1 className="module-title">Create New Menu</h1>
+              <div className="module-subtitle">Plan dishes and analyze inventory requirements</div>
             </div>
           </div>
           <Space>
@@ -287,8 +287,8 @@ const CreateMenu = () => {
           </Space>
         </div>
 
-        <div style={{ padding: '28px 32px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+        <div className="space-y-6">
+          <div className="module-stat-grid">
             <StatCard label="Selected Dishes" value={selectedRecipes.length} icon={Utensils} accent />
             <StatCard label="Total Est. Cost" value={`₹${costCalculation.totalCost.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`} icon={DollarSign} />
             <StatCard label="Cost per Plate" value={`₹${costCalculation.costPerServing.toFixed(2)}`} icon={Calculator} />

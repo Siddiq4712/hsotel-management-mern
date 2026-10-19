@@ -55,6 +55,12 @@ const Header = () => {
         
         {/* Left: App name + Role */}
         <View className="flex-row items-center space-x-3">
+          <Image
+            source={require('../../../assets/nec-logo.png')}
+            style={{ width: 32, height: 40, marginRight: 8 }}
+            resizeMode="contain"
+            accessibilityLabel="National Engineering College logo"
+          />
           <Text className="text-lg font-semibold text-gray-800">HMS</Text>
           <Text className="text-xs md:text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
             {user?.role?.toUpperCase()}

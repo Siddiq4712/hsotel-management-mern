@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   Card, Button, message, Typography, Row, Col, 
   InputNumber, Form, Modal, Space, ConfigProvider,
-  theme, Skeleton, Divider, Tag, Tooltip, Table
+  theme, Skeleton, Divider, Tag, Input, Table
 } from 'antd';
 import { 
   Store, Save, ArrowLeft, ShoppingCart, Info, 
-  MapPin, ClipboardCheck, History 
+  MapPin, ClipboardCheck 
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -95,7 +95,7 @@ const StoreListSkeleton = () => (
   </Card>
 );
 
-const PurchaseByStore = ({ setCurrentView }) => {
+const PurchaseByStore = () => {
   const [form] = Form.useForm();
   const [stores, setStores] = useState([]);
   const [selectedStore, setSelectedStore] = useState(null);
@@ -104,6 +104,11 @@ const PurchaseByStore = ({ setCurrentView }) => {
   const [loadingItems, setLoadingItems] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [itemSearch, setItemSearch] = useState('');
+  const [draft, setDraft] = useState({});
+  const selectedItems = itemsForStore.filter(item => Number(draft[`quantity_${item.item_id}`]) > 0);
+  const total = selectedItems.reduce((sum, item) => sum + Number(draft[`quantity_${item.item_id}`]) * Number(draft[`price_${item.item_id}`] || 0), 0);
+  const visibleItems = itemsForStore.filter(item => `${item.name} ${item.tbl_ItemCategory?.name || ''}`.toLowerCase().includes(itemSearch.toLowerCase()));
 
   useEffect(() => {
     fetchStores();
@@ -117,22 +122,32 @@ const PurchaseByStore = ({ setCurrentView }) => {
     } catch (error) {
       message.error('Failed to fetch stores.');
     } finally {
-      setTimeout(() => setLoadingStores(false), 800);
+      setLoadingStores(false);
     }
   };
 
   const handleSelectStore = async (store) => {
     setSelectedStore(store);
+    setItemSearch('');
+    setDraft({});
     setLoadingItems(true);
+    setItemsForStore([]);
+    form.resetFields();
     try {
-      const response = await api.get(`/mess/stores/${store.id}/items`);
-      const items = response.data.data;
+      // Stores and items are chosen independently; mapping is not required.
+      const response = await api.get('/mess/items');
+      const items = (response.data.data || []).map(item => ({
+        ...item,
+        item_id: item.id,
+        unit: item.UOM?.abbreviation || 'unit'
+      }));
       const initialFormValues = {};
       items.forEach(item => {
         initialFormValues[`quantity_${item.item_id}`] = undefined;
         initialFormValues[`price_${item.item_id}`] = parseFloat(item.unit_price) || 0;
       });
       form.setFieldsValue(initialFormValues);
+      setDraft(initialFormValues);
       setItemsForStore(items.map(item => ({
         ...item,
         unit: item.unit || 'unit'
@@ -140,17 +155,20 @@ const PurchaseByStore = ({ setCurrentView }) => {
     } catch (error) {
       message.error(`Failed to fetch items for ${store.name}.`);
     } finally {
-      setTimeout(() => setLoadingItems(false), 600);
+      setLoadingItems(false);
     }
   };
 
   const handleBackToStoreList = () => {
     setSelectedStore(null);
+    setItemSearch('');
+    setDraft({});
     setItemsForStore([]);
     form.resetFields();
   };
 
   const handleSubmitPurchases = async (values) => {
+    values = { ...form.getFieldsValue(true), ...values };
     const purchasedItems = itemsForStore
       .filter(item => {
         const qty = values[`quantity_${item.item_id}`];
@@ -170,7 +188,7 @@ const PurchaseByStore = ({ setCurrentView }) => {
     }
 
     Modal.confirm({
-      title: 'Confirm Procurement',
+      title: 'Review purchase',
       icon: <ShoppingCart className="text-blue-600 mr-2" size={20} />,
       content: (
         <div className="mt-4">
@@ -185,6 +203,8 @@ const PurchaseByStore = ({ setCurrentView }) => {
               </div>
             ))}
           </div>
+          <Divider className="my-3" />
+          <Text strong>Total: ₹{purchasedItems.reduce((sum, item) => sum + item.quantity * item.unit_price, 0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</Text>
         </div>
       ),
       okText: 'Confirm & Save',
@@ -218,19 +238,23 @@ const PurchaseByStore = ({ setCurrentView }) => {
       <SuccessStyles />
       <SuccessOverlay visible={showSuccess} />
       
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-4 sm:p-6 lg:p-8 bg-slate-50 min-h-screen">
         {!selectedStore ? (
           <>
-            <div className="flex items-center gap-4 mb-8">
+            <div className="module-page-heading flex items-center gap-4 mb-8">
               <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
                 <Store className="text-white" size={24} />
               </div>
               <div>
                 <Title level={2} style={{ margin: 0 }}>Record Purchase</Title>
-                <Text type="secondary">Select a store to start recording new inventory batches</Text>
+                <Text type="secondary">Choose a store, then enter quantities for the items you want to purchase.</Text>
               </div>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              {['1. Select a store', '2. Choose master items', '3. Review and save'].map(step => <div key={step} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600">{step}</div>)}
+            </div>
+            {!loadingStores && !stores.length && <Card><Title level={4}>No active stores</Title><Text type="secondary">Add or activate a store in Manage Stores to record a purchase.</Text></Card>}
             {loadingStores ? <StoreListSkeleton /> : (
               <Row gutter={[24, 24]}>
                 {stores.map(store => (
@@ -244,7 +268,7 @@ const PurchaseByStore = ({ setCurrentView }) => {
                         <div className="p-3 bg-slate-50 rounded-xl group-hover:bg-blue-50 transition-colors">
                           <Store size={24} className="text-slate-400 group-hover:text-blue-600" />
                         </div>
-                        <Tag color="blue" className="rounded-full border-none px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider">Active Supplier</Tag>
+                        <Tag color="blue" className="rounded-full border-none px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider">Active Store</Tag>
                       </div>
                       <div className="mt-4">
                         <Title level={4} className="mb-1 text-slate-800">{store.name}</Title>
@@ -265,15 +289,17 @@ const PurchaseByStore = ({ setCurrentView }) => {
           </>
         ) : (
           <div className="max-w-6xl mx-auto">
-            <div className="flex justify-between items-center mb-8">
+            <div className="module-page-header flex flex-wrap justify-between items-center gap-4 mb-6">
               <div className="flex items-center gap-4">
                 <Button 
                   icon={<ArrowLeft size={18} />} 
+                  aria-label="Change store"
+                  disabled={submitting}
                   onClick={handleBackToStoreList}
                   className="rounded-xl h-11 w-11 flex items-center justify-center border-none shadow-sm"
                 />
                 <div>
-                  <Title level={2} style={{ margin: 0 }}>Procurement Entry</Title>
+                  <Title level={2} style={{ margin: 0 }}>Purchase Items</Title>
                   <div className="flex items-center gap-2">
                     <Tag color="blue" className="rounded-full font-bold m-0">{selectedStore.name}</Tag>
                   </div>
@@ -285,29 +311,43 @@ const PurchaseByStore = ({ setCurrentView }) => {
                 onClick={() => form.submit()} 
                 icon={<Save size={18} />} 
                 loading={submitting}
+                disabled={loadingItems || !itemsForStore.length}
                 className="rounded-xl h-12 px-8 shadow-lg shadow-blue-100 font-bold"
               >
-                Save Purchases
+                Review & Save Purchase
               </Button>
             </div>
 
+            <Card className="mb-6 rounded-2xl border-slate-200">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div><Text type="secondary">Selected store</Text><div className="font-semibold text-slate-800 mt-1">{selectedStore.name}</div><Text type="secondary">{selectedStore.address || 'Address not provided'}</Text></div>
+                <div><Text type="secondary">Items to purchase</Text><div className="font-semibold text-2xl text-slate-800 mt-1">{selectedItems.length}</div></div>
+                <div><Text type="secondary">Purchase total</Text><div className="font-semibold text-2xl text-blue-700 mt-1">₹{total.toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div></div>
+              </div>
+            </Card>
             {loadingItems ? <StoreListSkeleton /> : (
               itemsForStore.length > 0 ? (
-                <Form form={form} onFinish={handleSubmitPurchases} layout="vertical">
-                  <Card className="border-none shadow-sm rounded-[32px] overflow-hidden p-2">
+                <Form form={form} onFinish={handleSubmitPurchases} onValuesChange={() => setDraft(form.getFieldsValue(true))} layout="vertical">
+                  <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
+                    <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
+                      <div><Title level={4} style={{margin:'0 0 8px'}}>Item master</Title><Text type="secondary">Enter a quantity to include an item. Prices can be adjusted for this purchase.</Text></div>
+                      <Input aria-label="Search master items" placeholder="Search item or category" allowClear value={itemSearch} onChange={event => setItemSearch(event.target.value)} size="large" style={{width:300,maxWidth:'100%'}} />
+                    </div>
                     <Table
-                      dataSource={itemsForStore}
+                      dataSource={visibleItems}
+                      scroll={{x:650}}
+                      locale={{emptyText: 'No items match your search.'}}
                       rowKey="item_id"
                       pagination={false}
                       columns={[
                         {
-                          title: 'Item Information',
+                          title: 'Master Item',
                           key: 'item',
                           render: (_, r) => (
                             <Space direction="vertical" size={0}>
                               <Text strong className="text-slate-700">{r.name}</Text>
                               <Text className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">
-                                Standard Unit: {r.unit}
+                                {r.tbl_ItemCategory?.name || 'Item'} · Unit: {r.unit}
                               </Text>
                             </Space>
                           )
@@ -319,7 +359,7 @@ const PurchaseByStore = ({ setCurrentView }) => {
                           width: 180,
                           render: (_, r) => (
                             <Form.Item name={`price_${r.item_id}`} noStyle rules={[{ required: true }]}>
-                              <InputNumber min={0} step={0.5} className="w-full rounded-xl" placeholder="0.00" prefix="₹" />
+                              <InputNumber min={0} step={0.01} className="w-full rounded-xl" placeholder="0.00" prefix="₹" />
                             </Form.Item>
                           )
                         },
@@ -335,14 +375,11 @@ const PurchaseByStore = ({ setCurrentView }) => {
                           )
                         },
                         {
-                          title: '',
-                          key: 'status',
+                          title: 'Amount (₹)',
+                          key: 'amount',
+                          align: 'right',
                           width: 80,
-                          render: () => (
-                            <Tooltip title="Historical Price Info">
-                              <Button type="text" icon={<History size={16} className="text-slate-300" />} />
-                            </Tooltip>
-                          )
+                          render: (_, r) => <Text strong>{(Number(draft[`quantity_${r.item_id}`] || 0) * Number(draft[`price_${r.item_id}`] || 0)).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2})}</Text>
                         }
                       ]}
                     />
@@ -353,17 +390,11 @@ const PurchaseByStore = ({ setCurrentView }) => {
                   <div className="p-6 bg-slate-50 rounded-full mb-6">
                     <ClipboardCheck size={48} className="text-slate-200" />
                   </div>
-                  <Title level={4} className="text-slate-800">No Mapped Items</Title>
+                  <Title level={4} className="text-slate-800">No Master Items</Title>
                   <Text className="text-slate-500 text-center max-w-xs mb-8">
-                    This supplier doesn't have any items mapped yet.
+                    Add items in Manage Items before recording purchases.
                   </Text>
-                  <Button 
-                    type="primary" 
-                    className="rounded-xl h-11 px-8"
-                    onClick={() => setCurrentView('item-store-mapping')}
-                  >
-                    Go to Mapping
-                  </Button>
+
                 </div>
               )
             )}

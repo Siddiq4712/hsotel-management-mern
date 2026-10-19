@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Image } from 'react-native';
 import { Plus, Utensils } from 'lucide-react-native';
-import { getCategoryColor } from '../../utils/layoutUtils'; // Assuming a helper for category colors
+import { WEEK_DAYS, foodDeadline, foodOrderingClosed, nextFoodDate } from '../../utils/additionalFood';
 
 // Helper function to safely format price
 const formatPrice = (price) => {
@@ -9,7 +9,9 @@ const formatPrice = (price) => {
   return !isNaN(numPrice) ? numPrice.toFixed(2) : price;
 };
 
-const FoodItemCard = ({ item, onAddToCart }) => {
+const FoodItemCard = ({ item, onAdd, now }) => {
+  const servingDate = nextFoodDate(item.weekly_day);
+  const closed = foodOrderingClosed(item, servingDate, now);
   const getCategoryColor = (category) => {
     const colors = ['bg-pink-100 text-pink-700', 'bg-red-100 text-red-700', 'bg-orange-100 text-orange-700', 'bg-amber-100 text-amber-700', 'bg-yellow-100 text-yellow-700', 'bg-lime-100 text-lime-700', 'bg-green-100 text-green-700', 'bg-emerald-100 text-emerald-700', 'bg-teal-100 text-teal-700', 'bg-cyan-100 text-cyan-700', 'bg-blue-100 text-blue-700', 'bg-indigo-100 text-indigo-700', 'bg-violet-100 text-violet-700', 'bg-purple-110 text-purple-700', 'bg-fuchsia-100 text-fuchsia-700'];
     const hashCode = (str) => {
@@ -40,21 +42,28 @@ const FoodItemCard = ({ item, onAddToCart }) => {
       <View className="p-4">
         <Text className="text-xl font-semibold text-gray-900 mb-1">{item.name}</Text>
         <View className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(item.category)} self-start mb-2`}>
-            <Text className={`text-xs font-medium ${getCategoryColor(item.category).split(' ').find(cls => cls.startsWith('text-'))}`}>{item.category}</Text>
+            <Text className={`text-xs font-medium ${getCategoryColor(item.category).split(' ').find(cls => cls.startsWith('text-'))}`}>{['Veg', 'Non-Veg'].includes(item.category) ? item.category : 'Category not set'}</Text>
         </View>
+        <Text className="text-sm font-medium text-gray-700 mb-2">{item.meal_type || 'Meal not set'}</Text>
+        <Text className="text-xs text-gray-600 mb-2">Maximum {item.max_quantity_per_student ?? 1} per student per date.</Text>
         <Text className="text-lg font-bold text-blue-600 mb-2">₹{formatPrice(item.price)}</Text>
         <Text className="text-sm text-gray-600 mb-3" numberOfLines={2}>
-          {item.description || 'No description available.'}
+          {item.weekly_day == null ? 'Available food' : `Every ${WEEK_DAYS[item.weekly_day]}`}
         </Text>
         {item.preparation_time_minutes && (
           <Text className="text-xs text-gray-500 mb-3">Prep Time: {item.preparation_time_minutes} min</Text>
         )}
+        <Text className="text-xs text-gray-600 mb-3">Order before {foodDeadline(item, servingDate).format('h:mm A')} on the serving day (IST).</Text>
         <TouchableOpacity
-          onPress={() => onAddToCart(item)}
+          onPress={() => onAdd(item)}
+          disabled={closed}
+          accessibilityRole="button"
+          accessibilityLabel={`Add ${item.name}`}
+          style={{ height: 44, opacity: closed ? 0.5 : 1 }}
           className="bg-blue-600 py-3 rounded-lg flex-row items-center justify-center"
         >
           <Plus size={18} color="white" className="mr-2" />
-          <Text className="text-white font-semibold text-base">Add to Cart</Text>
+          <Text className="text-white font-semibold text-base">{closed ? 'Closed' : 'Add'}</Text>
         </TouchableOpacity>
       </View>
     </View>

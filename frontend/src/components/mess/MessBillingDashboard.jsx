@@ -1,5 +1,6 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Select, DatePicker, Button, Table, message, Space, Modal, Spin } from 'antd';
+import { Card, Row, Col, Statistic, Select, Button, Table, message, Space, Modal, Spin } from 'antd';
 import { DollarOutlined, UserOutlined, CalendarOutlined, FileTextOutlined } from '@ant-design/icons';
 import api from '../../services/api';
 import moment from 'moment';

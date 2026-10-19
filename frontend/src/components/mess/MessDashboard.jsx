@@ -8,7 +8,7 @@ import {
   Calendar, Coffee, ShoppingBag, TrendingUp, BarChart3, 
   PlusCircle, CreditCard, Calculator, ChevronRight, Clock
 } from 'lucide-react';
-import { messAPI } from '../../services/api';
+import { messAPI, menuPlanningAPI } from '../../services/api';
 import moment from 'moment';
 import {
   Chart as ChartJS,
@@ -58,8 +58,18 @@ const MessDashboard = ({ setCurrentView }) => {
     setMenusLoading(true);
     try {
       const today = moment().format('YYYY-MM-DD');
-      const response = await messAPI.getMenuSchedule({ start_date: today, end_date: today });
-      setTodayMenus(response.data.data || []);
+      const hostels = (await menuPlanningAPI.hostels()).data.data;
+      const rows = await Promise.all(hostels.map(async hostel => {
+        const daily = (await menuPlanningAPI.day(hostel.id, today)).data.data;
+        if (daily.some(meal => meal.plan_id || meal.configured)) return daily.filter(meal => meal.configured && meal.status !== 'skipped').map(meal => ({
+          id: `${hostel.id}:${meal.slot_key}`, meal_time: meal.slot.category, meal_label: meal.slot.label, time: meal.slot.time,
+          Menu: { name: meal.dishes }, estimated_servings: meal.expected_count, status: meal.status, weekly: true, total_cost: meal.total_cost,
+          hostel_name: hostel.name
+        }));
+        const legacy = await messAPI.getMenuSchedule({ hostel_id: hostel.id, start_date: today, end_date: today });
+        return (legacy.data.data || []).filter(meal => meal.status !== 'cancelled');
+      }));
+      setTodayMenus(rows.flat());
     } catch (error) { console.error(error); } finally { setMenusLoading(false); }
   };
 
@@ -93,6 +103,8 @@ const MessDashboard = ({ setCurrentView }) => {
   };
 
   const upcomingMenu = useMemo(() => {
+    const weekly = todayMenus.filter(meal => meal.weekly && meal.status === 'planned');
+    if (todayMenus.some(meal => meal.weekly)) return weekly.filter(meal => meal.time >= moment().format('HH:mm')).sort((a, b) => a.time.localeCompare(b.time))[0];
     const hour = moment().hour();
     let next = 'breakfast';
     if (hour < 10) next = 'breakfast';
@@ -111,24 +123,13 @@ const MessDashboard = ({ setCurrentView }) => {
   };
 
   return (
-    <ConfigProvider
-      theme={{
-        algorithm: theme.defaultAlgorithm,
-        token: {
-          colorPrimary: '#2563eb', // blue-600
-          colorBgContainer: '#ffffff',
-          borderRadius: 16,
-          colorTextHeading: '#1e293b', // slate-800
-          colorText: '#475569', // slate-600
-        },
-      }}
-    >
-      <div className="p-8 bg-slate-50 min-h-screen">
+    <ConfigProvider>
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         {/* Header Section */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="module-page-header flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-200">
-                <LayoutDashboard className="text-white" size={24} />
+              <LayoutDashboard className="text-white" size={24} />
             </div>
             <div>
               <Title level={2} style={{ margin: 0 }}>Mess Overview</Title>
@@ -143,9 +144,9 @@ const MessDashboard = ({ setCurrentView }) => {
         {/* Stats Section */}
         <Row gutter={[24, 24]}>
           {[
-            { title: 'Total Menus', value: dashboardData?.totalMenus, icon: <Utensils size={22}/>, color: 'text-blue-600', bg: 'bg-blue-50', link: 'menus' },
-            { title: 'Meals Today', value: todayMenus.length, icon: <Calendar size={22}/>, color: 'text-emerald-600', bg: 'bg-emerald-50', link: 'menu-planner' },
-            { title: 'Special Orders', value: specialOrders.length, icon: <ShoppingBag size={22}/>, color: 'text-orange-600', bg: 'bg-orange-50', link: 'food-orders-dashboard' },
+            { title: 'Ingredient Templates', value: dashboardData?.totalMenus, icon: <Utensils size={22}/>, color: 'text-blue-600', bg: 'bg-blue-50', link: 'menu-templates' },
+            { title: 'Meals Today', value: todayMenus.length, icon: <Calendar size={22}/>, color: 'text-emerald-600', bg: 'bg-emerald-50', link: 'menus' },
+            { title: 'Additional Food Orders', value: specialOrders.length, icon: <ShoppingBag size={22}/>, color: 'text-orange-600', bg: 'bg-orange-50', link: 'food-orders-dashboard' },
             { title: 'Low Stock', value: dashboardData?.lowStockCount, icon: <AlertTriangle size={22}/>, color: 'text-rose-600', bg: 'bg-rose-50', link: 'inventory' },
           ].map((stat, i) => (
             <Col xs={24} sm={12} lg={6} key={i}>
@@ -178,7 +179,7 @@ const MessDashboard = ({ setCurrentView }) => {
           <Col xs={24} lg={16}>
             <Card 
                 title={<span className="flex items-center gap-2"><Clock size={18} className="text-blue-600"/> Today's Meal Plan</span>}
-                extra={<Button type="link" onClick={() => setCurrentView('menu-schedule')}>Full Schedule</Button>}
+                extra={<Button type="link" onClick={() => setCurrentView('menus')}>Today's Menu</Button>}
                 style={cardStyle}
                 className="border-none"
             >
@@ -191,16 +192,16 @@ const MessDashboard = ({ setCurrentView }) => {
                       <List.Item.Meta
                         avatar={
                           <div className="w-24 h-10 rounded-lg flex items-center justify-center font-bold text-xs" style={{ background: `${getMealColor(item.meal_time)}15`, color: getMealColor(item.meal_time) }}>
-                            {item.meal_time.toUpperCase()}
+                            {(item.meal_label || item.meal_time).toUpperCase()}
                           </div>
                         }
                         title={<Text strong className="text-slate-800">{item.Menu?.name}</Text>}
-                        description={<Text type="secondary" size="small">Est. Servings: {item.estimated_servings}</Text>}
+                        description={<Text type="secondary" size="small">Expected students: {item.estimated_servings}{item.weekly ? ` · ${item.time} · ${item.hostel_name}` : ''}</Text>}
                       />
-                      <div className="text-right">
+                      {item.weekly ? <Tag color={item.status === 'served' ? 'green' : 'blue'}>{item.status === 'served' ? 'Consumption recorded' : 'Planned'}</Tag> : <div className="text-right">
                         <Tag color="blue" bordered={false} className="m-0 font-semibold">₹{parseFloat(item.cost_per_serving || 0).toFixed(2)}</Tag>
                         <div className="text-[10px] text-slate-400 mt-1 uppercase">Per Serving</div>
-                      </div>
+                      </div>}
                     </List.Item>
                   )}
                 />
@@ -218,7 +219,7 @@ const MessDashboard = ({ setCurrentView }) => {
               {!upcomingMenu ? <Empty description="Kitchen is closed" /> : (
                 <div className="space-y-5">
                   <div className="flex justify-between items-center">
-                    <Tag color="processing" className="px-3 rounded-full">{upcomingMenu.meal_time.toUpperCase()}</Tag>
+                    <Tag color="processing" className="px-3 rounded-full">{(upcomingMenu.meal_label || upcomingMenu.meal_time).toUpperCase()}</Tag>
                     <span className="text-emerald-500 text-xs font-bold flex items-center gap-1">
                       <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" /> ACTIVE
                     </span>
@@ -233,8 +234,8 @@ const MessDashboard = ({ setCurrentView }) => {
                     </div>
                     <Divider className="m-0 border-blue-100" />
                     <div className="flex justify-between text-sm">
-                        <span className="text-slate-500">Allocated Budget</span>
-                        <Text strong className="text-blue-600">₹{parseFloat(upcomingMenu.total_cost || 0).toFixed(2)}</Text>
+                        <span className="text-slate-500">{upcomingMenu.weekly ? 'Meal time' : 'Allocated Budget'}</span>
+                        <Text strong className="text-blue-600">{upcomingMenu.weekly ? upcomingMenu.time : `₹${parseFloat(upcomingMenu.total_cost || 0).toFixed(2)}`}</Text>
                     </div>
                   </div>
 
@@ -273,9 +274,9 @@ const MessDashboard = ({ setCurrentView }) => {
             </Title>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
-                { label: 'Menu Planner', icon: <Calendar size={18}/>, id: 'menu-planner' },
-                { label: 'Create Menu', icon: <PlusCircle size={18}/>, id: 'create-menu' },
-                { label: 'Special Orders', icon: <ShoppingBag size={18}/>, id: 'food-orders-dashboard' },
+                { label: 'Weekly Plan', icon: <Calendar size={18}/>, id: 'weekly-menu' },
+                { label: "Today's Menu", icon: <PlusCircle size={18}/>, id: 'menus' },
+                { label: 'Additional Food Orders', icon: <ShoppingBag size={18}/>, id: 'food-orders-dashboard' },
                 { label: 'Billing/Fees', icon: <CreditCard size={18}/>, id: 'mess-fee' },
                 { label: 'Daily Rate', icon: <Calculator size={18}/>, id: 'daily-rate-report' },
               ].map(action => (

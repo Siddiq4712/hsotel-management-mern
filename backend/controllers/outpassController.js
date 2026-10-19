@@ -1,33 +1,6 @@
-import { Outpass, User, Hostel, ParentStudent, InAppNotification, Role } from '../models/index.js';
+import { Outpass, User, Hostel, Role } from '../models/index.js';
 import { Op } from 'sequelize';
 import crypto from 'crypto';
-
-// Helper to send in-app notifications
-const sendNotification = async (userId, title, message, type) => {
-  try {
-    await InAppNotification.create({
-      user_id: userId,
-      title,
-      message,
-      type,
-      status: 'unread'
-    });
-  } catch (error) {
-    console.error('Failed to create notification:', error.message);
-  }
-};
-
-// Helper to notify all parents linked to a student
-const notifyParents = async (studentId, title, message, type) => {
-  try {
-    const parentLinks = await ParentStudent.findAll({ where: { student_id: studentId } });
-    for (const link of parentLinks) {
-      await sendNotification(link.parent_id, title, message, type);
-    }
-  } catch (error) {
-    console.error('Failed to notify parents:', error.message);
-  }
-};
 
 // ==================================================================
 // STUDENT FUNCTIONS
@@ -68,9 +41,6 @@ export const createOutpass = async (req, res) => {
       to_date,
       status: 'pending'
     });
-
-    // Notify Warden (and student in-app)
-    await sendNotification(studentId, 'Outpass Request Submitted', `Your request to leave for ${destination} is pending review.`, 'outpass');
 
     res.status(201).json({ success: true, data: outpass, message: 'Outpass request submitted successfully' });
   } catch (error) {
@@ -198,11 +168,6 @@ export const approveOutpass = async (req, res) => {
       remarks
     });
 
-    // Notify Student
-    await sendNotification(outpass.student_id, 'Outpass Request Approved', 'Your outpass request has been approved. You can now present the QR code at the security gate.', 'outpass');
-
-    // Notify Parents
-    await notifyParents(outpass.student_id, 'Outpass Request Approved', `The outpass request for student ${outpass.Student?.userName} has been approved by the Warden.`, 'outpass');
 
     res.json({ success: true, data: outpass, message: 'Outpass request approved successfully' });
   } catch (error) {
@@ -234,11 +199,6 @@ export const rejectOutpass = async (req, res) => {
       remarks
     });
 
-    // Notify Student
-    await sendNotification(outpass.student_id, 'Outpass Request Rejected', `Your outpass request has been rejected. Remarks: ${remarks || 'None'}`, 'outpass');
-
-    // Notify Parents
-    await notifyParents(outpass.student_id, 'Outpass Request Rejected', `The outpass request has been rejected. Remarks: ${remarks || 'None'}`, 'outpass');
 
     res.json({ success: true, data: outpass, message: 'Outpass request rejected' });
   } catch (error) {
@@ -303,9 +263,6 @@ export const scanOutpassQR = async (req, res) => {
         status: 'outside'
       });
 
-      // Notify parents
-      await notifyParents(outpass.student_id, 'Student Exited Hostel', `${outpass.Student?.userName} has checked out of the hostel.`, 'outpass');
-      await sendNotification(outpass.student_id, 'Exit Recorded', 'Your exit from the hostel has been recorded.', 'outpass');
 
       return res.json({
         success: true,
@@ -324,10 +281,6 @@ export const scanOutpassQR = async (req, res) => {
         status: finalStatus
       });
 
-      // Notify parents
-      const lateStr = isLate ? ' LATE' : '';
-      await notifyParents(outpass.student_id, `Student Returned${lateStr}`, `${outpass.Student?.userName} has returned to the hostel.${isLate ? ' (Late Return)' : ''}`, 'outpass');
-      await sendNotification(outpass.student_id, 'Return Recorded', `Your return to the hostel has been recorded.${isLate ? ' (Late Return)' : ''}`, 'outpass');
 
       return res.json({
         success: true,

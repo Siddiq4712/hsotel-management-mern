@@ -1,7 +1,9 @@
+import { exportWorkbook } from '../../utils/reportExport';
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card, Table, Button, Space, message, Modal, Form, Select, InputNumber,
-  Tabs, Typography, Tag, Input, DatePicker, Row, Col, Statistic, Alert,
+  Tabs, Typography, Tag, Input, Row, Col, Statistic, Alert,
   ConfigProvider, theme, Skeleton, Divider
 } from 'antd';
 import {
@@ -11,6 +13,8 @@ import {
 } from 'lucide-react';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
+import InventoryPageHeader, { inventoryTheme } from './InventoryPageHeader';
+import { useInventoryWorkspace } from './InventoryWorkspace';
 import * as XLSX from 'xlsx';
 
 const { Option } = Select;
@@ -60,6 +64,7 @@ const InventorySkeleton = () => (
 );
 
 const InventoryManagement = () => {
+  const selectedInventory = useInventoryWorkspace();
   const [inventory, setInventory] = useState([]);
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -148,7 +153,7 @@ const InventoryManagement = () => {
 
     const currentMonth = moment().format('MMMM YYYY');
     let excelDataArray = [
-      [`NATIONAL ENGINEERING COLLEGE : GENTS HOSTEL - ${currentMonth}`],
+      [`NATIONAL ENGINEERING COLLEGE : ${selectedInventory?.name || 'Inventory'} - ${currentMonth}`],
       [`Date : ${moment().format('DD.MM.YYYY')}`],
       [], 
       ['Item Name', 'Supplier Name', 'Approval Qty', 'RPU', 'Cost Rs.'],
@@ -198,7 +203,8 @@ const InventoryManagement = () => {
     
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Last Purchase Report');
-    XLSX.writeFile(workbook, `Procurement_Report_${moment().format('YYYY-MM-DD')}.xlsx`);
+    const exported = await exportWorkbook(workbook, `Procurement_Report_${moment().format('YYYY-MM-DD')}.xlsx`);
+    if (!exported) { message.destroy(`export_${storeId}`); return; }
     message.success({ content: 'Report generated successfully!', key: `export_${storeId}` });
   };
   // --- END PRESERVED XLSX LOGIC ---
@@ -260,6 +266,15 @@ const InventoryManagement = () => {
     }
   ];
 
+  const exportTransactions = async () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(transactions.map(row => ({
+      Date: row.transaction_date, Item: row.Item?.name, Type: row.transaction_type, Quantity: row.quantity,
+      Unit: row.unit, Rate: row.unit_price, Supplier: row.Store?.name, Reference: row.notes,
+    }))), 'Transactions');
+    await exportWorkbook(workbook, 'Inventory_Transactions.xlsx');
+  };
+
   const transactionColumns = [
     { title: 'Date', dataIndex: 'transaction_date', render: d => moment(d).format('DD MMM YYYY') },
     { title: 'Item', dataIndex: ['Item', 'name'], render: t => <Text strong>{t}</Text> },
@@ -276,25 +291,14 @@ const InventoryManagement = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+    <ConfigProvider theme={inventoryTheme}>
+      <div className="module-page">
         
         {/* Header Section */}
-        <div className="flex justify-between items-center mb-8">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
-              <LayoutGrid className="text-white" size={24} />
-            </div>
-            <div>
-              <Title level={2} style={{ margin: 0 }}>Inventory Hub</Title>
-              <Text type="secondary">Automated procurement reporting and stock tracking</Text>
-            </div>
-          </div>
-          <div className="flex gap-3">
-             <Button icon={<RefreshCw size={16}/>} onClick={fetchInitialData} className="rounded-xl h-12">Sync</Button>
+        <InventoryPageHeader title="Purchase History" description="Review purchases, correct entries, and export supplier reports.">
+             <Button icon={<RefreshCw size={16}/>} onClick={fetchInitialData} className="rounded-xl h-12">Refresh</Button>
              <Button type="primary" icon={<FileSpreadsheet size={18}/>} onClick={() => handleExportLastPurchase()} className="rounded-xl h-12 shadow-lg shadow-blue-100 flex items-center gap-2 font-semibold">Generate Report</Button>
-          </div>
-        </div>
+        </InventoryPageHeader>
 
         {/* Stats Summary */}
         <Row gutter={[24, 24]} className="mb-8">
@@ -318,15 +322,12 @@ const InventoryManagement = () => {
           items={[
             {
               key: '1',
-              label: <span className="flex items-center gap-2"><Package size={16}/> Current Stock</span>,
+              label: <span className="flex items-center gap-2"><Package size={16}/> Latest Purchases & Reports</span>,
               children: (
                 <div className="space-y-6">
                   <Card className="border-none shadow-sm rounded-2xl">
                     <div className="flex flex-wrap gap-4 items-center">
-                      <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-100 flex-1 max-w-md">
-                        <Search size={18} className="text-slate-300" />
-                        <Input placeholder="Search item name..." bordered={false} value={searchText} onChange={e => setSearchText(e.target.value)} allowClear />
-                      </div>
+                      <Input className="inventory-search" prefix={<Search size={16} />} placeholder="Search item name..." value={searchText} onChange={e => setSearchText(e.target.value)} allowClear />
                       <Select placeholder="Filter by Store" className="w-64" value={selectedStoreId} onChange={setSelectedStoreId} allowClear dropdownStyle={{ borderRadius: 12 }}>
                         {stores.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
                       </Select>
@@ -343,7 +344,7 @@ const InventoryManagement = () => {
                     <EmptyState icon={PackageX} title="No Inventory Data" subtitle="Your stock filters didn't return any results. Try adjusting the store or name search." actionText="Clear All Filters" onAction={() => { setSearchText(''); setSelectedStoreId(''); setLowStockOnly(false); }} />
                   ) : (
                     <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
-                      <Table dataSource={filteredInventory} columns={inventoryColumns} pagination={{ pageSize: 10 }} rowKey="id" />
+                      <Table dataSource={filteredInventory} columns={inventoryColumns} pagination={{ defaultPageSize: 10, showSizeChanger: true }} scroll={{ x: 760 }} rowKey="id" />
                     </Card>
                   )}
                 </div>
@@ -351,24 +352,24 @@ const InventoryManagement = () => {
             },
             {
               key: '2',
-              label: <span className="flex items-center gap-2"><History size={16}/> Transaction History</span>,
+              label: <span className="flex items-center gap-2"><History size={16}/> Transactions</span>,
               children: (
                 <div className="space-y-6">
                   <Card className="border-none shadow-sm rounded-2xl">
-                    <div className="flex justify-between items-center">
-                      <Space size="large">
+                    <div className="flex flex-wrap gap-4 justify-between items-center">
+                      <Space size="large" wrap>
                         <RangePicker value={dateRange} onChange={setDateRange} className="rounded-xl h-11" />
                         <Button type="primary" ghost icon={<RefreshCw size={16}/>} onClick={fetchTransactions} className="rounded-xl">Update History</Button>
                       </Space>
-                      <Button type="primary" danger ghost icon={<FileDown size={18}/>} onClick={() => message.info("Exporting transaction history...")} className="rounded-xl h-11 border-dashed">Export CSV</Button>
+                      <Button type="primary" danger ghost icon={<FileDown size={18}/>} onClick={exportTransactions} className="rounded-xl h-11 border-dashed">Export transactions</Button>
                     </div>
                   </Card>
 
                   {transactionLoading ? <InventorySkeleton /> : transactions.length === 0 ? (
-                    <EmptyState icon={ShoppingBag} title="No Movements" subtitle="No stock purchases or consumptions recorded for this date range." />
+                    <EmptyState icon={ShoppingBag} title="No Transactions" subtitle="No inventory transactions recorded for this date range." />
                   ) : (
                     <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
-                      <Table dataSource={transactions} columns={transactionColumns} pagination={{ pageSize: 10 }} rowKey="id" />
+                      <Table dataSource={transactions} columns={transactionColumns} pagination={{ defaultPageSize: 10, showSizeChanger: true }} scroll={{ x: 760 }} rowKey="id" />
                     </Card>
                   )}
                 </div>

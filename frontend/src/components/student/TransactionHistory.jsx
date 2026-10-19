@@ -127,7 +127,7 @@ const TransactionHistory = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+      <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Header Section */}
         <motion.div 

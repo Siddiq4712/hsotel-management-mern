@@ -21,13 +21,13 @@ const T = {
   ink:       '#141820',
   inkMid:    '#4B5263',
   inkSoft:   '#8B92A5',
-  accent:    '#1A56DB',
+  accent:    '#2563eb',
   accentBg:  '#EBF2FF',
   danger:    '#DC2626',
   dangerBg:  '#FEF2F2',
   success:   '#16A34A',
   successBg: '#F0FDF4',
-  radius:    '12px',
+  radius:    '24px',
   shadow:    '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
 };
 
@@ -196,25 +196,25 @@ const UOMManagement = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: T.accent, borderRadius: 8, fontFamily: "'DM Sans', sans-serif" } }}>
+    <ConfigProvider theme={{ token: { colorPrimary: T.accent, borderRadius: 12 } }}>
       <style>{`
         .pm-table .ant-table-thead > tr > th { background: #F7F8FA !important; border-bottom: 1px solid ${T.border} !important; padding: 12px 16px !important; }
         .pm-table .ant-table-tbody > tr > td { padding: 14px 16px !important; border-bottom: 1px solid ${T.border} !important; }
-        .pm-form-input .ant-input, .pm-form-input .ant-select-selector { border-radius: 8px !important; }
-        .pm-modal .ant-modal-content { border-radius: 14px; overflow: hidden; }
+        .pm-form-input .ant-input, .pm-form-input .ant-select-selector { border-radius: 12px !important; }
+        .pm-modal .ant-modal-content { border-radius: 24px; overflow: hidden; }
       `}</style>
 
-      <div style={{ minHeight: '100vh', background: T.bg, paddingBottom: 40 }}>
+      <div className="module-page">
         
         {/* Header */}
-        <div style={{ background: T.surface, borderBottom: `1px solid ${T.border}`, padding: '20px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="module-page-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Ruler size={20} color={T.accent} />
             </div>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: T.ink }}>Measurement Master</div>
-              <div style={{ fontSize: 12, color: T.inkSoft }}>Standardize units for raw materials and inventory</div>
+              <h1 className="module-title">Measurement Master</h1>
+              <div className="module-subtitle">Standardize units for raw materials and inventory</div>
             </div>
           </div>
           <button
@@ -229,10 +229,10 @@ const UOMManagement = () => {
           </button>
         </div>
 
-        <div style={{ padding: '28px 32px' }}>
+        <div className="space-y-6">
           
           {/* Stats Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+          <div className="module-stat-grid">
             <StatCard label="Total Units" value={stats.total} icon={Layers} accent />
             <StatCard label="Weight Metrics" value={stats.weight} icon={Weight} />
             <StatCard label="Volume Metrics" value={stats.volume} icon={Droplets} />

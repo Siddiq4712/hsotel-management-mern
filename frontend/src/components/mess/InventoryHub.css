@@ -1,0 +1,46 @@
+.inventory-hub { color: #1e293b; }
+.inventory-hub > h2.ant-typography { margin: 0 0 8px; font-size: 28px; font-weight: 700; color: #1e293b; }
+.inventory-hub > div.ant-typography { color: #64748b; }
+.inventory-hub .module-page { padding: 0; min-height: 0; background: transparent; }
+.inventory-hub .inventory-page-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; gap: 16px; margin-bottom: 24px;
+}
+.inventory-hub .inventory-page-header h3.ant-typography {
+  margin: 0 0 6px; font-size: 20px; font-weight: 650; line-height: 1.4;
+}
+.inventory-hub .inventory-page-header .ant-typography-secondary { font-size: 14px; color: #64748b; }
+.inventory-hub .inventory-page-actions { gap: 8px !important; }
+.inventory-hub .inventory-page-actions .ant-btn { height: 40px; border-radius: 10px; box-shadow: none; font-weight: 500; }
+.inventory-hub .inventory-panel,
+.inventory-hub .inventory-stat,
+.inventory-hub .module-page .ant-card {
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: none;
+}
+.inventory-hub .inventory-stat { display: flex; align-items: center; gap: 16px; padding: 20px; }
+.inventory-hub .inventory-toolbar {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: 16px; padding: 16px; margin-bottom: 20px;
+}
+.inventory-hub .inventory-search { width: 280px; max-width: 100%; }
+.inventory-hub .inventory-table { overflow: hidden; }
+.inventory-hub .ant-table { font-size: 14px; }
+.inventory-hub .ant-table-thead > tr > th { background: #f8fafc; color: #475569; font-weight: 600; }
+.inventory-hub .ant-table-thead > tr > th > span { font-size: inherit !important; color: inherit !important; }
+.inventory-hub .ant-table-wrapper { overflow-x: auto; }
+.inventory-hub .module-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; }
+.inventory-hub .inventory-master-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.inventory-hub .ant-pagination { padding-inline: 16px; }
+.inventory-hub .ant-statistic-title,
+.inventory-hub .inventory-stat-label { font-size: 13px; color: #64748b; font-weight: 500; text-transform: none; letter-spacing: normal; }
+.inventory-hub .ant-statistic-title > span { font: inherit; text-transform: inherit; letter-spacing: inherit; color: inherit; }
+.inventory-hub .ant-statistic-content { font-size: 24px; }
+@media (max-width: 767px) {
+  .inventory-hub .inventory-page-actions { width: 100%; }
+  .inventory-hub .inventory-toolbar { align-items: stretch; }
+  .inventory-hub .inventory-search { width: 100%; }
+  .inventory-hub .module-stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+}
+@media (max-width: 479px) {
+  .inventory-hub .module-stat-grid { grid-template-columns: minmax(0, 1fr); }
+}

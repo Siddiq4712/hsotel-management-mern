@@ -1,6 +1,7 @@
+import { DatePicker } from '../common/MomentPickers';
 // src/components/mess/InventoryTransactions.jsx
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Select, DatePicker, Button, Space, Tag, Spin, Alert, message } from 'antd';
+import { Card, Table, Select, Button, Space, Tag, Spin, Alert, message } from 'antd';
 import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
 import moment from 'moment';

@@ -1,3 +1,4 @@
+import MessReductionsScreen from '../screens/MessReductionsScreen';
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
@@ -44,6 +45,7 @@ const WardenTabNavigator = () => {
         tabBarIconStyle: { marginBottom: -3 },
       }}
     >
+      <Tab.Screen name="MessReductions" component={MessReductionsScreen} options={{tabBarLabel:'Reductions',tabBarIcon:({color,size})=><FileText color={color} size={size}/>}} />
       <Tab.Screen
         name="Dashboard"
         component={WardenDashboardScreen}

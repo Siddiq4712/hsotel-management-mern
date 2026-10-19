@@ -1,7 +1,8 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Card, Table, Tag, Input, Button, Form, DatePicker, 
-  message, Tabs, Space, Typography, ConfigProvider, theme, 
+import {
+  Card, Table, Tag, Input, Button, Form,
+  message, Tabs, Space, Typography, ConfigProvider, theme,
   Empty, Descriptions, QRCode
 } from 'antd';
 import { 
@@ -122,10 +123,10 @@ const StudentOutpass = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#3b82f6', borderRadius: 16 } }}>
-      <div className="bg-slate-50 min-h-screen p-8">
+      <div className="module-page bg-slate-50 min-h-screen p-8">
         
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="module-page-header flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100 text-white">
               <QrCode size={24} />

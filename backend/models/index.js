@@ -1,5 +1,7 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/database.js';
+export { MenuPlanningSettings, WeeklyMenuPlan, PlannedDailyMeal, MenuPlanningChange } from './menuPlanning.js';
+export { Inventory, InventoryHostel } from './inventory.js';
 
 // ==========================================
 // 1. IDENTITY & STAFF MODELS
@@ -135,6 +137,8 @@ export const Hostel = sequelize.define('Hostel', {
 export const Session = sequelize.define('Session', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   name: { type: DataTypes.STRING, allowNull: false },
+  erp_batch_year: { type: DataTypes.INTEGER, allowNull: true },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Hostel', key: 'id' } },
   start_date: { type: DataTypes.DATE, allowNull: false },
   end_date: { type: DataTypes.DATE, allowNull: false },
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true }
@@ -150,6 +154,7 @@ export const Enrollment = sequelize.define('Enrollment', {
   roll_number: { type: DataTypes.STRING, allowNull: true, unique: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   session_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Session', key: 'id' } },
+  erp_batch_year: { type: DataTypes.INTEGER, allowNull: true },
   enrollment_date: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
   requires_bed: { type: DataTypes.BOOLEAN, defaultValue: false },
   college: { type: DataTypes.ENUM('nec', 'lapc'), allowNull: true },
@@ -250,9 +255,23 @@ export const Attendance = sequelize.define('Attendance', {
     allowNull: false, 
     references: { model: 'tbl_users', key: 'id' }  // ✅ FIX
   },
+  reduction_request_id: { type: DataTypes.INTEGER, allowNull: true },
   totalManDays: { type: DataTypes.INTEGER, allowNull: true },
   is_monthly: { type: DataTypes.BOOLEAN, defaultValue: false }
 }, { tableName: 'tbl_Attendance', timestamps: true });
+
+export const MonthlyAttendanceImport = sequelize.define('MonthlyAttendanceImport', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: false },
+  month: { type: DataTypes.INTEGER, allowNull: false },
+  year: { type: DataTypes.INTEGER, allowNull: false },
+  imported_by: { type: DataTypes.INTEGER, allowNull: false },
+  file_name: { type: DataTypes.STRING, allowNull: false },
+  source_hash: { type: DataTypes.STRING(64), allowNull: false },
+  row_count: { type: DataTypes.INTEGER, allowNull: false },
+  total_man_days: { type: DataTypes.INTEGER, allowNull: false },
+  records: { type: DataTypes.JSON, allowNull: false }
+}, { tableName: 'tbl_MonthlyAttendanceImport', timestamps: true });
 
 export const GPSAttendance = sequelize.define('GPSAttendance', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -347,7 +366,12 @@ export const DayReductionRequest = sequelize.define('DayReductionRequest', {
   from_date: { type: DataTypes.DATEONLY, allowNull: false },
   to_date: { type: DataTypes.DATEONLY, allowNull: false },
   reason: { type: DataTypes.TEXT, allowNull: false },
-  status: { type: DataTypes.ENUM('pending_admin', 'approved_by_admin', 'rejected_by_admin', 'approved_by_warden', 'rejected_by_warden'), defaultValue: 'pending_admin', allowNull: false },
+  category: { type: DataTypes.STRING(32), allowNull: true },
+  activity: { type: DataTypes.STRING(150), allowNull: true },
+  document: { type: DataTypes.JSON, allowNull: true },
+  decided_at: { type: DataTypes.DATE, allowNull: true },
+  workflow_version: { type: DataTypes.INTEGER, allowNull: true },
+  status: { type: DataTypes.ENUM('pending_admin', 'approved_by_admin', 'rejected_by_admin', 'approved_by_warden', 'rejected_by_warden', 'needs_correction', 'cancelled'), defaultValue: 'pending_admin', allowNull: false },
   admin_id: { 
     type: DataTypes.INTEGER, 
     allowNull: true, 
@@ -361,6 +385,38 @@ export const DayReductionRequest = sequelize.define('DayReductionRequest', {
   },
   warden_remarks: { type: DataTypes.TEXT, allowNull: true }
 }, { tableName: 'tbl_DayReductionRequests', timestamps: true });
+
+export const ReductionDay = sequelize.define('ReductionDay', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  request_id: { type: DataTypes.INTEGER, allowNull: false },
+  student_id: { type: DataTypes.INTEGER, allowNull: false },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: false },
+  date: { type: DataTypes.DATEONLY, allowNull: false },
+  attendance_status: { type: DataTypes.STRING(2), allowNull: false },
+  active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  before_attendance: { type: DataTypes.JSON, allowNull: false },
+  created_attendance_id: { type: DataTypes.INTEGER, allowNull: true }
+}, { tableName: 'tbl_ReductionDays', timestamps: true, indexes: [
+  { unique: true, fields: ['request_id', 'date'] }, { fields: ['hostel_id', 'student_id', 'date', 'active'] }
+] });
+
+export const ReductionDecision = sequelize.define('ReductionDecision', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  request_id: { type: DataTypes.INTEGER, allowNull: false },
+  actor_id: { type: DataTypes.INTEGER, allowNull: false },
+  actor_role: { type: DataTypes.STRING(20), allowNull: false },
+  action: { type: DataTypes.STRING(32), allowNull: false },
+  remarks: { type: DataTypes.TEXT, allowNull: true },
+  previous_values: { type: DataTypes.JSON, allowNull: true }
+}, { tableName: 'tbl_ReductionDecisions', timestamps: true });
+
+export const MessBillingSnapshot = sequelize.define('MessBillingSnapshot', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: false },
+  month: { type: DataTypes.INTEGER, allowNull: false },
+  year: { type: DataTypes.INTEGER, allowNull: false },
+  payload: { type: DataTypes.JSON, allowNull: false }
+}, { tableName: 'tbl_MessBillingSnapshot', timestamps: true, indexes: [{ unique: true, fields: ['hostel_id', 'month', 'year'] }] });
 
 export const Holiday = sequelize.define('Holiday', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -419,6 +475,7 @@ export const Item = sequelize.define('Item', {
 }, { tableName: 'tbl_Item', timestamps: true });
 
 export const ItemStock = sequelize.define('ItemStock', {
+  inventory_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Inventory', key: 'id' } },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   item_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Item', key: 'id' } },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
@@ -433,6 +490,7 @@ export const ItemStock = sequelize.define('ItemStock', {
 });
 
 export const InventoryBatch = sequelize.define('InventoryBatch', {
+  inventory_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Inventory', key: 'id' } },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   item_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Item', key: 'id' } },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
@@ -469,6 +527,7 @@ export const ItemStore = sequelize.define('ItemStore', {
 }, { tableName: 'tbl_ItemStore', timestamps: true });
 
 export const InventoryTransaction = sequelize.define('InventoryTransaction', {
+  inventory_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Inventory', key: 'id' } },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   item_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Item', key: 'id' } },
@@ -487,6 +546,7 @@ export const InventoryTransaction = sequelize.define('InventoryTransaction', {
 }, { tableName: 'tbl_InventoryTransaction', timestamps: true });
 
 export const RestockPlan = sequelize.define('RestockPlan', {
+  inventory_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Inventory', key: 'id' } },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false },
   item_id: { type: DataTypes.INTEGER, allowNull: false },
@@ -550,8 +610,9 @@ export const RecipeItem = sequelize.define('RecipeItem', {
 }, { tableName: 'tbl_RecipeItem', timestamps: false });
 
 export const DailyConsumption = sequelize.define('DailyConsumption', {
+  inventory_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Inventory', key: 'id' } },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Hostel', key: 'id' } },
   item_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Item', key: 'id' } },
   consumption_date: { type: DataTypes.DATEONLY, allowNull: false },
   quantity_consumed: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
@@ -662,7 +723,8 @@ export const MessBill = sequelize.define('MessBill', {
   year: { type: DataTypes.INTEGER, allowNull: false },
   amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   status: { type: DataTypes.ENUM('pending', 'paid', 'overdue'), defaultValue: 'pending' },
-  due_date: { type: DataTypes.DATE, allowNull: false }
+  due_date: { type: DataTypes.DATE, allowNull: false },
+  billing_breakdown: { type: DataTypes.JSON, allowNull: true }
 }, { tableName: 'tbl_MessBill', timestamps: true });
 
 // ==========================================
@@ -718,6 +780,7 @@ export const Fee = sequelize.define('Fee', {
 });
 
 export const StudentFee = sequelize.define('StudentFee', {
+  food_order_id: { type: DataTypes.INTEGER, allowNull: true },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
@@ -853,8 +916,9 @@ export const Transaction = sequelize.define('Transaction', {
 }, { tableName: 'tbl_Transaction', timestamps: true });
 
 export const MessDailyExpense = sequelize.define('MessDailyExpense', {
+  inventory_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Inventory', key: 'id' } },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Hostel', key: 'id' } },
   expense_type_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_ExpenseType', key: 'id' } },
   amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   expense_date: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },
@@ -999,6 +1063,8 @@ export const HostelMaintenance = sequelize.define('HostelMaintenance', {
 // ==========================================
 
 export const SpecialFoodItem = sequelize.define('SpecialFoodItem', {
+  max_quantity_per_student: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1, validate: { min: 1, max: 1000 } },
+  meal_type: { type: DataTypes.STRING, allowNull: true },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   name: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: true },
@@ -1007,10 +1073,13 @@ export const SpecialFoodItem = sequelize.define('SpecialFoodItem', {
   is_available: { type: DataTypes.BOOLEAN, defaultValue: true },
   category: { type: DataTypes.STRING, allowNull: false },
   image_url: { type: DataTypes.STRING, allowNull: true },
+  weekly_day: { type: DataTypes.INTEGER, allowNull: true, validate: { min: 0, max: 6 } },
+  order_deadline_time: { type: DataTypes.STRING(5), allowNull: false, defaultValue: '19:00' },
   expiry_time: { type: DataTypes.DATE, allowNull: true }
 }, { tableName: 'tbl_SpecialFoodItem', timestamps: true });
 
 export const FoodOrder = sequelize.define('FoodOrder', {
+  order_source: { type: DataTypes.STRING(16), allowNull: true },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
@@ -1026,6 +1095,9 @@ export const FoodOrder = sequelize.define('FoodOrder', {
 }, { tableName: 'tbl_FoodOrder', timestamps: true });
 
 export const FoodOrderItem = sequelize.define('FoodOrderItem', {
+  food_name_snapshot: { type: DataTypes.STRING, allowNull: true },
+  category_snapshot: { type: DataTypes.STRING, allowNull: true },
+  meal_type_snapshot: { type: DataTypes.STRING, allowNull: true },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   food_order_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_FoodOrder', key: 'id' } },
   food_item_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_SpecialFoodItem', key: 'id' } },
@@ -1092,7 +1164,8 @@ export const InAppNotification = sequelize.define('InAppNotification', {
   message: { type: DataTypes.TEXT, allowNull: false },
   type: { type: DataTypes.STRING, allowNull: false },
   status: { type: DataTypes.ENUM('unread', 'read'), defaultValue: 'unread', allowNull: false }
-}, { tableName: 'tbl_InAppNotification', timestamps: true });
+}, { tableName: 'tbl_InAppNotification', timestamps: true,
+  indexes:[{fields:['user_id','status','id']},{fields:['user_id','id']}] });
 
 // ==========================================
 // UNIFIED ASSOCIATIONS
@@ -1164,6 +1237,7 @@ export const initAssociations = () => {
   // ==========================================
   Attendance.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
   Attendance.belongsTo(User, { foreignKey: 'marked_by', as: 'MarkedBy', targetKey: 'userId' });
+  Attendance.belongsTo(DayReductionRequest, { foreignKey: 'reduction_request_id', as: 'ReductionRequest', constraints: false });
   Attendance.belongsTo(Hostel, { foreignKey: 'hostel_id' });
 
   GPSAttendance.belongsTo(User, { foreignKey: 'user_id', targetKey: 'userId' });
@@ -1193,6 +1267,10 @@ export const initAssociations = () => {
   DayReductionRequest.belongsTo(User, { foreignKey: 'admin_id', as: 'AdminProcessor', targetKey: 'userId' });
   DayReductionRequest.belongsTo(User, { foreignKey: 'warden_id', as: 'WardenProcessor', targetKey: 'userId' });
   DayReductionRequest.belongsTo(Hostel, { foreignKey: 'hostel_id', as: 'Hostel' });
+  ReductionDay.belongsTo(DayReductionRequest, { foreignKey: 'request_id', as: 'Request' });
+  DayReductionRequest.hasMany(ReductionDay, { foreignKey: 'request_id', as: 'ReductionDays' });
+  DayReductionRequest.hasMany(ReductionDecision, { foreignKey: 'request_id', as: 'Decisions' });
+  ReductionDecision.belongsTo(User, { foreignKey: 'actor_id', targetKey: 'userId', as: 'Actor' });
 
   Holiday.belongsTo(Hostel, { foreignKey: 'hostel_id' });
   Hostel.hasMany(Holiday, { foreignKey: 'hostel_id' });
@@ -1221,6 +1299,9 @@ export const initAssociations = () => {
   Hostel.hasMany(RestockPlan, { foreignKey: 'hostel_id' });
 
   InventoryBatch.belongsTo(Item, { foreignKey: 'item_id' });
+  InventoryTransaction.belongsTo(Item, { foreignKey: 'item_id' });
+  InventoryTransaction.belongsTo(Store, { foreignKey: 'store_id' });
+  InventoryTransaction.belongsTo(User, { foreignKey: 'recorded_by', targetKey: 'userId', as: 'RecordedBy' });
   InventoryBatch.belongsTo(Hostel, { foreignKey: 'hostel_id' });
   Item.hasMany(InventoryBatch, { foreignKey: 'item_id' });
   Hostel.hasMany(InventoryBatch, { foreignKey: 'hostel_id', as: 'InventoryBatches' });
@@ -1309,8 +1390,15 @@ export const initAssociations = () => {
 
   // Additional Collections
   AdditionalCollection.belongsTo(User, { foreignKey: 'student_id', as: 'Student', targetKey: 'userId', constraints: false });
+  AdditionalCollection.belongsTo(User, { foreignKey: 'student_id', as: 'CollectionStudent', targetKey: 'userId', constraints: false });
   AdditionalCollection.belongsTo(User, { foreignKey: 'collected_by', as: 'CollectedBy', targetKey: 'userId' });
   AdditionalCollection.belongsTo(AdditionalCollectionType, { foreignKey: 'collection_type_id' });
+  CreditToken.belongsTo(Concern, { foreignKey: 'concern_id', as: 'Concern' });
+  CreditToken.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy', targetKey: 'userId' });
+  SpecialConsumption.belongsTo(User, { foreignKey: 'recorded_by', as: 'RecordedBy', targetKey: 'userId' });
+  SpecialConsumption.hasMany(SpecialConsumptionItem, { foreignKey: 'special_consumption_id', as: 'ItemsConsumed' });
+  SpecialConsumptionItem.belongsTo(Item, { foreignKey: 'item_id' });
+  SpecialConsumptionItem.belongsTo(UOM, { foreignKey: 'unit_id' });
 
   // ==========================================
   // 7. FACILITY MANAGEMENT

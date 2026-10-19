@@ -1,16 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Card, Table, message, Button, Space, Typography, Row, Col, 
-  Statistic, Modal, Form, Select, InputNumber, Input, Divider, 
-  ConfigProvider, theme, Skeleton, Badge, Tooltip, DatePicker
-} from 'antd';
+import { DatePicker } from '../common/MomentPickers';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  Card, Table, message, Button, Space, Typography, Row, Col,
+  Statistic, Modal, Form, Select, InputNumber, Input, Divider,
+  ConfigProvider, theme, Skeleton, Badge, Tooltip} from 'antd';
 import { 
   ChevronLeft, ChevronRight, Calculator, FileDown, 
   Plus, RefreshCw, User, Calendar, Users, 
-  Receipt, Wallet, Info, CheckCircle2, Mail
+  Receipt, Wallet, Info, CheckCircle2, Mail, Search
 } from 'lucide-react';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
+import { initialBillingDate } from '../../utils/billingDate';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -41,14 +42,27 @@ const MessFeeManagement = () => {
   // --- States ---
   const [reportData, setReportData] = useState([]);
   const [summary, setSummary] = useState({});
+  const [historicalImport, setHistoricalImport] = useState(false);
   const [loading, setLoading] = useState(true);
   const [generatingBills, setGeneratingBills] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(moment());
+  const [selectedDate, setSelectedDate] = useState(initialBillingDate);
   const [selectedCollege, setSelectedCollege] = useState('all');
+  const [searchText, setSearchText] = useState('');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [students, setStudents] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  const filteredReportData = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+    if (!query) return reportData;
+    return reportData.filter(row => [
+      row.name, row.userName, row.username,
+      row.regNo, row.roll_number, row.registerNumber
+    ].some(value => String(value ?? '').toLowerCase().includes(query)));
+  }, [reportData, searchText]);
+
+  useEffect(() => { setCurrentPage(1); }, [searchText, selectedCollege, selectedDate]);
 
   // --- Navigation Controls ---
   const changeMonth = (offset) => setSelectedDate(prev => prev.clone().add(offset, 'month'));
@@ -79,12 +93,18 @@ const MessFeeManagement = () => {
       setStudents(studentsRes.data.data || []);
 
       summaryData.syncedDailyRate = dailyRateValue;
+      summaryData.allHostels = Boolean(reportRes.data.allHostels);
       summaryData.syncedNetExpenses = ledgerNetExpenses;
       summaryData.syncedManDays = ledgerManDays;
 
       // Update calculations based on synced Ledger Daily Rate
       const updatedData = data.map(row => {
-        const messAmount = (row.messDays || 0) * dailyRateValue;
+        // Imported historical statements retain their approved rate and rounding.
+        if (row.legacyFinalized || row.historicalImport || (!reportRes.data.allHostels && reportRes.data.historicalImport)) return row;
+        const rowRate = reportRes.data.allHostels
+          ? (dailyRateRes.data.hostelSummaries?.find(item => item.hostel_id === row.hostel_id)?.dailyRate ?? row.dailyRate)
+          : dailyRateValue;
+        const messAmount = (row.messDays || 0) * rowRate;
         
         // Ensure bedCharges and newspaper (hinduIndianExpress) are included in the math
         const bed = parseFloat(row.bedCharges || 0);
@@ -95,7 +115,7 @@ const MessFeeManagement = () => {
 
         return {
           ...row,
-          dailyRate: dailyRateValue,
+          dailyRate: rowRate,
           messAmount: parseFloat(messAmount.toFixed(2)),
           bedCharges: bed, // ensure it's a number
           hinduIndianExpress: paper, // ensure it's a number
@@ -105,6 +125,7 @@ const MessFeeManagement = () => {
       });
 
       setReportData(updatedData);
+      setHistoricalImport(Boolean(reportRes.data.historicalImport || reportRes.data.legacyFinalized));
       setSummary(summaryData);
     } catch (error) {
       console.error(error);
@@ -188,6 +209,7 @@ const MessFeeManagement = () => {
     { 
       title: 'Student Name', 
       key: 'name', 
+      sorter: (a, b) => String(a.name || a.userName || a.username || '').localeCompare(String(b.name || b.userName || b.username || ''), undefined, { sensitivity: 'base', numeric: true }),
       width: 220, 
       fixed: 'left', 
       render: (_, r) => <Text strong className="text-slate-700 uppercase">{r.name || r.userName || r.username || 'N/A'}</Text> 
@@ -195,35 +217,40 @@ const MessFeeManagement = () => {
     { 
       title: 'Reg No', 
       key: 'regNo', 
+      sorter: (a, b) => String(a.regNo || a.roll_number || a.registerNumber || '').localeCompare(String(b.regNo || b.roll_number || b.registerNumber || ''), undefined, { sensitivity: 'base', numeric: true }),
       width: 120, 
       render: (_, r) => <span className="font-mono font-bold text-xs">{r.regNo || r.roll_number || r.registerNumber || 'N/A'}</span> 
     },
-    { title: 'Days', dataIndex: 'messDays', align: 'center', width: 80, render: (d) => <Badge count={d} color="#2563eb" overflowCount={31} /> },
-    { title: 'Daily Rate', dataIndex: 'dailyRate', align: 'right', render: (v) => <Text type="secondary">₹{parseFloat(v).toFixed(2)}</Text> },
+    { title: 'Base days', dataIndex: 'baseDays', align: 'center', width: 130, render: v => v ?? 'Legacy' },
+    { title: 'Approved reduction', dataIndex: 'approvedReductionDays', align: 'center', width: 200, render: v => v ?? 'Legacy' },
+    { title: 'Billable days', dataIndex: 'messDays', align: 'center', width: 145, render: (d) => <Badge count={d} color="#2563eb" overflowCount={31} /> },
+    { title: 'Daily Rate', dataIndex: 'dailyRate', align: 'right', width: 140, render: (v) => <Text type="secondary">₹{parseFloat(v).toFixed(2)}</Text> },
     
     // --- ADDED COLUMNS START ---
     { 
       title: 'Bed Fee', 
       dataIndex: 'bedCharges', 
+      width: 130,
       align: 'right', 
       render: (v) => v > 0 ? <Text className="text-orange-600">₹{v}</Text> : <Text type="secondary" className="text-[10px]">NA</Text> 
     },
     { 
       title: 'Newspaper', 
       dataIndex: 'hinduIndianExpress', 
+      width: 150,
       align: 'right', 
       render: (v) => v > 0 ? <Text className="text-purple-600">₹{v}</Text> : <Text type="secondary" className="text-[10px]">NA</Text> 
     },
     // --- ADDED COLUMNS END ---
 
-    { title: 'Extra Charges', dataIndex: 'additionalAmount', align: 'right', render: (v) => v > 0 ? <Text type="danger">+₹{v}</Text> : '—' },
-    { title: 'Total', dataIndex: 'total', align: 'right', className: 'bg-slate-50/50', render: (v) => <Text strong>₹{v}</Text> },
+    { title: 'Extra Charges', dataIndex: 'additionalAmount', align: 'right', width: 170, render: (v) => v > 0 ? <Text type="danger">+₹{v}</Text> : '—' },
+    { title: 'Total', dataIndex: 'total', align: 'right', width: 130, className: 'bg-slate-50/50', render: (v) => <Text strong>₹{v}</Text> },
     { 
       title: 'Payable Amount', 
       dataIndex: 'finalAmount', 
       align: 'right', 
       fixed: 'right', 
-      width: 150, 
+      width: 180,
       render: (v) => (
         <div className="bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 text-right">
           <Text strong className="text-blue-600 text-base">₹{v}</Text>
@@ -234,10 +261,10 @@ const MessFeeManagement = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header */}
-        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
+        <div className="module-page-header flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
               <Calculator className="text-white" size={24} />
@@ -260,15 +287,16 @@ const MessFeeManagement = () => {
           </div>
 
           <Space>
-            <Button icon={<Plus size={18}/>} onClick={() => setIsModalVisible(true)} className="rounded-xl h-12">Add Manual Fee</Button>
+            <Button disabled={historicalImport} icon={<Plus size={18}/>} onClick={() => setIsModalVisible(true)} className="rounded-xl h-12">Add Manual Fee</Button>
             <Button 
               type="primary" 
               icon={<CheckCircle2 size={18} />} 
               onClick={handleFinalizeBills}
+              disabled={historicalImport || loading}
               loading={generatingBills}
               className="rounded-xl h-12 shadow-lg shadow-blue-100 font-bold px-8 bg-emerald-600 hover:bg-emerald-700 border-none"
             >
-              Finalize & Send Emails
+              {historicalImport ? 'Recorded Bills Preserved' : 'Finalize & Send Emails'}
             </Button>
           </Space>
         </div>
@@ -276,7 +304,7 @@ const MessFeeManagement = () => {
         {/* Statistic Cards */}
         <Row gutter={[24, 24]} className="mb-8">
           {[
-            { label: 'Calculated Rate', value: summary.syncedDailyRate, color: '#059669', icon: <Receipt size={18}/>, suffix: '/ day' },
+            { label: summary.allHostels ? 'Average Rate (All Hostels)' : 'Calculated Rate', value: summary.syncedDailyRate, color: '#059669', icon: <Receipt size={18}/>, suffix: '/ day' },
             { label: 'Net Mess Cost', value: summary.syncedNetExpenses, color: '#0f172a', icon: <Wallet size={18}/> },
             { label: 'Total Students', value: reportData.length, color: '#0f172a', icon: <Users size={18}/> },
             { label: 'Total Man-Days', value: summary.syncedManDays, color: '#0f172a', icon: <Calendar size={18}/> },
@@ -298,18 +326,29 @@ const MessFeeManagement = () => {
 
         {/* Filter Toolbar */}
         <Card className="border-none shadow-sm rounded-2xl mb-6">
-          <div className="flex justify-between items-center">
-            <Space size="large">
+          <div className="flex flex-wrap justify-between items-center gap-4">
+            <Space size="large" wrap>
+              <Input
+                aria-label="Search students by name or roll number"
+                placeholder="Search name or roll number"
+                prefix={<Search size={16} className="text-slate-400" />}
+                allowClear
+                value={searchText}
+                onChange={event => setSearchText(event.target.value)}
+                style={{ width: 280, maxWidth: '100%' }}
+                className="h-10"
+              />
               <Select value={selectedCollege} className="w-56 h-10" onChange={setSelectedCollege}>
                 <Option value="all">All Institutions</Option>
                 <Option value="nec">National Engineering College</Option>
                 <Option value="lapc">Lakshmi Ammal Polytech</Option>
               </Select>
               <Button type="primary" ghost icon={<RefreshCw size={16}/>} onClick={fetchReportData} className="rounded-xl h-10">Refresh Data</Button>
+              <Text type="secondary">Showing {filteredReportData.length} of {reportData.length} students</Text>
             </Space>
             <div className="flex items-center gap-2 text-slate-400">
               <Info size={14} />
-              <Text style={{ fontSize: '12px' }}>Amounts are rounded based on 0.20 threshold logic.</Text>
+              <Text style={{ fontSize: '12px' }}>{historicalImport ? 'Recorded amounts and rounding are preserved. Legacy breakdowns are not reconstructed.' : 'Amounts are rounded based on 0.20 threshold logic.'}</Text>
             </div>
           </div>
         </Card>
@@ -318,14 +357,33 @@ const MessFeeManagement = () => {
         {loading ? <FeeSkeleton /> : (
           <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
             <Table 
-              columns={columns} 
-              dataSource={reportData} 
+              columns={columns.map(column => ({ ...column,
+                onHeaderCell: () => ({ style: { whiteSpace: 'normal', overflowWrap: 'break-word' } }),
+                ...(column.dataIndex ? { sorter: (a, b) => {
+                  const numericValue = row => {
+                    if (row.breakdownUnavailable && ['messDays', 'dailyRate', 'bedCharges', 'hinduIndianExpress', 'additionalAmount'].includes(column.dataIndex)) return -Infinity;
+                    const value = row[column.dataIndex];
+                    return value == null || !Number.isFinite(Number(value)) ? -Infinity : Number(value);
+                  };
+                  const left = numericValue(a);
+                  const right = numericValue(b);
+                  return left === right ? 0 : left < right ? -1 : 1;
+                } } : {}),
+                render: (value, row, index) => row.breakdownUnavailable && ['messDays', 'dailyRate', 'bedCharges', 'hinduIndianExpress', 'additionalAmount'].includes(column.dataIndex)
+                ? <Text type="secondary">Unavailable</Text> : column.render ? column.render(value, row, index) : value }))}
+              dataSource={filteredReportData}
+              onChange={(pagination, filters, sorter, extra) => {
+                if (extra.action === 'sort') setCurrentPage(1);
+              }}
+              locale={{ emptyText: searchText.trim() ? 'No students match your search' : 'No students available for this month' }}
               rowKey="studentId" 
-              scroll={{ x: 1400 }} 
+              tableLayout="fixed"
+              scroll={{ x: columns.reduce((total, column) => total + column.width, 0) }}
               pagination={{ 
                 current: currentPage, pageSize: pageSize,
                 onChange: (p, s) => { setCurrentPage(p); setPageSize(s); },
                 showSizeChanger: true,
+                showTotal: total => `${total} students`,
                 className: "p-6"
               }}
             />

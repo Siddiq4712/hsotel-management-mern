@@ -1,6 +1,7 @@
+import { Calendar, DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
 import {
-  Card, Calendar, Badge, Button, Modal, Form, Select, DatePicker,
+  Card, Badge, Button, Modal, Form, Select,
   InputNumber, Typography, Space, List, Tag, Popconfirm, Row, Col,
   Tooltip, Spin, Divider, ConfigProvider, theme, Skeleton, App as AntdApp
 } from 'antd';
@@ -160,9 +161,9 @@ const MenuPlanner = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="module-page-header flex justify-between items-center mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
               <CalendarDays className="text-white" size={24} />

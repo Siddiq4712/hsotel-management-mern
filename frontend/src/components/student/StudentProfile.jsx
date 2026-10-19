@@ -15,7 +15,7 @@ const { Title, Text } = Typography;
 
 // --- 1. High-Fidelity Skeleton for Profile ---
 const ProfileSkeleton = () => (
-  <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
+  <div className="module-page p-8 space-y-6 bg-slate-50 min-h-screen">
     <div className="flex gap-6 items-center">
       <Skeleton.Avatar active size={100} shape="circle" />
       <div className="flex-1">
@@ -81,10 +81,10 @@ const StudentProfile = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 24 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+      <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Header Section */}
-        <div className="flex justify-between items-end">
+        <div className="module-page-header flex justify-between items-end">
           <div className="flex items-center gap-6">
             <div className="relative group">
               <div className="w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center text-white text-4xl font-bold shadow-xl shadow-blue-100 border-4 border-white overflow-hidden">

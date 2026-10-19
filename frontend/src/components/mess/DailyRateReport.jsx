@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Card, Button, Row, Col, Table, message, Typography, 
-  Space, Divider, ConfigProvider, theme, Skeleton, Tooltip, Modal, Radio, Statistic 
+import {
+  Card, Button, Row, Col, Table, message, Typography,
+  Space, Divider, ConfigProvider, theme, Skeleton, Tooltip, Modal, Radio, Statistic
 } from 'antd';
-import { 
-  Calculator, FileDown, ChevronLeft, ChevronRight, 
+import {
+  Calculator, FileDown, ChevronLeft, ChevronRight,
   Send, Monitor, Save, ArrowRight, MinusCircle, UserCheck, Receipt, Info
 } from 'lucide-react';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
+import { initialBillingDate } from '../../utils/billingDate';
 
 const { Title, Text } = Typography;
 
@@ -16,8 +17,9 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
   const [loading, setLoading] = useState(!isReadOnly);
   const [saving, setSaving] = useState(false);
   const [reportData, setReportData] = useState(sharedData);
-  const [selectedDate, setSelectedDate] = useState(moment());
-  
+  const [allHostels, setAllHostels] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(initialBillingDate);
+
   // Notification Modal States
   const [isNotifyModalVisible, setIsNotifyModalVisible] = useState(false);
   const [notifyMethod, setNotifyMethod] = useState('share');
@@ -31,6 +33,7 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
       const year = selectedDate.year();
       const response = await messAPI.generateDailyRateReport({ month, year });
       setReportData(response.data.data);
+      setAllHostels(Boolean(response.data.allHostels));
     } catch (error) {
       message.error('Failed to generate report');
     } finally {
@@ -85,6 +88,7 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
       document.body.appendChild(link);
       link.click();
     } catch (error) {
+      if (error.code === 'ERR_CANCELED') return;
       message.error('Export failed');
     }
   };
@@ -92,16 +96,16 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
   const expenseColumns = [
     { title: 'S.No', key: 's_no', width: 70, render: (_, __, i) => i + 1 },
     { title: 'Particulars', dataIndex: 'name', key: 'name', render: (t) => <Text className="font-medium">{t}</Text> },
-    { title: 'Amount (Rs)', dataIndex: 'amount', key: 'amount', align: 'right', 
+    { title: 'Amount (Rs)', dataIndex: 'amount', key: 'amount', align: 'right',
       render: (val) => <Text strong>₹{parseFloat(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</Text> },
   ];
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
       <div className={`${isReadOnly ? 'p-0' : 'p-4 lg:p-8 bg-slate-50 min-h-screen'}`}>
-        
+
         {/* HEADER SECTION */}
-        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
+        <div className="module-page-header flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100 text-white">
               <Calculator size={24} />
@@ -121,25 +125,25 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
               </div>
 
               <Space>
-                <Button 
-                  icon={<Save size={18} className="text-blue-600" />} 
+                <Button
+                  icon={<Save size={18} className="text-blue-600" />}
                   onClick={handleSaveToLedger}
                   loading={saving}
                   className="rounded-xl h-12 font-semibold bg-white border-blue-200 hover:bg-blue-50"
                 >
                   Save to Ledger
                 </Button>
-                <Button 
-                  icon={<Send size={18} className="text-emerald-500" />} 
+                <Button
+                  icon={<Send size={18} className="text-emerald-500" />}
                   onClick={() => setIsNotifyModalVisible(true)}
                   className="rounded-xl h-12 font-semibold"
                 >
                   Notify Admin
                 </Button>
-                <Button 
-                  type="primary" 
-                  icon={<FileDown size={18}/>} 
-                  onClick={handleExport} 
+                <Button
+                  type="primary"
+                  icon={<FileDown size={18}/>}
+                  onClick={handleExport}
                   className="rounded-xl h-12 px-6"
                 >
                   Export
@@ -155,8 +159,8 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
             <Card className="mb-8 border-none shadow-md rounded-[32px] overflow-hidden bg-white">
               <div className="flex flex-col lg:flex-row items-center justify-around p-2 gap-4 lg:gap-0 text-center">
                 <div className="px-6">
-                  <Text type="secondary" className="uppercase text-[10px] tracking-wider font-bold">Gross Expenses (+)</Text>
-                  <Title level={3} className="m-0 text-slate-800">₹{reportData?.subTotal?.toLocaleString()}</Title>
+                  <Text type="secondary" className="uppercase text-[10px] tracking-wider font-bold">Food expenses (+)</Text>
+                  <Title level={3} className="m-0 text-slate-800">₹{((reportData?.subTotal || 0) - (reportData?.waterTotal || 0)).toLocaleString()}</Title>
                 </div>
                 <MinusCircle className="text-slate-300 hidden lg:block" size={24} />
                 <div className="px-6">
@@ -165,12 +169,12 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
                 </div>
                 <div className="bg-slate-100 h-10 w-[2px] hidden lg:block" />
                 <div className="px-6">
-                  <Text type="secondary" className="uppercase text-[10px] tracking-wider font-bold">Total Man-Days (÷)</Text>
+                  <Text type="secondary" className="uppercase text-[10px] tracking-wider font-bold">Billable Food Days (÷)</Text>
                   <Title level={3} className="m-0 text-blue-600">{reportData?.totalManDays}</Title>
                 </div>
                 <ArrowRight className="text-slate-300 hidden lg:block" size={24} />
                 <div className="px-8 py-3 bg-blue-600 rounded-[24px] text-white shadow-xl shadow-blue-200">
-                  <Text className="text-white opacity-80 uppercase text-[10px] tracking-wider font-bold block">Final Daily Rate</Text>
+                  <Text className="text-white opacity-80 uppercase text-[10px] tracking-wider font-bold block">{allHostels ? 'Average Daily Rate (All Hostels)' : 'Food Daily Rate'}</Text>
                   <Title level={2} className="m-0 text-white">₹{reportData?.dailyRate?.toFixed(2)}</Title>
                 </div>
               </div>
@@ -179,9 +183,9 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
             <Row gutter={[24, 24]}>
               {/* EXPENSE TABLE */}
               <Col lg={16} xs={24}>
-                <Card 
+                <Card
                   title={<div className="flex items-center gap-2"><Receipt size={18}/><span>Expense Particulars</span></div>}
-                  className="shadow-sm rounded-3xl overflow-hidden" 
+                  className="shadow-sm rounded-3xl overflow-hidden"
                   bodyStyle={{ padding: 0 }}
                 >
                   <Table
@@ -232,16 +236,16 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
                   </Card>
 
                   <Card className="shadow-sm rounded-3xl border-l-4 border-l-blue-600">
-                    <Statistic 
-                      title="Total Operations Cost (Net)" 
-                      value={reportData?.totalExpenses} 
-                      precision={2} 
-                      prefix="₹" 
+                    <Statistic
+                      title={reportData?.legacyFinalized ? 'Recorded net cost (legacy)' : 'Net food cost (water excluded)'}
+                      value={reportData?.foodExpenses ?? reportData?.totalExpenses}
+                      precision={2}
+                      prefix="₹"
                     />
                     <div className="mt-4 p-3 bg-blue-50 rounded-xl flex items-start gap-3">
                       <Info size={16} className="text-blue-600 mt-1 shrink-0" />
                       <Text className="text-blue-800 text-xs">
-                        This net amount is used to calculate the daily rate against {reportData?.totalManDays} man-days.
+                        {reportData?.legacyFinalized ? 'Recorded legacy rate and totals are preserved. Unavailable food/water and deduction breakdowns are not reconstructed.' : <>This food cost is divided by {reportData?.totalManDays} billable food days. Approved reductions: {reportData?.totalReductionDays ?? 0} days. Water ₹{Number(reportData?.waterTotal || 0).toFixed(2)} is charged separately without reduction.</>}
                       </Text>
                     </div>
                   </Card>

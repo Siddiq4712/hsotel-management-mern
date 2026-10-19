@@ -96,14 +96,14 @@ export const fetchStudentsFromERP = async ({
     // 4. Format students to match application schema across all departments
     const formattedStudents = filtered.map((s) => {
       const roll = String(s.registerNumber || s.roll_number || s.roll || '').trim();
-      const name = String(s.username || s.userName || s.name || '').trim();
-      const email = String(s.email || s.userMail || '').trim();
+      const name = String(s.studentName || s.username || s.userName || s.name || '').trim();
+      const email = String(s.email || s.userMail || s.personal_email || '').trim();
       const course = String(s.course || s.department || s.session || 'N/A').trim();
       const gender = String(s.gender || s.Gender || s.sex || s.student_gender || 'N/A').trim();
-      const studentId = s.id || s.userId || roll;
+      const studentId = s.studentId || s.id || s.userId || roll;
 
       const activeRoom = allotmentMap.get(String(studentId)) || allotmentMap.get(roll.toUpperCase()) || null;
-      const batchName = String(s.batch || s.batch_year || s.academic_year || s.academicYear || s.batchYear || s.session || course || '').trim();
+      const batchYear = s.batch ?? s.erp_batch_year ?? null;
 
       return {
         id: studentId,
@@ -116,8 +116,10 @@ export const fetchStudentsFromERP = async ({
         email: email,
         session: course,
         course: course,
-        batch: batchName,
-        batch_year: String(s.batch_year || s.batch || '').trim(),
+        batch: batchYear,
+        erp_batch_year: batchYear,
+        erp_student_id: s.studentId || s.id || null,
+        erp_user_id: s.Userid || null,
         enrollment_year: course,
         gender: gender,
         session_id: s.session_id || null,

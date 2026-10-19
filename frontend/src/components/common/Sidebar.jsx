@@ -1,34 +1,36 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Button, Drawer, Empty, Input, Menu } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   Home, Building, Users, UserPlus, Bed, Calendar, FileText, Settings,
   ChefHat, Receipt, Wifi, Wrench, DollarSign, CreditCard, Truck,
   ClipboardCheck, MessageCircle, AlertCircle, UserX, CalendarDays,
-  Package, Database, Coffee, ShoppingBag, List, BarChart2, Zap,
-  Clipboard, ChevronLeft, ChevronRight, Cake, Search, LogOut
+  Package, Database, Coffee, ShoppingBag, BarChart2, Zap,
+  Clipboard, Cake, Search, LogOut, Activity
 } from 'lucide-react';
 
 const MENU_STRUCTURE = {
   admin: [
-    { title: 'Main', items: [{ id: 'dashboard', label: 'Dashboard', icon: Home }] },
+    { title: 'Main', items: [{ id: 'dashboard', label: 'Dashboard', icon: Home }, { id: 'activity-logs', label: 'Activity Logs', icon: Activity }] },
     {
       title: 'Hostel Management',
       items: [
-        //{ id: 'hostels', label: 'Manage Hostels', icon: Building },
-        { id: 'create-hostel', label: 'Create Hostel', icon: Building },
+        { id: 'hostels', label: 'Manage Hostels', icon: Building },
 
         // ✅ UPDATED: Single room management entry
         { id: 'room-management', label: 'Manage Rooms', icon: Bed },
 
-        { id: 'days-reduc', label: 'Day Reductions', icon: FileText },
+        { id: 'days-reduc', label: 'Mess Reductions', icon: FileText },
       ]
     },
     {
       title: 'User Management',
       items: [
         { id: 'create-user', label: 'Create User', icon: UserPlus },
-        { id: 'sessions', label: 'Manage Sessions', icon: Calendar },
+        { id: 'staff-access', label: 'Staff Access Settings', icon: UserPlus },
+        { id: 'sessions', label: 'Manage Batches', icon: Calendar },
+        { id: 'monthly-attendance-import', label: 'Monthly Attendance Import', icon: ClipboardCheck },
         { id: 'outpass-logs', label: 'Outpass Logs', icon: FileText },
       ]
     },
@@ -45,6 +47,8 @@ const MENU_STRUCTURE = {
       items: [
         { id: 'income-types', label: 'Income Types', icon: DollarSign },
         { id: 'expense-types', label: 'Expense Types', icon: CreditCard },
+        { id: 'consumption', label: 'Record Additional Consumption', icon: ClipboardCheck },
+        { id: 'manage-inventories', label: 'Manage Inventories', icon: Database },
       ]
     },
     {
@@ -57,6 +61,11 @@ const MENU_STRUCTURE = {
 
   warden: [
     { title: 'Main', items: [{ id: 'dashboard', label: 'Dashboard', icon: Home }] },
+    { title: 'Menu Management', items: [
+      { id: 'menus', label: "Today's Menu", icon: ChefHat },
+      { id: 'weekly-menu', label: 'Weekly Plan', icon: Calendar },
+      { id: 'menu-settings', label: 'Menu Settings', icon: Settings },
+    ] },
     {
       title: 'Student Management',
       items: [
@@ -80,10 +89,10 @@ const MENU_STRUCTURE = {
     {
       title: 'Miscellaneous',
       items: [
-        { id: 'warden-day-red', label: 'Day Reduction List', icon: FileText },
+        { id: 'warden-day-red', label: 'Mess Reductions', icon: FileText },
         { id: 'complaints', label: 'Complaints', icon: MessageCircle },
         { id: 'holidays', label: 'Holidays', icon: CalendarDays },
-        { id: 'rebate', label: 'Rebates', icon: CreditCard },
+        { id: 'rebate', label: 'Legacy Rebates', icon: CreditCard },
       ]
     }
   ],
@@ -95,8 +104,7 @@ const MENU_STRUCTURE = {
       items: [
         { id: 'my-leaves', label: 'My Leaves', icon: FileText },
         { id: 'my-complaints', label: 'My Complaints', icon: AlertCircle },
-        { id: 'my-rebates', label: 'My Rebates', icon: CreditCard },
-        { id: 'day-reduction', label: 'Apply Day Reduction', icon: FileText },
+        { id: 'day-reduction', label: 'Mess Reductions', icon: FileText },
         { id: 'outpass', label: 'Gate Outpass', icon: Clipboard },
       ]
     },
@@ -116,10 +124,10 @@ const MENU_STRUCTURE = {
       ]
     },
     {
-      title: 'Special Food',
+      title: 'Additional Food',
       items: [
-        { id: 'food-order', label: 'Order Special Food', icon: Coffee },
-        { id: 'my-food-orders', label: 'My Food Orders', icon: ShoppingBag },
+        { id: 'food-order', label: 'Additional Food', icon: Coffee },
+        { id: 'my-food-orders', label: 'My Additional Food', icon: ShoppingBag },
       ]
     }
   ],
@@ -129,21 +137,19 @@ const MENU_STRUCTURE = {
     {
       title: 'Menu Management',
       items: [
-        { id: 'menus', label: 'Manage Menus', icon: ChefHat },
-        { id: 'create-menu', label: 'Create Menu', icon: ChefHat },
-        { id: 'recipe', label: 'Create Recipe', icon: Cake },
-        { id: 'menu-planner', label: 'Menu Planner', icon: Calendar },
-        { id: 'menu-schedule', label: 'Menu Schedule', icon: ClipboardCheck },
+        { id: 'menus', label: "Today's Menu", icon: ChefHat },
+        { id: 'weekly-menu', label: 'Weekly Plan', icon: Calendar },
+        { id: 'recipe', label: 'Recipes', icon: Cake },
+        { id: 'menu-settings', label: 'Menu Settings', icon: Settings },
       ]
     },
     {
       title: 'Inventory & Stock',
       items: [
+        { id: 'manage-inventories', label: 'Manage Inventories', icon: Database, adminOnly: true },
         { id: 'single-page-daily-entry', label: 'Single-Page Meal Entry', icon: Zap },
-        { id: 'items', label: 'Manage Items', icon: Coffee },
+        { id: 'inventory', label: 'Inventory Management', icon: Package },
         { id: 'uoms', label: 'Units of Measure', icon: Settings },
-        { id: 'stock', label: 'Stock Management', icon: Database },
-        { id: 'inventory', label: 'Inventory Logs', icon: Package },
         { id: 'record-consumption', label: 'Record Consumption', icon: Clipboard },
       ]
     },
@@ -153,20 +159,22 @@ const MENU_STRUCTURE = {
         { id: 'stores', label: 'Manage Stores', icon: Building },
         { id: 'purchase-orders', label: 'Purchase Orders', icon: Truck },
         { id: 'purchase-by-store', label: 'Purchase by Store', icon: Truck },
-        { id: 'item-store-mapping', label: 'Item-Store Mapping', icon: List },
+        // Item-store mapping is disabled; purchases use the item and store masters.
+        // { id: 'item-store-mapping', label: 'Item-Store Mapping', icon: List },
       ]
     },
     {
-      title: 'Special Food Orders',
+      title: 'Additional Food Orders',
       items: [
-        { id: 'special-food-items', label: 'Special Food Items', icon: Coffee },
-        { id: 'consumption', label: 'Record Special Consumption', icon: ClipboardCheck },
+        { id: 'special-food-items', label: 'Additional Food Items', icon: Coffee },
+        { id: 'consumption', label: 'Record Additional Consumption', icon: ClipboardCheck },
         { id: 'food-orders-dashboard', label: 'Orders Dashboard', icon: ShoppingBag },
       ]
     },
     {
       title: 'Reports & Analytics',
       items: [
+        { id: 'inventory-reports', label: 'Hostel / Inventory Reports', icon: BarChart2 },
         { id: 'consumption-report', label: 'Consumption Report', icon: BarChart2 },
         { id: 'Daily-expenses', label: 'Daily Expenses', icon: Receipt },
         { id: 'daily-rate-report', label: 'Daily Rate Calculation', icon: CreditCard },
@@ -184,138 +192,70 @@ const MENU_STRUCTURE = {
   ]
 };
 
-const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen, isCollapsed, setIsCollapsed }) => {
+
+const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen, isCollapsed, workspace }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const role = user?.role === 'admin' ? workspace || 'admin' : user?.role;
+
+  useEffect(() => { setSearchQuery(''); setIsOpen(false); }, [role, setIsOpen]);
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const closeOnDesktop = event => { if (event.matches) setIsOpen(false); };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => desktop.removeEventListener('change', closeOnDesktop);
+  }, [setIsOpen]);
 
   const filteredMenu = useMemo(() => {
-    const roleMenu = MENU_STRUCTURE[user?.role] || [];
-    if (!searchQuery) return roleMenu;
-    return roleMenu.map(section => ({
+    const query = searchQuery.trim().toLowerCase();
+    return (MENU_STRUCTURE[role] || []).map(section => ({
       ...section,
-      items: section.items.filter(item =>
-        item.label.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    })).filter(section => section.items.length > 0);
-  }, [user?.role, searchQuery]);
+      items: section.items.filter(item => (!item.adminOnly || user?.role === 'admin') && (!query || item.label.toLowerCase().includes(query))),
+    })).filter(section => section.items.length);
+  }, [role, searchQuery, user?.role]);
 
-  const handleMenuItemClick = (itemId) => {
-    setCurrentView(itemId);
-    navigate(`/${itemId}`);
-    if (window.innerWidth < 1024) setIsOpen(false);
+  const items = filteredMenu.map(section => ({
+    key: section.title, type: 'group', label: section.title,
+    children: section.items.map(({ id, label, icon: Icon }) => ({
+      key: id, label, title: label, icon: <Icon size={18} aria-hidden="true" />,
+    })),
+  }));
+
+  const selectItem = ({ key }) => {
+    setCurrentView(key);
+    navigate(`/${key}${user?.role === 'admin' ? `?workspace=${workspace || 'admin'}` : ''}`);
+    setIsOpen(false);
   };
 
-  return (
-    <>
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/60 z-30 lg:hidden backdrop-blur-sm transition-opacity duration-300"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
+  const navigation = (collapsed, mobile = false) => <>
+    <div className="workspace-sidebar-heading">
+      {collapsed ? <img className="workspace-sidebar-logo" src="/nec-logo.png" alt="National Engineering College logo" /> : <>
+        <span className="workspace-sidebar-eyebrow">Your workspace</span>
+        <strong>{role === 'mess' ? 'Mess & dining' : `${role || 'Hostel'} portal`}</strong>
+      </>}
+    </div>
+    {!collapsed && <div className="workspace-nav-search">
+      <Input allowClear prefix={<Search size={16} />} placeholder="Find a page…" aria-label="Search navigation" value={searchQuery} onChange={event => setSearchQuery(event.target.value)} />
+    </div>}
+    <nav aria-label={mobile ? 'Mobile workspace navigation' : 'Workspace navigation'} className="workspace-nav-scroll">
+      {items.length ? <Menu theme="light" mode="inline" inlineCollapsed={collapsed} selectedKeys={[currentView === 'create-hostel' ? 'hostels' : ['items', 'stock', 'inventory-transactions'].includes(currentView) ? 'inventory' : currentView]} items={items} onClick={selectItem} /> :
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No matching pages" />}
+    </nav>
+    <div className="workspace-sidebar-footer">
+      <Button type="text" block icon={<LogOut size={18} />} onClick={logout} aria-label="Sign out">{!collapsed && 'Sign out'}</Button>
+      {!collapsed && <span>National Engineering College</span>}
+    </div>
+  </>;
 
-      <aside
-        onMouseEnter={() => setIsCollapsed(false)}
-        onMouseLeave={() => setIsCollapsed(true)}
-        className={`fixed top-16 left-0 h-[calc(100vh-64px)] bg-slate-900 text-slate-300 transition-all duration-300 ease-in-out z-40 flex flex-col border-r border-slate-800 shadow-2xl
-          ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          ${isCollapsed ? 'lg:w-20' : 'lg:w-72 w-72'}
-        `}
-      >
-        {/* Search Bar Container */}
-        <div className={`p-4 transition-all duration-300 ${isCollapsed ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
-          <div className="relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-            <input 
-              type="text"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-            />
-          </div>
-        </div>
-
-        {/* Navigation Area */}
-        <nav className="flex-1 overflow-y-auto custom-scrollbar overflow-x-hidden py-4">
-          {filteredMenu.map((section, idx) => (
-            <div key={idx} className="mb-6">
-              <div className="px-6 mb-2 flex items-center h-4">
-                {isCollapsed ? (
-                  <div className="w-8 h-[1px] bg-slate-700 mx-auto" />
-                ) : (
-                  <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap animate-in fade-in duration-500">
-                    {section.title}
-                  </h3>
-                )}
-              </div>
-              
-              <div className="space-y-1 px-3">
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = currentView === item.id;
-                  
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleMenuItemClick(item.id)}
-                      className={`group relative w-full flex items-center h-12 rounded-xl transition-all duration-200 overflow-hidden ${
-                        isActive 
-                          ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' 
-                          : 'hover:bg-slate-800 hover:text-white'
-                      }`}
-                    >
-                      <div className="min-w-[56px] flex items-center justify-center shrink-0">
-                        <Icon size={22} className={`${isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'} transition-colors`} />
-                      </div>
-                      
-                      <span className={`text-[14px] font-medium whitespace-nowrap transition-all duration-300 ${
-                        isCollapsed ? 'opacity-0 translate-x-10 w-0' : 'opacity-100 translate-x-0 w-auto'
-                      }`}>
-                        {item.label}
-                      </span>
-
-                      {isCollapsed && (
-                        <div className="fixed left-20 px-3 py-2 bg-slate-800 text-white text-xs font-semibold rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all border border-slate-700 shadow-2xl z-[70] whitespace-nowrap">
-                          {item.label}
-                        </div>
-                      )}
-
-                      {isActive && isCollapsed && (
-                        <div className="absolute left-0 w-1 h-6 bg-white rounded-r-full" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
-
-        {/* Logout Section */}
-        <div className="p-3 border-t border-slate-800 bg-slate-900/80">
-          <button 
-            onClick={logout}
-            className="w-full flex items-center h-12 rounded-xl transition-all text-rose-400 hover:bg-rose-500/10 group overflow-hidden"
-          >
-            <div className="min-w-[56px] flex items-center justify-center shrink-0">
-              <LogOut size={20} />
-            </div>
-            <span className={`font-bold text-sm transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
-              Sign Out
-            </span>
-          </button>
-        </div>
-      </aside>
-
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-      `}</style>
-    </>
-  );
+  return <>
+    <aside id="workspace-desktop-navigation" className={`workspace-sidebar ${isCollapsed ? 'is-collapsed' : ''}`}>
+      {navigation(isCollapsed)}
+    </aside>
+    <Drawer title="Hostel Management" placement="left" size={304} open={isOpen} onClose={() => setIsOpen(false)} rootClassName="workspace-navigation-drawer" styles={{ body: { padding: 0, background: '#ffffff', display: 'flex', flexDirection: 'column' } }}>
+      <div id="workspace-mobile-navigation" className="workspace-mobile-navigation">{navigation(false, true)}</div>
+    </Drawer>
+  </>;
 };
 
 export default Sidebar;

@@ -1,8 +1,9 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  Card, Form, Select, DatePicker, Button, Typography, Row, Col, 
-  Space, Divider, Table, Tag, Modal, Input, ConfigProvider, 
-  theme, Skeleton, Badge, Tooltip, Empty, message 
+import {
+  Card, Form, Select, Button, Typography, Row, Col,
+  Space, Divider, Table, Tag, Modal, Input, ConfigProvider,
+  theme, Skeleton, Badge, Tooltip, Empty, message
 } from 'antd';
 import { 
   Calendar, FileText, Send, RefreshCw, Filter, 
@@ -182,10 +183,10 @@ const LeaveManagement = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+      <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="module-page-header flex justify-between items-center">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
               <Calendar className="text-white" size={24} />

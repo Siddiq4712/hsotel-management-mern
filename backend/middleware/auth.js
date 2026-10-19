@@ -1,5 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { User, Role } from '../models/index.js'; // Ensure the .js extension
+import { canAccessRole } from '../utils/workspacePermissions.js';
+import { withActivityRequest } from '../services/activityContext.js';
+import { withNotificationRequest } from '../services/notificationContext.js';
 
 const normalizeRole = (role) => {
   if (role === null || role === undefined) return null;
@@ -58,10 +61,10 @@ export const auth = async (req, res, next) => {
     req.user = {
       ...user.toJSON(),
       role: resolvedRole,
-      hostel_id: user.hostel_id ?? decoded.hostelId ?? null
+      hostel_id: user.hostel_id ?? null
     };
 
-    next();
+    return withNotificationRequest(req, () => withActivityRequest(req, res, next));
   } catch (error) {
     console.error('Auth middleware error:', error.message);
     res.status(401).json({ message: 'Token is not valid' });
@@ -73,7 +76,7 @@ export const authorize = (roles) => {
     console.log('Authorize middleware - Required roles:', roles);
     console.log('Authorize middleware - User role:', req.user?.role);
 
-    if (!req.user || !roles.includes(req.user.role)) {
+    if (!req.user || !canAccessRole(req.user.role, roles)) {
       return res.status(403).json({
         message: 'Access denied',
         required: roles,

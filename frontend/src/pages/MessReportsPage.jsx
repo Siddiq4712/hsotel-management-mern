@@ -1,5 +1,8 @@
+import { requestReportFormat } from '../services/reportFormat';
+import { requestPrint } from '../utils/reportExport';
+import { DatePicker } from '../components/common/MomentPickers';
 import React, { useState } from 'react';
-import { Card, Tabs, DatePicker, Button, Select, Form, Row, Col, Spin, Empty, message, Divider } from 'antd';
+import { Card, Tabs, Button, Select, Form, Row, Col, Spin, Empty, message, Divider } from 'antd';
 import { DownloadOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Printer } from "lucide-react";
 import moment from 'moment';
@@ -132,10 +135,11 @@ const MessReportsPage = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    requestPrint();
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
+    if (!await requestReportFormat({ title: 'Choose report format', formats: ['csv'] })) return;
     if (!reportData) return;
     
     let csvContent = 'data:text/csv;charset=utf-8,';

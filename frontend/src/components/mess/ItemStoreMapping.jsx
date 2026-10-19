@@ -1,3 +1,4 @@
+import { exportWorkbook } from '../../utils/reportExport';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Card, Table, Button, Space, Select, InputNumber, message, Modal,
@@ -87,7 +88,7 @@ const ItemStoreMapping = () => {
     );
   }, [itemStores, searchText]);
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (filteredMappings.length === 0) return message.warning('No data to export.');
     const exportData = filteredMappings.map(mapping => ({
       'Item Name': mapping.Item?.name || 'N/A',
@@ -98,7 +99,8 @@ const ItemStoreMapping = () => {
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Mappings');
-    XLSX.writeFile(workbook, `Filtered_Mappings_${new Date().toLocaleDateString()}.xlsx`);
+    const exported = await exportWorkbook(workbook, `Filtered_Mappings_${new Date().toLocaleDateString()}.xlsx`);
+    if (!exported) return;
   };
 
   const handleSubmit = async (values) => {
@@ -167,10 +169,10 @@ const ItemStoreMapping = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header Section */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="module-page-header flex justify-between items-center mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
               <Link className="text-white" size={24} />

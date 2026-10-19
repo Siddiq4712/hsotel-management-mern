@@ -131,7 +131,7 @@ const RoomAllotment = () => {
 
   if (dataLoading) {
     return (
-      <div className="p-8 space-y-8 bg-slate-50 min-h-screen">
+      <div className="module-page p-8 space-y-6 bg-slate-50 min-h-screen">
         <Row gutter={24}>
           <Col lg={16} xs={24}><FormSkeleton /></Col>
           <Col lg={8} xs={24}><SidebarSkeleton /></Col>
@@ -142,10 +142,10 @@ const RoomAllotment = () => {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen space-y-8">
+      <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Institutional Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="module-page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
               <Building className="text-white" size={24} />

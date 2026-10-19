@@ -1,0 +1,118 @@
+// Uses temporary fixture rows in one rolled-back MySQL transaction. Sends no email.
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { sequelize, initAssociations, Role, User, Hostel, Session, Enrollment, Holiday, Attendance, DayReductionRequest, ReductionDay, MessBill, ExpenseType, MessDailyExpense, MessBillingSnapshot } from '../models/index.js';
+import { submitReduction, listReductions, decideReduction, reviseReduction, reductionDocument } from '../controllers/reductionController.js';
+import { markAttendance, getAttendance, getAttendanceRoster } from '../controllers/attendanceController.js';
+import { getBillingDays } from '../services/billingDays.js';
+import { buildMonthlyMessReport } from '../services/monthlyMessReport.js';
+import { studentMessCharges } from '../services/studentMessCharges.js';
+
+initAssociations();
+const transactionMethod = sequelize.transaction.bind(sequelize);
+const transaction = await transactionMethod();
+sequelize.addHook('beforeFind', 'reductionFixture', options => { options.transaction ||= transaction; });
+sequelize.addHook('beforeCount', 'reductionFixture', options => { options.transaction ||= transaction; });
+const documentKeys = new Set();
+const documentRoot = fileURLToPath(new URL('../private/reductions/', import.meta.url));
+// Controllers use a savepoint inside the enclosing fixture transaction.
+sequelize.transaction = callback => transactionMethod({ transaction }, callback);
+async function invoke(handler, user, input = {}) {
+  const response = { code: 200, status(value) { this.code = value; return this; }, json(value) { this.body = value; return this; },
+    setHeader() {}, send(value) { this.body = value; return this; } };
+  await handler({ user, body: {}, query: {}, params: {}, ...input }, response);
+  return response;
+}
+const file = () => ({originalname:'test-prescription.pdf',mimetype:'application/pdf',buffer:Buffer.from('%PDF-1.4\nTest fixture, not a real medical document\n%%EOF')});
+const fields = (category, from_date, to_date) => ({category,from_date,to_date,reason:'Temporary integration test request'});
+try {
+  const tag = crypto.randomUUID();
+  const role = await Role.create({roleName:`Test-${tag}`},{transaction});
+  const hostel = await Hostel.create({name:`Reduction test ${tag}`,capacity:5},{transaction});
+  const other = await Hostel.create({name:`Other test ${tag}`,capacity:5},{transaction});
+  const student = await User.create({userName:'Reduction test student',userMail:`${tag}@invalid.test`,password:'test-only',roleId:role.roleId,hostel_id:hostel.id,roll_number:`TEST-${tag}`},{transaction});
+  const peer = await User.create({userName:'Reduction test peer',userMail:`peer-${tag}@invalid.test`,password:'test-only',roleId:role.roleId,hostel_id:hostel.id,roll_number:`PEER-${tag}`},{transaction});
+  const session = await Session.create({name:`Test ${tag}`,start_date:'2028-01-01',end_date:'2028-12-31'},{transaction});
+  await Enrollment.create({student_id:student.userId,hostel_id:hostel.id,session_id:session.id,college:'nec'},{transaction});
+  await Enrollment.create({student_id:peer.userId,hostel_id:hostel.id,session_id:session.id,college:'lapc'},{transaction});
+  await Holiday.create({hostel_id:hostel.id,name:'Test closure',date:'2028-10-05'},{transaction});
+  const foodType=await ExpenseType.create({name:`Test food ${tag}`},{transaction});
+  const waterType=await ExpenseType.create({name:`Test water ${tag}`},{transaction});
+  await MessDailyExpense.create({hostel_id:hostel.id,expense_type_id:foodType.id,amount:5600,expense_date:'2028-10-01',recorded_by:student.userId},{transaction});
+  const waterEntry=await MessDailyExpense.create({hostel_id:hostel.id,expense_type_id:waterType.id,amount:600,expense_date:'2028-10-01',recorded_by:student.userId},{transaction});
+  const owner={...student.get({plain:true}),role:'student'};
+  const admin={userId:student.userId,role:'admin',hostel_id:other.id};
+  const warden={userId:student.userId,role:'warden',hostel_id:hostel.id};
+  const wrongWarden={...warden,hostel_id:other.id};
+  assert.equal((await invoke(getAttendanceRoster,warden)).body.data.length,2);
+  const missing=await invoke(submitReduction,owner,{body:fields('medical','2028-10-03','2028-10-05')});
+  assert.equal(missing.code,400);
+  const marked = await invoke(markAttendance,warden,{body:{student_id:student.userId,date:'2028-10-03',status:'P'}});
+  assert.equal(marked.code,200,JSON.stringify(marked.body));
+  assert.equal((await invoke(markAttendance,warden,{body:{student_id:student.userId,date:'2028-10-10',status:'A'}})).code,200);
+  assert.equal((await getBillingDays(hostel.id,10,2028,transaction)).byStudent.get(String(student.userId)).billableDays,30);
+  const submitted=await invoke(submitReduction,owner,{body:fields('medical','2028-10-03','2028-10-05'),file:file()});
+  assert.equal(submitted.code,201,JSON.stringify(submitted.body));
+  const id=submitted.body.data.id;
+  documentKeys.add((await DayReductionRequest.findByPk(id,{transaction})).document.key);
+  assert.equal((await invoke(listReductions,warden)).body.data.length,1);
+  assert.equal((await invoke(listReductions,wrongWarden)).body.data.length,0);
+  assert.equal((await invoke(decideReduction,wrongWarden,{params:{id},body:{action:'approve'}})).code,403);
+  assert.equal((await invoke(reductionDocument,wrongWarden,{params:{id}})).code,404);
+  assert.equal((await invoke(reductionDocument,owner,{params:{id}})).code,200);
+  const approved=await invoke(decideReduction,admin,{params:{id},body:{action:'approve'}});
+  assert.equal(approved.code,200,JSON.stringify(approved.body));
+  assert.equal((await invoke(decideReduction,warden,{params:{id},body:{action:'approve'}})).code,409);
+  assert.equal(await Attendance.count({where:{reduction_request_id:id,status:'A'},transaction}),3);
+  assert.equal(await ReductionDay.count({where:{request_id:id,active:true},transaction}),3);
+  let days=(await getBillingDays(hostel.id,10,2028,transaction)).byStudent.get(String(student.userId));
+  assert.equal(days.baseDays,30);assert.equal(days.approvedReductionDays,2);assert.equal(days.billableDays,28);
+  assert.equal((await invoke(markAttendance,warden,{body:{student_id:student.userId,date:'2028-10-03',status:'P'}})).code,409);
+  const overlap=await invoke(submitReduction,owner,{body:fields('internship','2028-10-04','2028-10-06'),file:file()});
+  assert.equal(overlap.code,409);
+  const internship=await invoke(submitReduction,owner,{body:fields('internship','2028-10-06','2028-10-07'),file:file()});
+  assert.equal(internship.code,201);const second=internship.body.data.id;
+  documentKeys.add((await DayReductionRequest.findByPk(second,{transaction})).document.key);
+  assert.equal((await invoke(decideReduction,warden,{params:{id:second},body:{action:'return',remarks:'Please correct the reason'}})).code,200);
+  assert.equal((await invoke(reviseReduction,owner,{params:{id:second},body:fields('internship','2028-10-06','2028-10-07')})).code,200);
+  assert.equal((await invoke(decideReduction,warden,{params:{id:second},body:{action:'approve'}})).code,200);
+  assert.equal(await Attendance.count({where:{reduction_request_id:second,status:'OD'},transaction}),2);
+  assert.equal((await getBillingDays(hostel.id,10,2028,transaction)).totalManDays,56);
+  const report=await buildMonthlyMessReport(hostel.id,10,2028,null,transaction);
+  const ownReport=report.data.find(row=>String(row.studentId)===String(student.userId));
+  assert.equal(ownReport.messDays,26);assert.equal(ownReport.approvedReductionDays,4);
+  assert.equal(ownReport.messAmount,2600);assert.equal(ownReport.waterCharges,300);assert.equal(ownReport.finalAmount,2900);
+  const charges=await studentMessCharges(owner,10,2028);
+  assert.equal(charges.monthlySummary.studentTotalManDaysForMonth,26);
+  assert.equal(charges.dailyCharges.find(row=>row.date==='2028-10-10').baseMessCharge,100);
+  assert.equal(charges.dailyCharges.find(row=>row.date==='2028-10-03').baseMessCharge,0);
+  assert.equal(charges.dailyCharges.find(row=>row.date==='2028-10-05').baseMessCharge,0);
+  assert.equal(charges.monthlySummary.flatFees.find(row=>row.fee_type==='water_bill').amount,300);
+  const list=await invoke(getAttendance,warden,{query:{view:'monthly',month:10,year:2028}});
+  assert.equal(list.code,200);assert.equal(list.body.data.filter(a=>a.reduction_request_id).length,5);
+  assert.equal((await invoke(decideReduction,admin,{params:{id},body:{action:'cancel',remarks:'Correcting the test request'}})).code,200);
+  assert.equal((await Attendance.findOne({where:{student_id:student.userId,date:'2028-10-03'},transaction})).status,'P');
+  assert.equal(await Attendance.count({where:{student_id:student.userId,date:'2028-10-04'},transaction}),0);
+  assert.equal((await getBillingDays(hostel.id,10,2028,transaction)).totalManDays,58);
+  const freeze=await buildMonthlyMessReport(hostel.id,10,2028,null,transaction);
+  await MessBillingSnapshot.create({hostel_id:hostel.id,month:10,year:2028,payload:{data:freeze.data,summary:freeze.summary,
+    calculation:{...freeze.calculation,billing:{...freeze.calculation.billing,byStudent:[...freeze.calculation.billing.byStudent]}}}},{transaction});
+  await waterEntry.update({amount:9999},{transaction});
+  assert.equal((await buildMonthlyMessReport(hostel.id,10,2028,null,transaction)).data.find(row=>String(row.studentId)===String(student.userId)).waterCharges,300);
+  await MessBill.create({student_id:student.userId,hostel_id:hostel.id,month:10,year:2028,amount:100,status:'pending',due_date:'2028-11-10'},{transaction});
+  assert.equal((await invoke(decideReduction,admin,{params:{id:second},body:{action:'cancel',remarks:'Cannot alter billed history'}})).code,409);
+  await MessBill.create({student_id:student.userId,hostel_id:hostel.id,month:9,year:2028,amount:1234,status:'paid',due_date:'2028-10-10'},{transaction});
+  const legacy=await buildMonthlyMessReport(hostel.id,9,2028,null,transaction);
+  assert.equal(legacy.legacyFinalized,true);assert.equal(legacy.data[0].finalAmount,1234);assert.equal(legacy.data[0].breakdownUnavailable,true);
+  assert.equal((await studentMessCharges(owner,9,2028)).monthlySummary.historicalFinalAmount,1234);
+  console.log('PASS: required evidence; hostel permissions; both approval authorities; inclusive A/OD dates; approval-only food billing; unchanged water; holiday exclusion; duplicate/overlap protection; return/resubmission; attendance lock; cancellation restoration; billed-period protection; matching student/report amounts; frozen billing snapshots.');
+} finally {
+  for (const row of await DayReductionRequest.findAll({where:{workflow_version:2},transaction}).catch(()=>[])) if (documentKeys.has(row.document?.key)) await fs.unlink(documentRoot+row.document.key).catch(()=>{});
+  sequelize.transaction=transactionMethod;
+  sequelize.removeHook('beforeFind', 'reductionFixture');
+  sequelize.removeHook('beforeCount', 'reductionFixture');
+  await transaction.rollback();
+  await sequelize.close();
+}

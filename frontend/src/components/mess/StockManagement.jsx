@@ -1,7 +1,8 @@
+import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Table, Button, Select, message, Space, Typography, Tag,
-  Switch, Modal, Form, InputNumber, DatePicker, ConfigProvider, 
+  Switch, Modal, Form, InputNumber, ConfigProvider,
   theme, Input, Badge, Tooltip, Row, Col
 } from 'antd';
 import { 
@@ -12,6 +13,7 @@ import { messAPI } from '../../services/api';
 import * as XLSX from 'xlsx';
 import { downloadStockBulkImportTemplate, validateStockExcelImportHeaders, mapExcelRowToStock } from '../../utils/bulkImportUtils';
 import moment from 'moment';
+import InventoryPageHeader, { inventoryTheme } from './InventoryPageHeader';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -227,11 +229,11 @@ const StockManagement = () => {
       },
     },
     {
-      title: 'Market Value (Avg)',
+      title: 'Weighted Unit Rate',
       dataIndex: 'price',
       key: 'price',
       sorter: (a, b) => a.price - b.price,
-      render: (p) => <Text className="font-mono text-indigo-600 font-semibold">₹{parseFloat(p).toFixed(2)}</Text>
+      render: (p) => <Text className="text-blue-600 font-semibold">₹{parseFloat(p).toFixed(2)}</Text>
     },
     {
       title: 'Stock Status',
@@ -251,24 +253,13 @@ const StockManagement = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ 
-      token: { colorPrimary: '#4f46e5', borderRadius: 12 },
-      components: { Table: { headerBg: '#f8fafc', headerColor: '#64748b' } }
-    }}>
-      <div className="p-8 bg-white min-h-screen">
+    <ConfigProvider theme={inventoryTheme}>
+      <div className="module-page">
         
         {/* Page Header */}
-        <div className="flex justify-between items-end mb-8">
-          <div>
-            <div className="flex items-center gap-2 text-indigo-600 mb-1">
-              <Warehouse size={20} />
-              <span className="font-bold tracking-widest text-[10px] uppercase">Inventory System</span>
-            </div>
-            <Title level={2} style={{ margin: 0, fontWeight: 800 }}>Stock Management</Title>
-          </div>
-          <Space size="middle">
+        <InventoryPageHeader title="Current Stock" description="View balances, record stock, and import inventory quantities.">
             <input ref={stockImportRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleStockImportChange} />
-            <Button icon={<RefreshCw size={16} />} onClick={fetchStocks} className="rounded-xl h-10">Sync</Button>
+            <Button icon={<RefreshCw size={16} />} onClick={fetchStocks} className="rounded-xl h-10">Refresh</Button>
             <Button icon={<Download size={16} />} onClick={() => setIsUnitRateModalVisible(true)} className="rounded-xl h-10">Reports</Button>
             <Button icon={<UploadCloud size={16} />} onClick={triggerStockImport} loading={importingStock} className="rounded-xl h-10">
               {importingStock ? 'Importing...' : 'Import Excel'}
@@ -284,16 +275,14 @@ const StockManagement = () => {
             >
               Add New Stock
             </Button>
-          </Space>
-        </div>
+        </InventoryPageHeader>
 
         {/* Toolbar: Search & Toggle */}
-        <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+        <div className="inventory-panel inventory-toolbar">
           <Input 
             prefix={<Search size={18} className="text-slate-400 mr-2" />} 
             placeholder="Quick search material or category..." 
-            variant="borderless"
-            className="max-w-md bg-white h-11 rounded-xl shadow-sm border border-slate-200"
+            className="inventory-search"
             onChange={e => setSearchQuery(e.target.value)}
             allowClear
           />
@@ -311,17 +300,9 @@ const StockManagement = () => {
           dataSource={filteredData}
           columns={columns}
           loading={loading}
-          pagination={{ 
-            pageSize: 10, 
-            showSizeChanger: true,
-            className: "pt-6",
-            itemRender: (page, type, originalElement) => {
-                if (type === 'prev') return <Button type="text" size="small">Prev</Button>;
-                if (type === 'next') return <Button type="text" size="small">Next</Button>;
-                return originalElement;
-            }
-          }}
-          className="stock-table border border-slate-100 rounded-2xl overflow-hidden shadow-sm"
+          pagination={{ defaultPageSize: 10, showSizeChanger: true }}
+          className="inventory-panel inventory-table"
+          scroll={{ x: 760 }}
         />
 
         {/* Modal: Add Stock */}
@@ -362,13 +343,18 @@ const StockManagement = () => {
           okText="Download Excel"
         >
           <Form form={unitRateForm} layout="vertical" onFinish={async (v) => {
+             try {
              const res = await messAPI.exportUnitRateCalculation({ month: v.date.month()+1, year: v.date.year() });
              const url = window.URL.createObjectURL(new Blob([res.data]));
              const link = document.createElement('a');
              link.href = url;
              link.setAttribute('download', 'Stock_Report.xlsx');
              link.click();
+             window.URL.revokeObjectURL(url);
              setIsUnitRateModalVisible(false);
+             } catch (error) {
+               if (error.code !== 'ERR_CANCELED') message.error('Unable to export the stock report.');
+             }
           }} className="mt-4">
             <Form.Item name="date" label="Reporting Month" initialValue={moment()} rules={[{required: true}]}>
                <DatePicker picker="month" className="w-full h-11" />

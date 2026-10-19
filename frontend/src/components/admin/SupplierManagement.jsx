@@ -179,7 +179,7 @@ const SupplierManagement = () => {
 
   return (
     <div>
-      <div className="mb-8 flex justify-between items-start">
+      <div className="module-page-header mb-8 flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Supplier Management</h1>
           <p className="text-gray-600 mt-2">Manage your suppliers and vendor information</p>

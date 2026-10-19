@@ -1,5 +1,9 @@
 import express from 'express';
+import { createScopedExpense, listScopedExpenses, getScopedExpense, updateScopedExpense, deleteScopedExpense } from '../controllers/inventoryExpenseController.js';
+import { receivePurchaseOrder, listReceivedPurchaseOrders } from '../controllers/receivedPurchaseOrderController.js';
+import { installAdminWorkspace } from '../middleware/adminWorkspace.js';
 import { body } from 'express-validator';
+import { getAdditionalFoodStudentReport } from '../controllers/additionalFoodReportController.js';
 import rateLimit from 'express-rate-limit';
 import {
   // Menu Management
@@ -78,6 +82,7 @@ import {
   getSpecialFoodItems,
   getSpecialFoodItemById,
   updateSpecialFoodItem,
+  updateSpecialFoodAvailability,
   deleteSpecialFoodItem,
 
   // Food Orders
@@ -166,6 +171,7 @@ import {
 import { auth, authorize } from '../middleware/auth.js'; // Added .js extension
 
 const router = express.Router();
+installAdminWorkspace(router, 'mess');
 
 // Rate limiting for sensitive endpoints
 const createOrderLimiter = rateLimit({
@@ -311,6 +317,7 @@ router.post('/special-food-items', authorize(['mess', 'admin']), validateSpecial
 router.get('/special-food-items', authorize(['mess', 'warden', 'admin', 'student']), getSpecialFoodItems);
 router.get('/special-food-items/:id', authorize(['mess', 'warden', 'admin', 'student']), getSpecialFoodItemById);
 router.put('/special-food-items/:id', authorize(['mess', 'admin']), validateSpecialFoodItem, updateSpecialFoodItem);
+router.patch('/special-food-items/:id/availability', authorize(['mess', 'admin']), updateSpecialFoodAvailability);
 router.delete('/special-food-items/:id', authorize(['mess', 'admin', 'warden']), deleteSpecialFoodItem);
 
 router.post('/food-orders', authorize(['student', 'mess', 'admin']), createOrderLimiter, validateFoodOrder, createFoodOrder);
@@ -321,6 +328,7 @@ router.put('/food-orders/:id/payment', authorize(['mess', 'admin']), updatePayme
 router.put('/food-orders/:id/cancel', authorize(['mess', 'admin', 'student']), cancelFoodOrder);
 
 /* ---------- REPORTS ---------- */
+router.get('/reports/additional-food-students', authorize(['mess', 'warden', 'admin']), getAdditionalFoodStudentReport);
 router.get('/reports/monthly-food-orders', authorize(['mess', 'warden', 'admin']), getMonthlyFoodOrderReport);
 router.get('/reports/consumption-summary', authorize(['mess', 'warden', 'admin']), getSummarizedConsumptionReport);
 router.get('/reports/latest-purchase', authorize(['mess', 'admin']), getLatestPurchaseReport);
@@ -332,11 +340,11 @@ router.get('/reports/daily-rate-calculation', authorize(['mess', 'admin']), gene
 router.get('/stock/export-unit-rate', authorize(['mess', 'admin']), exportUnitRateCalculation);
 
 /* ---------- DAILY EXPENSES ---------- */
-router.post('/daily-expenses', authorize(['mess', 'admin']), createMessDailyExpense);
-router.get('/daily-expenses', authorize(['mess', 'admin']), getMessDailyExpenses);
-router.get('/daily-expenses/:id', authorize(['mess', 'admin']), getMessDailyExpenseById);
-router.put('/daily-expenses/:id', authorize(['mess', 'admin']), updateMessDailyExpense);
-router.delete('/daily-expenses/:id', authorize(['mess', 'admin']), deleteMessDailyExpense);
+router.post('/daily-expenses', authorize(['mess', 'admin']), createScopedExpense);
+router.get('/daily-expenses', authorize(['mess', 'admin']), listScopedExpenses);
+router.get('/daily-expenses/:id', authorize(['mess', 'admin']), getScopedExpense);
+router.put('/daily-expenses/:id', authorize(['mess', 'admin']), updateScopedExpense);
+router.delete('/daily-expenses/:id', authorize(['mess', 'admin']), deleteScopedExpense);
 
 router.post('/expenses-types', authorize(['mess', 'admin']), createExpenseType);
 router.get('/expenses-types', authorize(['mess', 'admin']), getExpenseTypes);
@@ -375,6 +383,8 @@ router.get('/sessions', authorize(['mess', 'warden', 'admin']), getSessions);
 router.get('/students', authorize(['mess', 'admin']), getStudents);
 router.post('/student-special-consumption-staff', authorize(['mess', 'admin']), recordStaffRecordedSpecialFoodConsumption);
 router.get('/purchase-orders', authorize(['mess', 'admin']), getPurchaseOrders);
+router.get('/purchase-orders/received', authorize(['mess', 'admin']), listReceivedPurchaseOrders);
+router.post('/purchase-orders/receive', authorize(['mess', 'admin']), receivePurchaseOrder);
 router.put('/purchase-orders/clear', authorize(['mess', 'admin']), clearPurchaseOrders);
 
 /* ---------- RECIPES ---------- */
