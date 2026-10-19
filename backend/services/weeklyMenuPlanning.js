@@ -33,7 +33,7 @@ async function audit(req, hostel_id, action, reason, details, transaction) {
 }
 async function mutate(req, action, work) {
   const hostel_id = await planningHostel(req);
-  return sequelize.transaction(async transaction => {
+  return sequelize.transaction({ isolationLevel: 'READ COMMITTED' }, async transaction => {
     // All planning writes for one hostel share this lock, including consumption confirmation.
     const settings = await settingsFor(hostel_id, transaction, true);
     if (!canEdit(settings.configuration, req.user.role, action)) fail('You do not have permission for this menu action', 403);

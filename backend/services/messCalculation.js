@@ -1,9 +1,11 @@
 import { Op } from 'sequelize';
 import { DailyConsumption, MessDailyExpense, ExpenseType, AdditionalIncome, IncomeType, FoodOrder, MessBillingSnapshot, MessBill, DailyRateLog } from '../models/index.js';
 import { getBillingDays, billingMonth } from './billingDays.js';
+import { hostelPolicy } from './inventoryBilling.js';
+import { sharedHistoricalCalculation } from './sharedHistoricalBilling.js';
 
 // Every open-month report, rate, and bill uses these exact costs and approval-backed days.
-export async function getMessCalculation(hostelId, month, year, transaction) {
+async function getHostelCalculation(hostelId, month, year, transaction) {
   const period = billingMonth(month, year);
   const snapshot = await MessBillingSnapshot.findOne({where:{hostel_id:hostelId,month,year},transaction});
   if (snapshot) {
@@ -49,6 +51,48 @@ export async function getMessCalculation(hostelId, month, year, transaction) {
     totalManDays: billing.totalManDays, dailyRate, waterTotal, waterRate: billing.totalBaseDays > 0 ? waterTotal / billing.totalBaseDays : 0,
     totalBaseDays: billing.totalBaseDays, totalReductionDays: billing.totalReductionDays,
     studentManDaysMap: Object.fromEntries([...billing.byStudent].map(([id, row]) => [id, row.billableDays])) };
+}
+
+export async function getMessCalculation(hostelId, month, year, transaction) {
+  const policy = await hostelPolicy(hostelId, billingMonth(month, year).start, transaction);
+  const historical = await sharedHistoricalCalculation(policy, hostelId, month, year, transaction);
+  if (historical) return historical;
+  const own = await getHostelCalculation(hostelId, month, year, transaction);
+  if (own.finalized || own.legacyFinalized) return own;
+  if (policy.mode !== 'shared') return { ...own, billingMode: 'hostel' };
+  const members = await Promise.all(policy.hostel_ids.map(id => id === Number(hostelId) ? own : getHostelCalculation(id, month, year, transaction)));
+  if (members.some(member => member.legacyFinalized || member.finalized)) throw Object.assign(new Error('This shared period has inconsistent finalized records. Preserve the existing bills and review the group.'), { status: 409 });
+  const studentDays = new Set();
+  for (const member of members) for (const [student, days] of member.billing.byStudent) for (const date of days.billableDates || []) {
+    const key = `${student}:${date}`;
+    if (studentDays.has(key)) throw Object.assign(new Error('A student has overlapping billable days in multiple linked hostels. Resolve the active enrollments before calculating a shared rate.'), { status: 409 });
+    studentDays.add(key);
+  }
+  const range = { [Op.between]: [own.billing.start, own.billing.end] };
+  const [poolCost, poolExpenses] = await Promise.all([
+    DailyConsumption.sum('total_cost', { where: { inventory_id: policy.inventory_id, hostel_id: null, consumption_date: range }, transaction }),
+    MessDailyExpense.findAll({ where: { inventory_id: policy.inventory_id, hostel_id: null, expense_date: range }, include: [{ model: ExpenseType, as: 'ExpenseType' }], transaction }),
+  ]);
+  const grouped = new Map();
+  for (const member of members) for (const expense of member.expenses) grouped.set(expense.name, (grouped.get(expense.name) || 0) + expense.amount);
+  grouped.set('Rice & Grocery', (grouped.get('Rice & Grocery') || 0) + Number(poolCost || 0));
+  for (const row of poolExpenses) grouped.set(row.ExpenseType?.name || 'Other expenses', (grouped.get(row.ExpenseType?.name || 'Other expenses') || 0) + Number(row.amount));
+  const expenses = [...grouped].map(([name, amount]) => ({ name, amount }));
+  const waterTotal = expenses.filter(row => /water/i.test(row.name)).reduce((sum, row) => sum + row.amount, 0);
+  const poolWater = poolExpenses.filter(row => /water/i.test(row.ExpenseType?.name || '')).reduce((sum, row) => sum + Number(row.amount), 0);
+  const totalManDays = members.reduce((sum, member) => sum + member.billing.totalManDays, 0);
+  const totalBaseDays = members.reduce((sum, member) => sum + member.billing.totalBaseDays, 0);
+  const deductions = Object.fromEntries(Object.keys(own.deductions).map(key => [key, { amount: members.reduce((sum, member) => sum + Number(member.deductions[key]?.amount || 0), 0) }]));
+  const totalDeductions = Object.values(deductions).reduce((sum, row) => sum + row.amount, 0);
+  const subTotal = expenses.reduce((sum, row) => sum + row.amount, 0);
+  const totalExpenses = Math.max(0, subTotal - totalDeductions);
+  const foodExpenses = Math.max(0, totalExpenses - waterTotal);
+  return { ...own, expenses, deductions, subTotal, totalDeductions, totalExpenses, foodExpenses, totalManDays,
+    dailyRate: totalManDays > 0 ? foodExpenses / totalManDays : 0, billingMode: 'shared', inventoryId: policy.inventory_id,
+    // Hostel-specific water fees remain separate; only common water is spread over the group.
+    waterRate: own.waterRate + (totalBaseDays ? poolWater / totalBaseDays : 0),
+    sharedSummary: { inventoryId: policy.inventory_id, hostelIds: policy.hostel_ids, totalManDays, totalBaseDays, grossExpenses: subTotal, deductions: totalDeductions,
+      foodExpenses, waterTotal, dailyRate: totalManDays > 0 ? foodExpenses / totalManDays : 0 } };
 }
 
 export function studentWaterCharge(calculation, days, fees = []) {

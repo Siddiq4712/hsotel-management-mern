@@ -1,4 +1,5 @@
 import express from 'express';
+import { createScopedExpense, listScopedExpenses, getScopedExpense, updateScopedExpense, deleteScopedExpense } from '../controllers/inventoryExpenseController.js';
 import { receivePurchaseOrder, listReceivedPurchaseOrders } from '../controllers/receivedPurchaseOrderController.js';
 import { installAdminWorkspace } from '../middleware/adminWorkspace.js';
 import { body } from 'express-validator';
@@ -335,11 +336,11 @@ router.get('/reports/daily-rate-calculation', authorize(['mess', 'admin']), gene
 router.get('/stock/export-unit-rate', authorize(['mess', 'admin']), exportUnitRateCalculation);
 
 /* ---------- DAILY EXPENSES ---------- */
-router.post('/daily-expenses', authorize(['mess', 'admin']), createMessDailyExpense);
-router.get('/daily-expenses', authorize(['mess', 'admin']), getMessDailyExpenses);
-router.get('/daily-expenses/:id', authorize(['mess', 'admin']), getMessDailyExpenseById);
-router.put('/daily-expenses/:id', authorize(['mess', 'admin']), updateMessDailyExpense);
-router.delete('/daily-expenses/:id', authorize(['mess', 'admin']), deleteMessDailyExpense);
+router.post('/daily-expenses', authorize(['mess', 'admin']), createScopedExpense);
+router.get('/daily-expenses', authorize(['mess', 'admin']), listScopedExpenses);
+router.get('/daily-expenses/:id', authorize(['mess', 'admin']), getScopedExpense);
+router.put('/daily-expenses/:id', authorize(['mess', 'admin']), updateScopedExpense);
+router.delete('/daily-expenses/:id', authorize(['mess', 'admin']), deleteScopedExpense);
 
 router.post('/expenses-types', authorize(['mess', 'admin']), createExpenseType);
 router.get('/expenses-types', authorize(['mess', 'admin']), getExpenseTypes);

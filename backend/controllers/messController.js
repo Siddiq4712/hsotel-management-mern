@@ -1,6 +1,10 @@
+import { freezeSharedBilling } from '../services/freezeSharedBilling.js';
 import { inventoryScope } from '../services/inventoryScope.js';
 import { RECEIVED_ORDER_PREFIX, parseReceivedOrderNotes } from '../services/receivedPurchaseOrder.js';
 import { randomUUID } from 'node:crypto';
+import { consumptionPolicy, hostelPolicy, datePeriod, schoolToday, consumptionReadScope } from '../services/inventoryBilling.js';
+import { InventoryMealEntry } from '../models/inventoryBilling.js';
+import { Inventory } from '../models/inventory.js';
 import { getBillingDays } from '../services/billingDays.js';
 import { getMessCalculation } from '../services/messCalculation.js';
 import { buildMonthlyMessReport } from '../services/monthlyMessReport.js';
@@ -1672,33 +1676,9 @@ export const getMonthlyExpensesChartData = async (req, res) => {
 
     console.log(`[Chart Data] Fetching monthly expenses for hostel ${hostel_id} from ${startDate} to ${endDate}`);
 
-    // 1. Get Food Ingredient Costs (from DailyConsumption)
-    const foodConsumptionCosts = await DailyConsumption.sum('total_cost', {
-      where: {
-        hostel_id,
-        consumption_date: { [Op.between]: [startDate, endDate] }
-      }
-    });
-
-    // 2. Get Other Mess Daily Expenses (from MessDailyExpense)
-    const otherMessExpenses = await MessDailyExpense.findAll({
-      attributes: [
-        [sequelize.col('ExpenseType.name'), 'expense_type_name'],
-        [sequelize.fn('SUM', sequelize.col('MessDailyExpense.amount')), 'total_amount']
-      ],
-      where: {
-        hostel_id,
-        expense_date: { [Op.between]: [startDate, endDate] }
-      },
-      include: [{
-        model: ExpenseType,
-        as: 'ExpenseType',
-        attributes: [], // We only need the name, which is aliased
-        required: true
-      }],
-      group: ['ExpenseType.name'],
-      raw: true
-      });
+    const calculation = await getMessCalculation(hostel_id, Number(month), Number(year));
+    const foodConsumptionCosts = calculation.expenses[0]?.amount || 0;
+    const otherMessExpenses = calculation.expenses.slice(1).map(row => ({ expense_type_name: row.name, total_amount: row.amount }));
 
     // Combine and format data
     const labels = [];
@@ -2102,7 +2082,7 @@ export const getDailyConsumption = async (req, res) => {
     const { date, meal_type, item_id } = req.query;
     const hostel_id = req.user.hostel_id;
 
-    let whereClause = { hostel_id };
+    let whereClause = await consumptionReadScope(hostel_id, date);
 
     if (date) whereClause.consumption_date = date;
     if (meal_type) whereClause.meal_type = meal_type;
@@ -2112,7 +2092,7 @@ export const getDailyConsumption = async (req, res) => {
       where: whereClause,
       include: [
         {
-          model: Item,
+          model: Item, as: 'tbl_Item',
           include: [{
             model: ItemCategory,
             as: 'tbl_ItemCategory'
@@ -2120,7 +2100,7 @@ export const getDailyConsumption = async (req, res) => {
         },
         {
           model: User,
-          as: 'ConsumptionRecordedBy',
+          as: 'RecordedBy',
           attributes: ['userId', 'userName']
         },
         {
@@ -2141,7 +2121,7 @@ export const getDailyConsumption = async (req, res) => {
 
     res.json({
       success: true,
-      data: consumptions
+      data: consumptions.map(row => ({ ...row.toJSON(), Item: row.tbl_Item, ConsumptionRecordedBy: row.RecordedBy }))
     });
   } catch (error) {
     console.error('Daily consumption fetch error:', error);
@@ -2153,6 +2133,24 @@ export const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_
   console.log("[WEIGHTED-AVG] === Starting weighted-average consumption processing ===");
   console.log("[WEIGHTED-AVG] Payload:", JSON.stringify(consumptions, null, 2));
 
+  const policies = new Map();
+  const claimed = new Set();
+  for (const entry of consumptions) {
+    const date = datePeriod(entry.consumption_date || schoolToday()).date;
+    const policy = await consumptionPolicy(hostel_id, date, transaction);
+    policies.set(date, policy);
+    if (policy.mode === 'shared') {
+      if (date > schoolToday()) throw Object.assign(new Error('Record actual shared consumption on or before today.'), { status: 400 });
+      const meal = entry.meal_type || 'snacks';
+      const key = `${date}:${meal}`;
+      if (!claimed.has(key)) {
+        const existing = await DailyConsumption.findOne({ where: { inventory_id: policy.inventory_id, consumption_date: date, meal_type: meal, quantity_consumed: { [Op.gt]: 0 } }, transaction, lock: transaction.LOCK.UPDATE });
+        if (existing) throw Object.assign(new Error(`This inventory already has consumption for ${meal} on ${date}. Review that entry instead of deducting stock again.`), { status: 409 });
+        await InventoryMealEntry.create({ inventory_id: policy.inventory_id, date, meal_type: meal, recorded_by: user_id }, { transaction });
+        claimed.add(key);
+      }
+    }
+  }
   const lowStockItems = [];
   const createdDailyConsumptions = [];
 
@@ -2235,7 +2233,7 @@ export const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_
     }
 
     const dailyConsumption = await DailyConsumption.create({
-      hostel_id,
+      hostel_id: policies.get(datePeriod(consumption_date || schoolToday()).date)?.mode === 'shared' ? null : hostel_id,
       ...(await inventoryScope(hostel_id, transaction)),
       item_id,
       consumption_date: consumption_date || new Date(),
@@ -2529,7 +2527,7 @@ export const recordBulkConsumption = async (req, res) => {
   const { consumptions } = req.body;
   const hostel_id = req.user.hostel_id;
   const user_id = req.user.userId;
-  const transaction = await sequelize.transaction();
+  const transaction = await sequelize.transaction({ isolationLevel: 'READ COMMITTED' });
 
   try {
     if (!consumptions || !Array.isArray(consumptions) || consumptions.length === 0) {
@@ -2557,7 +2555,7 @@ export const recordBulkConsumption = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error('Bulk consumption record error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
       message: 'Server error: ' + (error.message || 'Unknown error')
     });
@@ -2573,7 +2571,7 @@ export const recordSinglePageDailyConsumption = async (req, res) => {
   const { consumption_date, items, meals } = req.body;
   const hostel_id = req.user.hostel_id;
   const user_id = req.user.userId;
-  const transaction = await sequelize.transaction();
+  const transaction = await sequelize.transaction({ isolationLevel: 'READ COMMITTED' });
 
   try {
     let consumptionsList = [];
@@ -2686,7 +2684,7 @@ for (const [itemId, totalQty] of itemTotals.entries()) {
   } catch (error) {
     if (transaction) await transaction.rollback();
     console.error('Single-page daily consumption error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
       message: error.message.includes('stock') ? error.message : ('Server error: ' + error.message)
     });
@@ -2705,7 +2703,7 @@ export const recordInventoryPurchase = async (req, res) => {
     return res.status(400).json({ success: false, message: 'Items array is required.' });
   }
 
-  const transaction = await sequelize.transaction();
+  const transaction = await sequelize.transaction({ isolationLevel: 'READ COMMITTED' });
   try {
     const scope = await inventoryScope(hostel_id, transaction);
     const orderNotes = req.receivedOrderReference ? `${RECEIVED_ORDER_PREFIX}${req.receivedOrderReference}\nReceipt: ${randomUUID()}` : null;
@@ -3499,9 +3497,10 @@ export const recordItemReturn = async (req, res) => {
   const { items, return_date, reason } = req.body;
   const hostel_id = req.user.hostel_id;
   const user_id = req.user.userId;
-  const transaction = await sequelize.transaction();
+  const transaction = await sequelize.transaction({ isolationLevel: 'READ COMMITTED' });
 
   try {
+    const returnPolicy = await consumptionPolicy(hostel_id, return_date || schoolToday(), transaction);
     if (!items || !Array.isArray(items) || items.length === 0) {
       await transaction.rollback();
       return res.status(400).json({ success: false, message: 'Items array is required.' });
@@ -3514,6 +3513,19 @@ export const recordItemReturn = async (req, res) => {
       const qty = parseFloat(quantity_returned);
 
       if (!item_id || !qty || qty <= 0) throw new Error('Invalid return data: item_id and positive quantity required.');
+
+      let returnedUnitCost;
+      if (returnPolicy.mode === 'shared') {
+        const period = datePeriod(return_date || schoolToday());
+        const end = new Date(Date.UTC(period.year, period.month, 0)).toISOString().slice(0, 10);
+        const consumed = await DailyConsumption.findAll({ where: { inventory_id: returnPolicy.inventory_id, item_id,
+          consumption_date: { [Op.between]: [period.start, end] } }, transaction, lock: transaction.LOCK.UPDATE });
+        const netQty = consumed.reduce((sum, row) => sum + Number(row.quantity_consumed), 0);
+        if (qty > netQty) throw Object.assign(new Error('A return cannot exceed the inventory quantity consumed in this billing month.'), { status: 400 });
+        const positive = consumed.filter(row => Number(row.quantity_consumed) > 0);
+        const positiveQty = positive.reduce((sum, row) => sum + Number(row.quantity_consumed), 0);
+        returnedUnitCost = positiveQty ? positive.reduce((sum, row) => sum + Number(row.total_cost), 0) / positiveQty : 0;
+      }
 
       // 1. Find the most recently depleted or active batch for this item/hostel to credit back
       const latestBatch = await InventoryBatch.findOne({
@@ -3544,7 +3556,7 @@ export const recordItemReturn = async (req, res) => {
 
       // 4. Log a negative consumption record (return transaction)
       const returnRecord = await DailyConsumption.create({
-        hostel_id,
+        hostel_id: returnPolicy.mode === 'shared' ? null : hostel_id,
         ...(await inventoryScope(hostel_id, transaction)),
         item_id,
         consumption_date: return_date || new Date(),
@@ -3552,7 +3564,7 @@ export const recordItemReturn = async (req, res) => {
         unit: payload.unit_id || (await Item.findByPk(item_id, { transaction }))?.unit_id,
         meal_type: 'snacks',
         recorded_by: user_id,
-        total_cost: -(qty * parseFloat(latestBatch.unit_price)),
+        total_cost: -(qty * (returnedUnitCost ?? parseFloat(latestBatch.unit_price))),
       }, { transaction });
 
       results.push(returnRecord);
@@ -3563,7 +3575,7 @@ export const recordItemReturn = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error('Item return error:', error);
-    res.status(500).json({ success: false, message: `Server error: ${error.message}` });
+    res.status(error.status || 500).json({ success: false, message: `Server error: ${error.message}` });
   }
 };
 
@@ -3915,7 +3927,7 @@ export const getSummarizedConsumptionReport = async (req, res) => {
     // The main change is in this database query
     const result = await DailyConsumption.findAll({
       where: {
-        hostel_id,
+        ...(await consumptionReadScope(hostel_id, start_date)),
         consumption_date: { [Op.between]: [start_date, end_date] },
       },
       // MODIFIED: Select the category name and sum the cost
@@ -5510,7 +5522,7 @@ export const getDailyConsumptionDetails = async (req, res) => {
     // This query groups total cost by both date and category name
     const result = await DailyConsumption.findAll({
       where: {
-        hostel_id,
+        ...(await consumptionReadScope(hostel_id, startDate)),
         consumption_date: { [Op.between]: [startDate, endDate] },
       },
       attributes: [
@@ -5699,7 +5711,8 @@ export const exportStockToExcel = async (req, res) => {
     const worksheet = workbook.addWorksheet('Stock Report');
 
     // Header: College Name
-    worksheet.addRow(['NATIONAL ENGINEERING COLLEGE GENTS HOSTEL']);
+    const reportInventory = await Inventory.findByPk((await inventoryScope(hostel_id)).inventory_id);
+    worksheet.addRow([`NATIONAL ENGINEERING COLLEGE — ${reportInventory?.name || 'Inventory'}`]);
     worksheet.getCell('A1').font = { bold: true, size: 14 };
     worksheet.mergeCells('A1:F1');
     worksheet.getCell('A1').alignment = { horizontal: 'center' };
@@ -6048,7 +6061,8 @@ export const exportUnitRateCalculation = async (req, res) => {
     const worksheet = workbook.addWorksheet('Unit Rate Calculation');
 
     // --- Header Rows ---
-    worksheet.addRow(['NATIONAL ENGINEERING COLLEGE, Gents Hostel, K.R.Nagar']);
+    const reportInventory = await Inventory.findByPk((await inventoryScope(hostel_id)).inventory_id);
+    worksheet.addRow([`NATIONAL ENGINEERING COLLEGE — ${reportInventory?.name || 'Inventory'}`]);
     worksheet.getCell('A1').font = { bold: true, size: 16 };
     worksheet.getCell('A1').alignment = { horizontal: 'center' };
 
@@ -6451,10 +6465,19 @@ export { recordStaffRecordedSpecialFoodConsumption } from './specialMealControll
  * Generate and store consolidated MessBill records for a month and notify students
  */
 export const generateMessBills = async (req, res) => {
-  const transaction = await sequelize.transaction();
+  const transaction = await sequelize.transaction({ isolationLevel: 'REPEATABLE READ' });
   try {
     const { month, year, college } = req.body; // Using body for POST request
     const { hostel_id } = req.user;
+    // Acquire the pool before the first transactional snapshot read. Every
+    // group member's rate and student days then come from the same snapshot.
+    const billingDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const preliminaryPolicy = await hostelPolicy(hostel_id, billingDate);
+    if (preliminaryPolicy.inventory_id) {
+      await Inventory.findByPk(preliminaryPolicy.inventory_id, { transaction, lock: transaction.LOCK.UPDATE });
+      const lockedPolicy = await hostelPolicy(hostel_id, billingDate, transaction);
+      if (lockedPolicy.inventory_id !== preliminaryPolicy.inventory_id || lockedPolicy.mode !== preliminaryPolicy.mode) throw Object.assign(new Error('The billing policy changed. Refresh before finalizing bills.'), { status: 409 });
+    }
     const historical = await getHistoricalBilling(hostel_id, month, year);
     if (historical) {
       await transaction.rollback();
@@ -6472,6 +6495,7 @@ export const generateMessBills = async (req, res) => {
     const endDate = moment({ year: parseInt(year), month: parseInt(month) - 1 }).endOf('month').toDate();
     const dueDate = moment(endDate).add(7, 'days').toDate();
 
+    await freezeSharedBilling(hostel_id, month, year, transaction);
     await Hostel.findByPk(hostel_id, {transaction, lock:transaction.LOCK.UPDATE});
     const existingSnapshot = await MessBillingSnapshot.findOne({where:{hostel_id,month,year},transaction});
     if (!existingSnapshot && await MessBill.count({where:{hostel_id,month,year},transaction})) throw Object.assign(new Error('Legacy bills already exist. Use a controlled adjustment instead of regenerating.'),{status:409});

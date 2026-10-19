@@ -1,3 +1,4 @@
+import { InventoryBillingPolicy } from '../models/inventoryBilling.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Op } from 'sequelize';
@@ -6,6 +7,8 @@ import { Hostel, Inventory, InventoryHostel } from '../models/index.js';
 import { inventoryScope } from '../services/inventoryScope.js';
 
 test('inventory scope and Admin routing enforce assigned pools and preserve consuming hostel', async () => {
+  const savedPolicy = InventoryBillingPolicy.findOne;
+  InventoryBillingPolicy.findOne = async () => null;
   const saved = [Hostel.findAll, Hostel.findByPk, Inventory.findByPk, InventoryHostel.findAll, InventoryHostel.findByPk];
   const hostels = [{ id: 1, name: 'A' }, { id: 2, name: 'B' }, { id: 3, name: 'C' }];
   const assignments = [{ hostel_id: 1, inventory_id: 10 }, { hostel_id: 2, inventory_id: 10 }, { hostel_id: 3, inventory_id: 20 }];
@@ -38,5 +41,5 @@ test('inventory scope and Admin routing enforce assigned pools and preserve cons
     assert.deepEqual(all.body.data.map(row => row.id), [1,3], 'shared inventory appears once in all-inventory totals');
     await routes['post /consumption/single-page'](request({ user: { role: 'mess', hostel_id: 3 }, body: { hostel_id: 1 } }), response());
     assert.equal(actor.hostel_id, 3, 'staff cannot override assigned hostel or inventory');
-  } finally { [Hostel.findAll, Hostel.findByPk, Inventory.findByPk, InventoryHostel.findAll, InventoryHostel.findByPk] = saved; }
+  } finally { InventoryBillingPolicy.findOne = savedPolicy; [Hostel.findAll, Hostel.findByPk, Inventory.findByPk, InventoryHostel.findAll, InventoryHostel.findByPk] = saved; }
 });

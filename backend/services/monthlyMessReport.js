@@ -56,8 +56,8 @@ function summarize(data, calculation) {
     return sum;
   }, { totalMessAmount: 0, totalAdditionalAmount: 0, totalBedCharges: 0, totalHinduIndianExpress: 0, totalWaterCharges: 0, grandTotal: 0 });
   return { success: true, data, summary: { ...summary, operationalDays: billing.operationalDays, daysInMonth: billing.dates.length,
-    holidayCount: billing.dates.length - billing.operationalDays, dailyRate: calculation.dailyRate, messDays: billing.totalManDays,
+    holidayCount: billing.operationalDays == null ? null : billing.dates.length - billing.operationalDays, dailyRate: calculation.dailyRate, messDays: billing.totalManDays,
     baseDays: billing.totalBaseDays, approvedReductionDays: billing.totalReductionDays,
     totalFoodIngredientCost: calculation.expenses[0].amount, foodExpenses: calculation.foodExpenses,
-    billingBasis: calculation.legacyFinalized ? 'Recorded finalized legacy bill; detailed breakdown unavailable' : 'Operational days minus approved reductions; food only' }, calculation };
+    billingBasis: calculation.historicalImport ? 'Approved historical import; original days, water treatment and rounding preserved' : calculation.legacyFinalized ? 'Recorded finalized legacy bill; detailed breakdown unavailable' : 'Operational days minus approved reductions; food only' }, calculation };
 }

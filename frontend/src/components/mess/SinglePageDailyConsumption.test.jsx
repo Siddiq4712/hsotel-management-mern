@@ -142,3 +142,18 @@ it('offers only the selected inventory hostels for consumption attribution', asy
   expect(within(dialog).getByText('Central inventory')).toBeInTheDocument();
   expect(within(dialog).getByText('Hostel B')).toBeInTheDocument();
 }, 30000);
+
+it('records a shared inventory meal once without requesting hostel attribution', async () => {
+  scope.inventory = { id: 10, name: 'Central inventory', billing_policy: { mode: 'shared' }, hostels: [{ id: 1, name: 'Hostel A' }, { id: 2, name: 'Hostel B' }] };
+  render(<SinglePageDailyConsumption />);
+  await enterRice();
+  expect(screen.queryByRole('combobox', { name: 'Hostel for daily stock entry' })).not.toBeInTheDocument();
+  expect(screen.getByText('Shared inventory entry')).toBeInTheDocument();
+  expect(messAPI.getItemStock).toHaveBeenCalledWith(undefined);
+  fireEvent.click(screen.getByRole('button', { name: /Submit All Meals/ }));
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Confirm & Deduct Stock Now' }));
+  await waitFor(() => expect(messAPI.recordSinglePageDailyConsumption).toHaveBeenCalledOnce());
+  const payload = messAPI.recordSinglePageDailyConsumption.mock.calls[0][0];
+  expect(payload).not.toHaveProperty('hostel_id');
+  expect(payload.items[0].quantity_consumed).toBe(3);
+}, 30000);

@@ -1,12 +1,17 @@
+import { InventoryBillingPolicy, InventoryMealEntry } from '../models/inventoryBilling.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import sequelize from '../config/database.js';
 import { Inventory, InventoryHostel } from '../models/inventory.js';
-import { ItemStock, InventoryBatch, InventoryTransaction, RestockPlan, DailyConsumption } from '../models/index.js';
+import { ItemStock, InventoryBatch, InventoryTransaction, RestockPlan, DailyConsumption, MessDailyExpense } from '../models/index.js';
 import { deleteInventory } from '../controllers/inventoryController.js';
 
 test('deletes only an empty unassigned inventory, with no cascading loss of stock or history', async () => {
-  const models = [InventoryHostel, ItemStock, InventoryBatch, InventoryTransaction, RestockPlan, DailyConsumption];
+  const models = [InventoryHostel, ItemStock, InventoryBatch, InventoryTransaction, RestockPlan, DailyConsumption, MessDailyExpense, InventoryMealEntry];
+  const originalPolicyCount = InventoryBillingPolicy.count;
+  InventoryBillingPolicy.count = async () => 0;
+  const originalDestroyPolicy = InventoryBillingPolicy.destroy;
+  InventoryBillingPolicy.destroy = async () => 0;
   const original = { transaction: sequelize.transaction, find: Inventory.findByPk, counts: models.map(model => model.count) };
   let blockedModel, destroyed = 0, exists = true;
   const transaction = { LOCK: { UPDATE: 'UPDATE' } };
@@ -36,6 +41,8 @@ test('deletes only an empty unassigned inventory, with no cascading loss of stoc
     const invalid = response(); await deleteInventory({ params: { id: 'all' } }, invalid);
     assert.equal(invalid.statusCode, 400); assert.equal(destroyed, 1);
   } finally {
+    InventoryBillingPolicy.destroy = originalDestroyPolicy;
+    InventoryBillingPolicy.count = originalPolicyCount;
     sequelize.transaction = original.transaction; Inventory.findByPk = original.find;
     models.forEach((model, index) => { model.count = original.counts[index]; });
   }

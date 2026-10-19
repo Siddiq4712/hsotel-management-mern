@@ -23,7 +23,10 @@ sequelize.transaction = (options, callback) => typeof options === 'function'
     const savepointName = inner.name;
     try { return await options(inner); } finally { inner.name = savepointName; }
   })
-  : originalTransaction({ ...options, transaction: options?.transaction || transaction }, callback);
+  : originalTransaction({ ...options, transaction: options?.transaction || transaction }, typeof callback === 'function' ? async inner => {
+    const name = inner.name;
+    try { return await callback(inner); } finally { inner.name = name; }
+  } : callback);
 const tag = crypto.randomUUID();
 try {
   const hostel = await Hostel.create({ name: `Weekly menu test ${tag}`, capacity: 100 }, { transaction });

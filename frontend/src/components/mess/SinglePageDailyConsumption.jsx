@@ -62,6 +62,12 @@ const SinglePageDailyConsumption = () => {
   const [submitting, setSubmitting] = useState(false);
   const [consumptionDate, setConsumptionDate] = useState(moment());
   
+  const activePolicy = useMemo(() => (inventory?.billing_policies || [])
+    .filter(policy => policy.effective_from <= consumptionDate.clone().startOf('month').format('YYYY-MM-DD'))
+    .sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0] || inventory?.billing_policy, [inventory, consumptionDate]);
+  const sharedMode = activePolicy?.mode === 'shared';
+  const needsHostel = isAdmin && !sharedMode;
+
   // State for 4 meal entries: { breakfast: [{ id, item_id, quantity }], lunch: [...], ... }
   const [mealEntries, setMealEntries] = useState({
     breakfast: [{ id: Date.now() + 1, item_id: null, quantity: '' }],
@@ -108,10 +114,15 @@ const SinglePageDailyConsumption = () => {
     setSelectedHostel(hostelId);
   };
 
+  const previousMode = useRef(sharedMode);
+  useEffect(() => {
+    if (previousMode.current !== sharedMode) { changeHostel(null); previousMode.current = sharedMode; }
+  }, [sharedMode]);
+
   // Fetch items and stocks
   const fetchData = useCallback(async () => {
     const sequence = ++stockRequest.current;
-    if (isAdmin && !selectedHostel) {
+    if (needsHostel && !selectedHostel) {
       setLoading(false);
       return;
     }
@@ -122,7 +133,7 @@ const SinglePageDailyConsumption = () => {
       const [itemsRes, uomsRes, stockRes] = await Promise.all([
         messAPI.getItems(),
         messAPI.getUOMs(),
-        messAPI.getItemStock(isAdmin ? { hostel_id: selectedHostel } : undefined),
+        messAPI.getItemStock(needsHostel ? { hostel_id: selectedHostel } : undefined),
       ]);
       if (sequence !== stockRequest.current) return;
 
@@ -156,14 +167,14 @@ const SinglePageDailyConsumption = () => {
     } finally {
       if (sequence === stockRequest.current) setLoading(false);
     }
-  }, [isAdmin, selectedHostel]);
+  }, [needsHostel, selectedHostel]);
 
   useEffect(() => {
     fetchData();
     return () => { stockRequest.current += 1; };
   }, [fetchData]);
 
-  const canEnterStock = !loading && !loadError && (!isAdmin || Boolean(selectedHostel));
+  const canEnterStock = !loading && !loadError && (!needsHostel || Boolean(selectedHostel));
   const selectedHostelName = hostels.find(hostel => hostel.id === selectedHostel)?.name;
 
   // Create an item lookup map
@@ -321,7 +332,7 @@ if (!validateStockBeforeSubmit()) {
       const dateStr = consumptionDate ? consumptionDate.format('YYYY-MM-DD') : moment().format('YYYY-MM-DD');
       
       const response = await messAPI.recordSinglePageDailyConsumption({
-        ...(isAdmin ? { hostel_id: selectedHostel } : {}),
+        ...(needsHostel ? { hostel_id: selectedHostel } : {}),
         consumption_date: dateStr,
         items: flattenedSubmissionData.map(d => ({
           item_id: d.item_id,
@@ -399,9 +410,11 @@ if (!validateStockBeforeSubmit()) {
             </Text>
           </div>
 
+          {sharedMode && <Alert type="info" showIcon title="Shared inventory entry"
+            description={`Enter the total quantity used across ${(inventory?.hostels || []).map(hostel => hostel.name).join(', ')}. Stock is deducted once and the ingredient cost belongs to this inventory's shared billing group.`} />}
           {/* Date Selector & Action */}
           <Space size="middle" wrap>
-            {isAdmin && <div>
+            {needsHostel && <div>
               <label htmlFor="consumption-hostel" style={{ display: 'block', fontWeight: 600 }}>Hostel</label>
               <Select id="consumption-hostel" aria-label="Hostel for daily stock entry"
                 placeholder="Select hostel" value={selectedHostel} onChange={changeHostel}
@@ -425,7 +438,7 @@ if (!validateStockBeforeSubmit()) {
               type="default"
               icon={<RefreshCw size={14} />}
               onClick={fetchData}
-              disabled={loading || submitting || (isAdmin && !selectedHostel)}
+              disabled={loading || submitting || (needsHostel && !selectedHostel)}
               style={{ borderRadius: 8, fontWeight: 600 }}
             >
               Refresh Stock
@@ -452,7 +465,7 @@ if (!validateStockBeforeSubmit()) {
 
         {isAdmin && hostelsError && <Alert type="error" showIcon title={hostelsError}
           action={<Button onClick={fetchHostels} loading={hostelsLoading}>Retry hostels</Button>} />}
-        {isAdmin && !selectedHostel && !hostelsError && <Alert type="info" showIcon
+        {needsHostel && !selectedHostel && !hostelsError && <Alert type="info" showIcon
           title={hostelsLoading ? 'Loading hostels...' : hostels.length ? 'Select a hostel to load its stock and enter daily consumption.' : 'No hostels available. Add a hostel before recording consumption.'} />}
         {loading && <div style={{ padding: 40, textAlign: 'center' }}>
           <Spin size="large" />
@@ -746,7 +759,7 @@ if (!validateStockBeforeSubmit()) {
           <Paragraph style={{ color: T.inkMid, fontSize: 13 }}>
             You are submitting the following daily raw material consumption for <strong>{consumptionDate.format('MMMM DD, YYYY')}</strong>:
           </Paragraph>
-          {isAdmin && <Paragraph>Hostel: <strong>{selectedHostelName}</strong></Paragraph>}
+          {needsHostel && <Paragraph>Hostel: <strong>{selectedHostelName}</strong></Paragraph>}
           {inventory && <Paragraph>Stock inventory: <strong>{inventory.name}</strong></Paragraph>}
 
           <div style={{ maxHeight: 320, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 8, padding: 12, marginBottom: 16 }}>

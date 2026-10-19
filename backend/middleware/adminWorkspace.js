@@ -2,8 +2,9 @@ import { Writable } from 'node:stream';
 import ExcelJS from 'exceljs';
 import { Op } from 'sequelize';
 import * as models from '../models/index.js';
+import { inventoryPolicy } from '../services/inventoryBilling.js';
 
-const inventoryPath = /^\/(stock|inventory-purchase|inventory-transactions|inventory\/correct-last-purchase|purchase-orders)(\/|$)|^\/items\/[^/]+\/(fifo-price|batches)$|^\/chart-data\/item-stock$|^\/reports\/latest-purchase$/;
+const inventoryPath = /^\/(stock|inventory-purchase|inventory-transactions|inventory\/correct-last-purchase|purchase-orders|daily-expenses)(\/|$)|^\/items\/[^/]+\/(fifo-price|batches)$|^\/chart-data\/item-stock$|^\/reports\/latest-purchase$/;
 const consumptionWrite = /^\/consumption\/(bulk|single-page|return)$/;
 
 const sharedMess = /^\/(item-categories|uoms|stores|item-stores|special-food-items|concerns|expenses-types)(\/|$)/;
@@ -118,7 +119,7 @@ export function installAdminWorkspace(router, portal) {
         if(req.user?.role!=='admin' || (portal==='outpass' && !/^\/(warden|approve|reject)(\/|$)/.test(path)))return handler(req,res,next);
         const shared=portal==='mess' && (sharedMess.test(path) || /^\/items(?:\/[^/]+)?$/.test(path) || /^\/items\/(bulk|:item_id\/stores)$/.test(path));
         const inventoryId = req.get('X-Inventory-Id') || req.body?.inventory_id || req.query.inventory_id;
-        const poolRequest = portal === 'mess' && (inventoryPath.test(path) || consumptionWrite.test(path) || (method === 'get' && path === '/items' && inventoryId));
+        const poolRequest = portal === 'mess' && (inventoryPath.test(path) || consumptionWrite.test(path) || path === '/chart-data/monthly-expenses' || (method === 'get' && path === '/items' && inventoryId));
         if((shared && !poolRequest) || path==='/sessions')return handler(req,res,next);
         try {
           if (poolRequest && inventoryId) {
@@ -131,7 +132,8 @@ export function installAdminWorkspace(router, portal) {
             if (explicit && !memberIds.includes(Number(explicit))) throw new Error('The selected hostel does not use this inventory. Reload and choose its assigned inventory.');
             const hostels = await models.Hostel.findAll({ where: { id: { [Op.in]: memberIds } }, order: [['id', 'ASC']] });
             if (!hostels.length) throw new Error('Assign at least one hostel to this inventory first.');
-            if (consumptionWrite.test(path) && !explicit) return res.status(409).json({ code: 'HOSTEL_REQUIRED', message: 'Choose the hostel consuming this stock.',
+            const policy = await inventoryPolicy(inventory.id, req.body?.consumption_date || req.body?.expense_date || req.query?.from_date);
+            if ((consumptionWrite.test(path) || path.startsWith('/daily-expenses') && method !== 'get') && policy.mode !== 'shared' && !explicit) return res.status(409).json({ code: 'HOSTEL_REQUIRED', message: 'Choose the hostel for this consumption or expense.',
               hostels: hostels.map(hostel => ({ id: hostel.id, name: hostel.name })) });
             const hostel = hostels.find(row => row.id === Number(explicit)) || hostels[0];
             const scoped = scopedRequest(req, hostel);
@@ -148,6 +150,18 @@ export function installAdminWorkspace(router, portal) {
           if(method!=='get' || path==='/daily-charges/calculate' || path==='/layout')return res.status(409).json({code:'HOSTEL_REQUIRED',message:'Choose the hostel for this entry.',
             hostels:hostels.map(hostel=>({id:hostel.id,name:hostel.name}))});
           // Stock pools shared by multiple hostels must appear once in totals.
+          if (path === '/chart-data/monthly-expenses') {
+            const members = await models.InventoryHostel.findAll({ raw: true });
+            const seen = new Set(), unique = [];
+            const date = req.query.month && req.query.year ? `${req.query.year}-${String(req.query.month).padStart(2, '0')}-01` : undefined;
+            for (const hostel of hostels) {
+              const pool = members.find(row => row.hostel_id === hostel.id)?.inventory_id;
+              const policy = pool ? await inventoryPolicy(pool, date) : null;
+              if (policy?.mode === 'shared') { if (seen.has(pool)) continue; seen.add(pool); }
+              unique.push(hostel);
+            }
+            hostels = unique;
+          }
           if (poolRequest && inventoryPath.test(path)) {
             const assignments = await models.InventoryHostel.findAll({ raw: true });
             const seen = new Set();

@@ -609,7 +609,7 @@ export const RecipeItem = sequelize.define('RecipeItem', {
 export const DailyConsumption = sequelize.define('DailyConsumption', {
   inventory_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Inventory', key: 'id' } },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Hostel', key: 'id' } },
   item_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Item', key: 'id' } },
   consumption_date: { type: DataTypes.DATEONLY, allowNull: false },
   quantity_consumed: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
@@ -912,8 +912,9 @@ export const Transaction = sequelize.define('Transaction', {
 }, { tableName: 'tbl_Transaction', timestamps: true });
 
 export const MessDailyExpense = sequelize.define('MessDailyExpense', {
+  inventory_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Inventory', key: 'id' } },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
+  hostel_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Hostel', key: 'id' } },
   expense_type_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_ExpenseType', key: 'id' } },
   amount: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   expense_date: { type: DataTypes.DATEONLY, allowNull: false, defaultValue: DataTypes.NOW },

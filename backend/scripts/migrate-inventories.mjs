@@ -4,7 +4,7 @@ import sequelize from '../config/database.js';
 import { ensureInventorySchema } from '../services/inventorySchema.js';
 
 try {
-  const tables = ['tbl_ItemStock', 'tbl_InventoryBatch', 'tbl_InventoryTransaction', 'tbl_RestockPlan', 'tbl_DailyConsumption'];
+  const tables = ['tbl_ItemStock', 'tbl_InventoryBatch', 'tbl_InventoryTransaction', 'tbl_RestockPlan', 'tbl_DailyConsumption', 'tbl_MessDailyExpense'];
   const backup = {};
   for (const table of tables) backup[table] = await sequelize.query(`SELECT * FROM \`${table}\``, { type: sequelize.QueryTypes.SELECT });
   const directory = path.resolve('import-work/inventory-backups');
