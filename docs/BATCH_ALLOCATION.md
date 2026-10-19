@@ -23,6 +23,17 @@ The warden student roster reads saved local enrollments by default. Explicit
 configured batch's hostel; ERP synchronization previews list unmatched years.
 Gender and hostel names do not determine batch allocation.
 
+In **Manage Students → Fetch from Academics**, fetch a preview using the Academics
+authorization token, select eligible students, then click **Import Selected Students**.
+Fetching alone does not write enrollment records. The popup displays the ERP year,
+matched batch, assigned hostel and import status. Selection can include every
+eligible filtered row across all pages. Already enrolled students, missing mappings
+and students assigned to another warden's hostel cannot be selected. Existing
+enrollments with missing or changed batch data can be updated; their bed eligibility
+is preserved. New students' bed eligibility follows the popup's explicit checkbox.
+After import, the popup reports successful, skipped and failed rows and refreshes
+the saved student roster without closing the preview.
+
 The migration adds nullable `erp_batch_year` fields to batches and enrollments
 and a unique batch-year index. Existing configured batch/hostel rules retain their
 years and hostel assignments; the old prefix column is retained only as legacy
