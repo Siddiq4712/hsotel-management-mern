@@ -1,3 +1,4 @@
+import { exportWorkbook } from '../../utils/reportExport';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
 import {
@@ -120,7 +121,8 @@ const ConsumptionReport = () => {
       const ws3 = XLSX.utils.json_to_sheet(particularsData);
       XLSX.utils.book_append_sheet(workbook, ws3, "Particulars");
       
-      XLSX.writeFile(workbook, `Full_Consumption_${selectedDate.format('MMM_YYYY')}.xlsx`);
+      const exported = await exportWorkbook(workbook, `Full_Consumption_${selectedDate.format('MMM_YYYY')}.xlsx`);
+    if (!exported) return;
       message.success('Full report downloaded');
     } finally {
       hide();

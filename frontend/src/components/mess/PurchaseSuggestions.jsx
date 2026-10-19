@@ -1,3 +1,4 @@
+import { exportWorkbook } from '../../utils/reportExport';
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   Card, DatePicker, Table, Button, message, Typography,
@@ -72,7 +73,7 @@ const PurchaseSuggestions = ({ onReceiveItem }) => {
     fetchData();
   }, [pickerValue]);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (!data.length) {
       message.warning('Nothing to export.');
       return;
@@ -90,7 +91,8 @@ const PurchaseSuggestions = ({ onReceiveItem }) => {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Purchase Suggestions');
 
     const label = pickerValue.format('MMMM_YYYY');
-    XLSX.writeFile(workbook, `Purchase_Order_Suggestions_${label}.xlsx`);
+    const exported = await exportWorkbook(workbook, `Purchase_Order_Suggestions_${label}.xlsx`);
+    if (!exported) return;
     message.success(`Exported ${label} suggestions successfully`);
   };
 

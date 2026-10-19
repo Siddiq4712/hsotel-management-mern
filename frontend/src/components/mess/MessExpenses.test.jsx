@@ -5,11 +5,14 @@ import { message } from 'antd';
 import moment from 'moment';
 import MessExpenses from './MessExpenses';
 import { messAPI } from '../../services/api';
+import { printTables, exportWorkbook } from '../../utils/reportExport';
+import * as XLSX from 'xlsx';
 
 vi.mock('../../services/api', () => ({ messAPI: {
   getExpenseTypes: vi.fn(), getMessDailyExpenses: vi.fn(), createMessDailyExpense: vi.fn(), updateMessDailyExpense: vi.fn(), deleteMessDailyExpense: vi.fn(),
   createExpenseType: vi.fn(), updateExpenseType: vi.fn(), deleteExpenseType: vi.fn(),
 } }));
+vi.mock('../../utils/reportExport', () => ({ printTables: vi.fn(), exportWorkbook: vi.fn() }));
 // Isolate the screen's filtering, totals, and API payloads from Ant Design's
 // portal animations. The actual controls and layout are also checked in-browser.
 vi.mock('../common/MomentPickers', async () => {
@@ -100,14 +103,45 @@ beforeEach(() => {
 afterEach(() => { cleanup(); message.destroy(); });
 afterAll(() => vi.unstubAllGlobals());
 const choose = async (label, option) => {
+  if (label.startsWith('Filter by')) {
+    const summary = screen.getByText('Filters', { selector: 'summary' });
+    if (!summary.parentElement.open) fireEvent.click(summary);
+  }
   const control = screen.getByRole('combobox', { name: label });
   fireEvent.change(control, { target: { value: within(control).getByRole('option', { name: option }).value } });
 };
 const notesInOrder = () => within(screen.getByRole('table')).getAllByRole('row').slice(1).map(row => row.textContent);
 
+it('prints and exports the chosen category and amount filters in the displayed sort order', async () => {
+  render(<MessExpenses />);
+  await screen.findByText('Cylinder refill');
+  await choose('Filter by category', 'Gas');
+  fireEvent.change(screen.getByLabelText('Minimum amount (₹)'), { target: { value: '100' } });
+  fireEvent.change(screen.getByLabelText('Maximum amount (₹)'), { target: { value: '500' } });
+  fireEvent.click(screen.getByRole('columnheader', { name: 'Amount' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Print' }));
+  const printed = printTables.mock.calls[0][0];
+  expect(printed[1].rows.slice(1).map(row => row[4])).toEqual([100, 300]);
+  expect(printed[0].rows).toEqual(expect.arrayContaining([['Category', 'Gas'], ['Amount minimum', 100], ['Amount maximum', 500], ['Sort', 'Amount (ascending)'], ['Filtered total (₹)', 400]]));
+  fireEvent.click(screen.getByRole('button', { name: 'Export' }));
+  const workbook = exportWorkbook.mock.calls[0][0];
+  expect(XLSX.utils.sheet_to_json(workbook.Sheets['Daily expenses'], { header: 1 })).toEqual(printed[1].rows);
+});
+
+it('filters the expense preview and print by the person who recorded it', async () => {
+  render(<MessExpenses />);
+  await screen.findByText('Cylinder refill');
+  await choose('Filter by recorded by', 'Kitchen staff');
+  fireEvent.click(screen.getByRole('button', { name: 'Print' }));
+  const rows = printTables.mock.calls[0][0][1].rows.slice(1);
+  expect(rows).toHaveLength(1);
+  expect(rows[0][3]).toBe('Cylinder refill');
+});
+
 it('sorts expense rows and combines search, category, hostel, and date filters with a matching total', async () => {
   const { container } = render(<MessExpenses />);
   await screen.findByText('Cylinder refill');
+  fireEvent.click(screen.getByText('Filters', { selector: 'summary' }));
   expect(notesInOrder()[0]).toContain('Van fuel');
   fireEvent.click(screen.getByRole('columnheader', { name: /Amount/ }));
   expect(notesInOrder()[0]).toContain('Service charge');

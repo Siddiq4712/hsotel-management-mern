@@ -263,7 +263,7 @@ const FoodOrdersManagement = () => {
 
   return (
     <Card
-      title="Special Food Orders Management"
+      title="Additional Food Orders Management"
       extra={
         <Button type="primary" icon={<SearchOutlined />} onClick={fetchOrders}>
           Refresh

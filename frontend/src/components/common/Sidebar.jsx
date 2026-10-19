@@ -173,6 +173,7 @@ const MENU_STRUCTURE = {
     {
       title: 'Reports & Analytics',
       items: [
+        { id: 'inventory-reports', label: 'Hostel / Inventory Reports', icon: BarChart2 },
         { id: 'consumption-report', label: 'Consumption Report', icon: BarChart2 },
         { id: 'Daily-expenses', label: 'Daily Expenses', icon: Receipt },
         { id: 'daily-rate-report', label: 'Daily Rate Calculation', icon: CreditCard },

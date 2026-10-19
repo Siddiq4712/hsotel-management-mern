@@ -88,6 +88,7 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
       document.body.appendChild(link);
       link.click();
     } catch (error) {
+      if (error.code === 'ERR_CANCELED') return;
       message.error('Export failed');
     }
   };

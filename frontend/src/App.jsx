@@ -10,6 +10,7 @@ import EntryHostelDialog from './components/common/EntryHostelDialog';
 import ManageInventories from './components/admin/ManageInventories';
 import InventoryWorkspace from './components/mess/InventoryWorkspace';
 import ReportFormatDialog from './components/common/ReportFormatDialog';
+import InventoryReports from './components/mess/InventoryReports';
 import { ChatbotProvider } from './providers/ChatbotProvider';
 import ChatWidget from './components/chatbot/ChatWidget';
 import Login from './components/auth/Login';
@@ -325,7 +326,9 @@ const DashboardRouter = () => {
           case 'daily-operations':
             return <DailyOperations />;
           case 'consumption-report':
-            return <ConsumptionReport />;
+            return <InventoryReports initialKind="consumption" />;
+          case 'inventory-reports':
+            return <InventoryReports />;
           case 'create-menu':
             return <CreateMenu />;
           case 'uoms':
@@ -366,7 +369,7 @@ const DashboardRouter = () => {
           case 'income-deduction-entry':
             return <IncomeEntryManager />;
           case 'daily-rate-report':
-            return <DailyRateReport />;
+            return <InventoryReports initialKind="rate" />;
           case 'bed-fee-management':
             return <BedFeeManagement />;
           default:
@@ -384,9 +387,9 @@ const DashboardRouter = () => {
 
   return (
     <Layout currentView={currentView} setCurrentView={setCurrentView} workspace={workspace} onWorkspaceChange={changeWorkspace}>
-      {workspace === 'mess' && ['stock', 'inventory', 'inventory-transactions', 'items', 'purchase-by-store', 'purchase-orders',
+      {workspace === 'mess' && ['stock', 'inventory', 'inventory-transactions', 'items', 'purchase-by-store', 'purchase-orders', 'inventory-reports', 'consumption-report', 'daily-rate-report', 'Daily-expenses',
         'single-page-daily-entry', 'record-consumption', 'daily-consumption'].includes(currentView)
-        ? <InventoryWorkspace>{renderComponent()}</InventoryWorkspace> : renderComponent()}
+        ? <InventoryWorkspace allowUnassigned={['inventory-reports', 'consumption-report', 'daily-rate-report'].includes(currentView)}>{renderComponent()}</InventoryWorkspace> : renderComponent()}
     </Layout>
   );
 };

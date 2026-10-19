@@ -1,6 +1,7 @@
 // src/services/api.js
 import axios from 'axios';
 import { requestEntryHostel } from './entryHostel';
+import { requestReportFormat } from './reportFormat';
 
 // Vite uses import.meta.env instead of process.env
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001/api';
@@ -20,7 +21,12 @@ export const menuPlanningAPI = {
 };
 
 // Request interceptor to add token
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
+  if (config.responseType === 'blob' && /\/mess\/.*(report|export)/i.test(config.url || '') && !config.reportFormatConfirmed) {
+    const format = await requestReportFormat({ title: 'Choose export format', formats: ['xlsx'] });
+    if (!format) throw new axios.CanceledError('Report generation cancelled.');
+    config.reportFormatConfirmed = true;
+  }
   const token = localStorage.getItem('token');
   const workspace = localStorage.getItem('adminWorkspace');
   if (['admin', 'warden', 'mess'].includes(workspace)) config.headers['X-Workspace'] = workspace;
@@ -33,6 +39,8 @@ api.interceptors.request.use((config) => {
 });
 
 export const inventoryAPI = {
+  policy: (id, date) => api.get(`/inventories/${id}/policy`, { params: { date } }),
+  report: (id, params) => api.get(`/inventories/${id}/reports`, { params }),
   delete: id => api.delete(`/inventories/${id}`),
   list: () => api.get('/inventories'),
   create: data => api.post('/inventories', data),

@@ -1,0 +1,19 @@
+.report-overview { margin-bottom: 24px; }
+.report-context { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; color: #475569; }
+.report-status { padding: 4px 10px; border-radius: 6px; background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 600; }
+.report-status.is-finalized { background: #ecfdf5; color: #047857; }
+.report-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.report-metric { display: flex; flex-direction: column; gap: 8px; padding: 24px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; }
+.report-metric > span { color: #475569; font-size: 14px; font-weight: 600; }
+.report-metric > strong { color: #0f172a; font-size: clamp(24px, 2.5vw, 34px); line-height: 1.3; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.report-metric > small { color: #64748b; font-size: 12px; }
+.report-primary { background: #eff6ff; border-color: #bfdbfe; }
+.report-primary > strong { color: #1d4ed8; }
+.report-calculation { display: flex; gap: 12px 28px; flex-wrap: wrap; padding: 14px 4px 0; font-size: 13px; }
+.report-calculation strong { margin-left: 8px; font-variant-numeric: tabular-nums; }
+.report-page .ant-table-thead > tr > th { font-size: 14px; }
+.report-page .ant-table-tbody > tr > td { font-size: 15px; padding-block: 16px; }
+@media (max-width: 700px) {
+  .report-metrics { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .report-metric { padding: 20px; }
+}

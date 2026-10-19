@@ -343,13 +343,18 @@ const StockManagement = () => {
           okText="Download Excel"
         >
           <Form form={unitRateForm} layout="vertical" onFinish={async (v) => {
+             try {
              const res = await messAPI.exportUnitRateCalculation({ month: v.date.month()+1, year: v.date.year() });
              const url = window.URL.createObjectURL(new Blob([res.data]));
              const link = document.createElement('a');
              link.href = url;
              link.setAttribute('download', 'Stock_Report.xlsx');
              link.click();
+             window.URL.revokeObjectURL(url);
              setIsUnitRateModalVisible(false);
+             } catch (error) {
+               if (error.code !== 'ERR_CANCELED') message.error('Unable to export the stock report.');
+             }
           }} className="mt-4">
             <Form.Item name="date" label="Reporting Month" initialValue={moment()} rules={[{required: true}]}>
                <DatePicker picker="month" className="w-full h-11" />

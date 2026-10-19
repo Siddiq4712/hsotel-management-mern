@@ -146,7 +146,7 @@ const MessDashboard = ({ setCurrentView }) => {
           {[
             { title: 'Ingredient Templates', value: dashboardData?.totalMenus, icon: <Utensils size={22}/>, color: 'text-blue-600', bg: 'bg-blue-50', link: 'menu-templates' },
             { title: 'Meals Today', value: todayMenus.length, icon: <Calendar size={22}/>, color: 'text-emerald-600', bg: 'bg-emerald-50', link: 'menus' },
-            { title: 'Special Orders', value: specialOrders.length, icon: <ShoppingBag size={22}/>, color: 'text-orange-600', bg: 'bg-orange-50', link: 'food-orders-dashboard' },
+            { title: 'Additional Food Orders', value: specialOrders.length, icon: <ShoppingBag size={22}/>, color: 'text-orange-600', bg: 'bg-orange-50', link: 'food-orders-dashboard' },
             { title: 'Low Stock', value: dashboardData?.lowStockCount, icon: <AlertTriangle size={22}/>, color: 'text-rose-600', bg: 'bg-rose-50', link: 'inventory' },
           ].map((stat, i) => (
             <Col xs={24} sm={12} lg={6} key={i}>
@@ -276,7 +276,7 @@ const MessDashboard = ({ setCurrentView }) => {
               {[
                 { label: 'Weekly Plan', icon: <Calendar size={18}/>, id: 'weekly-menu' },
                 { label: "Today's Menu", icon: <PlusCircle size={18}/>, id: 'menus' },
-                { label: 'Special Orders', icon: <ShoppingBag size={18}/>, id: 'food-orders-dashboard' },
+                { label: 'Additional Food Orders', icon: <ShoppingBag size={18}/>, id: 'food-orders-dashboard' },
                 { label: 'Billing/Fees', icon: <CreditCard size={18}/>, id: 'mess-fee' },
                 { label: 'Daily Rate', icon: <Calculator size={18}/>, id: 'daily-rate-report' },
               ].map(action => (

@@ -32,8 +32,8 @@ const reportItems = [
     color: '#722ed1'
   },
   {
-    title: 'Special Food Orders Report',
-    description: 'Summary of special food orders',
+    title: 'Additional Food Orders Report',
+    description: 'Summary of additional food orders',
     icon: <FileTextOutlined style={{ fontSize: 24 }} />,
     path: '/mess/reports/special-orders',
     color: '#fa8c16'
@@ -104,7 +104,7 @@ const ReportsNavigation = () => {
             <Text strong>Inventory Report</Text> - Monitor stock levels to prevent shortages
           </li>
           <li>
-            <Text strong>Special Food Orders Report</Text> - View special food ordering trends and revenue
+            <Text strong>Additional Food Orders Report</Text> - View additional food ordering trends and revenue
           </li>
         </ul>
       </Card>

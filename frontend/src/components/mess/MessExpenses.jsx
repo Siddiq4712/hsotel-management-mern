@@ -7,11 +7,14 @@ import { CreditCard, Edit3, Filter, LayoutGrid, Plus, RefreshCw, Search, Trash2,
 import moment from 'moment';
 import { DatePicker } from '../common/MomentPickers';
 import { messAPI } from '../../services/api';
+import * as XLSX from 'xlsx';
+import { exportWorkbook, printTables } from '../../utils/reportExport';
+import { reportViewDescription } from '../../utils/reportView';
 import './MessExpenses.css';
 
 const { Title, Text } = Typography;
 const money = value => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(value) || 0);
-const emptyFilters = () => ({ search: '', category: undefined, range: null, hostel: undefined });
+const emptyFilters = () => ({ search: '', category: undefined, range: null, hostel: undefined, recordedBy: undefined, min: null, max: null });
 
 export default function MessExpenses() {
   const [form] = Form.useForm();
@@ -97,6 +100,7 @@ export default function MessExpenses() {
 
   const hostelOptions = useMemo(() => [...new Map(dailyExpenses.filter(row => row.hostel_name)
     .map(row => [row.hostel_id, { value: row.hostel_id, label: row.hostel_name }])).values()], [dailyExpenses]);
+  const recorderOptions = useMemo(() => [...new Set(dailyExpenses.map(row => row.RecordedBy?.userName || '(Unknown)'))].sort().map(value => ({ value, label: value })), [dailyExpenses]);
   const filteredExpenses = useMemo(() => dailyExpenses.filter(row => {
     const query = filters.search.trim().toLowerCase();
     const searchable = [row.description, row.ExpenseType?.name, row.hostel_name, row.RecordedBy?.userName,
@@ -104,6 +108,9 @@ export default function MessExpenses() {
     if (query && !searchable.includes(query)) return false;
     if (filters.category !== undefined && String(row.expense_type_id) !== String(filters.category)) return false;
     if (filters.hostel !== undefined && String(row.hostel_id) !== String(filters.hostel)) return false;
+    if (filters.recordedBy !== undefined && (row.RecordedBy?.userName || '(Unknown)') !== filters.recordedBy) return false;
+    if (filters.min != null && Number(row.amount) < filters.min) return false;
+    if (filters.max != null && Number(row.amount) > filters.max) return false;
     if (filters.range?.[0] && filters.range?.[1]) {
       const date = moment(row.expense_date).format('YYYY-MM-DD');
       if (date < filters.range[0].format('YYYY-MM-DD') || date > filters.range[1].format('YYYY-MM-DD')) return false;
@@ -126,7 +133,8 @@ export default function MessExpenses() {
       sorter: (a, b) => (a.description || '').localeCompare(b.description || ''), sortOrder: sorted('description') },
     { title: 'Amount', key: 'amount', dataIndex: 'amount', width: 150, align: 'right', render: value => <span className="expense-amount">{money(value)}</span>,
       sorter: (a, b) => Number(a.amount) - Number(b.amount), sortOrder: sorted('amount') },
-    { title: 'Recorded by', key: 'recorded_by', width: 150, render: (_, row) => row.RecordedBy?.userName || '—' },
+    { title: 'Recorded by', key: 'recorded_by', width: 150, render: (_, row) => row.RecordedBy?.userName || '—',
+      sorter: (a, b) => (a.RecordedBy?.userName || '').localeCompare(b.RecordedBy?.userName || ''), sortOrder: sorted('recorded_by') },
     { title: 'Actions', key: 'actions', width: 110, align: 'right', render: (_, row) => <Space size={4}>
       <Button type="text" aria-label={`Edit expense ${row.id}`} title="Edit expense" icon={<Edit3 size={16} />}
         disabled={submitting || Boolean(deletingId)} onClick={() => handleEditExpense(row)} />
@@ -135,11 +143,31 @@ export default function MessExpenses() {
       </Popconfirm>
     </Space> },
   ];
+  const visibleExpenses = [...filteredExpenses];
+  const sortColumn = columns.find(column => column.key === sort.field);
+  if (sort.order && sortColumn?.sorter) visibleExpenses.sort((a, b) => sortColumn.sorter(a, b) * (sort.order === 'descend' ? -1 : 1));
+  const reportTables = () => {
+    const scope = reportViewDescription({ search: filters.search, sort,
+      filters: { Category: { values: filters.category === undefined ? [] : [expenseTypes.find(type => String(type.id) === String(filters.category))?.name || String(filters.category)] },
+        Hostel: { values: filters.hostel === undefined ? [] : [hostelOptions.find(hostel => String(hostel.value) === String(filters.hostel))?.label || String(filters.hostel)] },
+        'Recorded by': { values: filters.recordedBy === undefined ? [] : [filters.recordedBy] },
+        Amount: { min: filters.min, max: filters.max }, Date: { from: filters.range?.[0]?.format('YYYY-MM-DD'), to: filters.range?.[1]?.format('YYYY-MM-DD') } } },
+      key => ({ expense_date: 'Date', category: 'Category', hostel: 'Hostel', description: 'Notes', amount: 'Amount', recorded_by: 'Recorded by' }[key] || key));
+    return [{ name: 'Selected filters and summary', rows: [['Setting', 'Value'], ...scope, ['Matching expenses', visibleExpenses.length], ['Filtered total (₹)', total]] },
+      { name: 'Daily Expenses', rows: [['Date', 'Category', ...(hostelOptions.length ? ['Hostel'] : []), 'Notes', 'Amount (₹)', 'Recorded by'],
+        ...visibleExpenses.map(row => [moment(row.expense_date).format('DD MMM YYYY'), row.ExpenseType?.name || 'General', ...(hostelOptions.length ? [row.hostel_name || ''] : []),
+          row.description || '', Number(row.amount), row.RecordedBy?.userName || ''])] }];
+  };
+  const exportExpenses = async () => {
+    const workbook = XLSX.utils.book_new();
+    reportTables().forEach((table, index) => XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(table.rows), index ? 'Daily expenses' : 'Scope and filters'));
+    await exportWorkbook(workbook, 'Daily_Expenses.xlsx');
+  };
 
   return <div className="module-page mess-expenses-page">
     <div className="module-page-header expense-page-header">
       <div className="expense-heading"><span className="expense-heading-icon"><CreditCard size={24} /></span>
-        <div><Title level={2}>Daily Expenses</Title><Text type="secondary">Record daily spending and review your expense history.</Text></div>
+        <div><Title level={2}>Daily Expenses</Title></div>
       </div>
       <Space wrap><Button icon={<RefreshCw size={16} />} onClick={fetchData} loading={loading}>Refresh</Button>
         <Button icon={<LayoutGrid size={16} />} onClick={() => setShowTypeModal(true)}>Manage categories</Button></Space>
@@ -148,7 +176,6 @@ export default function MessExpenses() {
 
     <section ref={formSection} className="expense-entry-section" aria-label="Expense entry">
       <Card title={editingId ? 'Edit expense' : 'New expense'} extra={editingId ? <Tag color="gold">Editing entry #{editingId}</Tag> : <Text type="secondary">Daily entry</Text>}>
-        <Typography.Paragraph type="secondary">Record additional expenses here. Stock purchases belong in Purchase Orders; ingredient costs are included in daily mess calculations when stock is consumed.</Typography.Paragraph>
         <Form name="daily-expense-entry" form={form} layout="vertical" onFinish={handleDailySubmit} initialValues={{ expense_date: moment() }} disabled={submitting}>
           <Row gutter={[20, 0]}>
             <Col xs={24} md={8}><Form.Item name="expense_type_id" label="Category" rules={[{ required: true, message: 'Select an expense category.' }]}>
@@ -162,7 +189,7 @@ export default function MessExpenses() {
             </Form.Item></Col>
             <Col xs={24}><Form.Item name="description" label="Notes (optional)"><Input.TextArea rows={2} placeholder="What was this expense for?" /></Form.Item></Col>
           </Row>
-          <div className="expense-form-actions"><Text type="secondary">{editingId ? 'Review the details before saving your changes.' : 'Choose a category, date, and amount to record an expense.'}</Text>
+          <div className="expense-form-actions">
             <Space wrap><Button onClick={resetEntry} disabled={submitting} icon={editingId ? <X size={15} /> : undefined}>{editingId ? 'Cancel edit' : 'Clear form'}</Button>
               <Button type="primary" htmlType="submit" loading={submitting} icon={<Plus size={16} />}>{editingId ? 'Save changes' : 'Record expense'}</Button></Space>
           </div>
@@ -170,16 +197,22 @@ export default function MessExpenses() {
       </Card>
     </section>
 
-    <Card className="expense-history-card" title="Expense history" extra={<Text type="secondary">Sort using the column headings</Text>}>
-      <div className="expense-filters" aria-label="Expense filters">
-        <div className="expense-filter expense-search"><label htmlFor="expense-search">Search</label><Input id="expense-search" aria-label="Search expenses" prefix={<Search size={16} />} placeholder="Search notes, category, or person" allowClear value={filters.search} onChange={event => updateFilter('search', event.target.value)} /></div>
+    <Card className="expense-history-card" title="Expense history" extra={<Space wrap>
+      <Button disabled={loading || Boolean(loadError) || !visibleExpenses.length} onClick={() => printTables(reportTables(), 'Daily Expenses')}>Print</Button>
+      <Button disabled={loading || Boolean(loadError) || !visibleExpenses.length} onClick={exportExpenses}>Export</Button>
+    </Space>}>
+      <div className="expense-report-search"><Input id="expense-search" aria-label="Search expenses" prefix={<Search size={16} />} placeholder="Search expenses" allowClear value={filters.search} onChange={event => updateFilter('search', event.target.value)} /></div>
+      <details className="expense-filter-panel"><summary>Filters</summary><div className="expense-filters" aria-label="Expense filters">
         <div className="expense-filter"><label htmlFor="expense-category-filter">Category</label><Select id="expense-category-filter" aria-label="Filter by category" allowClear showSearch optionFilterProp="label" placeholder="All categories" options={categoryOptions} value={filters.category} onChange={value => updateFilter('category', value)} /></div>
         <div className="expense-filter expense-date-filter"><label>Date range</label><DatePicker.RangePicker aria-label="Filter by date range" placeholder={['From date', 'To date']} format="DD MMM YYYY" value={filters.range} onChange={value => updateFilter('range', value)} /></div>
         {hostelOptions.length > 1 && <div className="expense-filter"><label htmlFor="expense-hostel-filter">Hostel</label><Select id="expense-hostel-filter" aria-label="Filter by hostel" placeholder="All hostels" allowClear options={hostelOptions} value={filters.hostel} onChange={value => updateFilter('hostel', value)} /></div>}
+        <div className="expense-filter"><label htmlFor="expense-recorder-filter">Recorded by</label><Select id="expense-recorder-filter" aria-label="Filter by recorded by" placeholder="All people" allowClear showSearch optionFilterProp="label" options={recorderOptions} value={filters.recordedBy} onChange={value => updateFilter('recordedBy', value)} /></div>
+        <div className="expense-filter"><label htmlFor="expense-min">Minimum amount (₹)</label><InputNumber id="expense-min" min={0} value={filters.min} onChange={value => updateFilter('min', value)} /></div>
+        <div className="expense-filter"><label htmlFor="expense-max">Maximum amount (₹)</label><InputNumber id="expense-max" min={0} value={filters.max} onChange={value => updateFilter('max', value)} /></div>
         <Button className="expense-clear-filters" icon={<Filter size={15} />} onClick={clearFilters}>Clear filters</Button>
-      </div>
+      </div></details>
       <div className="expense-results-summary" aria-live="polite"><Text type="secondary">{filteredExpenses.length} of {dailyExpenses.length} expenses</Text><span>Filtered total <strong>{money(total)}</strong></span></div>
-      <Table rowKey="id" dataSource={filteredExpenses} columns={columns} loading={loading} scroll={{ x: hostelOptions.length ? 1120 : 950 }}
+      <Table rowKey="id" dataSource={visibleExpenses} columns={columns} loading={loading} scroll={{ x: hostelOptions.length ? 1120 : 950 }}
         pagination={{ current: page, pageSize, showSizeChanger: true, pageSizeOptions: [10, 20, 50], showTotal: count => `${count} expenses` }}
         onChange={(pagination, _columnFilters, sorter) => { setPage(pagination.current); setPageSize(pagination.pageSize); setSort({ field: sorter.columnKey, order: sorter.order }); }}
         locale={{ emptyText: dailyExpenses.length ? 'No expenses match your filters.' : 'No daily expenses recorded yet.' }} />

@@ -1,3 +1,4 @@
+import { exportWorkbook } from '../../utils/reportExport';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
@@ -13,6 +14,7 @@ import {
 import { messAPI } from '../../services/api';
 import moment from 'moment';
 import InventoryPageHeader, { inventoryTheme } from './InventoryPageHeader';
+import { useInventoryWorkspace } from './InventoryWorkspace';
 import * as XLSX from 'xlsx';
 
 const { Option } = Select;
@@ -62,6 +64,7 @@ const InventorySkeleton = () => (
 );
 
 const InventoryManagement = () => {
+  const selectedInventory = useInventoryWorkspace();
   const [inventory, setInventory] = useState([]);
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -150,7 +153,7 @@ const InventoryManagement = () => {
 
     const currentMonth = moment().format('MMMM YYYY');
     let excelDataArray = [
-      [`NATIONAL ENGINEERING COLLEGE : GENTS HOSTEL - ${currentMonth}`],
+      [`NATIONAL ENGINEERING COLLEGE : ${selectedInventory?.name || 'Inventory'} - ${currentMonth}`],
       [`Date : ${moment().format('DD.MM.YYYY')}`],
       [], 
       ['Item Name', 'Supplier Name', 'Approval Qty', 'RPU', 'Cost Rs.'],
@@ -200,7 +203,8 @@ const InventoryManagement = () => {
     
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Last Purchase Report');
-    XLSX.writeFile(workbook, `Procurement_Report_${moment().format('YYYY-MM-DD')}.xlsx`);
+    const exported = await exportWorkbook(workbook, `Procurement_Report_${moment().format('YYYY-MM-DD')}.xlsx`);
+    if (!exported) { message.destroy(`export_${storeId}`); return; }
     message.success({ content: 'Report generated successfully!', key: `export_${storeId}` });
   };
   // --- END PRESERVED XLSX LOGIC ---
@@ -261,6 +265,15 @@ const InventoryManagement = () => {
       ) : <Text type="secondary" className="italic">No purchase history</Text>
     }
   ];
+
+  const exportTransactions = async () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(transactions.map(row => ({
+      Date: row.transaction_date, Item: row.Item?.name, Type: row.transaction_type, Quantity: row.quantity,
+      Unit: row.unit, Rate: row.unit_price, Supplier: row.Store?.name, Reference: row.notes,
+    }))), 'Transactions');
+    await exportWorkbook(workbook, 'Inventory_Transactions.xlsx');
+  };
 
   const transactionColumns = [
     { title: 'Date', dataIndex: 'transaction_date', render: d => moment(d).format('DD MMM YYYY') },
@@ -348,7 +361,7 @@ const InventoryManagement = () => {
                         <RangePicker value={dateRange} onChange={setDateRange} className="rounded-xl h-11" />
                         <Button type="primary" ghost icon={<RefreshCw size={16}/>} onClick={fetchTransactions} className="rounded-xl">Update History</Button>
                       </Space>
-                      <Button type="primary" danger ghost icon={<FileDown size={18}/>} onClick={() => message.info("Exporting transaction history...")} className="rounded-xl h-11 border-dashed">Export CSV</Button>
+                      <Button type="primary" danger ghost icon={<FileDown size={18}/>} onClick={exportTransactions} className="rounded-xl h-11 border-dashed">Export transactions</Button>
                     </div>
                   </Card>
 
