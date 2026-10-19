@@ -9,6 +9,7 @@ import WeeklyMenuWorkspace from './components/mess/WeeklyMenuWorkspace';
 import EntryHostelDialog from './components/common/EntryHostelDialog';
 import ManageInventories from './components/admin/ManageInventories';
 import InventoryWorkspace from './components/mess/InventoryWorkspace';
+import ReportFormatDialog from './components/common/ReportFormatDialog';
 import { ChatbotProvider } from './providers/ChatbotProvider';
 import ChatWidget from './components/chatbot/ChatWidget';
 import Login from './components/auth/Login';
@@ -412,6 +413,7 @@ function App() {
                 </Routes>
                 <ChatWidget />
                 <EntryHostelDialog />
+                <ReportFormatDialog />
               </div>
             </ChatbotProvider>
           </Router>

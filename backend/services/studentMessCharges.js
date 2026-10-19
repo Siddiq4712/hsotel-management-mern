@@ -1,5 +1,6 @@
 import { Op } from 'sequelize';
-import { Attendance, GPSAttendance, StudentFee, MessBill } from '../models/index.js';
+import { Attendance, GPSAttendance, StudentFee, MessBill, FoodOrder } from '../models/index.js';
+import moment from 'moment';
 import { getMessCalculation } from './messCalculation.js';
 import { getHistoricalBilling } from '../utils/historicalBilling.js';
 
@@ -29,6 +30,15 @@ export async function studentMessCharges(user, month, year) {
   const days = frozen?.workflow_version === 2 ? { baseDays: frozen.baseDays, approvedReductionDays: frozen.approvedReductionDays,
     billableDays: frozen.messDays, billableDates: frozen.billableDates, reductionDates: frozen.reductionDates } : billing.byStudent.get(String(user.userId));
   const rate = frozen?.workflow_version === 2 ? frozen.dailyRate : calculation.dailyRate;
+  const linkedFees = fees.filter(fee => fee.food_order_id && fee.fee_type === 'special_food_charge');
+  const orders = linkedFees.length ? await FoodOrder.findAll({ where: { id: { [Op.in]: linkedFees.map(fee => fee.food_order_id) } }, attributes: ['id', 'requested_time'], raw: true }) : [];
+  const additionalByDate = new Map();
+  for (const fee of linkedFees) {
+    const order = orders.find(row => row.id === fee.food_order_id);
+    if (!order) continue;
+    const date = moment(order.requested_time).utcOffset(330).format('YYYY-MM-DD');
+    additionalByDate.set(date, (additionalByDate.get(date) || 0) + Number(fee.amount));
+  }
   const dailyCharges = billing.dates.map(date => {
     const att = attendance.find(a => a.date === date);
     const status = att?.status || gps.find(a => a.attendance_date === date)?.status || null;
@@ -36,7 +46,7 @@ export async function studentMessCharges(user, month, year) {
     const charged = days?.billableDates?.includes(date) || false;
     return { id: date, date, attendance_status: status, reduction_request_id: att?.reduction_request_id,
       approvedReduction, billing_reason: approvedReduction ? 'Approved reduction' : charged ? 'Billable operational day' : 'Outside billable calendar',
-      baseMessCharge: charged ? rate : 0, specialFoodCost: 0, dailyTotalCharge: charged ? rate : 0 };
+      baseMessCharge: charged ? rate : 0, specialFoodCost: additionalByDate.get(date) || 0, dailyTotalCharge: (charged ? rate : 0) + (additionalByDate.get(date) || 0) };
   });
   const special = fees.filter(f => f.fee_type === 'special_food_charge').reduce((sum, f) => sum + Number(f.amount), 0);
   const flatFees = fees.filter(f => f.fee_type !== 'special_food_charge');

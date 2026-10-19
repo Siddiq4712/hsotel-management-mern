@@ -130,8 +130,8 @@ const MyFoodOrdersScreen = ({ navigation }) => {
         <Text className="text-sm text-gray-800">{moment(order.order_date).format('DD/MM/YYYY h:mm A')}</Text>
       </View>
       <View className="flex-row justify-between items-center mb-2">
-        <Text className="text-sm text-gray-600">Requested Time:</Text>
-        <Text className="text-sm text-gray-800">{moment(order.requested_time).format('DD/MM/YYYY h:mm A')}</Text>
+        <Text className="text-sm text-gray-600">Serving date:</Text>
+        <Text className="text-sm text-gray-800">{moment(order.requested_time).utcOffset(330).format('DD/MM/YYYY')}</Text>
       </View>
       <View className="flex-row justify-between items-center mb-2">
         <Text className="text-sm text-gray-600">Total Amount:</Text>
@@ -196,8 +196,8 @@ const MyFoodOrdersScreen = ({ navigation }) => {
                     <Text className="font-medium">{moment(selectedOrder.order_date).format('DD/MM/YYYY h:mm A')}</Text>
                   </View>
                   <View className="flex-row justify-between">
-                    <Text className="text-gray-600">Requested Time:</Text>
-                    <Text className="font-medium">{moment(selectedOrder.requested_time).format('DD/MM/YYYY h:mm A')}</Text>
+                    <Text className="text-gray-600">Serving date:</Text>
+                    <Text className="font-medium">{moment(selectedOrder.requested_time).utcOffset(330).format('DD/MM/YYYY')}</Text>
                   </View>
                   <View className="flex-row justify-between">
                     <Text className="text-gray-600">Status:</Text>
@@ -275,8 +275,11 @@ const MyFoodOrdersScreen = ({ navigation }) => {
     <View className="flex-1 bg-gray-50">
       <Header />
       <ScrollView className="p-4">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">My Food Orders</Text>
-        <Text className="text-gray-600 mb-6">Track your special food order history</Text>
+        <TouchableOpacity accessibilityRole="button" onPress={() => navigation.goBack()} className="self-start py-2 mb-2">
+          <Text className="font-semibold text-blue-600">Back to Additional Food</Text>
+        </TouchableOpacity>
+        <Text className="text-3xl font-bold text-gray-900 mb-2">My Additional Food Orders</Text>
+        <Text className="text-gray-600 mb-6">Track your additional food order history</Text>
 
         <View className="flex-row flex-wrap justify-between items-center mb-4">
           <TouchableOpacity
@@ -325,7 +328,7 @@ const MyFoodOrdersScreen = ({ navigation }) => {
           <View className="text-center py-12 bg-white rounded-lg shadow-md">
             <Utensils className="mx-auto h-12 w-12 text-gray-400" />
             <Text className="mt-2 text-sm font-medium text-gray-900">No food orders found</Text>
-            <Text className="mt-1 text-sm text-gray-500">Your special food order history will appear here.</Text>
+            <Text className="mt-1 text-sm text-gray-500">Your additional food order history will appear here.</Text>
           </View>
         )}
       </ScrollView>

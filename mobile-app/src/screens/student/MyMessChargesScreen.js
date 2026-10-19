@@ -130,7 +130,7 @@ const MyMessChargesScreen = () => {
                   <Text className="text-lg font-bold text-gray-800">₹{foodCharge.toFixed(2)}</Text>
               </View>
               <View className="flex-row items-center justify-between border-t border-gray-100 pt-2">
-                  <Text className="text-lg text-gray-700">Additional Token:</Text>
+                  <Text className="text-lg text-gray-700">Additional food bill:</Text>
                   <Text className="text-lg font-bold text-gray-800">₹{totalMonthlySpecialFoodCost.toFixed(2)}</Text>
               </View>
 
@@ -177,7 +177,7 @@ const MyMessChargesScreen = () => {
                 <Text className="flex-2 text-left text-xs font-medium text-gray-500 uppercase">Date</Text>
                 <Text className="flex-2 text-left text-xs font-medium text-gray-500 uppercase">Att.</Text>
                 <Text className="flex-2 text-right text-xs font-medium text-gray-500 uppercase">Base</Text>
-                <Text className="flex-2 text-right text-xs font-medium text-gray-500 uppercase">Special</Text>
+                <Text className="flex-2 text-right text-xs font-medium text-gray-500 uppercase">Additional</Text>
                 <Text className="flex-2 text-right text-xs font-medium text-gray-500 uppercase">Total</Text>
               </View>
               {dailyCharges.map((charge) => {
@@ -224,9 +224,9 @@ const MyMessChargesScreen = () => {
                             </View>
                           </View>
 
-                          {/* Special Food Orders Details */}
+                          {/* Additional Food Orders Details */}
                           <View>
-                            <Text className="font-semibold text-gray-800 mb-2">Special Food Orders (Pending Payment)</Text>
+                            <Text className="font-semibold text-gray-800 mb-2">Additional Food Orders (Pending Payment)</Text>
                             <View className="space-y-1">
                               <View className="flex-row justify-between">
                                 <Text className="font-medium">Amount:</Text>
@@ -235,7 +235,7 @@ const MyMessChargesScreen = () => {
                                 </Text>
                               </View>
                               <Text className="text-sm text-gray-600 italic">
-                                This is the cost of special food items you ordered for this day, which is still pending payment and added to your bill.
+                                This is the cost of additional food items you ordered for this day, which is still pending payment and added to your bill.
                               </Text>
                             </View>
                           </View>

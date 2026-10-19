@@ -1,3 +1,6 @@
+import { assertAdditionalFoodMonthOpen, syncAdditionalFoodFee } from '../services/additionalFoodBilling.js';
+import { assertAdditionalFoodQuantity } from '../services/additionalFoodQuantity.js';
+import { normalizeAdditionalFood, validateAdditionalFoodOrder } from '../utils/additionalFood.js';
 import { freezeSharedBilling } from '../services/freezeSharedBilling.js';
 import { inventoryScope } from '../services/inventoryScope.js';
 import { RECEIVED_ORDER_PREFIX, parseReceivedOrderNotes } from '../services/receivedPurchaseOrder.js';
@@ -3166,44 +3169,30 @@ export const removeItemStoreMapping = async (req, res) => {
 // SPECIAL FOOD ITEMS MANAGEMENT
 export const createSpecialFoodItem = async (req, res) => {
   try {
-    const { name, description, price, preparation_time_minutes, category, image_url, expiry_time } = req.body;
-
-    if (!name || !price || !category) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name, price, and category are required'
-      });
-    }
-
-    const foodItem = await SpecialFoodItem.create({
-      name,
-      description,
-      price,
-      preparation_time_minutes,
-      category,
-      image_url,
-      expiry_time,
-      is_available: true
-    });
+    let payload;
+    try { payload = normalizeAdditionalFood(req.body); }
+    catch (error) { return res.status(400).json({ success: false, message: error.message }); }
+    const foodItem = await SpecialFoodItem.create(payload);
 
     res.status(201).json({
       success: true,
       data: foodItem,
-      message: 'Special food item created successfully'
+      message: 'Additional food item created successfully'
     });
   } catch (error) {
-    console.error('Special food item creation error:', error);
+    console.error('Additional food item creation error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
 export const getSpecialFoodItems = async (req, res) => {
   try {
-    const { category, is_available, search } = req.query;
+    const { category, meal_type, is_available, search } = req.query;
     let whereClause = {};
     if (category) {
       whereClause.category = category;
     }
+    if (meal_type) whereClause.meal_type = meal_type;
     if (is_available !== undefined) {
       whereClause.is_available = is_available === 'true';
     }
@@ -3216,7 +3205,7 @@ export const getSpecialFoodItems = async (req, res) => {
     });
     res.json({ success: true, data: foodItems });
   } catch (error) {
-    console.error('Special food items fetch error:', error);
+    console.error('Additional food items fetch error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'
@@ -3232,7 +3221,7 @@ export const getSpecialFoodItemById = async (req, res) => {
     if (!foodItem) {
       return res.status(404).json({
         success: false,
-        message: 'Special food item not found'
+        message: 'Additional food item not found'
       });
     }
 
@@ -3241,7 +3230,7 @@ export const getSpecialFoodItemById = async (req, res) => {
       data: foodItem
     });
   } catch (error) {
-    console.error('Special food item fetch error:', error);
+    console.error('Additional food item fetch error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
@@ -3249,35 +3238,43 @@ export const getSpecialFoodItemById = async (req, res) => {
 export const updateSpecialFoodItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, price, preparation_time_minutes, category, image_url, is_available, expiry_time } = req.body;
+    let payload;
+    try { payload = normalizeAdditionalFood(req.body); }
+    catch (error) { return res.status(400).json({ success: false, message: error.message }); }
 
     const foodItem = await SpecialFoodItem.findByPk(id);
     if (!foodItem) {
       return res.status(404).json({
         success: false,
-        message: 'Special food item not found'
+        message: 'Additional food item not found'
       });
     }
 
-    await foodItem.update({
-      name,
-      description,
-      price,
-      preparation_time_minutes,
-      category,
-      image_url,
-      expiry_time,
-      is_available
-    });
+    await foodItem.update(payload);
 
     res.json({
       success: true,
       data: foodItem,
-      message: 'Special food item updated successfully'
+      message: 'Additional food item updated successfully'
     });
   } catch (error) {
-    console.error('Special food item update error:', error);
+    console.error('Additional food item update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+export const updateSpecialFoodAvailability = async (req, res) => {
+  if (typeof req.body.is_available !== 'boolean') {
+    return res.status(400).json({ success: false, message: 'Availability must be true or false.' });
+  }
+  try {
+    const foodItem = await SpecialFoodItem.findByPk(req.params.id);
+    if (!foodItem) return res.status(404).json({ success: false, message: 'Additional food item not found.' });
+    await foodItem.update({ is_available: req.body.is_available });
+    return res.json({ success: true, data: foodItem, message: req.body.is_available ? 'Food is now available.' : 'Food is now not available.' });
+  } catch (error) {
+    console.error('Additional food availability update error:', error);
+    return res.status(500).json({ success: false, message: 'Unable to update food availability.' });
   }
 };
 
@@ -3289,7 +3286,7 @@ export const deleteSpecialFoodItem = async (req, res) => {
     if (!foodItem) {
       return res.status(404).json({
         success: false,
-        message: 'Special food item not found'
+        message: 'Additional food item not found'
       });
     }
 
@@ -3300,17 +3297,17 @@ export const deleteSpecialFoodItem = async (req, res) => {
       await foodItem.update({ is_available: false });
       return res.json({
         success: true,
-        message: 'Special food item has been used in orders. Marked as unavailable instead of deleting.'
+        message: 'Additional food item has been used in orders. Marked as unavailable instead of deleting.'
       });
     }
 
     await foodItem.destroy();
     res.json({
       success: true,
-      message: 'Special food item deleted successfully'
+      message: 'Additional food item deleted successfully'
     });
   } catch (error) {
-    console.error('Special food item deletion error:', error);
+    console.error('Additional food item deletion error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
@@ -3318,7 +3315,8 @@ export const deleteSpecialFoodItem = async (req, res) => {
 // FOOD ORDERS MANAGEMENT
 export const createFoodOrder = async (req, res) => {
   try {
-    const { items, requested_time, notes } = req.body;
+    const { items, notes, serving_date } = req.body;
+    let requested_time = serving_date ? `${serving_date}T12:00:00+05:30` : req.body.requested_time;
     const student_id = req.user.userId;
     const hostel_id = req.user.hostel_id;
 
@@ -3336,9 +3334,14 @@ export const createFoodOrder = async (req, res) => {
       });
     }
 
+    const servingDate = serving_date || moment(requested_time).utcOffset(330).format('YYYY-MM-DD');
+    try { validateAdditionalFoodOrder(items, null, servingDate); }
+    catch (error) { return res.status(400).json({ success: false, message: error.message }); }
+
     const transaction = await sequelize.transaction();
 
     try {
+      await assertAdditionalFoodMonthOpen(hostel_id, `${servingDate}T12:00:00+05:30`, transaction);
       // Fetch food items to validate and get prices
       const foodItemIds = items.map(item => item.food_item_id);
       const foodItems = await SpecialFoodItem.findAll({
@@ -3357,15 +3360,32 @@ export const createFoodOrder = async (req, res) => {
         });
       }
 
+      try {
+        validateAdditionalFoodOrder(items, foodItems, servingDate);
+        await assertAdditionalFoodQuantity(student_id, hostel_id, servingDate, foodItems, items, transaction);
+      }
+      catch (error) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: error.message });
+      }
+
+      if (serving_date) {
+        const hour = { Breakfast: '08', Lunch: '13', Dinner: '20' }[foodItems[0].meal_type] || '12';
+        requested_time = `${serving_date}T${hour}:00:00+05:30`;
+      }
+
       // Calculate total amount
       let totalAmount = 0;
       const orderItems = items.map(item => {
         const foodItem = foodItems.find(fi => fi.id === item.food_item_id);
-        const subtotal = parseFloat(foodItem.price) * item.quantity;
+        const subtotal = Math.round(Number(foodItem.price) * 100) * item.quantity / 100;
         totalAmount += subtotal;
 
         return {
           food_item_id: item.food_item_id,
+          food_name_snapshot: foodItem.name,
+          category_snapshot: foodItem.category,
+          meal_type_snapshot: foodItem.meal_type,
           quantity: item.quantity,
           unit_price: foodItem.price,
           subtotal,
@@ -3375,15 +3395,18 @@ export const createFoodOrder = async (req, res) => {
 
       // Create order
       const foodOrder = await FoodOrder.create({
+        order_source: 'student',
         student_id,
         hostel_id,
         requested_time,
-        total_amount: totalAmount,
+        total_amount: Math.round(totalAmount * 100) / 100,
         notes,
         status: 'pending',
         payment_status: 'pending',
         order_date: new Date()
       }, { transaction });
+
+      await syncAdditionalFoodFee(foodOrder, transaction, { create: true, issuedBy: student_id });
 
       // Create order items
       await Promise.all(orderItems.map(item =>
@@ -3393,12 +3416,14 @@ export const createFoodOrder = async (req, res) => {
           quantity: item.quantity,
           unit_price: item.unit_price,
           subtotal: item.subtotal,
-          special_instructions: item.special_instructions
+          special_instructions: item.special_instructions,
+          food_name_snapshot: item.food_name_snapshot, category_snapshot: item.category_snapshot, meal_type_snapshot: item.meal_type_snapshot
         }, { transaction })
       ));
 
       // 1. Move the fetch BEFORE the commit
       const completeOrder = await FoodOrder.findByPk(foodOrder.id, {
+        transaction,
         include: [{
           model: FoodOrderItem,
           // Note: Ensure the alias or model name matches your association
@@ -3408,7 +3433,7 @@ export const createFoodOrder = async (req, res) => {
           as: 'Student',
           attributes: ['userId', 'userName', 'userMail']
         }]
-      }, { transaction });
+      });
 
       // 2. Commit only after everything (including the fetch) is successful
       await transaction.commit();
@@ -3427,7 +3452,7 @@ export const createFoodOrder = async (req, res) => {
     }
   } catch (error) {
     console.error('Food order creation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Server error' });
   }
 };
 
@@ -3473,7 +3498,7 @@ export const getFoodOrders = async (req, res) => {
         model: FoodOrderItem,
         include: [{
           model: SpecialFoodItem,
-          attributes: ['id', 'name', 'price', 'category']
+          attributes: ['id', 'name', 'price', 'category', 'meal_type']
         }]
       }, {
         model: User,
@@ -3622,144 +3647,41 @@ export const getFoodOrderById = async (req, res) => {
   }
 };
 
-export const updateFoodOrderStatus = async (req, res) => {
+async function changeAdditionalFoodOrder(req, res, changes, studentCancellation = false) {
   try {
-    const { id } = req.params;
-    const { status } = req.body;
-    const hostel_id = req.user.hostel_id;
-
-    // Validate status
-    const validStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid status'
-      });
-    }
-
-    // Find the order
-    const order = await FoodOrder.findOne({
-      where: { id, hostel_id }
+    const updated = await sequelize.transaction(async transaction => {
+      const where = { id: req.params.id, ...(req.user.role === 'student' ? { student_id: req.user.userId, ...(studentCancellation ? { status: 'pending' } : {}) } : { hostel_id: req.user.hostel_id }) };
+      const before = await FoodOrder.findOne({ where, transaction });
+      if (!before) throw Object.assign(new Error('Food order not found or cannot be changed.'), { status: 404 });
+      await assertAdditionalFoodMonthOpen(before.hostel_id, before.requested_time, transaction);
+      const order = await FoodOrder.findOne({ where, transaction, lock: transaction.LOCK.UPDATE });
+      if (!order) throw Object.assign(new Error('The order changed. Refresh and try again.'), { status: 409 });
+      const values = { ...changes };
+      if (values.status === 'cancelled' && order.payment_status === 'paid') values.payment_status = 'refunded';
+      await order.update(values, { transaction });
+      await syncAdditionalFoodFee(order, transaction);
+      return FoodOrder.findByPk(order.id, { include: [{ model: FoodOrderItem, include: [{ model: SpecialFoodItem }] }, { model: User, as: 'Student', attributes: ['userId', 'userName', 'userMail'] }], transaction });
     });
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Food order not found'
-      });
-    }
-
-    // Update status
-    await order.update({ status });
-
-    // Fetch updated order with details
-    const updatedOrder = await FoodOrder.findByPk(id, {
-      include: [{
-        model: FoodOrderItem,
-        include: [{
-          model: SpecialFoodItem
-        }]
-      }, {
-        model: User,
-        as: 'Student',
-        attributes: ['userId', 'userName', 'userMail']
-      }]
-    });
-
-    res.json({
-      success: true,
-      data: updatedOrder,
-      message: `Food order status updated to ${status}`
-    });
+    return res.json({ success: true, data: updated, message: 'Food order updated successfully.' });
   } catch (error) {
-    console.error('Food order status update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('Food order update error:', error);
+    return res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Unable to update order.' });
   }
+}
+
+export const updateFoodOrderStatus = (req, res) => {
+  const { status } = req.body;
+  if (!['pending', 'confirmed', 'preparing', 'ready', 'delivered', 'cancelled'].includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
+  return changeAdditionalFoodOrder(req, res, { status });
 };
 
-export const updatePaymentStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { payment_status } = req.body;
-    const hostel_id = req.user.hostel_id;
-
-    // Validate payment status
-    const validStatuses = ['pending', 'paid', 'refunded'];
-    if (!validStatuses.includes(payment_status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid payment status'
-      });
-    }
-
-    // Find the order
-    const order = await FoodOrder.findOne({
-      where: { id, hostel_id }
-    });
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Food order not found'
-      });
-    }
-
-    // Update payment status
-    await order.update({ payment_status });
-
-    res.json({
-      success: true,
-      data: order,
-      message: `Payment status updated to ${payment_status}`
-    });
-  } catch (error) {
-    console.error('Payment status update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+export const updatePaymentStatus = (req, res) => {
+  const { payment_status } = req.body;
+  if (!['pending', 'paid', 'refunded'].includes(payment_status)) return res.status(400).json({ success: false, message: 'Invalid payment status' });
+  return changeAdditionalFoodOrder(req, res, { payment_status });
 };
 
-export const cancelFoodOrder = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const user = req.user;
-
-    let whereClause = { id };
-
-    // If student, ensure they can only cancel their own orders
-    if (user.role === 'student') {
-      whereClause.student_id = user.userId;
-      whereClause.status = 'pending'; // Students can only cancel pending orders
-    } else {
-      // For mess staff, they should be from the correct hostel
-      whereClause.hostel_id = user.hostel_id;
-    }
-
-    const order = await FoodOrder.findOne({ where: whereClause });
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Food order not found or cannot be cancelled'
-      });
-    }
-
-    // Update status to cancelled
-    await order.update({
-      status: 'cancelled',
-      // If already paid, mark for refund
-      payment_status: order.payment_status === 'paid' ? 'refunded' : order.payment_status
-    });
-
-    res.json({
-      success: true,
-      data: order,
-      message: 'Food order cancelled successfully'
-    });
-  } catch (error) {
-    console.error('Food order cancellation error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};
+export const cancelFoodOrder = (req, res) => changeAdditionalFoodOrder(req, res, { status: 'cancelled' }, true);
 
 // Generate Monthly Food Order Report
 export const getMonthlyFoodOrderReport = async (req, res) => {
@@ -3797,7 +3719,7 @@ export const getMonthlyFoodOrderReport = async (req, res) => {
         model: FoodOrderItem,
         include: [{
           model: SpecialFoodItem,
-          attributes: ['id', 'name', 'price', 'category']
+          attributes: ['id', 'name', 'price', 'category', 'meal_type']
         }]
       }, {
         model: User,

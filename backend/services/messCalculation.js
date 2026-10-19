@@ -27,7 +27,7 @@ async function getHostelCalculation(hostelId, month, year, transaction) {
     DailyConsumption.sum('total_cost', { where: { hostel_id: hostelId, consumption_date: range }, transaction }),
     MessDailyExpense.findAll({ where: { hostel_id: hostelId, expense_date: range }, include: [{ model: ExpenseType, as: 'ExpenseType' }], transaction }),
     AdditionalIncome.findAll({ where: { hostel_id: hostelId, received_date: range }, include: [{ model: IncomeType, as: 'IncomeType' }], transaction }),
-    FoodOrder.sum('total_amount', { where: { hostel_id: hostelId, status: { [Op.in]: ['confirmed', 'delivered'] }, payment_status: 'pending', order_date: range }, transaction })
+    FoodOrder.sum('total_amount', { where: { hostel_id: hostelId, status: { [Op.ne]: 'cancelled' }, payment_status: 'pending', requested_time: { [Op.between]: [new Date(`${billing.start}T00:00:00+05:30`), new Date(`${billing.end}T23:59:59.999+05:30`)] } }, transaction })
   ]);
   const grouped = new Map();
   for (const row of expenseRows) {

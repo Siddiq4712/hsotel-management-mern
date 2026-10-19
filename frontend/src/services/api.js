@@ -448,12 +448,14 @@ export const messAPI = {
   getSpecialFoodItemById: (id) => api.get(`/mess/special-food-items/${id}`),
   updateSpecialFoodItem: (id, data) => api.put(`/mess/special-food-items/${id}`, data), // Expected data: { name, description, price, preparation_time_minutes, category, image_url, is_available }
   deleteSpecialFoodItem: (id) => api.delete(`/mess/special-food-items/${id}`),
+  updateSpecialFoodAvailability: (id, is_available) => api.patch(`/mess/special-food-items/${id}/availability`, { is_available }),
 
   // Food Orders - Complete CRUD
   // Expected data: { items: [{ food_item_id, quantity, special_instructions }], requested_time, notes }
   // Note: Rate-limited endpoint (10 requests per 15 minutes per user)
   createFoodOrder: (data) => api.post('/mess/food-orders', data),
   getFoodOrders: (params) => api.get('/mess/food-orders', { params }), // params: { status, from_date, to_date, student_id }
+  getAdditionalFoodStudentReport: (params) => api.get('/mess/reports/additional-food-students', { params }),
   getFoodOrderById: (id) => api.get(`/mess/food-orders/${id}`),
   updateFoodOrderStatus: (id, data) => api.put(`/mess/food-orders/${id}/status`, data), // Expected data: { status }
   updatePaymentStatus: (id, data) => api.put(`/mess/food-orders/${id}/payment`, data), // Expected data: { payment_status }

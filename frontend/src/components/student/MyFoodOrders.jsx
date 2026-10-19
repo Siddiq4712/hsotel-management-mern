@@ -161,8 +161,8 @@ const MyFoodOrders = () => {
               <ClipboardList className="text-white" size={24} />
             </div>
             <div>
-              <Title level={2} style={{ margin: 0 }}>Canteen Requests</Title>
-              <Text type="secondary">Monitor special meal requests and their impact on your mess ledger</Text>
+              <Title level={2} style={{ margin: 0 }}>Additional Food Requests</Title>
+              <Text type="secondary">Monitor additional food requests and their impact on your mess ledger</Text>
             </div>
           </div>
           <Badge count={orders.filter(o => !['delivered', 'cancelled'].includes(o.status)).length} overflowCount={99}>
@@ -242,7 +242,7 @@ const MyFoodOrders = () => {
 
         {/* Audit Modal (Unchanged Detail Logic) */}
         <Modal
-          title={<div className="flex items-center gap-2 text-blue-600"><ClipboardList size={20}/> Canteen Audit Dossier</div>}
+          title={<div className="flex items-center gap-2 text-blue-600"><ClipboardList size={20}/> Additional Food Details</div>}
           open={viewModalVisible}
           onCancel={() => setViewModalVisible(false)}
           footer={<Button type="primary" onClick={() => setViewModalVisible(false)} className="rounded-xl h-11 px-8">Close Dossier</Button>}

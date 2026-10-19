@@ -777,6 +777,7 @@ export const Fee = sequelize.define('Fee', {
 });
 
 export const StudentFee = sequelize.define('StudentFee', {
+  food_order_id: { type: DataTypes.INTEGER, allowNull: true },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
@@ -1059,6 +1060,8 @@ export const HostelMaintenance = sequelize.define('HostelMaintenance', {
 // ==========================================
 
 export const SpecialFoodItem = sequelize.define('SpecialFoodItem', {
+  max_quantity_per_student: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1, validate: { min: 1, max: 1000 } },
+  meal_type: { type: DataTypes.STRING, allowNull: true },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   name: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT, allowNull: true },
@@ -1067,10 +1070,13 @@ export const SpecialFoodItem = sequelize.define('SpecialFoodItem', {
   is_available: { type: DataTypes.BOOLEAN, defaultValue: true },
   category: { type: DataTypes.STRING, allowNull: false },
   image_url: { type: DataTypes.STRING, allowNull: true },
+  weekly_day: { type: DataTypes.INTEGER, allowNull: true, validate: { min: 0, max: 6 } },
+  order_deadline_time: { type: DataTypes.STRING(5), allowNull: false, defaultValue: '19:00' },
   expiry_time: { type: DataTypes.DATE, allowNull: true }
 }, { tableName: 'tbl_SpecialFoodItem', timestamps: true });
 
 export const FoodOrder = sequelize.define('FoodOrder', {
+  order_source: { type: DataTypes.STRING(16), allowNull: true },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   student_id: { 
     type: DataTypes.INTEGER, 
@@ -1086,6 +1092,9 @@ export const FoodOrder = sequelize.define('FoodOrder', {
 }, { tableName: 'tbl_FoodOrder', timestamps: true });
 
 export const FoodOrderItem = sequelize.define('FoodOrderItem', {
+  food_name_snapshot: { type: DataTypes.STRING, allowNull: true },
+  category_snapshot: { type: DataTypes.STRING, allowNull: true },
+  meal_type_snapshot: { type: DataTypes.STRING, allowNull: true },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   food_order_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_FoodOrder', key: 'id' } },
   food_item_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_SpecialFoodItem', key: 'id' } },

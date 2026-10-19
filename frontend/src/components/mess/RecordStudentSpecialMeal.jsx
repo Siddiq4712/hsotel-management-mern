@@ -124,7 +124,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
         items,
         description: values.description,
       });
-      message.success(`Special meals recorded for ${response.data.data.studentCount} students.`);
+      message.success(`Additional food recorded for ${response.data.data.studentCount} students.`);
       form.resetFields();
       setWatchItems([{ quantity: 1 }]);
       setSelectedIds([]);
@@ -160,7 +160,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
                   <Utensils size={20} />
                 </div>
                 <div>
-                  <h1 className="module-title ssm-heading">Special Meal Entry</h1>
+                  <h1 className="module-title ssm-heading">Additional Food Entry</h1>
                   <p className="module-subtitle ssm-subheading">Record off-menu orders · Automate billing</p>
                 </div>
               </div>
@@ -195,7 +195,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
                     <DatePicker className="w-full ssm-datepicker" suffixIcon={<Calendar size={14} />} />
                   </Form.Item>
 
-                  <Form.Item name="description" label="Notes / Reason (optional)">
+                  <Form.Item name="description" label="Supervisor notes / reason (optional)" extra="Record only extra food actually served, excluding quantities students already ordered. This adds a separate additional bill charge and can be recorded after the student deadline.">
                     <Input.TextArea
                       rows={3}
                       placeholder="e.g., Birthday celebration, dietary request…"

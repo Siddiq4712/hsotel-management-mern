@@ -118,7 +118,7 @@ const MyMessCharges = () => {
       render: (v) => <Text className="text-slate-500">₹{parseFloat(v).toFixed(2)}</Text>
     },
     {
-      title: 'Token Add-ons',
+      title: 'Additional Food',
       dataIndex: 'specialFoodCost',
       align: 'right',
       render: (v) => parseFloat(v) > 0 ? <Text className="text-orange-500 font-medium">+ ₹{parseFloat(v).toFixed(2)}</Text> : <Text className="text-slate-300">—</Text>
@@ -191,6 +191,10 @@ const MyMessCharges = () => {
                </Row>
                <Alert className="mt-4" type="info" message={`Base days: ${summaryData.baseDays ?? "Legacy"} · Approved reductions: ${summaryData.reductionDays ?? "Legacy"}`} description="Only approved operational dates reduce food charges. Attendance status does not grant a reduction. Water and other charges are unchanged." />
                <div className="mt-6 space-y-2">
+                  <div className="flex justify-between py-2 border-b border-slate-50">
+                    <Text className="text-slate-500">Additional food bill</Text>
+                    <Text strong>₹{Number(summaryData.specialFood).toFixed(2)}</Text>
+                  </div>
                   {monthlyFlatFees.length > 0 ? monthlyFlatFees.map((f, i) => (
                     <div key={i} className="flex justify-between py-2 border-b border-slate-50">
                       <Text className="text-slate-500 capitalize">{f.fee_type.replace(/_/g, ' ')}</Text>

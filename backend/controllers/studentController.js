@@ -707,9 +707,10 @@ export const getDashboardStats = async (req, res) => {
 
 export const getAvailableSpecialFoodItems = async (req, res) => {
   try {
-    const { category } = req.query;
-    let whereClause = { is_available: true };
+    const { category, meal_type } = req.query;
+    let whereClause = { is_available: true, [Op.or]: [{ expiry_time: null }, { expiry_time: { [Op.gt]: new Date() } }] };
     if (category) whereClause.category = category;
+    if (meal_type) whereClause.meal_type = meal_type;
     const items = await SpecialFoodItem.findAll({ where: whereClause, order: [['name', 'ASC']] });
     res.json({ success: true, data: items });
   } catch (error) {
@@ -722,7 +723,7 @@ export const getSpecialFoodItemCategories = async (req, res) => {
   try {
     const categories = await SpecialFoodItem.findAll({
       attributes: [[sequelize.fn('DISTINCT', sequelize.col('category')), 'category']],
-      where: { is_available: true },
+      where: { is_available: true, category: { [Op.in]: ['Veg', 'Non-Veg'] } },
       order: [['category', 'ASC']]
     });
     res.json({ success: true, data: categories.map(c => c.category) });

@@ -6,6 +6,7 @@ import StudentDashboardScreen from '../screens/student/StudentDashboardScreen';
 import MyLeavesScreen from '../screens/student/MyLeavesScreen';
 import MyComplaintsScreen from '../screens/student/MyComplaintsScreen';
 import StudentFoodOrderScreen from '../screens/student/StudentFoodOrderScreen';
+import MyFoodOrdersScreen from '../screens/student/MyFoodOrdersScreen';
 import TransactionHistoryScreen from '../screens/student/TransactionHistoryScreen';
 import MyMessChargesScreen from '../screens/student/MyMessChargesScreen';
 import ViewRoomsScreen from '../screens/student/ViewRoomsScreen'; // New tab for rooms
@@ -74,7 +75,7 @@ const StudentTabNavigator = () => {
         name="FoodOrder"
         component={StudentFoodOrderScreen}
         options={{
-          tabBarLabel: 'Order Food',
+          tabBarLabel: 'Additional Food',
           tabBarIcon: ({ color, size }) => <Utensils color={color} size={size} />,
         }}
       />
@@ -117,6 +118,7 @@ const StudentStackNavigator = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="StudentTabs" component={StudentTabNavigator} />
+      <Stack.Screen name="MyFoodOrders" component={MyFoodOrdersScreen} />
       <Stack.Screen name="ApplyLeave" component={ApplyLeaveScreen} options={{ headerShown: true, title: 'Apply for Leave' }} />
       <Stack.Screen name="OutpassStatus" component={OutpassStatusScreen} options={{ headerShown: true, title: 'Gate Pass Status' }} />
       <Stack.Screen name="OutpassRequest" component={OutpassRequestScreen} options={{ headerShown: true, title: 'Request Outpass' }} />

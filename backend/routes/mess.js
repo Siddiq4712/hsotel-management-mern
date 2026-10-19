@@ -3,6 +3,7 @@ import { createScopedExpense, listScopedExpenses, getScopedExpense, updateScoped
 import { receivePurchaseOrder, listReceivedPurchaseOrders } from '../controllers/receivedPurchaseOrderController.js';
 import { installAdminWorkspace } from '../middleware/adminWorkspace.js';
 import { body } from 'express-validator';
+import { getAdditionalFoodStudentReport } from '../controllers/additionalFoodReportController.js';
 import rateLimit from 'express-rate-limit';
 import {
   // Menu Management
@@ -81,6 +82,7 @@ import {
   getSpecialFoodItems,
   getSpecialFoodItemById,
   updateSpecialFoodItem,
+  updateSpecialFoodAvailability,
   deleteSpecialFoodItem,
 
   // Food Orders
@@ -315,6 +317,7 @@ router.post('/special-food-items', authorize(['mess', 'admin']), validateSpecial
 router.get('/special-food-items', authorize(['mess', 'warden', 'admin', 'student']), getSpecialFoodItems);
 router.get('/special-food-items/:id', authorize(['mess', 'warden', 'admin', 'student']), getSpecialFoodItemById);
 router.put('/special-food-items/:id', authorize(['mess', 'admin']), validateSpecialFoodItem, updateSpecialFoodItem);
+router.patch('/special-food-items/:id/availability', authorize(['mess', 'admin']), updateSpecialFoodAvailability);
 router.delete('/special-food-items/:id', authorize(['mess', 'admin', 'warden']), deleteSpecialFoodItem);
 
 router.post('/food-orders', authorize(['student', 'mess', 'admin']), createOrderLimiter, validateFoodOrder, createFoodOrder);
@@ -325,6 +328,7 @@ router.put('/food-orders/:id/payment', authorize(['mess', 'admin']), updatePayme
 router.put('/food-orders/:id/cancel', authorize(['mess', 'admin', 'student']), cancelFoodOrder);
 
 /* ---------- REPORTS ---------- */
+router.get('/reports/additional-food-students', authorize(['mess', 'warden', 'admin']), getAdditionalFoodStudentReport);
 router.get('/reports/monthly-food-orders', authorize(['mess', 'warden', 'admin']), getMonthlyFoodOrderReport);
 router.get('/reports/consumption-summary', authorize(['mess', 'warden', 'admin']), getSummarizedConsumptionReport);
 router.get('/reports/latest-purchase', authorize(['mess', 'admin']), getLatestPurchaseReport);

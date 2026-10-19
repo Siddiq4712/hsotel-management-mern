@@ -46,7 +46,7 @@ const MENU_STRUCTURE = {
       items: [
         { id: 'income-types', label: 'Income Types', icon: DollarSign },
         { id: 'expense-types', label: 'Expense Types', icon: CreditCard },
-        { id: 'consumption', label: 'Record Special Consumption', icon: ClipboardCheck },
+        { id: 'consumption', label: 'Record Additional Consumption', icon: ClipboardCheck },
         { id: 'manage-inventories', label: 'Manage Inventories', icon: Database },
       ]
     },
@@ -123,10 +123,10 @@ const MENU_STRUCTURE = {
       ]
     },
     {
-      title: 'Special Food',
+      title: 'Additional Food',
       items: [
-        { id: 'food-order', label: 'Order Special Food', icon: Coffee },
-        { id: 'my-food-orders', label: 'My Food Orders', icon: ShoppingBag },
+        { id: 'food-order', label: 'Additional Food', icon: Coffee },
+        { id: 'my-food-orders', label: 'My Additional Food', icon: ShoppingBag },
       ]
     }
   ],
@@ -163,10 +163,10 @@ const MENU_STRUCTURE = {
       ]
     },
     {
-      title: 'Special Food Orders',
+      title: 'Additional Food Orders',
       items: [
-        { id: 'special-food-items', label: 'Special Food Items', icon: Coffee },
-        { id: 'consumption', label: 'Record Special Consumption', icon: ClipboardCheck },
+        { id: 'special-food-items', label: 'Additional Food Items', icon: Coffee },
+        { id: 'consumption', label: 'Record Additional Consumption', icon: ClipboardCheck },
         { id: 'food-orders-dashboard', label: 'Orders Dashboard', icon: ShoppingBag },
       ]
     },
