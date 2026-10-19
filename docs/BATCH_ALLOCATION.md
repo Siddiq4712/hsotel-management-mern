@@ -23,6 +23,11 @@ stale updates. Unmatched rolls, multiple active enrollments and rooms in another
 hostel are conflicts and cannot be applied. An active room must be vacated before
 moving its student to another hostel.
 
+The table's selection checkbox and **Select all matching eligible students** button
+select ready students across every filtered page. Individual selections survive
+pagination; changing a filter clears them. The page-size control supports 10, 20,
+50 or 100 rows without changing the scope of the selected students.
+
 Allocation updates the user's current hostel and active enrollment's batch and
 hostel. It preserves enrollment dates, bed eligibility, remaining dues, historical
 attendance, fees and mess bills. Archiving a batch with active residents is blocked.
