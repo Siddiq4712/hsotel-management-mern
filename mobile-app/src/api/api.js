@@ -1,9 +1,8 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Replace with your backend API
-// Using emulator local loopback because IP networking is failing
-export const API_BASE_URL = 'http://10.0.2.2:5001/api';
+// Backend address on the computer's Wi-Fi network.
+export const API_BASE_URL = 'http://192.168.1.5:5001/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
