@@ -3,10 +3,16 @@ import { Op } from 'sequelize';
 import sequelize from '../config/database.js';
 import { Session, Hostel, Enrollment, User, Role, RoomAllotment, HostelRoom } from '../models/index.js';
 
-export function matchBatch(rollNumber, batches) {
-  const roll = String(rollNumber ?? '').trim();
-  const matches = batches.filter(batch => batch.is_active && batch.roll_prefix && roll.startsWith(batch.roll_prefix));
-  if (matches.length !== 1) throw new Error(matches.length ? `Ambiguous batch for roll number ${roll}` : `No batch configured for roll number ${roll}. Ask an administrator to configure its prefix.`);
+export function normalizeBatchYear(value) {
+  const raw = String(value ?? '').trim();
+  if (!/^\d{4}$/.test(raw) || Number(raw) < 2000 || Number(raw) > 2100) throw new Error('A valid ERP batch admission year is required, for example 2024. Fetch it from ERP or enter it explicitly.');
+  return Number(raw);
+}
+
+export function matchBatch(batchYear, batches) {
+  const year = normalizeBatchYear(batchYear);
+  const matches = batches.filter(batch => batch.is_active && Number(batch.erp_batch_year) === year);
+  if (matches.length !== 1) throw new Error(matches.length ? `Ambiguous batch configuration for admission year ${year}` : `No batch configured for admission year ${year}. Configure it in Manage Batches.`);
   if (!matches[0].hostel_id) throw new Error(`Assign a hostel to batch ${matches[0].name} first.`);
   return matches[0];
 }
@@ -14,12 +20,12 @@ export function matchBatch(rollNumber, batches) {
 export function validateBatch(input, batches, editingId = null) {
   const start = Number(input.start_year);
   const end = Number(input.end_year);
-  const prefix = String(input.roll_prefix ?? '').trim();
+  const year = normalizeBatchYear(input.erp_batch_year ?? input.start_year);
   if (!Number.isInteger(start) || !Number.isInteger(end) || start < 2000 || end > 2100 || end <= start) throw new Error('Enter valid start and end years. End year must be later than start year.');
-  if (!/^\d{1,20}$/.test(prefix)) throw new Error('Roll number prefix must contain 1 to 20 digits.');
-  if (batches.some(batch => String(batch.id) !== String(editingId) && batch.roll_prefix && (prefix.startsWith(batch.roll_prefix) || batch.roll_prefix.startsWith(prefix)))) throw new Error('This prefix duplicates or overlaps an existing batch prefix.');
+  if (year !== start) throw new Error('ERP batch admission year must match the batch start year.');
+  if (batches.some(batch => String(batch.id) !== String(editingId) && Number(batch.erp_batch_year) === year)) throw new Error('This admission year is already configured. Edit its existing batch.');
   if (batches.some(batch => String(batch.id) !== String(editingId) && batch.name === `${start}-${end}`)) throw new Error('This batch already exists. Edit its existing record.');
-  return { name: `${start}-${end}`, start_date: `${start}-06-01`, end_date: `${end}-05-31`, roll_prefix: prefix, hostel_id: Number(input.hostel_id), is_active: input.is_active !== false };
+  return { name: `${start}-${end}`, start_date: `${start}-06-01`, end_date: `${end}-05-31`, erp_batch_year: year, hostel_id: Number(input.hostel_id), is_active: input.is_active !== false };
 }
 
 // Lock hostel rows in a consistent order to serialize configuration changes.
@@ -37,13 +43,13 @@ export async function listBatches(transaction) {
     student_count: new Set(enrollments.filter(entry => entry.session_id === batch.id).map(entry => entry.student_id)).size }));
 }
 
-export async function resolveStudentBatch(rollNumber, actor, transaction) {
+export async function resolveStudentBatch(batchYear, actor, transaction) {
   if (transaction) await lockBatchConfiguration(transaction);
-  const batch = matchBatch(rollNumber, await Session.findAll({ transaction, lock: transaction?.LOCK.SHARE }));
+  const batch = matchBatch(batchYear, await Session.findAll({ transaction, lock: transaction?.LOCK.SHARE }));
   const hostel = await Hostel.findByPk(batch.hostel_id, { transaction });
   if (!hostel?.is_active) throw new Error(`Hostel assigned to batch ${batch.name} is inactive.`);
   const actorHostel = actor.hostel_id || actor.hostelId;
-  if (actor.role !== 'admin' && Number(actorHostel) !== batch.hostel_id) throw new Error(`Roll ${rollNumber} belongs to ${batch.name} in ${hostel.name}. You can only enroll students in your assigned hostel.`);
+  if (actor.role !== 'admin' && Number(actorHostel) !== batch.hostel_id) throw new Error(`Batch ${batch.name} belongs to ${hostel.name}. You can only enroll students in your assigned hostel.`);
   return batch;
 }
 
@@ -70,7 +76,9 @@ export async function allocationPreview(transaction) {
       current_batch: own.map(entry => batches.find(batch => batch.id === entry.session_id)?.name || '').join(', '),
       current_hostel: hostels.find(hostel => hostel.id === student.hostel_id)?.name || '', status: 'ready' };
     try {
-      const batch = matchBatch(student.roll_number, batches);
+      if (own.length !== 1) throw new Error('Multiple active enrollments need administrator review.');
+      row.erp_batch_year = own[0].erp_batch_year;
+      const batch = matchBatch(row.erp_batch_year, batches);
       row.batch_id = batch.id; row.batch = batch.name; row.hostel_id = batch.hostel_id;
       row.hostel = hostels.find(hostel => hostel.id === batch.hostel_id)?.name || '';
       if (!hostels.some(hostel => hostel.id === batch.hostel_id && hostel.is_active)) throw new Error('Assigned hostel is inactive.');

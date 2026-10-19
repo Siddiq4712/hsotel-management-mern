@@ -15,6 +15,11 @@ const REQUIRED_STUDENT_IMPORT_COLUMNS = [
     key: 'email',
     label: 'Email',
     aliases: ['email', 'email address', 'email_address', 'mail', 'student email', 'student_email', 'usermail', 'user_mail']
+  },
+  {
+    key: 'erp_batch_year',
+    label: 'Batch',
+    aliases: ['batch', 'batch year', 'batch_year', 'erp_batch_year', 'admission year', 'admission_year']
   }
 ];
 
@@ -198,6 +203,7 @@ export const mapExcelRowToStudent = (row = {}, headers = []) => {
   const nameValue = getHeaderValue(row, REQUIRED_STUDENT_IMPORT_COLUMNS[0].aliases);
   const rollValue = getHeaderValue(row, REQUIRED_STUDENT_IMPORT_COLUMNS[1].aliases);
   const emailValue = getHeaderValue(row, REQUIRED_STUDENT_IMPORT_COLUMNS[2].aliases);
+  const batchValue = getHeaderValue(row, REQUIRED_STUDENT_IMPORT_COLUMNS[3].aliases);
 
   const normalizedRollNumber = String(rollValue ?? '').trim();
   const normalizedName = String(nameValue ?? '').trim();
@@ -213,6 +219,7 @@ export const mapExcelRowToStudent = (row = {}, headers = []) => {
     userName: normalizedName,
     roll_number: normalizedRollNumber,
     email: normalizedEmail,
+    erp_batch_year: /^\d{4}$/.test(String(batchValue ?? '').trim()) ? Number(batchValue) : null,
     requires_bed: false // Initially not checked
   };
 };
@@ -317,9 +324,9 @@ const createWorkbookWithSheet = (data, sheetName = 'Sheet1') => {
 
 export const downloadStudentBulkImportTemplate = (fileName = 'student-bulk-import-template.xlsx') => {
   const worksheetData = [
-    ['Name', 'Roll Number', 'Email'],
-    ['John Doe', '20240001', 'johndoe@nec.edu.in'],
-    ['Jane Smith', '20240002', 'janesmith@lapc.edu.in']
+    ['Name', 'Roll Number', 'Email', 'Batch'],
+    ['John Doe', '20240001', 'johndoe@nec.edu.in', 2024],
+    ['Jane Smith', '20240002', 'janesmith@lapc.edu.in', 2024]
   ];
 
   const workbook = createWorkbookWithSheet(worksheetData, 'Students');

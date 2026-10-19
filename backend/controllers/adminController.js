@@ -91,7 +91,7 @@ export const getHostels = async (req, res) => {
     const where = req.query.include_inactive === 'true' ? {} : { is_active: true };
     if (search) where[Op.or] = [{ name: { [Op.like]: `%${search}%` } }, { address: { [Op.like]: `%${search}%` } }];
     const hostels = await Hostel.findAll({ where, include: [{ model: HostelRoom, include: [{ model: RoomType }] }], order: [['createdAt', 'DESC'], ['id', 'DESC']] });
-    const batches = await Session.findAll({ where: { is_active: true }, attributes: ['id', 'name', 'hostel_id', 'roll_prefix'] });
+    const batches = await Session.findAll({ where: { is_active: true }, attributes: ['id', 'name', 'hostel_id', 'erp_batch_year'] });
     return res.json({ success: true, data: hostels.map(hostel => ({ ...hostel.toJSON(), batches: batches.filter(batch => batch.hostel_id === hostel.id) })) });
   } catch (error) { return hostelFailure(res, error); }
 };

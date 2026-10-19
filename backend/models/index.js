@@ -137,7 +137,7 @@ export const Hostel = sequelize.define('Hostel', {
 export const Session = sequelize.define('Session', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   name: { type: DataTypes.STRING, allowNull: false },
-  roll_prefix: { type: DataTypes.STRING(20), allowNull: true },
+  erp_batch_year: { type: DataTypes.INTEGER, allowNull: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Hostel', key: 'id' } },
   start_date: { type: DataTypes.DATE, allowNull: false },
   end_date: { type: DataTypes.DATE, allowNull: false },
@@ -154,6 +154,7 @@ export const Enrollment = sequelize.define('Enrollment', {
   roll_number: { type: DataTypes.STRING, allowNull: true, unique: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   session_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Session', key: 'id' } },
+  erp_batch_year: { type: DataTypes.INTEGER, allowNull: true },
   enrollment_date: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
   requires_bed: { type: DataTypes.BOOLEAN, defaultValue: false },
   college: { type: DataTypes.ENUM('nec', 'lapc'), allowNull: true },

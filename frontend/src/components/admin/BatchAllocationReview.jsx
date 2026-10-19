@@ -29,7 +29,7 @@ export default function BatchAllocationReview({ open, onClose, onApplied }) {
   const selectedCount = eligibleIds.filter(id => selected.includes(id)).length;
   const selectionDisabled = loading || saving || Boolean(error) || !eligibleIds.length;
   return <Modal title="Review Batch Allocation" open={open} width={1200} onCancel={() => !saving && onClose()} onOk={() => Modal.confirm({ title: `Update ${selected.length} selected students?`, content: 'Current batch and hostel allocation will change. Historical fees, bills and attendance are preserved.', onOk: apply })} okText={`Apply to ${selected.length} Students`} confirmLoading={saving} okButtonProps={{ disabled: loading || Boolean(error) || !selected.length }} cancelButtonProps={{ disabled: saving }} mask={{ closable: !saving }}>
-    <Alert type="info" showIcon title="Review existing students before applying changes." description="Students with unmatched prefixes, multiple active enrollments, or rooms in a different hostel require attention first." className="mb-4" />
+    <Alert type="info" showIcon title="Review existing students before applying changes." description="Students with missing or unconfigured ERP batch years, multiple active enrollments, or rooms in a different hostel require attention first." className="mb-4" />
     {error && <Alert type="error" title={error} />}
     <Space wrap className="mb-4"><Input placeholder="Search name or roll number" aria-label="Search allocation students" allowClear value={search} disabled={saving} onChange={event => { setSearch(event.target.value); setSelected([]); setCurrentPage(1); }} /><Select value={status} disabled={saving} onChange={value => { setStatus(value); setSelected([]); setCurrentPage(1); }} options={[{ value: 'changes', label: 'Changes and conflicts' }, { value: 'ready', label: 'Ready to update' }, { value: 'conflict', label: 'Conflicts' }, { value: 'all', label: 'All students' }]} /><Button onClick={load} disabled={saving}>Refresh Preview</Button></Space>
     <Space wrap className="mb-4">
@@ -47,6 +47,7 @@ export default function BatchAllocationReview({ open, onClose, onApplied }) {
       getCheckboxProps: row => ({ disabled: loading || saving || Boolean(error) || row.status !== 'ready' })
     }} columns={[
       { title: 'Student', dataIndex: 'name', width: 160 }, { title: 'Roll Number', dataIndex: 'roll_number', width: 120 },
+      { title: 'ERP Batch Year', dataIndex: 'erp_batch_year', width: 130 },
       { title: 'Current Batch', dataIndex: 'current_batch', width: 140 }, { title: 'Proposed Batch', dataIndex: 'batch', width: 140 },
       { title: 'Current Hostel', dataIndex: 'current_hostel', width: 160 }, { title: 'Proposed Hostel', dataIndex: 'hostel', width: 160 },
       { title: 'Status', key: 'status', width: 240, render: (_, row) => <><Tag color={row.status === 'ready' ? 'green' : row.status === 'conflict' ? 'orange' : 'default'}>{row.status}</Tag>{row.reason}</> }

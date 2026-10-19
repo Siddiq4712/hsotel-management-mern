@@ -1,25 +1,39 @@
 # Batch and hostel allocation
 
 Administrators configure batches in **Manage Batches**. Enter the start and end
-years, a numeric roll number prefix, and one active hostel. The batch name is
-generated from the years. A hostel can hold several batches. Prefixes cannot
-duplicate or overlap another prefix, including an archived batch's prefix.
+years and one active hostel. The start year is the ERP admission-year matching
+key: ERP `batch = 2024` maps to the configured `2024-2028` batch. Each admission
+year has one batch and hostel; a hostel can hold several admission years.
 
-For example, prefix `24` on batch `2024-2028` matches roll number `24104085`.
-Admission, Excel import and ERP synchronization use this match as the authority
-for the student's batch and hostel. Imported batch IDs and source batch labels
-cannot override it. Wardens can admit only students assigned to their own hostel;
-administrators can import a mix of batches assigned to different hostels.
+Allocation uses the student's explicit ERP `batch` value, not the roll number.
+For example, even a roll beginning with `23` belongs to `2024-2028` if ERP says
+`batch = 2024`. Missing, invalid and unconfigured years are flagged, with no
+prefix or latest-batch fallback. The end year is explicitly configured and can
+represent four-year or other academic durations.
 
-Existing sessions remain in the same database table with their original IDs.
-The migration adds nullable `roll_prefix` and `hostel_id` columns and a unique
-prefix index. Legacy entries display **Needs setup** until configured. Database
-column names and existing `/sessions` API routes remain compatible; academic UI
-labels use Batch. GPS attendance and login sessions retain their own terminology.
+Manual admission requires **Batch Admission Year**. Excel imports require a
+**Batch** column containing the admission year; the downloadable template includes
+it. ERP normalization preserves the original year and maps `studentName`,
+`registerNumber`, `studentId`, `Userid` and `personal_email` from the source schema.
+ERP IDs remain distinct from local login-user IDs. Preview and sync resolve the
+configured year, and wardens process only students assigned to their own hostel.
+
+The warden student roster reads saved local enrollments by default. Explicit
+`GET /api/warden/students?source=erp` fetches ERP candidates filtered by their
+configured batch's hostel; ERP synchronization previews list unmatched years.
+Gender and hostel names do not determine batch allocation.
+
+The migration adds nullable `erp_batch_year` fields to batches and enrollments
+and a unique batch-year index. Existing configured batch/hostel rules retain their
+years and hostel assignments; the old prefix column is retained only as legacy
+storage and is not read by allocation logic. Students' missing source years are
+never inferred from their roll numbers or their earlier prefix-based assignment.
+Fetch the year through ERP sync, or supply it explicitly through admission.
+The existing `/sessions` API routes and database IDs remain compatible.
 
 After saving a batch, use **Review Batch Allocation**. Search or filter the
 preview, select ready rows, and apply their changes. A preview token rejects
-stale updates. Unmatched rolls, multiple active enrollments and rooms in another
+stale updates. Unmatched admission years, multiple active enrollments and rooms in another
 hostel are conflicts and cannot be applied. An active room must be vacated before
 moving its student to another hostel.
 

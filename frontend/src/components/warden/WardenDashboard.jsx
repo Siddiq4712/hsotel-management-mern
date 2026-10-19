@@ -119,6 +119,7 @@ const WardenDashboard = ({ setCurrentView }) => {
   }
 
   const newStudentsColumns = [
+    { title: 'ERP Batch Year', dataIndex: 'erp_batch_year', key: 'erp_batch_year' },
     { title: 'Assigned Hostel', dataIndex: 'assigned_hostel', key: 'assigned_hostel' },
     {
       title: 'Roll Number',
@@ -159,6 +160,7 @@ const WardenDashboard = ({ setCurrentView }) => {
   ];
 
   const updatedStudentsColumns = [
+    { title: 'ERP Batch Year', dataIndex: 'erp_batch_year', key: 'erp_batch_year' },
     { title: 'Assigned Hostel', dataIndex: 'assigned_hostel', key: 'assigned_hostel' },
     {
       title: 'Roll Number',
@@ -484,7 +486,7 @@ const WardenDashboard = ({ setCurrentView }) => {
         >
           {erpSync && (
             <div className="space-y-6 pt-2">
-              {Boolean(erpSync.allocationConflicts?.length) && <Alert type="warning" showIcon title="Batch allocation needs attention" description="Configure the unmatched batch prefixes and assigned hostels in Manage Batches, then check ERP status again before synchronizing." />}
+              {Boolean(erpSync.allocationConflicts?.length) && <Alert type="warning" showIcon title="Batch allocation needs attention" description="Configure the missing or unconfigured ERP batch admission years and assigned hostels in Manage Batches, then check ERP status again before synchronizing." />}
               {/* Quick Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
