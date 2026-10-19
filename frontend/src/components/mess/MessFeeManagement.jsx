@@ -221,34 +221,36 @@ const MessFeeManagement = () => {
       width: 120, 
       render: (_, r) => <span className="font-mono font-bold text-xs">{r.regNo || r.roll_number || r.registerNumber || 'N/A'}</span> 
     },
-    { title: 'Base days', dataIndex: 'baseDays', align: 'center', render: v => v ?? 'Legacy' },
-    { title: 'Approved reduction', dataIndex: 'approvedReductionDays', align: 'center', render: v => v ?? 'Legacy' },
-    { title: 'Billable days', dataIndex: 'messDays', align: 'center', width: 80, render: (d) => <Badge count={d} color="#2563eb" overflowCount={31} /> },
-    { title: 'Daily Rate', dataIndex: 'dailyRate', align: 'right', render: (v) => <Text type="secondary">₹{parseFloat(v).toFixed(2)}</Text> },
+    { title: 'Base days', dataIndex: 'baseDays', align: 'center', width: 130, render: v => v ?? 'Legacy' },
+    { title: 'Approved reduction', dataIndex: 'approvedReductionDays', align: 'center', width: 200, render: v => v ?? 'Legacy' },
+    { title: 'Billable days', dataIndex: 'messDays', align: 'center', width: 145, render: (d) => <Badge count={d} color="#2563eb" overflowCount={31} /> },
+    { title: 'Daily Rate', dataIndex: 'dailyRate', align: 'right', width: 140, render: (v) => <Text type="secondary">₹{parseFloat(v).toFixed(2)}</Text> },
     
     // --- ADDED COLUMNS START ---
     { 
       title: 'Bed Fee', 
       dataIndex: 'bedCharges', 
+      width: 130,
       align: 'right', 
       render: (v) => v > 0 ? <Text className="text-orange-600">₹{v}</Text> : <Text type="secondary" className="text-[10px]">NA</Text> 
     },
     { 
       title: 'Newspaper', 
       dataIndex: 'hinduIndianExpress', 
+      width: 150,
       align: 'right', 
       render: (v) => v > 0 ? <Text className="text-purple-600">₹{v}</Text> : <Text type="secondary" className="text-[10px]">NA</Text> 
     },
     // --- ADDED COLUMNS END ---
 
-    { title: 'Extra Charges', dataIndex: 'additionalAmount', align: 'right', render: (v) => v > 0 ? <Text type="danger">+₹{v}</Text> : '—' },
-    { title: 'Total', dataIndex: 'total', align: 'right', className: 'bg-slate-50/50', render: (v) => <Text strong>₹{v}</Text> },
+    { title: 'Extra Charges', dataIndex: 'additionalAmount', align: 'right', width: 170, render: (v) => v > 0 ? <Text type="danger">+₹{v}</Text> : '—' },
+    { title: 'Total', dataIndex: 'total', align: 'right', width: 130, className: 'bg-slate-50/50', render: (v) => <Text strong>₹{v}</Text> },
     { 
       title: 'Payable Amount', 
       dataIndex: 'finalAmount', 
       align: 'right', 
       fixed: 'right', 
-      width: 150,
+      width: 180,
       render: (v) => (
         <div className="bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 text-right">
           <Text strong className="text-blue-600 text-base">₹{v}</Text>
@@ -356,6 +358,7 @@ const MessFeeManagement = () => {
           <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
             <Table 
               columns={columns.map(column => ({ ...column,
+                onHeaderCell: () => ({ style: { whiteSpace: 'normal', overflowWrap: 'break-word' } }),
                 ...(column.dataIndex ? { sorter: (a, b) => {
                   const numericValue = row => {
                     if (row.breakdownUnavailable && ['messDays', 'dailyRate', 'bedCharges', 'hinduIndianExpress', 'additionalAmount'].includes(column.dataIndex)) return -Infinity;
@@ -374,7 +377,8 @@ const MessFeeManagement = () => {
               }}
               locale={{ emptyText: searchText.trim() ? 'No students match your search' : 'No students available for this month' }}
               rowKey="studentId" 
-              scroll={{ x: 1400 }}
+              tableLayout="fixed"
+              scroll={{ x: columns.reduce((total, column) => total + column.width, 0) }}
               pagination={{ 
                 current: currentPage, pageSize: pageSize,
                 onChange: (p, s) => { setCurrentPage(p); setPageSize(s); },
