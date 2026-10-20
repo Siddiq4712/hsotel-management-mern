@@ -1,12 +1,17 @@
+import { LinearGradient } from 'expo-linear-gradient';
+import Screen from '../../components/common/Screen';
+import Button from '../../components/common/Button';
+import Card from '../../components/common/Card';
+import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { studentAPI } from '../../api/api';
-import { Receipt, Calendar, CheckCircle, XCircle, ChevronDown, ChevronUp, Clock, DollarSign, BookOpen, Droplet, ExternalLink } from 'lucide-react-native';
+import { Receipt, Calendar, CheckCircle, XCircle, ChevronDown, ChevronUp, Clock, DollarSign, BookOpen, Droplet, ExternalLink, Bed, Utensils, History, ChevronRight } from 'lucide-react-native';
 import moment from 'moment';
-import Header from '../../components/common/Header';
+import Header from '../../components/student/StudentHeader';
 import { Picker } from '@react-native-picker/picker';
 
-const MyMessChargesScreen = () => {
+const MyMessChargesScreen = ({ navigation }) => {
   const [dailyCharges, setDailyCharges] = useState([]);
   const [monthlyFlatFees, setMonthlyFlatFees] = useState([]);
   const [monthlyCalculatedDailyRate, setMonthlyCalculatedDailyRate] = useState(0);
@@ -87,189 +92,88 @@ const MyMessChargesScreen = () => {
     };
   }).filter(opt => moment(opt.value, 'YYYY-MM').isSameOrBefore(moment(), 'month')); // Only show up to current month
 
-  return (
-    <View className="flex-1 bg-gray-50">
-      <Header />
-      <Text className="p-3 bg-blue-50">Base days: {reductionSummary.baseDays ?? "Legacy"} · Approved reductions: {reductionSummary.approvedReductionDays ?? "Legacy"}. Only approved operational days reduce food charges; water and other charges are unchanged.</Text>
-      <ScrollView className="p-4">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">My Mess Charges</Text>
-        <Text className="text-gray-600 mb-6">Detailed daily breakdown of your mess fees.</Text>
-
-        {/* Month Selector */}
-        <View className="mb-6">
-          <Text className="text-base font-medium text-gray-700 mb-2">Select Month:</Text>
-          <View className="relative border border-gray-300 rounded-md">
-            <Picker
-              selectedValue={`${currentYear}-${String(currentMonth).padStart(2, '0')}`}
-              onValueChange={handleMonthChange}
-              className="w-full h-12"
-            >
-              {monthOptions.map(option => (
-                <Picker.Item key={option.value} label={option.label} value={option.value} />
-              ))}
-            </Picker>
+  const money = value => Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return <Screen className="flex-1 bg-background">
+    <Header title="Mess & fees" />
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 16 }}>
+      <View className="flex-row items-center justify-between" style={{ gap: 12 }}>
+        <Text className="text-lg font-bold text-gray-900">Monthly statement</Text>
+        <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate('Transactions')} className="p-3 flex-row items-center">
+          <History size={17} color={colors.primary}/><Text className="text-xs font-semibold text-indigo-600 ml-2">History</Text>
+        </TouchableOpacity>
+      </View>
+      <View className="bg-white border border-gray-200 rounded-xl">
+        <Picker accessibilityLabel="Billing month" selectedValue={`${currentYear}-${String(currentMonth).padStart(2, '0')}`} onValueChange={handleMonthChange}>
+          {monthOptions.map(option => <Picker.Item key={option.value} label={option.label} value={option.value} />)}
+        </Picker>
+      </View>
+      <LinearGradient colors={[colors.primary, colors.primaryDark]} style={{ padding: 22, borderRadius: 22, gap: 10 }}>
+        <Text style={{ color: colors.card, fontSize: 10, fontWeight: '600', letterSpacing: 1 }}>TOTAL MONTHLY CHARGES</Text>
+        <Text style={{ color: colors.card, fontSize: 32, fontWeight: '700' }}>{loading ? '—' : `₹${money(totalMonthlyBill)}`}</Text>
+        <Text style={{ color: colors.card, fontSize: 13 }}>{moment(new Date(currentYear, currentMonth - 1)).format('MMMM YYYY')}</Text>
+        <Text style={{ color: colors.card, fontSize: 12, lineHeight: 18 }}>Food charges, additional food and applicable hostel fees.</Text>
+      </LinearGradient>
+      <View className="flex-row" style={{ gap: 12 }}>
+        <Card className="bg-white rounded-2xl border border-gray-200 p-4 flex-1">
+          <Text className="text-xs text-gray-600 mb-2">Daily food rate</Text><Text className="text-lg font-bold text-gray-900">₹{money(monthlyCalculatedDailyRate)}</Text>
+        </Card>
+        <Card className="bg-white rounded-2xl border border-gray-200 p-4 flex-1">
+          <Text className="text-xs text-gray-600 mb-2">Approved reduction</Text><Text className="text-lg font-bold text-green-700">{reductionSummary.approvedReductionDays == null ? 'Legacy' : `${reductionSummary.approvedReductionDays} days`}</Text>
+        </Card>
+      </View>
+      <Button onPress={() => navigation.navigate('FoodOrder')} className="bg-indigo-600 rounded-xl p-4 flex-row items-center justify-center">
+        <Utensils size={20} color={colors.card} /><Text className="text-white font-semibold ml-2">Additional Food</Text><ChevronRight size={18} color={colors.card} style={{ marginLeft: 8 }}/>
+      </Button>
+      <Text className="text-base font-bold text-gray-900">Charge breakdown</Text>
+      <Card className="bg-white rounded-2xl border border-gray-200 p-4">
+        {[
+          ['Food charges', foodCharge, 'Monthly food share after applicable reductions'],
+          ['Additional food', totalMonthlySpecialFoodCost, 'Orders for the selected month'],
+        ].map(([label, amount, detail], index) => <View key={label} className={index ? 'border-t border-gray-100 py-4' : 'pb-4'}>
+          <View className="flex-row justify-between" style={{ gap: 12 }}><Text className="text-sm font-semibold text-gray-900 flex-1">{label}</Text><Text className="text-sm font-bold text-gray-900">₹{money(amount)}</Text></View>
+          <Text className="text-xs text-gray-600 mt-1">{detail}</Text>
+        </View>)}
+        {monthlyFlatFees.map((fee, index) => <View key={fee.fee_type || index} className="border-t border-gray-100 py-4">
+          <View className="flex-row items-center justify-between" style={{ gap: 12 }}>
+            <View className="flex-row items-center flex-1">{getFeeIcon(fee.fee_type)}<Text className="text-sm font-semibold text-gray-900 capitalize flex-1">{fee.fee_type.replace(/_/g, ' ')}</Text></View>
+            <Text className="text-sm font-bold text-gray-900">₹{money(fee.amount)}</Text>
           </View>
-        </View>
-
-        {/* Monthly Summary Card */}
-        <View className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <Text className="text-xl font-semibold text-gray-900 mb-4">
-            Summary for {moment(new Date(currentYear, currentMonth - 1)).format('MMMM YYYY')}
-          </Text>
-          <View className="mt-4 space-y-2">
-              <View className="flex-row items-center justify-between">
-                  <Text className="text-lg text-gray-700">Hostel's Monthly Averaged Daily Rate:</Text>
-                  <Text className="text-lg font-bold text-gray-800">₹{monthlyCalculatedDailyRate.toFixed(2)}</Text>
+          {!!fee.description&&<Text className="text-xs text-gray-600 mt-1">{fee.description}</Text>}
+        </View>)}
+        <View className="border-t border-gray-200 pt-4 flex-row justify-between" style={{ gap: 12 }}><Text className="text-sm font-bold text-gray-900">Total charges</Text><Text className="text-lg font-bold text-indigo-600">₹{money(totalMonthlyBill)}</Text></View>
+      </Card>
+      <View className="bg-teal-50 border border-teal-100 rounded-xl p-4">
+        <Text className="text-sm text-teal-800 leading-5">Base days: {reductionSummary.baseDays ?? 'Legacy'} · Approved reductions: {reductionSummary.approvedReductionDays ?? 'Legacy'}. Only approved operational days reduce food charges. Water and other charges stay unchanged.</Text>
+        <Text className="text-xs text-gray-600 mt-2">Recorded P / OD man-days: {studentTotalManDaysForMonth}</Text>
+      </View>
+      <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate('MyFoodOrders')} className="bg-white border border-gray-200 rounded-2xl p-4 flex-row items-center justify-between">
+        <View style={{ gap: 4, flex: 1 }}><Text className="text-sm font-semibold text-gray-900">Additional food orders</Text><Text className="text-xs text-gray-600">View requests, serving dates and status</Text></View><ChevronRight size={19} color={colors.primary}/>
+      </TouchableOpacity>
+      <Text className="text-base font-bold text-gray-900">Daily charges</Text>
+      {loading ? <ActivityIndicator color={colors.primary}/> : dailyCharges.length ? dailyCharges.map(charge => {
+        const statusInfo = getStatusInfo(charge.attendance_status);
+        const isExpanded = expandedRow === charge.id;
+        return <Card key={charge.id} className="bg-white border border-gray-200 rounded-2xl p-4">
+          <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: isExpanded }} accessibilityLabel={`Charges for ${moment(charge.date).format('DD MMM YYYY')}`} onPress={() => toggleRow(charge.id)}>
+            <View className="flex-row items-center justify-between" style={{ gap: 12 }}>
+              <View className="flex-1"><Text className="text-sm font-semibold text-gray-900">{moment(charge.date).format('ddd, DD MMM')}</Text>
+                <View className="flex-row items-center mt-2">{statusInfo.icon}<Text className={`text-xs ml-2 ${statusInfo.color}`}>{statusInfo.text}</Text></View>
               </View>
-              <View className="flex-row items-center justify-between border-t border-gray-100 pt-2">
-                  <Text className="text-lg text-gray-700">Your Total Man-Days Present/On-Duty:</Text>
-                  <Text className="text-lg font-bold text-gray-800">{studentTotalManDaysForMonth}</Text>
-              </View>
-              <View className="flex-row items-center justify-between border-t border-gray-100 pt-2">
-                  <Text className="text-lg text-gray-700">Total Mess Charges:</Text>
-                  <Text className="text-lg font-bold text-gray-800">₹{foodCharge.toFixed(2)}</Text>
-              </View>
-              <View className="flex-row items-center justify-between border-t border-gray-100 pt-2">
-                  <Text className="text-lg text-gray-700">Additional food bill:</Text>
-                  <Text className="text-lg font-bold text-gray-800">₹{totalMonthlySpecialFoodCost.toFixed(2)}</Text>
-              </View>
-
-              {monthlyFlatFees.map((fee, index) => (
-                  <View key={fee.fee_type || index} className="flex-row items-center justify-between border-t border-gray-100 pt-2">
-                      <View className="flex-row items-center">
-                        {getFeeIcon(fee.fee_type)} 
-                        <Text className="text-lg text-gray-700 capitalize mr-2">
-                          {fee.fee_type.replace(/_/g, ' ')}
-                        </Text>
-                        {fee.description && <Text className="text-gray-500 text-sm italic">({fee.description})</Text>}
-                      </View>
-                      <Text className="text-lg font-bold text-gray-800">₹{parseFloat(fee.amount).toFixed(2)}</Text>
-                  </View>
-              ))}
-          </View>
-          <View className="mt-4 flex-row items-center justify-between border-t-2 border-gray-300 pt-4">
-            <Text className="text-xl font-bold text-gray-900">Total Monthly Bill:</Text>
-            <Text className="text-3xl font-bold text-blue-600">₹{totalMonthlyBill.toFixed(2)}</Text>
-          </View>
-          <TouchableOpacity
-            className="mt-6 w-full bg-green-600 text-white px-6 py-3 rounded-lg flex-row items-center justify-center"
-            onPress={() => Alert.alert('Payment Gateway', 'Integrate with a payment gateway to enable online payments.')} // Placeholder
-          >
-            <ExternalLink size={20} color="white" className="mr-2" />
-            <Text className="text-white text-lg font-semibold">Pay Now</Text>
+              <Text className="text-base font-bold text-indigo-600">₹{money(charge.dailyTotalCharge)}</Text>
+              {isExpanded ? <ChevronUp size={18} color={colors.mutedText}/> : <ChevronDown size={18} color={colors.mutedText}/>}
+            </View>
           </TouchableOpacity>
-        </View>
-
-        {/* Daily Charges Breakdown Table */}
-        <View className="bg-white shadow-md rounded-lg overflow-hidden">
-          <View className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-            <Text className="text-lg font-medium text-gray-900">Daily Charges Breakdown</Text>
-          </View>
-
-          {loading ? (
-            <View className="flex justify-center p-8 flex-row items-center">
-              <ActivityIndicator size="small" color="#4F46E5" />
-              <Text className="ml-3 text-gray-600">Loading daily charges...</Text>
-            </View>
-          ) : dailyCharges.length > 0 ? (
-            <View>
-              <View className="flex-row bg-gray-100 px-4 py-2 border-b border-gray-200">
-                <Text className="flex-2 text-left text-xs font-medium text-gray-500 uppercase">Date</Text>
-                <Text className="flex-2 text-left text-xs font-medium text-gray-500 uppercase">Att.</Text>
-                <Text className="flex-2 text-right text-xs font-medium text-gray-500 uppercase">Base</Text>
-                <Text className="flex-2 text-right text-xs font-medium text-gray-500 uppercase">Additional</Text>
-                <Text className="flex-2 text-right text-xs font-medium text-gray-500 uppercase">Total</Text>
-              </View>
-              {dailyCharges.map((charge) => {
-                const statusInfo = getStatusInfo(charge.attendance_status);
-                const isExpanded = expandedRow === charge.id;
-
-                return (
-                  <View key={charge.id} className="border-b border-gray-200">
-                    <TouchableOpacity
-                      onPress={() => toggleRow(charge.id)}
-                      className="flex-row items-center px-4 py-3 bg-white"
-                    >
-                      <Text className="flex-2 text-sm text-gray-900">{moment(charge.date).format('MMM DD')}</Text>
-                      <View className="flex-2 flex-row items-center">
-                        {statusInfo.icon}
-                        <Text className={`ml-1 text-sm font-medium ${statusInfo.color}`}>{statusInfo.text}</Text>
-                      </View>
-                      <Text className={`flex-2 text-right text-sm font-medium ${parseFloat(charge.baseMessCharge) > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
-                        ₹{parseFloat(charge.baseMessCharge).toFixed(2)}
-                      </Text>
-                      <Text className={`flex-2 text-right text-sm font-medium ${parseFloat(charge.specialFoodCost) > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
-                        ₹{parseFloat(charge.specialFoodCost).toFixed(2)}
-                      </Text>
-                      <Text className="flex-2 text-right text-sm font-bold text-blue-600">
-                        ₹{parseFloat(charge.dailyTotalCharge).toFixed(2)}
-                      </Text>
-                      {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-600 ml-2" /> : <ChevronDown className="w-4 h-4 text-gray-600 ml-2" />}
-                    </TouchableOpacity>
-                    {isExpanded && (
-                      <View className="bg-gray-50 p-4 border-t border-gray-200">
-                        <View className="border-l-4 border-blue-500 pl-4 space-y-4">
-                          {/* Base Mess Charge Details */}
-                          <View>
-                            <Text className="font-semibold text-gray-800 mb-2">Base Mess Charge</Text>
-                            <View className="space-y-1">
-                              <View className="flex-row justify-between">
-                                <Text className="font-bold">Your Daily Share:</Text>
-                                <Text className="font-bold">₹{parseFloat(charge.baseMessCharge).toFixed(2)}</Text>
-                              </View>
-                              <View className="flex-row justify-between text-sm text-gray-600">
-                                <Text>Hostel's Monthly Calculated Daily Rate:</Text>
-                                <Text>₹{monthlyCalculatedDailyRate.toFixed(2)}</Text>
-                              </View>
-                            </View>
-                          </View>
-
-                          {/* Additional Food Orders Details */}
-                          <View>
-                            <Text className="font-semibold text-gray-800 mb-2">Additional Food Orders (Pending Payment)</Text>
-                            <View className="space-y-1">
-                              <View className="flex-row justify-between">
-                                <Text className="font-medium">Amount:</Text>
-                                <Text className={parseFloat(charge.specialFoodCost) > 0 ? 'font-bold text-green-600' : 'text-gray-500'}>
-                                  ₹{parseFloat(charge.specialFoodCost).toFixed(2)}
-                                </Text>
-                              </View>
-                              <Text className="text-sm text-gray-600 italic">
-                                This is the cost of additional food items you ordered for this day, which is still pending payment and added to your bill.
-                              </Text>
-                            </View>
-                          </View>
-
-                          {/* Daily Summary */}
-                          <View>
-                            <Text className="font-semibold text-gray-800 mb-2">Daily Summary</Text>
-                            <View className="space-y-1">
-                              <View className="mt-4 pt-2 border-t border-gray-300 flex-row justify-between">
-                                <Text className="font-bold text-lg">Your Total Daily Charge:</Text>
-                                <Text className="font-bold text-lg text-blue-600">
-                                  ₹{parseFloat(charge.dailyTotalCharge).toFixed(2)}
-                                </Text>
-                              </View>
-                            </View>
-                          </View>
-                        </View>
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          ) : (
-            <View className="text-center py-12">
-              <Receipt className="mx-auto h-12 w-12 text-gray-400" />
-              <Text className="mt-2 text-sm font-medium text-gray-900">No charges found for this month</Text>
-              <Text className="mt-1 text-sm text-gray-500">Mess charges are calculated and applied daily by the mess manager.</Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-    </View>
-  );
+          {isExpanded&&<View className="mt-4 pt-4 border-t border-gray-100" style={{ gap: 12 }}>
+            {[
+              ['Daily food share', charge.baseMessCharge],
+              ['Additional food', charge.specialFoodCost],
+              ['Monthly daily rate', monthlyCalculatedDailyRate],
+              ['Total for this day', charge.dailyTotalCharge],
+            ].map(([label, value])=><View key={label} className="flex-row justify-between" style={{ gap: 12 }}><Text className="text-sm text-gray-600 flex-1">{label}</Text><Text className="text-sm font-semibold text-gray-900">₹{money(value)}</Text></View>)}
+          </View>}
+        </Card>;
+      }) : <Card><Text className="text-sm text-gray-600 text-center">No charges found for this month.</Text></Card>}
+    </ScrollView>
+  </Screen>;
 };
-
 export default MyMessChargesScreen;

@@ -1,5 +1,6 @@
+import colors from '../theme/colors';
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import AuthNavigator from '../auth/AuthNavigator';
 import StudentTabNavigator from './StudentTabNavigator';
 import WardenTabNavigator from './WardenTabNavigator';
@@ -9,6 +10,19 @@ import WebAccountScreen from '../screens/WebAccountScreen';
 import { useAuth } from '../hooks/useAuth';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { normalizeRole } from '../utils/role';
+
+const navigationTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: colors.primary,
+    background: colors.background,
+    card: colors.card,
+    text: colors.text,
+    border: colors.border,
+    notification: colors.danger,
+  },
+};
 
 const AppNavigator = () => {
   const { user, loading } = useAuth();
@@ -22,15 +36,15 @@ const AppNavigator = () => {
 
   if (loading) {
     return (
-      <View className="flex-1 justify-center items-center bg-gray-100">
-        <ActivityIndicator size="large" color="#4F46E5" />
-        <Text className="mt-4 text-lg text-gray-700">Loading app...</Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, padding: 24 }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 16, fontSize: 18, color: colors.text, textAlign: 'center' }}>Loading app...</Text>
       </View>
     );
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navigationTheme}>
       {user ? (
         resolvedRole === 'student' ? (
           <StudentTabNavigator />

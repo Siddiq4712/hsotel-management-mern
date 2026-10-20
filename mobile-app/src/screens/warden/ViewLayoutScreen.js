@@ -1,3 +1,6 @@
+import MoreSectionNav from '../../components/common/MoreSectionNav';
+import Screen from '../../components/common/Screen';
+import Button from '../../components/common/Button';
 import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity } from 'react-native';
 import { wardenAPI } from '../../api/api';
@@ -5,7 +8,7 @@ import Header from '../../components/common/Header';
 import { MapPin, Save } from 'lucide-react-native';
 import { layoutUtils } from '../../utils/layoutUtils';
 
-const ViewLayoutScreen = () => {
+const ViewLayoutScreen = ({ navigation }) => {
   const [layout, setLayout] = useState(null);
   const [grid, setGrid] = useState([]);
 
@@ -53,19 +56,20 @@ const ViewLayoutScreen = () => {
   );
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <Screen className="flex-1 bg-background">
       <Header />
+      <MoreSectionNav />
       <View className="p-4">
-        <TouchableOpacity onPress={() => navigation.navigate('CreateRoom')} className="bg-blue-600 p-3 rounded mb-4">
+        <Button onPress={() => navigation.navigate('CreateRoom')} className="bg-blue-600 p-3 rounded mb-4">
           <Text className="text-white text-center">Edit Layout</Text>
-        </TouchableOpacity>
+        </Button>
         <FlatList
           data={Array.from({ length: layout?.floors || 1 })}
           renderItem={({ item, index }) => renderFloor(index)}
           keyExtractor={(item, index) => index.toString()}
         />
       </View>
-    </View>
+    </Screen>
   );
 };
 

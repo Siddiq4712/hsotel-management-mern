@@ -1,9 +1,13 @@
+import Button from '../components/common/Button';
+import Input from '../components/common/Input';
+import Card from '../components/common/Card';
+import LoadingOverlay from '../components/common/LoadingOverlay';
+import colors from '../theme/colors';
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ActivityIndicator,
-  KeyboardAvoidingView, Platform, Alert, ScrollView, Modal,
-  TouchableWithoutFeedback, Keyboard, StatusBar, Image,
-} from 'react-native';
+  View, Text, TouchableOpacity, ActivityIndicator,
+  KeyboardAvoidingView, Platform, Alert, ScrollView,
+  TouchableWithoutFeedback, Keyboard, StatusBar, Image } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 import { API_BASE_URL } from '../api/api';
 import { User, Lock, Info, AlertCircle } from 'lucide-react-native';
@@ -88,50 +92,48 @@ const LoginScreen = () => {
 
   return (
     <>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
-        style={{ backgroundColor: '#F8FAFC' }}
+        style={{ backgroundColor: colors.background }}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
             <View className="flex-1 items-center justify-center py-8 px-5">
               
               {/* LOGO SECTION */}
-              <View className="mb-10 mt-8 items-center">
-                <View className="flex-row items-center">
-                  <View className="bg-white rounded-2xl h-16 w-16 justify-center items-center shadow-md">
+              <View className="mb-8 mt-4 items-center w-full max-w-md">
+                <View className="items-center w-full">
+                  <View className="bg-white rounded-2xl h-16 w-16 justify-center items-center shadow-sm">
                     <Image 
                         source={require('../../assets/nec-logo.png')} 
                         style={{ width: 56, height: 56, borderRadius: 12 }} 
                     />
                   </View>
-                  <View className="ml-4">
-                    <Text className="font-bold text-gray-900 text-xl">NATIONAL</Text>
-                    <Text className="font-bold text-gray-900 text-xl">ENGINEERING COLLEGE</Text>
-                  </View>
+                  <Text className="mt-3 font-bold text-indigo-900 text-lg text-center"
+                    style={{ maxWidth: 280, lineHeight: 26 }}>National Engineering College</Text>
                 </View>
               </View>
 
               {/* LOGIN CARD */}
-              <View className="bg-white rounded-2xl w-full max-w-md py-8 px-6 shadow-sm border border-slate-200">
-                <Text className="text-2xl font-bold text-center text-gray-900 mb-6">Sign In</Text>
+              <Card className="bg-white rounded-2xl w-full max-w-md py-8 px-6 shadow-sm border border-slate-200">
 
                 {showError ? (
-                  <View className="flex-row items-center bg-red-50 border border-red-200 rounded-lg p-3 mb-5">
-                    <AlertCircle size={20} color="#EF4444" />
+                  <View className="flex-row items-center bg-red-50 border border-red-200 rounded-xl p-3 mb-5">
+                    <AlertCircle size={20} color={colors.danger} />
                     <Text className="text-red-700 text-sm ml-3 flex-1">{showError}</Text>
                   </View>
                 ) : null}
 
                 <View className="mb-4">
-                  <Text className="text-sm font-semibold text-gray-700 mb-2">userName</Text>
-                  <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-lg px-4 h-12">
-                    <User size={20} color="#374151" />
-                    <TextInput
+                  <Text className="text-sm font-semibold text-gray-700 mb-2">Username or roll number</Text>
+                  <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-xl px-4 min-h-[56px]">
+                    <User size={20} color={colors.text} />
+                    <Input
                       className="flex-1 ml-3 text-base"
-                      placeholder="userName or Roll Number"
+                      accessibilityLabel="Username or roll number"
+                      placeholder="Enter username or roll number"
                       value={credentials.userName}
                       onChangeText={(v) => handleInputChange('userName', v)}
                       autoCapitalize="none"
@@ -141,11 +143,12 @@ const LoginScreen = () => {
 
                 <View className="mb-6">
                   <Text className="text-sm font-semibold text-gray-700 mb-2">Password</Text>
-                  <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-lg px-4 h-12">
-                    <Lock size={20} color="#374151" />
-                    <TextInput
+                  <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-xl px-4 h-12">
+                    <Lock size={20} color={colors.text} />
+                    <Input
                       className="flex-1 ml-3 text-base"
-                      placeholder="••••••••"
+                      accessibilityLabel="Password"
+                      placeholder="Enter your password"
                       secureTextEntry
                       value={credentials.password}
                       onChangeText={(v) => handleInputChange('password', v)}
@@ -153,13 +156,13 @@ const LoginScreen = () => {
                   </View>
                 </View>
 
-                <TouchableOpacity 
+                <Button
                   onPress={handleLogin} 
                   disabled={showLoading}
-                  className={`rounded-lg h-12 justify-center items-center ${showLoading ? 'bg-gray-400' : 'bg-blue-600'}`}
+                  className="bg-indigo-600 px-4 py-4"
                 >
                   <Text className="text-white font-bold text-base">Sign In →</Text>
-                </TouchableOpacity>
+                </Button>
 
                 <View className="my-6 flex-row items-center">
                   <View className="flex-1 h-px bg-gray-200" />
@@ -168,33 +171,23 @@ const LoginScreen = () => {
                 </View>
 
                 {/* GOOGLE LOGIN BUTTON */}
-                <TouchableOpacity
-                  className="flex-row justify-center items-center bg-white border border-gray-300 rounded-lg h-12"
+                <Button
+                  className="flex-row justify-center items-center bg-white border border-gray-300 rounded-xl h-12"
                   onPress={handleGoogleLogin}
                   disabled={showLoading}
                 >
                   <AntDesign name="google" size={20} color="#DB4437" />
                   <Text className="ml-3 font-semibold text-gray-700">Continue with Google</Text>
-                </TouchableOpacity>
-              </View>
+                </Button>
+              </Card>
 
-              <Text className="mt-10 text-xs text-gray-400">© 2026 National Engineering College</Text>
+              <Text className="mt-10 text-xs text-gray-400" style={{ alignSelf: 'stretch', textAlign: 'center' }}>© 2026 National Engineering College</Text>
             </View>
           </ScrollView>
         </TouchableWithoutFeedback>
 
-        {/* LOADING OVERLAY */}
-        {showLoading && (
-          <Modal transparent visible={showLoading}>
-            <View className="flex-1 bg-black/30 justify-center items-center">
-              <View className="bg-white p-6 rounded-xl items-center">
-                <ActivityIndicator size="large" color="#2563EB" />
-                <Text className="mt-4 font-semibold">Authenticating...</Text>
-              </View>
-            </View>
-          </Modal>
-        )}
       </KeyboardAvoidingView>
+      <LoadingOverlay visible={showLoading} message="Authenticating..." />
     </>
   );
 };

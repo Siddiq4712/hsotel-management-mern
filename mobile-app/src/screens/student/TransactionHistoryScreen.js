@@ -1,9 +1,12 @@
+import Screen from '../../components/common/Screen';
+import Card from '../../components/common/Card';
+import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { CreditCard, Calendar, DollarSign, CheckCircle, XCircle, Clock, Filter } from 'lucide-react-native';
 import moment from 'moment';
-import Header from '../../components/common/Header';
+import Header from '../../components/student/StudentHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import { Picker } from '@react-native-picker/picker';
 
@@ -46,19 +49,19 @@ const TransactionHistoryScreen = () => {
   if (loading) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-100">
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text className="mt-4 text-lg text-gray-700">Loading transactions...</Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-gray-50">
-      <Header />
-      <ScrollView className="p-4">
+    <Screen className="flex-1 bg-background">
+      <Header title="Transactions" back />
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled" className="p-4">
         <View className="mb-8 flex-row justify-between items-center">
           <View>
-            <Text className="text-3xl font-bold text-gray-900 mb-2">Transaction History</Text>
+            <Text className="text-2xl font-bold text-indigo-900 mb-2">Transaction History</Text>
             <Text className="text-gray-600">View your payment and transaction history</Text>
           </View>
         </View>
@@ -66,7 +69,7 @@ const TransactionHistoryScreen = () => {
         {/* Filter dropdown */}
         <View className="mb-6">
           <Text className="text-sm font-medium text-gray-700 mb-2">Filter by Status:</Text>
-          <View className="relative border border-gray-300 rounded-lg">
+          <View className="relative border border-gray-300 rounded-xl">
             <Picker
               selectedValue={filter}
               onValueChange={(itemValue) => setFilter(itemValue)}
@@ -83,7 +86,7 @@ const TransactionHistoryScreen = () => {
 
         {/* Statistics */}
         <View className="flex-row flex-wrap justify-between mb-8">
-          <View className="w-[48%] bg-white rounded-lg shadow-md p-3 mb-2">
+          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mb-2">
             <View className="flex-row items-center">
               <CreditCard className="text-blue-600" size={24} />
               <View className="ml-3">
@@ -91,8 +94,8 @@ const TransactionHistoryScreen = () => {
                 <Text className="text-2xl font-bold text-blue-900">{transactions.length}</Text>
               </View>
             </View>
-          </View>
-          <View className="w-[48%] bg-white rounded-lg shadow-md p-3 mb-2">
+          </Card>
+          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mb-2">
             <View className="flex-row items-center">
               <DollarSign className="text-green-600" size={24} />
               <View className="ml-3">
@@ -100,8 +103,8 @@ const TransactionHistoryScreen = () => {
                 <Text className="text-2xl font-bold text-green-900">₹{totalAmount.toFixed(2)}</Text>
               </View>
             </View>
-          </View>
-          <View className="w-[48%] bg-white rounded-lg shadow-md p-3 mt-2">
+          </Card>
+          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mt-2">
             <View className="flex-row items-center">
               <CheckCircle className="text-green-600" size={24} />
               <View className="ml-3">
@@ -111,8 +114,8 @@ const TransactionHistoryScreen = () => {
                 </Text>
               </View>
             </View>
-          </View>
-          <View className="w-[48%] bg-white rounded-lg shadow-md p-3 mt-2">
+          </Card>
+          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mt-2">
             <View className="flex-row items-center">
               <Clock className="text-yellow-600" size={24} />
               <View className="ml-3">
@@ -122,11 +125,11 @@ const TransactionHistoryScreen = () => {
                 </Text>
               </View>
             </View>
-          </View>
+          </Card>
         </View>
 
         {/* Transactions List */}
-        <View className="bg-white shadow-md rounded-lg overflow-hidden">
+        <Card className="bg-white shadow-sm rounded-2xl overflow-hidden">
           <View className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex-row items-center">
             <CreditCard className="text-gray-400 mr-2" size={20} />
             <Text className="text-lg font-medium text-gray-900">Transaction History</Text>
@@ -185,9 +188,9 @@ const TransactionHistoryScreen = () => {
               </Text>
             </View>
           )}
-        </View>
+        </Card>
       </ScrollView>
-    </View>
+    </Screen>
   );
 };
 

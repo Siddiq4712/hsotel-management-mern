@@ -1,5 +1,10 @@
+import DateRangeField from '../../components/common/DateRangeField';
+import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
+import Card from '../../components/common/Card';
+import colors from '../../theme/colors';
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { outpassAPI } from '../../api/api';
 import { ClipboardList, MapPin, Calendar, Clock, Send } from 'lucide-react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
@@ -45,15 +50,17 @@ const OutpassRequestScreen = ({ navigation }) => {
   };
 
   return (
-    <ScrollView className="flex-1 bg-gray-50 p-4">
-      <View className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-5">
+    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }} keyboardShouldPersistTaps="handled" className="flex-1 bg-gray-50">
+      <Card className="bg-white p-4 rounded-2xl border border-gray-200" style={{ gap: 16 }}>
         
+        <Text className="text-lg font-bold text-indigo-900">Request a gate pass</Text>
+        <Text className="text-sm text-gray-600">Enter your visit details. The QR pass becomes available after approval.</Text>
         {/* Purpose */}
-        <View className="space-y-2">
+        <View className="gap-2">
           <Text className="text-gray-700 font-bold text-sm flex-row items-center">
-            <ClipboardList size={16} color="#4F46E5" /> Purpose of Visit
+            Purpose of Visit
           </Text>
-          <TextInput
+          <Input
             placeholder="e.g. Medical emergency, weekend trip home"
             value={purpose}
             onChangeText={setPurpose}
@@ -62,11 +69,11 @@ const OutpassRequestScreen = ({ navigation }) => {
         </View>
 
         {/* Destination */}
-        <View className="space-y-2">
+        <View className="gap-2">
           <Text className="text-gray-700 font-bold text-sm">
-            <MapPin size={16} color="#4F46E5" /> Destination Place
+            Destination Place
           </Text>
-          <TextInput
+          <Input
             placeholder="e.g. Madurai, Salem"
             value={destination}
             onChangeText={setDestination}
@@ -74,61 +81,70 @@ const OutpassRequestScreen = ({ navigation }) => {
           />
         </View>
 
+        <DateRangeField label="Visit dates *" from={fromDate} to={toDate} minimumDate={new Date()} disabled={loading}
+          onChange={(from,to)=>{
+            const exitClock=moment(fromDate||new Date()),returnClock=moment(toDate||moment().add(1,'hour').toDate());
+            setFromDate(moment(from).hour(exitClock.hour()).minute(exitClock.minute()).second(0).millisecond(0).toDate());
+            setToDate(moment(to).hour(returnClock.hour()).minute(returnClock.minute()).second(0).millisecond(0).toDate());
+          }}/>
         {/* Exit Time Picker */}
-        <View className="space-y-2">
+        <View className="gap-2">
           <Text className="text-gray-700 font-bold text-sm">
-            <Clock size={16} color="#4F46E5" /> Planned Exit Time
+            Exit time *
           </Text>
           <TouchableOpacity 
+            disabled={!fromDate||loading}
             onPress={() => setFromPickerVisible(true)}
             className="border border-gray-200 rounded-xl p-3 bg-gray-50 flex-row justify-between items-center"
           >
             <Text className={fromDate ? 'text-gray-800 font-semibold' : 'text-gray-400'}>
-              {fromDate ? moment(fromDate).format('lll') : 'Select exit date & time'}
+              {fromDate ? moment(fromDate).format('h:mm A') : 'Select visit dates first'}
             </Text>
-            <Calendar size={18} color="#9CA3AF" />
+            <Calendar size={18} color={colors.mutedText} />
           </TouchableOpacity>
         </View>
 
         {/* Return Time Picker */}
-        <View className="space-y-2">
+        <View className="gap-2">
           <Text className="text-gray-700 font-bold text-sm">
-            <Clock size={16} color="#4F46E5" /> Expected Return Time
+            Return time *
           </Text>
           <TouchableOpacity 
+            disabled={!toDate||loading}
             onPress={() => setToPickerVisible(true)}
             className="border border-gray-200 rounded-xl p-3 bg-gray-50 flex-row justify-between items-center"
           >
             <Text className={toDate ? 'text-gray-800 font-semibold' : 'text-gray-400'}>
-              {toDate ? moment(toDate).format('lll') : 'Select expected return date & time'}
+              {toDate ? moment(toDate).format('h:mm A') : 'Select visit dates first'}
             </Text>
-            <Calendar size={18} color="#9CA3AF" />
+            <Calendar size={18} color={colors.mutedText} />
           </TouchableOpacity>
         </View>
 
         {/* Action Button */}
-        <TouchableOpacity 
+        <Button
           onPress={handleSubmit}
           disabled={loading}
-          className="bg-indigo-600 p-4 rounded-2xl flex-row justify-center items-center space-x-2 mt-4"
+          className="bg-indigo-600 p-4 rounded-xl flex-row justify-center items-center space-x-2 mt-4"
         >
           {loading ? (
-            <ActivityIndicator size="small" color="#fff" />
+            <ActivityIndicator size="small" color={colors.card} />
           ) : (
             <>
-              <Send size={18} color="#fff" />
-              <Text className="text-white font-extrabold text-base">Submit Outpass Request</Text>
+              <Send size={18} color={colors.card} />
+              <Text className="text-white font-extrabold text-base" style={{ flexShrink: 1, textAlign: 'center' }}>Submit Outpass Request</Text>
             </>
           )}
-        </TouchableOpacity>
-      </View>
+        </Button>
+      </Card>
 
       {/* Date Pickers */}
       <DateTimePickerModal
         isVisible={fromPickerVisible}
-        mode="datetime"
+        date={fromDate || new Date()}
+        mode="time"
         onConfirm={(date) => {
-          setFromDate(date);
+          setFromDate(moment(fromDate).hour(date.getHours()).minute(date.getMinutes()).second(0).millisecond(0).toDate());
           setFromPickerVisible(false);
         }}
         onCancel={() => setFromPickerVisible(false)}
@@ -136,9 +152,10 @@ const OutpassRequestScreen = ({ navigation }) => {
 
       <DateTimePickerModal
         isVisible={toPickerVisible}
-        mode="datetime"
+        date={toDate || new Date()}
+        mode="time"
         onConfirm={(date) => {
-          setToDate(date);
+          setToDate(moment(toDate).hour(date.getHours()).minute(date.getMinutes()).second(0).millisecond(0).toDate());
           setToPickerVisible(false);
         }}
         onCancel={() => setToPickerVisible(false)}

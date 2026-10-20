@@ -1,3 +1,4 @@
+import colors from '../theme/colors';
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ParentDashboardScreen from '../screens/parent/ParentDashboardScreen';
@@ -9,9 +10,10 @@ const ParentNavigator = () => {
     <Stack.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#2563EB', // Blue-600
+          backgroundColor: colors.card,
         },
-        headerTintColor: '#fff',
+        headerTintColor: colors.text,
+        headerShadowVisible: false,
         headerTitleStyle: {
           fontWeight: 'bold',
         },

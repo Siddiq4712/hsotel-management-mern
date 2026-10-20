@@ -1,5 +1,11 @@
+import MoreSectionNav from '../../components/common/MoreSectionNav';
+import Screen from '../../components/common/Screen';
+import Card from '../../components/common/Card';
+import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
+import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert, TextInput, ScrollView } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import { Bed, User, Users, Search, CheckCircle, ChevronRight, Info, Home } from 'lucide-react-native';
@@ -89,7 +95,7 @@ const RoomAllotmentScreen = () => {
           >
             <View className="flex-row items-center">
               <View className="bg-green-100 p-3 rounded-xl mr-4">
-                <Home size={20} color="#10B981" />
+                <Home size={20} color={colors.success} />
               </View>
               <View>
                 <Text className="font-bold text-gray-900 text-lg">Room {item.room_number}</Text>
@@ -98,7 +104,7 @@ const RoomAllotmentScreen = () => {
             </View>
             <View className="items-end">
               <Text className="text-green-600 font-bold text-sm">{item.spacesLeft} Available</Text>
-              <ChevronRight size={18} color="#9CA3AF" />
+              <ChevronRight size={18} color={colors.mutedText} />
             </View>
           </TouchableOpacity>
         )}
@@ -116,7 +122,7 @@ const RoomAllotmentScreen = () => {
         <Text className="text-indigo-800 font-black text-lg">{selectedStudents.length}/{selectedRoom.spacesLeft}</Text>
       </View>
 
-      <TextInput 
+      <Input
         placeholder="Search unassigned students..."
         value={search}
         onChangeText={setSearch}
@@ -134,7 +140,7 @@ const RoomAllotmentScreen = () => {
             }`}
           >
             <View className="flex-row items-center">
-              <User size={20} color={selectedStudents.includes(item.id) ? "#4F46E5" : "#9CA3AF"} />
+              <User size={20} color={selectedStudents.includes(item.id) ? colors.primary : colors.mutedText} />
               <View className="ml-3">
                 <Text className={`font-bold ${selectedStudents.includes(item.id) ? 'text-indigo-900' : 'text-gray-900'}`}>
                   {item.userName}
@@ -142,7 +148,7 @@ const RoomAllotmentScreen = () => {
                 <Text className="text-gray-500 text-xs">Roll: {item.roll_number || 'N/A'}</Text>
               </View>
             </View>
-            {selectedStudents.includes(item.id) && <CheckCircle size={20} color="#4F46E5" />}
+            {selectedStudents.includes(item.id) && <CheckCircle size={20} color={colors.primary} />}
           </TouchableOpacity>
         )}
       />
@@ -151,27 +157,27 @@ const RoomAllotmentScreen = () => {
         <TouchableOpacity onPress={() => setStep(1)} className="flex-1 bg-gray-200 p-4 rounded-2xl items-center">
           <Text className="font-bold text-gray-600">Back</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
+        <Button
           disabled={selectedStudents.length === 0}
           onPress={() => setStep(3)} 
           className={`flex-1 p-4 rounded-2xl items-center ${selectedStudents.length > 0 ? 'bg-indigo-600' : 'bg-indigo-300'}`}
         >
           <Text className="font-bold text-white">Next Step</Text>
-        </TouchableOpacity>
+        </Button>
       </View>
     </View>
   );
 
   const renderConfirmStep = () => (
-    <ScrollView className="flex-1">
-      <View className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-        <Text className="text-xl font-bold text-gray-900 mb-4 text-center">Summary</Text>
+    <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled" className="flex-1">
+      <Card className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <Text className="text-xl font-bold text-indigo-900 mb-4 text-center">Summary</Text>
         
         <View className="items-center mb-6">
           <View className="bg-indigo-100 p-4 rounded-full mb-2">
-            <Bed size={32} color="#4F46E5" />
+            <Bed size={32} color={colors.primary} />
           </View>
-          <Text className="text-2xl font-black text-gray-900">Room {selectedRoom.room_number}</Text>
+          <Text className="text-2xl font-black text-indigo-900">Room {selectedRoom.room_number}</Text>
           <Text className="text-gray-500">Floor {selectedRoom.floor} • {selectedRoom.RoomType?.name}</Text>
         </View>
 
@@ -180,7 +186,7 @@ const RoomAllotmentScreen = () => {
           const student = students.find(s => s.id === id);
           return (
             <View key={id} className="flex-row items-center bg-gray-50 p-3 rounded-xl mb-2">
-              <User size={16} color="#6B7280" />
+              <User size={16} color={colors.mutedText} />
               <Text className="ml-3 font-medium text-gray-800">{student?.userName}</Text>
             </View>
           );
@@ -190,27 +196,28 @@ const RoomAllotmentScreen = () => {
           <TouchableOpacity onPress={() => setStep(2)} className="flex-1 bg-gray-100 p-4 rounded-2xl items-center">
             <Text className="font-bold text-gray-600">Edit</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleAllotment} className="flex-1 bg-green-600 p-4 rounded-2xl items-center">
+          <Button onPress={handleAllotment} className="flex-1 bg-indigo-600 p-4 rounded-xl items-center">
             <Text className="font-bold text-white">Confirm & Save</Text>
-          </TouchableOpacity>
+          </Button>
         </View>
-      </View>
+      </Card>
     </ScrollView>
   );
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <Screen className="flex-1 bg-background">
       <Header />
+      <MoreSectionNav />
       <View className="p-4 flex-1">
         <View className="flex-row items-center justify-between mb-4">
-          <Text className="text-2xl font-bold text-gray-900">Room Allotment</Text>
+          <Text className="text-2xl font-bold text-indigo-900">Room Allotment</Text>
           <View className="bg-gray-200 px-3 py-1 rounded-full">
-            <Text className="text-[10px] font-bold text-gray-600 uppercase">Step {step}/3</Text>
+            <Text className="text-xs font-bold text-gray-600 uppercase">Step {step}/3</Text>
           </View>
         </View>
 
         {loading ? (
-          <ActivityIndicator size="large" color="#4F46E5" className="mt-20" />
+          <ActivityIndicator size="large" color={colors.primary} className="mt-20" />
         ) : (
           <>
             {step === 1 && renderRoomStep()}
@@ -219,7 +226,7 @@ const RoomAllotmentScreen = () => {
           </>
         )}
       </View>
-    </View>
+    </Screen>
   );
 };
 

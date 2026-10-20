@@ -1,12 +1,18 @@
+import DateRangeField from '../../components/common/DateRangeField';
+import { useStudentPresentation } from '../../components/student/StudentPresentation';
+import Screen from '../../components/common/Screen';
+import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
+import Card from '../../components/common/Card';
+import colors from '../../theme/colors';
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { studentAPI } from '../../api/api';
-import { Calendar, FileText, CheckCircle, AlertCircle } from 'lucide-react-native';
-import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import moment from 'moment';
-import Header from '../../components/common/Header';
+import Header from '../../components/student/StudentHeader';
 import { Picker } from '@react-native-picker/picker';
 const ApplyLeaveScreen = ({ navigation }) => {
+  const { embedded } = useStudentPresentation();
   const [formData, setFormData] = useState({
     leave_type: '',
     from_date: '',
@@ -14,24 +20,6 @@ const ApplyLeaveScreen = ({ navigation }) => {
     reason: ''
   });
   const [loading, setLoading] = useState(false);
-  const [isDatePickerVisible, setDatePickerVisible] = useState(false);
-  const [currentPickerField, setCurrentPickerField] = useState(null); // 'from_date' or 'to_date'
-
-  const showDatePicker = (field) => {
-    setCurrentPickerField(field);
-    setDatePickerVisible(true);
-  };
-
-  const hideDatePicker = () => {
-    setDatePickerVisible(false);
-  };
-
-  const handleConfirmDate = (date) => {
-    const formattedDate = moment(date).format('YYYY-MM-DD');
-    setFormData(prev => ({ ...prev, [currentPickerField]: formattedDate }));
-    hideDatePicker();
-  };
-
   const handleSubmit = async () => {
     setLoading(true);
     try {
@@ -74,20 +62,20 @@ const ApplyLeaveScreen = ({ navigation }) => {
   };
 
   return (
-    <View className="flex-1 bg-gray-50">
-      <Header />
-      <ScrollView className="p-4">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">Apply for Leave</Text>
-        <Text className="text-gray-600 mb-6">Submit your leave application for approval</Text>
+    <Screen className="flex-1 bg-background">
+      <Header title="Apply for leave" back />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+        {!embedded && <Text className="text-2xl font-bold text-indigo-900 mb-2">Apply for Leave</Text>}
+        <Text className="text-gray-600 mb-4 text-sm">Choose your leave type, dates and reason. Your warden will review the request.</Text>
 
-        <View className="bg-white rounded-lg shadow-md p-6">
-          <View className="space-y-6">
+        <Card className="bg-white rounded-2xl p-4 border border-gray-200" style={{ alignSelf: 'stretch' }}>
+          <View style={{ gap: 16, minWidth: 0, alignSelf: 'stretch' }}>
             {/* Leave Type */}
             <View>
               <Text className="block text-sm font-medium text-gray-700 mb-2">
                 Leave Type *
               </Text>
-              <View className="relative border border-gray-300 rounded-lg">
+              <View className="relative bg-gray-50 border border-gray-200 rounded-xl">
                 <Picker
                   selectedValue={formData.leave_type}
                   onValueChange={(itemValue) => setFormData(prev => ({ ...prev, leave_type: itemValue }))}
@@ -103,86 +91,50 @@ const ApplyLeaveScreen = ({ navigation }) => {
               </View>
             </View>
 
-            {/* From Date */}
-            <View>
-              <Text className="block text-sm font-medium text-gray-700 mb-2">
-                From Date *
-              </Text>
-              <TouchableOpacity
-                onPress={() => showDatePicker('from_date')}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg flex-row items-center justify-between"
-              >
-                <Text className="text-base text-gray-700">
-                  {formData.from_date ? moment(formData.from_date).format('MMM DD, YYYY') : 'Select Date'}
-                </Text>
-                <Calendar size={20} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
-
-            {/* To Date */}
-            <View>
-              <Text className="block text-sm font-medium text-gray-700 mb-2">
-                To Date *
-              </Text>
-              <TouchableOpacity
-                onPress={() => showDatePicker('to_date')}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg flex-row items-center justify-between"
-              >
-                <Text className="text-base text-gray-700">
-                  {formData.to_date ? moment(formData.to_date).format('MMM DD, YYYY') : 'Select Date'}
-                </Text>
-                <Calendar size={20} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
+            <DateRangeField label="Leave dates *" from={formData.from_date} to={formData.to_date} minimumDate={new Date()} disabled={loading}
+              onChange={(from_date,to_date)=>setFormData(prev=>({...prev,from_date,to_date}))}/>
 
             {/* Reason */}
             <View>
               <Text className="block text-sm font-medium text-gray-700 mb-2">
                 Reason for Leave *
               </Text>
-              <TextInput
+              <Input
                 value={formData.reason}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, reason: text }))}
                 multiline
                 numberOfLines={4}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg h-32 text-gray-700"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl h-32 text-gray-700"
                 placeholder="Please provide detailed reason for your leave..."
                 textAlignVertical="top"
               />
             </View>
 
-            <View className="flex-row gap-4 justify-start">
-              <TouchableOpacity
+            <View style={{ gap: 12, alignSelf: 'stretch' }}>
+              <Button
                 onPress={handleSubmit}
                 disabled={loading}
-                className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 flex-row items-center justify-center disabled:opacity-50"
+                style={{ alignSelf: 'stretch' }}
               >
                 {loading ? (
-                  <ActivityIndicator size="small" color="#fff" className="mr-2" />
+                  <ActivityIndicator size="small" color={colors.card} className="mr-2" />
                 ) : (
                   <Text className="text-white text-base font-semibold">Submit Application</Text>
                 )}
-              </TouchableOpacity>
+              </Button>
               
-              <TouchableOpacity
+              <Button variant="secondary"
                 onPress={handleReset}
-                className="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 flex-row items-center justify-center"
+                style={{ alignSelf: 'stretch' }}
               >
                 <Text className="text-gray-700 text-base font-semibold">Reset</Text>
-              </TouchableOpacity>
+              </Button>
             </View>
           </View>
-        </View>
+        </Card>
 
-        <DateTimePickerModal
-          isVisible={isDatePickerVisible}
-          mode="date"
-          onConfirm={handleConfirmDate}
-          onCancel={hideDatePicker}
-          minimumDate={currentPickerField === 'to_date' && formData.from_date ? moment(formData.from_date).toDate() : moment().toDate()}
-        />
       </ScrollView>
-    </View>
+    </Screen>
   );
 };
 

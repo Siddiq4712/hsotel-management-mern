@@ -1,9 +1,17 @@
+import { useIsFocused } from '@react-navigation/native';
+import Screen from '../../components/common/Screen';
+import Card from '../../components/common/Card';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
+import colors from '../../theme/colors';
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Button, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { outpassAPI } from '../../api/api';
 
-const QRScannerScreen = ({ navigation }) => {
+const QRScannerScreen = ({ navigation, route }) => {
+  const isFocused = useIsFocused();
+  const manualMode = Boolean(route?.params?.manual);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [manualToken, setManualToken] = useState('');
@@ -11,10 +19,10 @@ const QRScannerScreen = ({ navigation }) => {
   const isScanning = useRef(false);
 
   useEffect(() => {
-    if (!permission) {
+    if (isFocused && !manualMode && !permission) {
       requestPermission();
     }
-  }, [permission]);
+  }, [permission, isFocused, manualMode]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
@@ -69,10 +77,27 @@ const QRScannerScreen = ({ navigation }) => {
     }
   };
 
+  // Release the native camera whenever another screen is shown.
+  if (!isFocused) return <View className="flex-1 bg-gray-50" />;
+  if (manualMode) return <Screen className="flex-1 bg-background">
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+      <Card className="bg-white border border-gray-200 rounded-2xl p-5">
+        <Text className="text-xl font-bold text-indigo-900 mb-2">Manual verification</Text>
+        <Text className="text-sm text-gray-600 mb-5">Enter the student's gate-pass verification token.</Text>
+        <Input accessibilityLabel="Verification token" placeholder="Enter verification token" value={manualToken}
+          onChangeText={setManualToken} autoCapitalize="none" className="border border-gray-200 rounded-xl bg-gray-50 p-3 mb-4" />
+        <Button disabled={submitting} onPress={handleManualSubmit} className="bg-indigo-600 rounded-xl p-4">
+          {submitting ? <ActivityIndicator color={colors.card} /> : <Text className="text-white font-semibold">Verify token</Text>}
+        </Button>
+        <Button variant="secondary" onPress={() => navigation.setParams({ manual: false })} style={{ marginTop: 12, padding: 14, backgroundColor: colors.primarySoft }}>Switch to camera</Button>
+      </Card>
+    </ScrollView>
+  </Screen>;
+
   if (!permission) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-50">
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text className="mt-4 text-gray-500 font-semibold">Requesting camera permission...</Text>
       </View>
     );
@@ -84,34 +109,34 @@ const QRScannerScreen = ({ navigation }) => {
         <Text className="text-gray-700 text-center font-bold text-lg mb-4">
           Camera permission is required to scan QR codes
         </Text>
-        <TouchableOpacity 
+        <Button
           onPress={requestPermission}
-          className="bg-indigo-600 px-6 py-3 rounded-2xl mb-8"
+          className="bg-indigo-600 px-6 py-3 rounded-xl mb-8"
         >
           <Text className="text-white font-bold">Grant Permission</Text>
-        </TouchableOpacity>
+        </Button>
         
         {/* Manual Fallback Form */}
         <View className="w-full bg-white p-6 rounded-3xl border border-gray-200 shadow-sm">
           <Text className="text-gray-900 font-bold text-base mb-2">Manual Code Verification</Text>
-          <TextInput
+          <Input
             placeholder="Enter secure verification token..."
             value={manualToken}
             onChangeText={setManualToken}
             className="border border-gray-200 rounded-xl p-3 mb-4 text-gray-800"
             autoCapitalize="none"
           />
-          <TouchableOpacity 
+          <Button
             onPress={handleManualSubmit}
             disabled={submitting}
             className="bg-indigo-600 p-4 rounded-xl items-center"
           >
             {submitting ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={colors.card} />
             ) : (
               <Text className="text-white font-bold">Verify Code</Text>
             )}
-          </TouchableOpacity>
+          </Button>
         </View>
       </View>
     );
@@ -136,29 +161,29 @@ const QRScannerScreen = ({ navigation }) => {
       </View>
 
       {/* Manual Code verification overlay at the bottom */}
-      <View className="bg-white p-6 rounded-t-[32px] absolute bottom-0 left-0 right-0">
+      <Card className="bg-white p-6 rounded-2xl absolute bottom-0 left-0 right-0">
         <Text className="text-gray-800 font-bold text-base mb-2">Manual Token Fallback</Text>
         <View className="flex-row space-x-2">
-          <TextInput
+          <Input
             placeholder="Type verification token..."
             value={manualToken}
             onChangeText={setManualToken}
             className="flex-1 border border-gray-200 rounded-xl p-3 text-gray-800 bg-gray-50"
             autoCapitalize="none"
           />
-          <TouchableOpacity 
+          <Button
             onPress={handleManualSubmit}
             disabled={submitting}
             className="bg-indigo-600 px-6 rounded-xl justify-center items-center"
           >
             {submitting ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={colors.card} />
             ) : (
               <Text className="text-white font-bold">Verify</Text>
             )}
-          </TouchableOpacity>
+          </Button>
         </View>
-      </View>
+      </Card>
     </View>
   );
 };

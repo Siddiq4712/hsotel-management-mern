@@ -1,11 +1,16 @@
+import { useStudentVisible } from '../../components/student/StudentPresentation';
+import Button from '../../components/common/Button';
+import Card from '../../components/common/Card';
+import colors from '../../theme/colors';
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, Image, ActivityIndicator, Alert, FlatList } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { outpassAPI } from '../../api/api';
 import { QrCode, Clock, CheckCircle2, AlertTriangle, ChevronRight, Plus, RefreshCw, XCircle } from 'lucide-react-native';
 import moment from 'moment';
 
-const OutpassStatusScreen = ({ navigation }) => {
+const OutpassStatusScreen = ({ navigation, refreshToken = 0 }) => {
+  const isVisible = useStudentVisible();
   const [currentOutpass, setCurrentOutpass] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -29,8 +34,8 @@ const OutpassStatusScreen = ({ navigation }) => {
 
   useFocusEffect(
     useCallback(() => {
-      fetchData();
-    }, [])
+      if (isVisible) fetchData();
+    }, [refreshToken, isVisible])
   );
 
   const handleCancel = async () => {
@@ -75,12 +80,18 @@ const OutpassStatusScreen = ({ navigation }) => {
   };
 
   return (
-    <ScrollView className="flex-1 bg-gray-50 p-4">
+    <FlatList
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+      keyboardShouldPersistTaps="handled"
+      data={history}
+      keyExtractor={item => item.id.toString()}
+      ListHeaderComponent={<>
       {/* Current/Active Outpass Card */}
       {loading ? (
-        <ActivityIndicator size="large" color="#4F46E5" className="my-10" />
+        <ActivityIndicator size="large" color={colors.primary} className="my-10" />
       ) : currentOutpass ? (
-        <View className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm mb-6 items-center">
+        <Card className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm mb-6 items-center">
           <View className="w-full flex-row justify-between items-center mb-4">
             <Text className="text-gray-900 font-extrabold text-lg">Active Gate Pass</Text>
             <View className={`px-3 py-1 rounded-full ${getStatusColor(currentOutpass.status)}`}>
@@ -111,7 +122,7 @@ const OutpassStatusScreen = ({ navigation }) => {
             </View>
           ) : currentOutpass.status === 'pending' ? (
             <View className="w-full items-center p-6 bg-amber-50/50 border border-amber-100 rounded-3xl mb-6">
-              <Clock size={40} color="#D97706" />
+              <Clock size={40} color={colors.warning} />
               <Text className="text-amber-800 font-bold text-center mt-3">Pending Warden Approval</Text>
               <Text className="text-amber-600 text-xs text-center mt-1">Your outpass request is currently in the review queue.</Text>
             </View>
@@ -124,56 +135,56 @@ const OutpassStatusScreen = ({ navigation }) => {
               disabled={cancelling}
               className="w-full bg-rose-50 border border-rose-100 p-4 rounded-2xl items-center flex-row justify-center space-x-2"
             >
-              <XCircle size={18} color="#EF4444" />
+              <XCircle size={18} color={colors.danger} />
               <Text className="text-rose-600 font-extrabold">Cancel Request</Text>
             </TouchableOpacity>
           )}
-        </View>
+        </Card>
       ) : (
-        <View className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm mb-6 items-center">
-          <QrCode size={60} color="#9CA3AF" />
+        <Card className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm mb-6 items-center">
+          <QrCode size={60} color={colors.mutedText} />
           <Text className="text-gray-800 font-bold text-lg mt-4 text-center">No Active Outpass</Text>
           <Text className="text-gray-400 text-sm text-center mt-2 mb-6">
             You don't have any active outpass request. Submit a request if you need to leave the hostel.
           </Text>
-          <TouchableOpacity 
+          <Button
             onPress={() => navigation.navigate('OutpassRequest')}
-            className="bg-indigo-600 px-6 py-4 rounded-2xl flex-row items-center space-x-2"
+            className="bg-indigo-600 px-6 py-4 rounded-xl flex-row items-center space-x-2"
           >
-            <Plus size={18} color="#fff" />
+            <Plus size={18} color={colors.card} />
             <Text className="text-white font-extrabold">Request Outpass</Text>
-          </TouchableOpacity>
-        </View>
+          </Button>
+        </Card>
       )}
 
       {/* Outpass History */}
-      <View className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 mb-8">
+      <View className="bg-white rounded-t-2xl border border-b-0 border-gray-100 px-5 pt-5">
         <Text className="text-gray-900 font-extrabold text-base mb-4">Outpass Logs History</Text>
-        
-        <FlatList
-          data={history}
-          keyExtractor={(item) => item.id.toString()}
-          scrollEnabled={false}
-          renderItem={({ item }) => (
+      </View>
+      </>}
+      renderItem={({ item }) => (
+          <View className="bg-white border-x border-gray-100 px-5">
             <View className="flex-row justify-between items-center py-3.5 border-b border-gray-50">
               <View className="space-y-1">
                 <Text className="text-gray-800 font-bold text-sm">{item.purpose}</Text>
                 <Text className="text-gray-400 text-xs font-semibold">To: {item.destination}</Text>
-                <Text className="text-gray-400 text-[10px]">
+                <Text className="text-gray-400 text-xs">
                   {moment(item.from_date).format('ll')} - {moment(item.to_date).format('ll')}
                 </Text>
               </View>
               <View className={`px-2 py-0.5 rounded-full ${getStatusColor(item.status)}`}>
-                <Text className="text-[10px] font-bold uppercase">{item.status.replace('_', ' ')}</Text>
+                <Text className="text-xs font-bold uppercase">{item.status.replace('_', ' ')}</Text>
               </View>
             </View>
-          )}
-          ListEmptyComponent={
+          </View>
+      )}
+      ListEmptyComponent={
+          <View className="bg-white border-x border-gray-100 px-5">
             <Text className="text-gray-400 text-sm text-center py-6">No previous outpass logs found</Text>
-          }
-        />
-      </View>
-    </ScrollView>
+          </View>
+      }
+      ListFooterComponent={<View className="bg-white rounded-b-2xl border border-t-0 border-gray-100 h-5 mb-8" />}
+    />
   );
 };
 

@@ -1,3 +1,8 @@
+import MoreSectionNav from '../../components/common/MoreSectionNav';
+import Screen from '../../components/common/Screen';
+import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
+import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -6,9 +11,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Modal,
-  ScrollView,
-  TextInput
-} from 'react-native';
+  ScrollView } from 'react-native';
 
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
@@ -66,7 +69,7 @@ const ManageStudentsScreen = () => {
       >
         <View className="flex-row items-center flex-1">
           <View className="bg-blue-100 p-3 rounded-full mr-4">
-            <User size={20} color="#3B82F6" />
+            <User size={20} color={colors.primary} />
           </View>
           <View>
             <Text className="font-bold text-gray-900">{item.userName}</Text>
@@ -92,7 +95,7 @@ const ManageStudentsScreen = () => {
               Not Assigned
             </Text>
           )}
-          <ChevronRight size={18} color="#9CA3AF" />
+          <ChevronRight size={18} color={colors.mutedText} />
         </View>
       </TouchableOpacity>
     );
@@ -105,21 +108,22 @@ const ManageStudentsScreen = () => {
   );
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <Screen className="flex-1 bg-background">
       <Header />
+      <MoreSectionNav />
 
       <View className="p-4 flex-1">
-        <Text className="text-2xl font-bold text-gray-900 mb-4">
+        <Text className="text-2xl font-bold text-indigo-900 mb-4">
           Manage Students
         </Text>
 
         <View className="relative mb-4">
           <Search
             size={20}
-            color="#9CA3AF"
+            color={colors.mutedText}
             style={{ position: 'absolute', left: 12, top: 14 }}
           />
-          <TextInput
+          <Input
             placeholder="Search by name or roll..."
             value={search}
             onChangeText={setSearch}
@@ -131,35 +135,35 @@ const ManageStudentsScreen = () => {
           <Text className="text-sm font-semibold text-gray-700 mb-2">
             Filter by Enrollment Year
           </Text>
-          <View className="flex-row items-center">
-            <TextInput
+          <View className="flex-row flex-wrap items-center">
+            <Input
               placeholder="e.g. 2025"
               value={enrollmentYear}
               onChangeText={setEnrollmentYear}
               keyboardType="number-pad"
               maxLength={4}
-              className="flex-1 px-4 py-3 bg-white rounded-xl border border-gray-200"
+              className="w-full mb-3 px-4 py-3 bg-white rounded-xl border border-gray-200"
             />
-            <TouchableOpacity
+            <Button
               onPress={() => fetchStudents()}
-              className="ml-3 px-4 py-3 bg-blue-600 rounded-xl"
+              className="flex-1 mr-2 px-4 py-3 bg-blue-600 rounded-xl"
             >
               <Text className="text-white font-semibold">Apply</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </Button>
+            <Button variant="secondary"
               onPress={() => {
                 setEnrollmentYear('');
                 fetchStudents('');
               }}
-              className="ml-2 px-4 py-3 bg-gray-200 rounded-xl"
+              className="flex-1 ml-2 px-4 py-3 bg-gray-100 rounded-xl"
             >
               <Text className="text-gray-700 font-semibold">Clear</Text>
-            </TouchableOpacity>
+            </Button>
           </View>
         </View>
 
         {loading ? (
-          <ActivityIndicator size="large" color="#4F46E5" />
+          <ActivityIndicator size="large" color={colors.primary} />
         ) : (
           <FlatList
             data={filteredStudents}
@@ -183,7 +187,7 @@ const ManageStudentsScreen = () => {
             </TouchableOpacity>
           </View>
 
-          <ScrollView className="p-4">
+          <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled" className="p-4">
             {selectedStudent && (
               <>
                 <Text className="text-2xl font-bold">
@@ -209,7 +213,7 @@ const ManageStudentsScreen = () => {
           </ScrollView>
         </View>
       </Modal>
-    </View>
+    </Screen>
   );
 };
 

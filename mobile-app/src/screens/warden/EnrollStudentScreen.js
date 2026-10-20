@@ -1,5 +1,8 @@
+import MoreSectionNav from '../../components/common/MoreSectionNav';
+import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, Switch, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, Switch, ScrollView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
@@ -40,18 +43,19 @@ const EnrollStudentScreen = () => {
   };
 
   return (
-    <ScrollView className="flex-1 bg-gray-50">
+    <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled" className="flex-1 bg-background">
       <Header />
+      <MoreSectionNav />
       <View className="p-4">
         <Text className="text-2xl font-bold mb-6">Enroll Student</Text>
         {step === 1 && (
           <View>
-            <TextInput placeholder="Username" value={formData.userName} onChangeText={(v) => setFormData({...formData, userName: v})} className="border p-3 rounded mb-3" />
-            <TextInput placeholder="Password" value={formData.password} onChangeText={(v) => setFormData({...formData, password: v})} secureTextEntry className="border p-3 rounded mb-3" />
-            <TextInput placeholder="Roll Number" value={formData.roll_number} onChangeText={(v) => setFormData({...formData, roll_number: v})} className="border p-3 rounded mb-3" />
-            <TouchableOpacity onPress={() => setStep(2)} className="bg-blue-600 p-4 rounded">
+            <Input placeholder="Username" value={formData.userName} onChangeText={(v) => setFormData({...formData, userName: v})} className="border p-3 rounded mb-3" />
+            <Input placeholder="Password" value={formData.password} onChangeText={(v) => setFormData({...formData, password: v})} secureTextEntry className="border p-3 rounded mb-3" />
+            <Input placeholder="Roll Number" value={formData.roll_number} onChangeText={(v) => setFormData({...formData, roll_number: v})} className="border p-3 rounded mb-3" />
+            <Button onPress={() => setStep(2)} className="bg-blue-600 p-4 rounded">
               <Text className="text-white text-center font-bold">Next</Text>
-            </TouchableOpacity>
+            </Button>
           </View>
         )}
         {step === 2 && (
@@ -60,7 +64,7 @@ const EnrollStudentScreen = () => {
               <Picker.Item label="NEC" value="nec" />
               <Picker.Item label="LAPC" value="lapc" />
             </Picker>
-            <TextInput accessibilityLabel="Batch Admission Year" placeholder="Batch admission year (e.g. 2024)" keyboardType="number-pad" maxLength={4} value={formData.erp_batch_year} onChangeText={value => setFormData({ ...formData, erp_batch_year: value })} className="border p-3 rounded mb-3" />
+            <Input accessibilityLabel="Batch Admission Year" placeholder="Batch admission year (e.g. 2024)" keyboardType="number-pad" maxLength={4} value={formData.erp_batch_year} onChangeText={value => setFormData({ ...formData, erp_batch_year: value })} className="border p-3 rounded mb-3" />
             <Picker accessibilityLabel="Gender" selectedValue={formData.gender} onValueChange={value => setFormData({ ...formData, gender: value })}>
               <Picker.Item label="Choose gender" value="" />
               <Picker.Item label="Male" value="male" />
@@ -75,9 +79,9 @@ const EnrollStudentScreen = () => {
               <TouchableOpacity onPress={() => setStep(1)} className="flex-1 bg-gray-300 p-3 rounded">
                 <Text className="text-center">Back</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={enroll} className="flex-1 bg-green-600 p-3 rounded">
+              <Button onPress={enroll} className="flex-1 bg-indigo-600 p-3 rounded">
                 <Text className="text-white text-center font-bold">Enroll</Text>
-              </TouchableOpacity>
+              </Button>
             </View>
           </View>
         )}

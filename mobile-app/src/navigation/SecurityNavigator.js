@@ -1,3 +1,4 @@
+import colors from '../theme/colors';
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SecurityDashboardScreen from '../screens/security/SecurityDashboardScreen';
@@ -11,9 +12,10 @@ const SecurityNavigator = () => {
     <Stack.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#4F46E5', // Indigo-600
+          backgroundColor: colors.card,
         },
-        headerTintColor: '#fff',
+        headerTintColor: colors.text,
+        headerShadowVisible: false,
         headerTitleStyle: {
           fontWeight: 'bold',
         },

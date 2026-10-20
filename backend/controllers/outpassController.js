@@ -128,7 +128,7 @@ export const getWardenOutpasses = async (req, res) => {
         as: 'Student',
         attributes: ['userId', 'userName', 'roll_number', 'profile_picture'],
         where: search ? studentWhere : undefined
-      }],
+      }, { model: User, as: 'Approver', attributes: ['userId', 'userName'], required: false }],
       order: [['createdAt', 'DESC']]
     });
 

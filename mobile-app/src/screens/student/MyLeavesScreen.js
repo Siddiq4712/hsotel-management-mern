@@ -1,11 +1,16 @@
+import { useStudentVisible } from '../../components/student/StudentPresentation';
+import Screen from '../../components/common/Screen';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
+import Card from '../../components/common/Card';
+import colors from '../../theme/colors';
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity, TextInput, Modal } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { Calendar, FileText, CheckCircle, Clock, XCircle, Search, Eye, RefreshCcw } from 'lucide-react-native';
 import moment from 'moment';
-import Header from '../../components/common/Header';
+import Header from '../../components/student/StudentHeader';
 import StatusBadge from '../../components/common/StatusBadge'; // Reusing common badge component
-import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { Picker } from '@react-native-picker/picker';
 const LeaveDetailsModal = ({ leave, onClose }) => {
   if (!leave) return null;
@@ -18,15 +23,15 @@ const LeaveDetailsModal = ({ leave, onClose }) => {
       onRequestClose={onClose}
     >
       <View className="flex-1 justify-center items-center bg-black/50 p-4">
-        <View className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <Card className="bg-white rounded-2xl shadow-sm w-full max-w-md" style={{ maxHeight: '85%' }}>
           <View className="bg-gray-100 px-6 py-4 border-b border-gray-200 rounded-t-lg flex-row justify-between items-center">
             <Text className="text-lg font-semibold text-gray-900">Leave Details</Text>
             <TouchableOpacity onPress={onClose} className="p-1">
-              <XCircle size={24} color="#6B7280" />
+              <XCircle size={24} color={colors.mutedText} />
             </TouchableOpacity>
           </View>
           
-          <ScrollView className="p-6 max-h-[70vh]">
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
             <View className="mb-4">
               <Text className="text-sm text-gray-500">Leave Type</Text>
               <Text className="font-semibold capitalize text-base text-gray-900">{leave.leave_type}</Text>
@@ -77,21 +82,22 @@ const LeaveDetailsModal = ({ leave, onClose }) => {
           </ScrollView>
           
           <View className="px-6 py-4 bg-gray-50 border-t border-gray-200 rounded-b-lg flex-row justify-end">
-            <TouchableOpacity
+            <Button
               onPress={onClose}
-              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+              className="bg-gray-600 text-white px-4 py-2 rounded-xl hover:bg-gray-700"
             >
               <Text className="text-white font-semibold">Close</Text>
-            </TouchableOpacity>
+            </Button>
           </View>
-        </View>
+        </Card>
       </View>
     </Modal>
   );
 };
 
 
-const LeaveManagementScreen = ({ navigation }) => {
+const LeaveManagementScreen = ({ navigation, refreshToken = 0 }) => {
+  const isVisible = useStudentVisible();
   const [leaves, setLeaves] = useState([]);
   const [filteredLeaves, setFilteredLeaves] = useState([]);
   const [filters, setFilters] = useState({
@@ -106,8 +112,8 @@ const LeaveManagementScreen = ({ navigation }) => {
   const [selectedLeave, setSelectedLeave] = useState(null);
 
   useEffect(() => {
-    fetchLeaves();
-  }, []);
+    if (isVisible) fetchLeaves();
+  }, [refreshToken, isVisible]);
 
   useEffect(() => {
     applyFilters();
@@ -169,36 +175,36 @@ const LeaveManagementScreen = ({ navigation }) => {
   const leaveTypes = ['all', ...new Set(leaves.map(leave => leave.leave_type))];
 
   return (
-    <View className="flex-1 bg-gray-50">
-      <Header />
-      <ScrollView className="p-4">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">Leave Management</Text>
+    <Screen className="flex-1 bg-background">
+      <Header title="Leave history" back />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+        <Text className="text-2xl font-bold text-indigo-900 mb-2">Leave Management</Text>
         <Text className="text-gray-600 mb-6">Apply for leave and track your applications</Text>
 
         {/* Apply for Leave Button */}
-        <TouchableOpacity
+        <Button
           onPress={() => navigation.navigate('ApplyLeave')} // Navigate to ApplyLeaveScreen
-          className="bg-blue-600 py-3 px-4 rounded-lg flex-row items-center justify-center mb-6"
+          className="bg-blue-600 py-3 px-4 rounded-xl flex-row items-center justify-center mb-6"
         >
           <Calendar size={20} color="white" className="mr-2" />
           <Text className="text-white font-semibold text-base">Apply for New Leave</Text>
-        </TouchableOpacity>
+        </Button>
 
         {/* Leave History Section */}
-        <View className="bg-white shadow-md rounded-lg overflow-hidden h-full">
+        <Card className="bg-white shadow-sm rounded-2xl overflow-hidden">
           <View className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex-row justify-between items-center">
             <View className="flex-row items-center">
               <FileText className="text-gray-400 mr-2" size={20} />
               <Text className="text-lg font-medium text-gray-900">Leave History</Text>
             </View>
             <TouchableOpacity onPress={() => setShowFilterModal(true)} className="p-2 bg-gray-100 rounded-md">
-              <Search size={20} color="#6B7280" />
+              <Search size={20} color={colors.mutedText} />
             </TouchableOpacity>
           </View>
 
           {loading ? (
             <View className="flex items-center justify-center h-64">
-              <ActivityIndicator size="small" color="#4F46E5" />
+              <ActivityIndicator size="small" color={colors.primary} />
             </View>
           ) : filteredLeaves.length > 0 ? (
             <View className="divide-y divide-gray-200">
@@ -226,7 +232,7 @@ const LeaveManagementScreen = ({ navigation }) => {
                       onPress={() => openLeaveDetails(leave)}
                       className="mt-3 flex-row items-center self-end px-3 py-1 rounded-md bg-blue-50"
                     >
-                      <Eye size={16} color="#3B82F6" className="mr-1" />
+                      <Eye size={16} color={colors.primary} className="mr-1" />
                       <Text className="text-blue-600 text-sm">View Details</Text>
                     </TouchableOpacity>
                   </View>
@@ -252,7 +258,7 @@ const LeaveManagementScreen = ({ navigation }) => {
                 )}
             </View>
           )}
-        </View>
+        </Card>
       </ScrollView>
       
       {selectedLeave && (
@@ -270,21 +276,22 @@ const LeaveManagementScreen = ({ navigation }) => {
         onRequestClose={() => setShowFilterModal(false)}
       >
         <View className="flex-1 justify-end bg-black/50">
-          <View className="bg-white rounded-t-xl p-6">
+          <Card className="bg-white rounded-2xl" style={{ maxHeight: '85%' }}>
+            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
             <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-2xl font-bold">Filter Leaves</Text>
+              <Text className="text-2xl font-bold" style={{ flex: 1, minWidth: 0 }}>Filter Leaves</Text>
               <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-                <XCircle size={28} color="#6B7280" />
+                <XCircle size={28} color={colors.mutedText} />
               </TouchableOpacity>
             </View>
 
-            <View className="space-y-4">
+            <View className="gap-3">
               <View>
                 <Text className="text-sm font-medium text-gray-700 mb-1">Status</Text>
                 <Picker
                   selectedValue={tempFilters.status}
                   onValueChange={(itemValue) => setTempFilters(prev => ({ ...prev, status: itemValue }))}
-                  className="w-full border border-gray-300 rounded-lg h-12"
+                  className="w-full border border-gray-300 rounded-xl h-12"
                 >
                   <Picker.Item label="All Statuses" value="all" />
                   <Picker.Item label="Pending" value="pending" />
@@ -297,7 +304,7 @@ const LeaveManagementScreen = ({ navigation }) => {
                 <Picker
                   selectedValue={tempFilters.type}
                   onValueChange={(itemValue) => setTempFilters(prev => ({ ...prev, type: itemValue }))}
-                  className="w-full border border-gray-300 rounded-lg h-12"
+                  className="w-full border border-gray-300 rounded-xl h-12"
                 >
                   <Picker.Item label="All Types" value="all" />
                   {leaveTypes.filter(type => type !== 'all').map(type => (
@@ -307,27 +314,28 @@ const LeaveManagementScreen = ({ navigation }) => {
               </View>
               <View>
                 <Text className="text-sm font-medium text-gray-700 mb-1">Search</Text>
-                <TextInput
+                <Input
                   value={tempFilters.searchQuery}
                   onChangeText={(text) => setTempFilters(prev => ({ ...prev, searchQuery: text }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-gray-900"
                   placeholder="Search in reasons..."
                 />
               </View>
             </View>
 
-            <View className="flex-row justify-between items-center mt-6 pt-4 border-t border-gray-200">
-              <TouchableOpacity onPress={handleResetFilters} className="bg-gray-300 py-3 px-4 rounded-lg">
+            <View className="mt-6 pt-4 border-t border-gray-200" style={{ gap: 12, alignSelf: 'stretch' }}>
+              <TouchableOpacity onPress={handleResetFilters} className="bg-gray-300 py-3 px-4 rounded-xl">
                 <Text className="font-semibold text-gray-700">Reset Filters</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleApplyFilters} className="bg-blue-600 py-3 px-6 rounded-lg">
+              <Button onPress={handleApplyFilters} className="bg-blue-600 py-3 px-6 rounded-xl">
                 <Text className="text-white font-semibold text-lg">Apply Filters</Text>
-              </TouchableOpacity>
+              </Button>
             </View>
-          </View>
+            </ScrollView>
+          </Card>
         </View>
       </Modal>
-    </View>
+    </Screen>
   );
 };
 

@@ -1,15 +1,24 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import Screen from '../../components/common/Screen';
+import Card from '../../components/common/Card';
+import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import moment from 'moment';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
+import { sortAttendanceStudents } from '../../utils/attendanceSort';
 
-export default function AttendanceRecordsScreen() {
+export default function AttendanceRecordsScreen({ navigation }) {
   const [date,setDate]=useState(new Date()),[picker,setPicker]=useState(false),[students,setStudents]=useState([]),[records,setRecords]=useState([]);
   const [search,setSearch]=useState(''),[loading,setLoading]=useState(false),[saving,setSaving]=useState(false);
   const [loadError,setLoadError]=useState(false);
   const [changes,setChanges]=useState({});
+  const [sortBy,setSortBy]=useState('name');
+  const visibleStudents=useMemo(()=>sortAttendanceStudents(students.filter(student=>
+    `${student.userName||student.username||''} ${student.roll_number||''} ${student.room_number??''}`.toLowerCase().includes(search.toLowerCase())
+  ),sortBy),[students,search,sortBy]);
   const savingRef=useRef(false);
   const load=useCallback(async()=>{
     setLoading(true);setLoadError(false);setChanges({});
@@ -39,25 +48,41 @@ export default function AttendanceRecordsScreen() {
     }catch(error){Alert.alert('Cannot save attendance',error.message);}
     finally{savingRef.current=false;setSaving(false);}
   };
-  return <View className="flex-1 bg-gray-50"><Header/><View className="p-4 flex-1">
-    <Text className="text-2xl font-bold mb-4">Attendance</Text>
-    <Text className="bg-blue-50 p-3 mb-4">Presence records do not grant food reductions. Use Mess Reductions for documented approval. Approval-linked attendance is managed through its request.</Text>
-    <TouchableOpacity disabled={saving||loading} className="bg-white border border-gray-200 p-3 rounded-lg mb-4" onPress={()=>setPicker(true)}><Text>{moment(date).format('DD MMM YYYY')} — select date</Text></TouchableOpacity>
-    <TextInput accessibilityLabel="Search attendance" placeholder="Search name or roll number" value={search} onChangeText={setSearch} className="p-3 bg-white rounded-lg mb-4"/>
-    <View className="flex-row mb-4" style={{gap:12}}>{[['P','Present all'],['A','Absent all']].map(([status,label])=><TouchableOpacity key={status} accessibilityRole="button" disabled={saving||loading||loadError||!editable.length} onPress={()=>markAll(status)} className={`flex-1 p-3 rounded-lg ${status==='P'?'bg-green-700':'bg-red-700'} ${saving||loading||loadError||!editable.length?'opacity-50':''}`}><Text className="text-white font-bold text-center">{label}</Text></TouchableOpacity>)}</View>
+  return <Screen className="flex-1 bg-background"><Header/>
+    <FlatList style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:16,paddingBottom:32}}
+    ListHeaderComponent={<View>
+    <View className="flex-row items-center justify-between mb-4" style={{gap:12}}>
+      <Text className="text-2xl font-bold text-indigo-900" style={{flex:1}}>Attendance</Text>
+      <Button variant="secondary" onPress={()=>navigation.navigate('GPSAttendance')}>GPS attendance</Button>
+    </View>
+    <Text className="bg-indigo-50 p-3 rounded-xl mb-4 text-gray-600">Presence records do not grant food reductions. Use Mess Reductions for documented approval. Approval-linked attendance is managed through its request.</Text>
+    <TouchableOpacity disabled={saving||loading} className="bg-white border border-gray-200 p-3 rounded-xl mb-4" onPress={()=>setPicker(true)}><Text>{moment(date).format('DD MMM YYYY')} — select date</Text></TouchableOpacity>
+    <Input accessibilityLabel="Search attendance" placeholder="Search name, roll number or room" value={search} onChangeText={setSearch} className="p-3 bg-white rounded-xl mb-4"/>
+    <Text className="text-sm font-semibold text-gray-700 mb-2">Sort by</Text>
+    <View className="flex-row flex-wrap mb-4" style={{gap:8}}>
+      {[['name','Name'],['room_asc','Room ↑'],['room_desc','Room ↓']].map(([value,label])=><Button key={value}
+        variant={sortBy===value?'primary':'secondary'} accessibilityLabel={value==='name'?'Sort by student name':`Sort by room number ${value==='room_asc'?'ascending':'descending'}`}
+        accessibilityState={{selected:sortBy===value}} onPress={()=>setSortBy(value)} style={{flexGrow:1}}>{label}</Button>)}
+    </View>
+    <View className="flex-row mb-4" style={{gap:12}}>{[['P','Present all'],['A','Absent all']].map(([status,label])=><Button key={status} accessibilityRole="button" disabled={saving||loading||loadError||!editable.length} onPress={()=>markAll(status)} style={{flex:1}} variant={status==='P'?'primary':'danger'}>{label}</Button>)}</View>
     <Text className="text-gray-600 mb-4">Select the whole roster, search and adjust individual students, then tap Save attendance to confirm. Approved reduction entries stay locked.</Text>
     {loading&&<ActivityIndicator/>}
-    <FlatList data={students.filter(s=>`${s.userName||s.username} ${s.roll_number}`.toLowerCase().includes(search.toLowerCase()))} keyExtractor={s=>String(s.userId??s.id)} renderItem={({item})=>{
+    </View>}
+    data={visibleStudents} keyExtractor={s=>String(s.userId??s.id)} renderItem={({item})=>{
       const id=item.userId??item.id,record=records.find(r=>Number(r.student_id)===Number(id));
       const selectedStatus=changes[id]??record?.status;
-      return <View className="bg-white rounded-xl p-4 mb-4 border border-gray-200">
+      return <Card className="bg-white rounded-2xl p-4 mb-3 border border-gray-200">
         <Text className="font-bold">{item.userName||item.username}</Text><Text>{item.roll_number}</Text>
+        <Text className="text-gray-600 mt-1">Room: {String(item.room_number??'').trim()||'Not allotted'}</Text>
         <Text className="my-2">{({P:'Present',A:'Absent',OD:'OD'})[selectedStatus]||'Unmarked'}</Text>
         {record?.reduction_request_id?<Text className="text-indigo-700">Approved reduction #{record.reduction_request_id} · {record.ReductionRequest?.category} · {record.MarkedBy?.userName}</Text>
-          :<View className="flex-row" style={{gap:8}}>{[['P','Present'],['A','Absent'],['OD','OD']].map(([status,label])=><TouchableOpacity key={status} accessibilityRole="radio" accessibilityState={{checked:selectedStatus===status,disabled:saving||loading||loadError}} accessibilityLabel={`${label} for ${item.userName||item.username}`} disabled={saving||loading||loadError} onPress={()=>mark(id,status)} className={`p-3 border rounded-lg ${selectedStatus===status?'bg-indigo-100 border-indigo-600':'bg-white border-gray-300'}`}><Text className="text-indigo-900">{selectedStatus===status?'✓ ':''}{label}</Text></TouchableOpacity>)}</View>}
-      </View>;
-    }}/>
-    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Save attendance" disabled={saving||loading||loadError||!Object.keys(changes).length} onPress={save} className={`p-3 rounded-lg mb-4 ${saving||loading||loadError||!Object.keys(changes).length?'bg-indigo-300':'bg-indigo-700'}`}><Text className="text-white font-bold text-center">{saving?'Saving…':`Save attendance (${Object.keys(changes).length})`}</Text></TouchableOpacity>
-    <TouchableOpacity onPress={load} disabled={saving||loading} className="p-3 bg-gray-200 rounded-lg"><Text className="text-center">Refresh</Text></TouchableOpacity>
-  </View>{picker&&<DateTimePicker value={date} mode="date" onChange={(event,value)=>{setPicker(false);if(value&&event.type!=='dismissed')setDate(value);}}/>}</View>;
+          :<View className="flex-row flex-wrap" style={{gap:8}}>{[['P','Present'],['A','Absent'],['OD','OD']].map(([status,label])=><TouchableOpacity key={status} accessibilityRole="radio" accessibilityState={{checked:selectedStatus===status,disabled:saving||loading||loadError}} accessibilityLabel={`${label} for ${item.userName||item.username}`} disabled={saving||loading||loadError} onPress={()=>mark(id,status)} style={{minHeight:48,justifyContent:'center'}} className={`p-3 border rounded-xl ${selectedStatus===status?'bg-indigo-100 border-indigo-600':'bg-white border-gray-300'}`}><Text className="text-indigo-900">{selectedStatus===status?'✓ ':''}{label}</Text></TouchableOpacity>)}</View>}
+      </Card>;
+    }}
+    ListEmptyComponent={!loading&&<Text className="text-gray-600 text-center my-4">{loadError?'Could not load the roster. Tap Refresh to retry.':'No matching students.'}</Text>}
+    ListFooterComponent={<View style={{gap:12,paddingTop:4}}>
+      <Button accessibilityLabel="Save attendance" disabled={saving||loading||loadError||!Object.keys(changes).length} onPress={save}>{saving?'Saving…':`Save attendance (${Object.keys(changes).length})`}</Button>
+      <Button variant="secondary" onPress={load} disabled={saving||loading}>Refresh</Button>
+    </View>}/>
+  {picker&&<DateTimePicker value={date} mode="date" onChange={(event,value)=>{setPicker(false);if(value&&event.type!=='dismissed')setDate(value);}}/>}</Screen>;
 }

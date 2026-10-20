@@ -1,3 +1,4 @@
+import colors from '../../theme/colors';
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
   View, Text, ScrollView, ActivityIndicator, TouchableOpacity,
@@ -10,7 +11,7 @@ import {
   ChevronRight, Users, User as UserIcon 
 } from 'lucide-react-native';
 import { studentAPI } from "../../api/api";
-import Header from '../../components/common/Header';
+import Header from '../../components/student/StudentHeader';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -127,17 +128,17 @@ const ViewRoomsScreen = ({ navigation }) => {
     }
   };
 
-  if (loading) return <View style={styles.center}><ActivityIndicator color="#1e3a8a" /><Text style={styles.syncText}>Syncing Blueprint...</Text></View>;
+  if (loading) return <View style={styles.center}><ActivityIndicator color={colors.primaryDark} /><Text style={styles.syncText}>Syncing Blueprint...</Text></View>;
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      <Header />
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <Header title="Room details" back />
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16 }}>
         
         {/* Header Section */}
         <View style={styles.header}>
             <View style={styles.headerTitleRow}>
-                <View style={styles.iconBox}><Layers size={20} color="#fff" /></View>
+                <View style={styles.iconBox}><Layers size={20} color={colors.card} /></View>
                 <View>
                     <Text style={styles.title}>BLUEPRINT EXPLORER</Text>
                     <Text style={styles.subtitle}>TAP ROOM TO INITIALIZE BOOKING</Text>
@@ -147,13 +148,13 @@ const ViewRoomsScreen = ({ navigation }) => {
 
         {/* Legend */}
         <View style={styles.legendRow}>
-            <LegendItem icon={Bed} label="Available" color="#1e3a8a" />
-            <LegendItem icon={Clock} label="Requested" color="#16a34a" />
-            <LegendItem icon={AlertCircle} label="Full" color="#ea580c" />
+            <LegendItem icon={Bed} label="Available" color={colors.primaryDark} />
+            <LegendItem icon={Clock} label="Requested" color={colors.success} />
+            <LegendItem icon={AlertCircle} label="Full" color={colors.warning} />
         </View>
 
         {/* Blueprint Grid Area */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gridOuter}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.gridOuter}>
            <View style={styles.gridContainer}>
               <EntranceLabel side={layoutConfig?.entrance_side} pos="top" />
               
@@ -199,7 +200,7 @@ const ViewRoomsScreen = ({ navigation }) => {
 
 const BlueprintCell = ({ type, blueprint, liveRoom, myRequests, onPress }) => {
   if (type === "EMPTY") return <View style={styles.cell} />;
-  if (type === "VOID") return <View style={[styles.cell, styles.voidCell]}><X size={12} color="#cbd5e1" /></View>;
+  if (type === "VOID") return <View style={[styles.cell, styles.voidCell]}><X size={12} color={colors.borderStrong} /></View>;
   if (type === "WALK") return <View style={[styles.cell, styles.walkCell]} />;
 
   const typeKey = blueprint?.typeKey || blueprint?.key;
@@ -224,14 +225,14 @@ const BlueprintCell = ({ type, blueprint, liveRoom, myRequests, onPress }) => {
       ]}
     >
       <View style={styles.cellHeader}>
-        <Text style={[styles.cellNo, isRequested && { color: '#16a34a' }]}>{liveRoom?.room_number || '---'}</Text>
-        {isRequested && <Clock size={8} color="#16a34a" />}
+        <Text style={[styles.cellNo, isRequested && { color: colors.success }]}>{liveRoom?.room_number || '---'}</Text>
+        {isRequested && <Clock size={8} color={colors.success} />}
       </View>
       <View style={styles.cellBody}>
-        <Icon size={16} color={isRequested ? "#16a34a" : isFull ? "#ea580c" : "#1e3a8a"} opacity={0.4} />
+        <Icon size={16} color={isRequested ? colors.success : isFull ? colors.warning : colors.primaryDark} opacity={0.4} />
         {liveRoom && <Text style={styles.occCount}>{liveRoom.occupancy_count}/{capacity}</Text>}
       </View>
-      <View style={[styles.cellFooter, isRequested && { backgroundColor: '#16a34a' }, isFull && { backgroundColor: '#ea580c' }]}>
+      <View style={[styles.cellFooter, isRequested && { backgroundColor: colors.success }, isFull && { backgroundColor: colors.warning }]}>
         <Text style={styles.footerText}>{isRequested ? "REQD" : config.name.toUpperCase()}</Text>
       </View>
     </TouchableOpacity>
@@ -252,16 +253,16 @@ const RoomModal = ({ visible, room, occupants, loading, isRequesting, hasRequest
                 <Text style={styles.modalLabel}>INDEX</Text>
                 <Text style={styles.modalTitle}>{room.room_number}</Text>
             </View>
-            <TouchableOpacity onPress={onClose}><X color="#1e3a8a" size={24} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose}><X color={colors.primaryDark} size={24} /></TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.occupantList}>
-            <Text style={styles.sectionTitle}><Users size={12} color="#1e3a8a" /> OCCUPANTS</Text>
+          <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled" style={styles.occupantList}>
+            <Text style={styles.sectionTitle}><Users size={12} color={colors.primaryDark} /> OCCUPANTS</Text>
             {loading ? <ActivityIndicator /> : occupants.length === 0 ? <Text style={styles.emptyText}>EMPTY ROOM</Text> : 
               occupants.map(occ => (
                 <View key={occ.user_id} style={styles.occCard}>
                   <View style={styles.occAvatar}>
-                    {occ.profileImage ? <Image source={{uri: occ.profileImage}} style={styles.fullImg} /> : <UserIcon size={14} color="#1e3a8a" />}
+                    {occ.profileImage ? <Image source={{uri: occ.profileImage}} style={styles.fullImg} /> : <UserIcon size={14} color={colors.primaryDark} />}
                   </View>
                   <View>
                     <Text style={styles.occName}>{occ.userName.toUpperCase()}</Text>
@@ -279,16 +280,16 @@ const RoomModal = ({ visible, room, occupants, loading, isRequesting, hasRequest
              </View>
              <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>BEDS AVAILABLE</Text>
-                <Text style={[styles.infoVal, { color: isFull ? '#ef4444' : '#16a34a' }]}>{capacity - room.occupancy_count} OF {capacity}</Text>
+                <Text style={[styles.infoVal, { color: isFull ? colors.danger : colors.success }]}>{capacity - room.occupancy_count} OF {capacity}</Text>
              </View>
 
              {hasRequested ? (
                <View style={styles.statusBanner}><Text style={styles.statusText}>ACTIVE REQUEST</Text></View>
              ) : isFull ? (
-               <View style={[styles.statusBanner, { backgroundColor: '#ea580c' }]}><Text style={styles.statusText}>ROOM FULL</Text></View>
+               <View style={[styles.statusBanner, { backgroundColor: colors.warning }]}><Text style={styles.statusText}>ROOM FULL</Text></View>
              ) : (
                <TouchableOpacity style={styles.bookingBtn} onPress={onConfirm} disabled={isRequesting}>
-                 {isRequesting ? <ActivityIndicator color="#fff" /> : <><ChevronRight color="#fff" size={18} /><Text style={styles.bookingText}>{hasActiveAllotment ? 'REQUEST CHANGE' : 'INITIALIZE BOOKING'}</Text></>}
+                 {isRequesting ? <ActivityIndicator color={colors.card} /> : <><ChevronRight color={colors.card} size={18} /><Text style={styles.bookingText}>{hasActiveAllotment ? 'REQUEST CHANGE' : 'INITIALIZE BOOKING'}</Text></>}
                </TouchableOpacity>
              )}
           </View>
@@ -310,57 +311,57 @@ const EntranceLabel = ({ side, pos }) => {
 
 /* ---------- STYLES ---------- */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fcfdff' },
+  container: { flex: 1, backgroundColor: colors.background },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  syncText: { marginTop: 10, fontSize: 10, fontWeight: '900', color: '#1e3a8a', letterSpacing: 2 },
-  header: { marginBottom: 20, borderBottomWidth: 2, borderBottomColor: '#1e3a8a', paddingBottom: 10 },
+  syncText: { marginTop: 10, fontSize: 10, fontWeight: '900', color: colors.primaryDark, letterSpacing: 2 },
+  header: { marginBottom: 20, borderBottomWidth: 2, borderBottomColor: colors.primaryDark, paddingBottom: 10 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBox: { backgroundColor: '#1e3a8a', padding: 8, borderRadius: 4 },
-  title: { fontSize: 18, fontWeight: '900', color: '#1e3a8a', fontStyle: 'italic' },
-  subtitle: { fontSize: 8, fontWeight: '800', color: '#3b82f6', letterSpacing: 1 },
+  iconBox: { backgroundColor: colors.primaryDark, padding: 8, borderRadius: 4 },
+  title: { fontSize: 18, fontWeight: '900', color: colors.primaryDark, fontStyle: 'italic' },
+  subtitle: { fontSize: 8, fontWeight: '800', color: colors.primary, letterSpacing: 1 },
   legendRow: { flexDirection: 'row', gap: 15, marginBottom: 20 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  legendText: { fontSize: 8, fontWeight: '900', color: '#64748b' },
+  legendText: { fontSize: 8, fontWeight: '900', color: colors.mutedText },
   gridOuter: { marginHorizontal: -16 },
   gridContainer: { paddingHorizontal: 40, alignItems: 'center' },
-  blueprintFrame: { borderWidth: 4, borderColor: '#1e3a8a', backgroundColor: '#fff' },
+  blueprintFrame: { borderWidth: 4, borderColor: colors.primaryDark, backgroundColor: colors.card },
   row: { flexDirection: 'row' },
-  cell: { width: 85, height: 105, borderWeight: 0.5, borderColor: '#f1f5f9' },
-  voidCell: { backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
-  walkCell: { backgroundColor: '#f1f5f9', borderStyle: 'dotted', borderWidth: 1, borderColor: '#cbd5e1' },
-  roomCell: { borderWeight: 1.5, borderColor: '#1e3a8a', padding: 4 },
-  requestedCell: { borderColor: '#16a34a', backgroundColor: '#f0fdf4' },
-  fullCell: { borderColor: '#ea580c', backgroundColor: '#fff7ed' },
+  cell: { width: 85, height: 105, borderWidth: 1, borderColor: colors.surface },
+  voidCell: { backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
+  walkCell: { backgroundColor: colors.surface, borderStyle: 'dotted', borderWidth: 1, borderColor: colors.borderStrong },
+  roomCell: { borderWeight: 1.5, borderColor: colors.primaryDark, padding: 4 },
+  requestedCell: { borderColor: colors.success, backgroundColor: colors.successSoft },
+  fullCell: { borderColor: colors.warning, backgroundColor: colors.warningSoft },
   inactiveCell: { opacity: 0.1 },
-  cellHeader: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 0.5, borderBottomColor: '#e2e8f0', paddingBottom: 2 },
-  cellNo: { fontSize: 8, fontWeight: '900', color: '#1e3a8a' },
+  cellHeader: { flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 0.5, borderBottomColor: colors.border, paddingBottom: 2 },
+  cellNo: { fontSize: 8, fontWeight: '900', color: colors.primaryDark },
   cellBody: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  occCount: { fontSize: 7, fontWeight: '900', color: '#94a3b8', marginTop: 2 },
-  cellFooter: { backgroundColor: '#1e3a8a', paddingVertical: 2, marginHorizontal: -4, marginBottom: -4 },
-  footerText: { color: '#fff', fontSize: 7, fontWeight: '900', textAlign: 'center' },
-  entranceLabel: { backgroundColor: '#ea580c', paddingHorizontal: 30, paddingVertical: 6, marginVertical: 10 },
-  entranceText: { color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 4 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(30,58,138,0.7)', justifyContent: 'center', padding: 20 },
-  modalContent: { backgroundColor: '#fff', borderWidth: 4, borderColor: '#1e3a8a' },
-  modalHeader: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  modalLabel: { fontSize: 8, fontWeight: '800', color: '#3b82f6' },
-  modalTitle: { fontSize: 32, fontWeight: '900', color: '#1e3a8a' },
+  occCount: { fontSize: 7, fontWeight: '900', color: colors.mutedText, marginTop: 2 },
+  cellFooter: { backgroundColor: colors.primaryDark, paddingVertical: 2, marginHorizontal: -4, marginBottom: -4 },
+  footerText: { color: colors.card, fontSize: 7, fontWeight: '900', textAlign: 'center' },
+  entranceLabel: { backgroundColor: colors.warning, paddingHorizontal: 30, paddingVertical: 6, marginVertical: 10 },
+  entranceText: { color: colors.card, fontSize: 10, fontWeight: '900', letterSpacing: 4 },
+  modalOverlay: { flex: 1, backgroundColor: colors.withOpacity(colors.primaryDark, 0.7), justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: colors.card, borderWidth: 4, borderColor: colors.primaryDark },
+  modalHeader: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: colors.surface },
+  modalLabel: { fontSize: 8, fontWeight: '800', color: colors.primary },
+  modalTitle: { fontSize: 32, fontWeight: '900', color: colors.primaryDark },
   occupantList: { padding: 20, maxHeight: 300 },
-  sectionTitle: { fontSize: 10, fontWeight: '900', color: '#1e3a8a', marginBottom: 15 },
-  emptyText: { fontSize: 10, fontWeight: '800', color: '#cbd5e1' },
-  occCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, padding: 10, borderWidth: 1, borderColor: '#f1f5f9' },
-  occAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#eff6ff', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  sectionTitle: { fontSize: 10, fontWeight: '900', color: colors.primaryDark, marginBottom: 15 },
+  emptyText: { fontSize: 10, fontWeight: '800', color: colors.borderStrong },
+  occCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, padding: 10, borderWidth: 1, borderColor: colors.surface },
+  occAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   fullImg: { width: '100%', height: '100%' },
-  occName: { fontSize: 11, fontWeight: '900', color: '#1e3a8a' },
-  occRoll: { fontSize: 8, fontWeight: '700', color: '#94a3b8' },
-  modalFooter: { padding: 20, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f8fafc', paddingBottom: 5 },
-  infoLabel: { fontSize: 9, fontWeight: '800', color: '#94a3b8' },
-  infoVal: { fontSize: 10, fontWeight: '900', color: '#1e3a8a' },
-  bookingBtn: { backgroundColor: '#1e3a8a', padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  bookingText: { color: '#fff', fontSize: 12, fontWeight: '900', letterSpacing: 1 },
-  statusBanner: { padding: 16, backgroundColor: '#16a34a', alignItems: 'center' },
-  statusText: { color: '#fff', fontSize: 12, fontWeight: '900' }
+  occName: { fontSize: 11, fontWeight: '900', color: colors.primaryDark },
+  occRoll: { fontSize: 8, fontWeight: '700', color: colors.mutedText },
+  modalFooter: { padding: 20, borderTopWidth: 1, borderTopColor: colors.surface },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.background, paddingBottom: 5 },
+  infoLabel: { fontSize: 9, fontWeight: '800', color: colors.mutedText },
+  infoVal: { fontSize: 10, fontWeight: '900', color: colors.primaryDark },
+  bookingBtn: { backgroundColor: colors.primaryDark, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  bookingText: { color: colors.card, fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+  statusBanner: { padding: 16, backgroundColor: colors.success, alignItems: 'center' },
+  statusText: { color: colors.card, fontSize: 12, fontWeight: '900' }
 });
 
 export default ViewRoomsScreen;

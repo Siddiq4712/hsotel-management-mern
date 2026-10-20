@@ -1,9 +1,13 @@
+import Screen from '../../components/common/Screen';
+import Button from '../../components/common/Button';
+import { useIsFocused } from '@react-navigation/native';
+import Input from '../../components/common/Input';
+import colors from '../../theme/colors';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  TextInput,
   SectionList,
   Alert,
   ActivityIndicator,
@@ -25,7 +29,8 @@ const hasConfiguredGeofence =
   Number.isFinite(CONFIG_GEOFENCE.latitude) &&
   Number.isFinite(CONFIG_GEOFENCE.longitude);
 
-const GPSAttendanceScreen = () => {
+const GPSAttendanceScreen = ({ navigation }) => {
+  const isFocused = useIsFocused();
   const [activeSession, setActiveSession] = useState(null);
   const [lastClosedSession, setLastClosedSession] = useState(null);
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
@@ -52,12 +57,13 @@ const GPSAttendanceScreen = () => {
   }, [activeSession, serverOffsetMs, nowTick]);
 
   useEffect(() => {
+    if (!isFocused) return;
     refreshActiveSession();
     fetchStudents();
-  }, []);
+  }, [isFocused]);
 
   useEffect(() => {
-    if (!activeSession?.id) return;
+    if (!isFocused || !activeSession?.id) return;
     fetchSummary();
     const summaryTimer = setInterval(fetchSummary, 10000);
     const clockTimer = setInterval(() => {
@@ -68,7 +74,7 @@ const GPSAttendanceScreen = () => {
       clearInterval(summaryTimer);
       clearInterval(clockTimer);
     };
-  }, [activeSession?.id]);
+  }, [activeSession?.id, isFocused]);
 
   const studentsById = useMemo(() => {
     const map = new Map();
@@ -233,7 +239,7 @@ const GPSAttendanceScreen = () => {
 
   const renderStudent = ({ item }) => {
     const statusColor =
-      item.status === 'P' ? '#10b981' : item.status === 'A' ? '#ef4444' : '#f59e0b';
+      item.status === 'P' ? colors.success : item.status === 'A' ? colors.danger : colors.warning;
     const displayDistance = item.distance;
 
     return (
@@ -269,7 +275,7 @@ const GPSAttendanceScreen = () => {
 
         <Text style={styles.metaText}>Filter by enrollment year</Text>
         <View style={styles.filterRow}>
-          <TextInput
+          <Input
             style={styles.filterInput}
             keyboardType="numeric"
             value={yearInput}
@@ -320,157 +326,88 @@ const GPSAttendanceScreen = () => {
     );
   };
 
-  return (
-    <View style={styles.container}>
-      <Header />
-      <View style={styles.content}>
+  return <Screen><Header />
+    <SectionList style={{flex:1}} keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{padding:16,paddingBottom:32}}
+      sections={sessionForResults ? [{title:'Present',data:presentList},{title:'Absent',data:absentList}] : []}
+      keyExtractor={item=>String(item.id)} renderItem={renderStudent}
+      stickySectionHeadersEnabled={false}
+      renderSectionHeader={({section})=><Text style={styles.sectionHeader}>{section.title}</Text>}
+      ListHeaderComponent={<View>
+        <Button variant="ghost" onPress={()=>navigation.navigate('AttendanceRecords')} style={{alignSelf:'flex-start',marginBottom:8}}>← Attendance</Button>
         <Text style={styles.title}>Evening GPS Attendance</Text>
-
-        {loading ? (
-          <ActivityIndicator color="#4F46E5" />
-        ) : sessionForResults ? (
-          <>
-            <View style={styles.sessionCard}>
-              <Text style={styles.sessionLabel}>
-                {isSessionActive ? 'Active Session' : 'Closed Session Results'}
-              </Text>
-              <Text style={styles.sessionMeta}>
-                Date: {sessionForResults.attendance_date || 'N/A'}
-              </Text>
-              <Text style={styles.sessionMeta}>Enrollment Year: {activeBatch}</Text>
-              <Text style={styles.sessionMeta}>
-                Radius: {Math.round(sessionForResults.geofence_radius_m)}m
-              </Text>
-              {isSessionActive && (
-                <Text style={styles.sessionMeta}>
-                  Ends in: {Math.floor(remainingSeconds / 60)}m {remainingSeconds % 60}s
-                </Text>
-              )}
-            </View>
-
-            <View style={styles.resultCard}>
-              <Text style={styles.resultTitle}>Results</Text>
-              <Text style={styles.resultMeta}>
-                Present: {presentList.length} | Absent: {absentList.length}
-              </Text>
-            </View>
-
-            <SectionList
-              sections={[
-                { title: 'Present', data: presentList },
-                { title: 'Absent', data: absentList }
-              ]}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={renderStudent}
-              renderSectionHeader={({ section }) => (
-                <Text style={styles.sectionHeader}>{section.title}</Text>
-              )}
-              ListEmptyComponent={<Text style={styles.emptyText}>No students found.</Text>}
-              ListHeaderComponent={renderBatchSection}
-              contentContainerStyle={{ paddingBottom: 16 }}
-              stickySectionHeadersEnabled={false}
-            />
-
-            {isSessionActive && (
-              <TouchableOpacity
-                onPress={closeSession}
-                disabled={closing}
-                style={[styles.closeBtn, closing && { opacity: 0.6 }]}
-              >
-                <Text style={styles.closeBtnText}>
-                  {closing ? 'Closing...' : 'Close Session'}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </>
-        ) : (
-          <View style={styles.startCard}>
-            <Text style={styles.sessionLabel}>Start Evening Attendance</Text>
-            <Text style={styles.sessionMeta}>
-              {hasConfiguredGeofence
-                ? 'Using hostel geofence coordinates configured for this app.'
-                : 'Using warden live location as fallback geofence center.'}
-            </Text>
-
-            {renderBatchSection()}
-
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              value={radius}
-              onChangeText={setRadius}
-              placeholder="Radius (meters)"
-            />
-            <TextInput
-              style={styles.input}
-              keyboardType="numeric"
-              value={duration}
-              onChangeText={setDuration}
-              placeholder="Duration (minutes)"
-            />
-
-            <TouchableOpacity
-              onPress={startSession}
-              disabled={starting}
-              style={[styles.startBtn, starting && { opacity: 0.6 }]}
-            >
-              <Text style={styles.startBtnText}>
-                {starting ? 'Starting...' : 'Start Session'}
-              </Text>
-            </TouchableOpacity>
+        {loading ? <ActivityIndicator color={colors.primary}/> : sessionForResults ? <>
+          <View style={styles.sessionCard}>
+            <Text style={styles.sessionLabel}>{isSessionActive?'Active session':'Closed session results'}</Text>
+            <Text style={styles.sessionMeta}>Date: {sessionForResults.attendance_date||'N/A'}</Text>
+            <Text style={styles.sessionMeta}>Enrollment year: {activeBatch}</Text>
+            <Text style={styles.sessionMeta}>Radius: {Math.round(sessionForResults.geofence_radius_m)}m</Text>
+            {isSessionActive&&<Text style={styles.sessionMeta}>Ends in: {Math.floor(remainingSeconds/60)}m {remainingSeconds%60}s</Text>}
           </View>
-        )}
-      </View>
-    </View>
-  );
+          <View style={styles.resultCard}><Text style={styles.resultTitle}>Results</Text>
+            <Text style={styles.resultMeta}>Present: {presentList.length} | Absent: {absentList.length}</Text></View>
+          {renderBatchSection()}
+        </> : <View style={styles.startCard}>
+          <Text style={styles.sessionLabel}>Start evening attendance</Text>
+          <Text style={styles.sessionMeta}>{hasConfiguredGeofence?'Using hostel geofence coordinates configured for this app.':'Using warden live location as fallback geofence center.'}</Text>
+          {renderBatchSection()}
+          <Text style={styles.sessionLabel}>Radius (meters)</Text>
+          <Input accessibilityLabel="Geofence radius in meters" style={styles.input} keyboardType="numeric" value={radius} onChangeText={setRadius} placeholder="Radius (meters)"/>
+          <Text style={[styles.sessionLabel,{marginTop:14}]}>Duration (minutes)</Text>
+          <Input accessibilityLabel="Session duration in minutes" style={styles.input} keyboardType="numeric" value={duration} onChangeText={setDuration} placeholder="Duration (minutes)"/>
+          <Button onPress={startSession} loading={starting} style={{marginTop:16}}>Start session</Button>
+        </View>}
+      </View>}
+      ListFooterComponent={isSessionActive ? <Button variant="danger" onPress={closeSession} loading={closing} style={{marginTop:12}}>Close session</Button> : null}
+    />
+  </Screen>;
 };
-
 export default GPSAttendanceScreen;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+  container: { flex: 1, backgroundColor: colors.background },
   content: { flex: 1, padding: 16 },
   title: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
   sessionCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     padding: 14,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0'
+    borderColor: colors.border
   },
   resultCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     padding: 12,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0'
+    borderColor: colors.border
   },
   resultTitle: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
-  resultMeta: { color: '#64748b', fontSize: 12 },
+  resultMeta: { color: colors.mutedText, fontSize: 12 },
   sectionHeader: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0f172a',
+    color: colors.text,
     marginTop: 6,
     marginBottom: 6
   },
   startCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0'
+    borderColor: colors.border
   },
   sessionLabel: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
-  sessionMeta: { color: '#64748b', fontSize: 12, marginBottom: 4 },
+  sessionMeta: { color: colors.mutedText, fontSize: 12, marginBottom: 4 },
   batchCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     marginBottom: 12
   },
   batchHeader: {
@@ -484,76 +421,75 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 6
   },
-  enrolledName: { color: '#0f172a', fontSize: 13, marginTop: 4 },
+  enrolledName: { color: colors.text, fontSize: 13, marginTop: 4 },
   input: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     borderRadius: 10,
     padding: 10,
-    marginTop: 8,
-    flex: 1
+    marginTop: 8
   },
   filterInput: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: colors.border,
     borderRadius: 10,
     padding: 10,
     flex: 1
   },
   applyBtn: {
-    backgroundColor: '#2563eb',
+    backgroundColor: colors.primary,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 10,
     marginLeft: 8
   },
-  applyBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  applyBtnText: { color: colors.card, fontWeight: '700', fontSize: 12 },
   clearBtn: {
-    backgroundColor: '#e2e8f0',
+    backgroundColor: colors.border,
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 10,
     marginLeft: 6
   },
-  clearBtnText: { color: '#0f172a', fontWeight: '700', fontSize: 12 },
+  clearBtnText: { color: colors.text, fontWeight: '700', fontSize: 12 },
   startBtn: {
-    backgroundColor: '#2563eb',
+    backgroundColor: colors.primary,
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
     marginTop: 12
   },
-  startBtnText: { color: '#fff', fontWeight: '700' },
+  startBtnText: { color: colors.card, fontWeight: '700' },
   closeBtn: {
-    backgroundColor: '#ef4444',
+    backgroundColor: colors.danger,
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
     marginTop: 10
   },
-  closeBtnText: { color: '#fff', fontWeight: '700' },
+  closeBtnText: { color: colors.card, fontWeight: '700' },
   studentCard: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     padding: 12,
     borderRadius: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#e2e8f0'
+    borderColor: colors.border
   },
   studentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  studentName: { fontWeight: '700', color: '#0f172a' },
-  rollText: { color: '#64748b', fontSize: 12 },
+  studentName: { fontWeight: '700', color: colors.text },
+  rollText: { color: colors.mutedText, fontSize: 12 },
   statusPill: {
-    color: '#fff',
+    color: colors.card,
     fontWeight: '700',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10
   },
-  metaText: { color: '#64748b', fontSize: 12 },
-  emptyText: { textAlign: 'center', color: '#94a3b8', marginTop: 12 },
-  refreshText: { color: '#2563eb', fontWeight: '700', fontSize: 12 }
+  metaText: { color: colors.mutedText, fontSize: 12 },
+  emptyText: { textAlign: 'center', color: colors.mutedText, marginTop: 12 },
+  refreshText: { color: colors.primary, fontWeight: '700', fontSize: 12 }
 });
 
