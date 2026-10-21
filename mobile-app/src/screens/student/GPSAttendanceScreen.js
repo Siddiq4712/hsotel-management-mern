@@ -1,18 +1,13 @@
+import { Text } from "../../components/common/ReferenceDesign";
+import { useStudentVisible } from '../../components/student/StudentPresentation';
+import colors from '../../theme/colors';
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  StyleSheet,
-  Platform
-} from 'react-native';
+import { View, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Header from '../../components/common/Header';
+import Header from '../../components/student/StudentHeader';
 import { gpsAttendanceAPI } from '../../api/api';
 
 const toRad = (value) => (value * Math.PI) / 180;
@@ -78,7 +73,8 @@ const getDeviceIdentifier = async () => {
   return deviceId;
 };
 
-const GPSAttendanceScreen = () => {
+const GPSAttendanceScreen = ({ embedded = false }) => {
+  const isVisible = useStudentVisible();
   const [activeSession, setActiveSession] = useState(null);
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -96,8 +92,8 @@ const GPSAttendanceScreen = () => {
   }, [activeSession, serverOffsetMs, nowTick]);
 
   useEffect(() => {
-    refreshActiveSession();
-  }, []);
+    if (isVisible) refreshActiveSession();
+  }, [isVisible]);
 
   useEffect(() => {
     if (activeSession?.id) {
@@ -108,12 +104,12 @@ const GPSAttendanceScreen = () => {
   }, [activeSession?.id]);
 
   useEffect(() => {
-    if (!activeSession?.id) return;
+    if (!isVisible || !activeSession?.id) return;
     const clockTimer = setInterval(() => {
       setNowTick((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(clockTimer);
-  }, [activeSession?.id]);
+  }, [activeSession?.id, isVisible]);
 
   const refreshActiveSession = async () => {
     setLoading(true);
@@ -210,13 +206,13 @@ const GPSAttendanceScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <Header />
-      <View style={styles.content}>
+    <View style={[styles.container, embedded && { flex: 0 }]}>
+      {!embedded && <Header title="Attendance" />}
+      <View style={[styles.content, embedded && { flex: 0 }]}>
         <Text style={styles.title}>Evening Attendance</Text>
 
         {loading ? (
-          <ActivityIndicator color="#4F46E5" />
+          <ActivityIndicator color={colors.primary} />
         ) : activeSession ? (
           <View style={styles.card}>
             <Text style={styles.label}>Session Active</Text>
@@ -275,32 +271,32 @@ const GPSAttendanceScreen = () => {
 export default GPSAttendanceScreen;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+  container: { flex: 1, backgroundColor: colors.background },
   content: { flex: 1, padding: 16 },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
+  title: { fontSize: 16, fontWeight: '700', color: colors.primaryDark, marginBottom: 12 },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0'
+    borderColor: colors.border
   },
   label: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
-  meta: { color: '#64748b', fontSize: 12, marginBottom: 4 },
+  meta: { color: colors.mutedText, fontSize: 14, marginBottom: 8 },
   markBtn: {
-    backgroundColor: '#2563eb',
-    padding: 12,
-    borderRadius: 10,
+    backgroundColor: colors.buttonBackground,
+    padding: 14, minHeight: 48,
+    borderRadius: 12,
     alignItems: 'center',
     marginTop: 12
   },
-  markBtnText: { color: '#fff', fontWeight: '700' },
+  markBtnText: { color: colors.card, fontWeight: '700' },
   refreshBtn: {
-    backgroundColor: '#e2e8f0',
-    padding: 10,
+    backgroundColor: colors.border,
+    padding: 14, minHeight: 48,
     borderRadius: 10,
     alignItems: 'center',
     marginTop: 10
   },
-  refreshText: { color: '#0f172a', fontWeight: '700' }
+  refreshText: { color: colors.text, fontWeight: '700' }
 });

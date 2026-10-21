@@ -20,7 +20,8 @@ const REQUIRED_STUDENT_IMPORT_COLUMNS = [
     key: 'erp_batch_year',
     label: 'Batch',
     aliases: ['batch', 'batch year', 'batch_year', 'erp_batch_year', 'admission year', 'admission_year']
-  }
+  },
+  { key: 'gender', label: 'Gender', aliases: ['gender', 'sex', 'student gender', 'student_gender'] }
 ];
 
 const REQUIRED_ITEM_IMPORT_COLUMNS = [
@@ -220,6 +221,7 @@ export const mapExcelRowToStudent = (row = {}, headers = []) => {
     roll_number: normalizedRollNumber,
     email: normalizedEmail,
     erp_batch_year: /^\d{4}$/.test(String(batchValue ?? '').trim()) ? Number(batchValue) : null,
+    gender: String(getHeaderValue(row, REQUIRED_STUDENT_IMPORT_COLUMNS[4].aliases) ?? '').trim().toLowerCase(),
     requires_bed: false // Initially not checked
   };
 };
@@ -324,9 +326,9 @@ const createWorkbookWithSheet = (data, sheetName = 'Sheet1') => {
 
 export const downloadStudentBulkImportTemplate = (fileName = 'student-bulk-import-template.xlsx') => {
   const worksheetData = [
-    ['Name', 'Roll Number', 'Email', 'Batch'],
-    ['John Doe', '20240001', 'johndoe@nec.edu.in', 2024],
-    ['Jane Smith', '20240002', 'janesmith@lapc.edu.in', 2024]
+    ['Name', 'Roll Number', 'Email', 'Batch', 'Gender'],
+    ['John Doe', '20240001', 'johndoe@nec.edu.in', 2024, 'Male'],
+    ['Jane Smith', '20240002', 'janesmith@lapc.edu.in', 2024, 'Female']
   ];
 
   const workbook = createWorkbookWithSheet(worksheetData, 'Students');

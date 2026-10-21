@@ -1,17 +1,18 @@
-import { RoomAllotment, HostelRoom } from '../models/index.js';
+import { matchBatch } from './batchAllocation.js';
+import { RoomAllotment, HostelRoom, Session } from '../models/index.js';
 
 const ERP_API_URL = process.env.ERP_STUDENTS_API_URL || 'https://erp.nec.edu.in/institute_management_system/students';
 
 /**
  * Fetches students directly from the ERP API without inserting into local database.
- * Filters by hostel gender: "gents" -> male students, "ladies" -> female students.
+ * Scopes candidates by configured batch admission year and gender.
  * Includes all students without restricting to any specific department/course like CSE.
  * Merges local room allotment information in-memory.
  */
 export const fetchStudentsFromERP = async ({ 
   authHeader, 
   hostellersOnly = true, 
-  hostelName = '', 
+  hostelId = null,
   enrollmentYear = null 
 } = {}) => {
   try {
@@ -44,25 +45,15 @@ export const fetchStudentsFromERP = async ({
       });
     }
 
-    // 2. Gender filtering based on hostel name:
-    // If hostel name contains "gent" or "gents" -> Male students only
-    // Otherwise -> Ladies hostel -> Female students only
-    if (hostelName) {
-      const lowerHostel = hostelName.toLowerCase();
-      const isGentsHostel = lowerHostel.includes('gent') || lowerHostel.includes('boy') || lowerHostel.includes('men');
-
-      if (isGentsHostel) {
-        filtered = filtered.filter((s) => {
-          const g = String(s.gender || s.Gender || s.sex || s.student_gender || '').trim().toLowerCase();
-          return g === 'male' || g === 'm' || g.startsWith('m');
-        });
-      } else {
-        // Does not contain gents/gent -> Ladies hostel -> Female students only
-        filtered = filtered.filter((s) => {
-          const g = String(s.gender || s.Gender || s.sex || s.student_gender || '').trim().toLowerCase();
-          return g === 'female' || g === 'f' || g.startsWith('f');
-        });
-      }
+    // Use explicit configuration; hostel names never determine student gender.
+    if (hostelId) {
+      const batches = await Session.findAll();
+      filtered = filtered.filter(s => {
+        try {
+          const batch = matchBatch(s.erp_batch_year ?? s.batch, batches, s.gender || s.Gender || s.sex || s.student_gender);
+          return Number(batch.hostel_id) === Number(hostelId);
+        } catch { return false; }
+      });
     }
 
     // Optional year/course filtering only if explicitly provided (otherwise shows all departments)

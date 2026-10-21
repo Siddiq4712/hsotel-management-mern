@@ -5250,7 +5250,7 @@ export const getStudentFees = async (req, res) => {
           }
           const erpStudents = await fetchStudentsFromERP({
             authHeader: req.headers.authorization,
-            hostelName,
+            hostelId: hostel_id,
             hostellersOnly: false
           });
           (erpStudents || []).forEach(s => {

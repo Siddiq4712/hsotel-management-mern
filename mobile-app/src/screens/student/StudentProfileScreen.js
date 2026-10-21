@@ -1,9 +1,13 @@
+import { Text } from "../../components/common/ReferenceDesign";
+import Screen from '../../components/common/Screen';
+import Card from '../../components/common/Card';
+import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, Image, TouchableOpacity } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Alert, Image, TouchableOpacity } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { studentAPI } from '../../api/api';
-import { User, Mail, Building, BookOpen, Phone, MapPin, Edit, Save } from 'lucide-react-native';
-import Header from '../../components/common/Header';
+import { User, Mail, Building, BookOpen, Phone, MapPin, Edit, Save, Bed } from 'lucide-react-native';
+import Header from '../../components/student/StudentHeader';
 
 const StudentProfileScreen = () => {
   const { user, loading: authLoading } = useAuth();
@@ -64,7 +68,7 @@ const StudentProfileScreen = () => {
   if (loading || authLoading) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-100">
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text className="mt-4 text-lg text-gray-700">Loading profile...</Text>
       </View>
     );
@@ -82,13 +86,13 @@ const StudentProfileScreen = () => {
   const roomType = roomInfo?.RoomType || roomInfo?.tbl_RoomType;
 
   return (
-    <View className="flex-1 bg-gray-50">
-      <Header />
-      <ScrollView className="p-4">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">My Profile</Text>
+    <Screen className="flex-1 bg-background">
+      <Header title="My profile" back />
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled" className="p-4">
+        <Text className="text-2xl font-bold text-indigo-900 mb-2">My Profile</Text>
         <Text className="text-gray-600 mb-6">Manage your personal and hostel details</Text>
 
-        <View className="bg-white rounded-lg shadow-md p-6 mb-6 items-center">
+        <Card className="bg-white rounded-2xl shadow-sm p-6 mb-6 items-center">
           {profile.profile_picture && !imageError ? (
             <Image
               source={{ uri: profile.profile_picture }}
@@ -100,60 +104,60 @@ const StudentProfileScreen = () => {
               <Text className="text-white text-4xl font-bold">{getInitials(profile.username)}</Text>
             </View>
           )}
-          <Text className="text-2xl font-bold text-gray-900">{profile.username}</Text>
+          <Text className="text-2xl font-bold text-indigo-900">{profile.username}</Text>
           <Text className="text-base text-gray-600 mt-1">{profile.email}</Text>
           <Text className="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full mt-2">
             {profile.role?.toUpperCase()}
           </Text>
-        </View>
+        </Card>
 
-        <View className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <Card className="bg-white rounded-2xl shadow-sm p-6 mb-6">
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-xl font-semibold text-gray-900">Personal Information</Text>
             <TouchableOpacity onPress={() => setIsEditing(!isEditing)} className="p-2 rounded-full bg-blue-50">
-              <Edit size={20} color="#3B82F6" />
+              <Edit size={20} color={colors.primary} />
             </TouchableOpacity>
           </View>
-          <View className="space-y-4">
+          <View className="gap-3">
             <View className="flex-row items-center">
-              <User size={20} color="#6B7280" className="mr-3" />
+              <User size={20} color={colors.mutedText} className="mr-3" />
               <Text className="text-gray-700 text-base">Username: {profile.username}</Text>
             </View>
             <View className="flex-row items-center">
-              <Mail size={20} color="#6B7280" className="mr-3" />
+              <Mail size={20} color={colors.mutedText} className="mr-3" />
               <Text className="text-gray-700 text-base">Email: {profile.email}</Text>
             </View>
             {/* Add more profile fields as needed */}
           </View>
-        </View>
+        </Card>
 
         {profile.Hostel && (
-          <View className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <Card className="bg-white rounded-2xl shadow-sm p-6 mb-6">
             <Text className="text-xl font-semibold text-gray-900 mb-4">Hostel Information</Text>
-            <View className="space-y-4">
+            <View className="gap-3">
               <View className="flex-row items-center">
-                <Building size={20} color="#6B7280" className="mr-3" />
+                <Building size={20} color={colors.mutedText} className="mr-3" />
                 <Text className="text-gray-700 text-base">Hostel: {profile.Hostel.name}</Text>
               </View>
               {roomInfo && (
                 <View className="flex-row items-center">
-                  <Bed size={20} color="#6B7280" className="mr-3" />
+                  <Bed size={20} color={colors.mutedText} className="mr-3" />
                   <Text className="text-gray-700 text-base">Room: {roomInfo.room_number} ({roomType?.name})</Text>
                 </View>
               )}
               <View className="flex-row items-center">
-                <MapPin size={20} color="#6B7280" className="mr-3" />
+                <MapPin size={20} color={colors.mutedText} className="mr-3" />
                 <Text className="text-gray-700 text-base">Address: {profile.Hostel.address}</Text>
               </View>
               <View className="flex-row items-center">
-                <Phone size={20} color="#6B7280" className="mr-3" />
+                <Phone size={20} color={colors.mutedText} className="mr-3" />
                 <Text className="text-gray-700 text-base">Contact: {profile.Hostel.contact_number}</Text>
               </View>
             </View>
-          </View>
+          </Card>
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 };
 

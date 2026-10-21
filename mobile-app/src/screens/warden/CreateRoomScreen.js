@@ -1,5 +1,10 @@
+import { Text } from "../../components/common/ReferenceDesign";
+import MoreSectionNav from '../../components/common/MoreSectionNav';
+import Screen from '../../components/common/Screen';
+import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, FlatList } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Alert, FlatList } from 'react-native';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import { Building2, DoorRight, Layers, Save } from 'lucide-react-native';
@@ -51,16 +56,17 @@ const CreateRoomScreen = () => {
   );
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <Screen className="flex-1 bg-background">
       <Header />
-      <ScrollView className="flex-1 p-4">
+      <MoreSectionNav />
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled" className="flex-1 p-4">
         <Text className="text-xl font-bold mb-4">Hostel Layout</Text>
-        <View className="space-y-4">
+        <View className="gap-3">
           <View className="flex-row space-x-2">
-            <TextInput value={floors.toString()} onChangeText={(v) => setFloors(parseInt(v))} keyboardType="numeric" className="flex-1 border p-2 rounded" />
-            <TouchableOpacity onPress={saveLayout} className="bg-green-600 p-3 rounded">
+            <Input value={floors.toString()} onChangeText={(v) => setFloors(parseInt(v))} keyboardType="numeric" className="flex-1 border p-2 rounded" />
+            <Button onPress={saveLayout} className="bg-indigo-600 p-3 rounded">
               <Save size={20} color="white" />
-            </TouchableOpacity>
+            </Button>
           </View>
           {/* Simplified grid render - loop over floors and grid */}
           {Array.from({ length: floors }).map((_, floor) => (
@@ -79,7 +85,7 @@ const CreateRoomScreen = () => {
           ))}
         </View>
       </ScrollView>
-    </View>
+    </Screen>
   );
 };
 

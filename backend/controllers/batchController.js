@@ -58,7 +58,7 @@ export async function assignHostelBatches(req, res) {
       const batches = await Session.findAll({ transaction });
       for (const id of ids) {
         const batch = batches.find(item => item.id === id && item.is_active);
-        if (!batch?.erp_batch_year) throw new Error('Configure the admission year for every selected batch first.');
+        if (!batch?.erp_batch_year || !batch.gender) throw new Error('Configure the admission year and gender for every selected batch first.');
         if (batch.hostel_id && batch.hostel_id !== hostelId) throw new Error(`Batch ${batch.name} is already assigned to another hostel.`);
       }
       // This is additive. Moving an assigned batch requires editing that batch and reviewing allocation.

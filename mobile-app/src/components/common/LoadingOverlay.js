@@ -1,12 +1,15 @@
+import { Text } from "./ReferenceDesign";
+import colors from '../../theme/colors';
 import React from 'react';
-import { View, Text, ActivityIndicator, Modal } from 'react-native';
+import { View, ActivityIndicator, Modal, StyleSheet } from 'react-native';
+import Card from './Card';
 
 const LoadingOverlay = ({ 
   visible, 
   message = "Loading...",
   subMessage = "",
   size = "large",
-  color = "#4F46E5"
+  color = colors.primary
 }) => {
   if (!visible) return null;
 
@@ -16,33 +19,33 @@ const LoadingOverlay = ({
       animationType="fade"
       visible={visible}
       statusBarTranslucent
+      navigationBarTranslucent
+      presentationStyle="overFullScreen"
+      onRequestClose={() => {}}
     >
-      <View className="flex-1 justify-center items-center bg-black/50">
-        <View
-          className="bg-white rounded-2xl py-8 px-10 items-center"
-          style={{
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.3,
-            shadowRadius: 16,
-            elevation: 16,
-            minWidth: 240,
-            maxWidth: 320,
-          }}
-        >
+      <View style={styles.backdrop}>
+        <Card style={styles.card}>
           <ActivityIndicator size={size} color={color} />
-          <Text className="mt-4 font-bold text-lg text-gray-800 text-center">
+          <Text style={styles.message}>
             {message}
           </Text>
           {subMessage ? (
-            <Text className="mt-2 text-sm text-gray-500 text-center">
+            <Text style={styles.subMessage}>
               {subMessage}
             </Text>
           ) : null}
-        </View>
+        </Card>
       </View>
     </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  backdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#0F172A80' },
+  card: { width: '100%', maxWidth: 320, padding: 24, alignItems: 'center', shadowColor: colors.text,
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 8 },
+  message: { alignSelf: 'stretch', marginTop: 16, fontSize: 18, lineHeight: 25, fontWeight: '700', color: colors.text, textAlign: 'center' },
+  subMessage: { alignSelf: 'stretch', marginTop: 8, fontSize: 14, lineHeight: 21, color: colors.mutedText, textAlign: 'center' },
+});
 
 export default LoadingOverlay;

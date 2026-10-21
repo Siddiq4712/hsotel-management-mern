@@ -1,5 +1,11 @@
+import { Text } from "../../components/common/ReferenceDesign";
+import MoreSectionNav from '../../components/common/MoreSectionNav';
+import Screen from '../../components/common/Screen';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
+import Card from '../../components/common/Card';
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, Picker, TextInput, Alert } from 'react-native';
+import { View, FlatList, TouchableOpacity, Modal, Picker, Alert } from 'react-native';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -41,21 +47,22 @@ const RoomRequestsScreen = () => {
   };
 
   const renderRequest = ({ item }) => (
-    <View className="bg-white p-4 rounded-xl mb-3 border border-gray-100">
+    <Card className="bg-white p-4 rounded-2xl mb-3 border border-gray-100">
       <View className="flex-row justify-between">
         <Text className="font-bold text-gray-900">{item.Student?.userName}</Text>
         <StatusBadge status={item.status} type="leave" />
       </View>
       <Text className="text-gray-600">Room {item.Room?.room_number}</Text>
-      <TouchableOpacity onPress={() => { setSelectedRequest(item); setModalVisible(true); }} className="bg-blue-600 p-2 rounded mt-2">
+      <Button onPress={() => { setSelectedRequest(item); setModalVisible(true); }} className="bg-blue-600 p-2 rounded mt-2">
         <Text className="text-white text-center">Process</Text>
-      </TouchableOpacity>
-    </View>
+      </Button>
+    </Card>
   );
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <Screen className="flex-1 bg-background">
       <Header />
+      <MoreSectionNav />
       <View className="p-4">
         <FlatList data={requests} renderItem={renderRequest} keyExtractor={item => item.id.toString()} />
       </View>
@@ -66,13 +73,13 @@ const RoomRequestsScreen = () => {
             <Picker.Item label="Approve" value="approved" />
             <Picker.Item label="Reject" value="rejected" />
           </Picker>
-          <TextInput placeholder="Remarks" value={remarks} onChangeText={setRemarks} multiline className="border p-3 rounded mt-3" />
-          <TouchableOpacity onPress={processRequest} className="bg-green-600 p-4 rounded mt-4">
+          <Input placeholder="Remarks" value={remarks} onChangeText={setRemarks} multiline className="border p-3 rounded mt-3" />
+          <Button onPress={processRequest} className="bg-indigo-600 p-4 rounded mt-4">
             <Text className="text-white text-center font-bold">Confirm</Text>
-          </TouchableOpacity>
+          </Button>
         </View>
       </Modal>
-    </View>
+    </Screen>
   );
 };
 

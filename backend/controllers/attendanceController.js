@@ -1,5 +1,5 @@
 import { Op } from 'sequelize';
-import { sequelize, User, Attendance, GPSAttendance, DayReductionRequest, Enrollment, Session } from '../models/index.js';
+import { sequelize, User, Attendance, GPSAttendance, DayReductionRequest, Enrollment, Session, RoomAllotment, HostelRoom } from '../models/index.js';
 import { billingMonth } from '../services/billingDays.js';
 import { dateOnly, reductionDates, errorWithStatus } from '../utils/reductionRules.js';
 import { getHistoricalBilling } from '../utils/historicalBilling.js';
@@ -9,12 +9,20 @@ export async function getAttendanceRoster(req, res) {
     const hostel_id = Number(req.user.hostel_id ?? req.user.hostelId);
     if (!hostel_id) throw errorWithStatus('Select a hostel.');
     const enrollments = await Enrollment.findAll({ where:{hostel_id,status:'active'}, include:[
-      {model:User,as:'Student',required:true,where:{hostel_id,status:true},attributes:['userId','userName','roll_number']},
+      {model:User,as:'Student',required:true,where:{hostel_id,status:true},attributes:['userId','userName','roll_number'],include:[
+        {model:RoomAllotment,as:'tbl_RoomAllotments',where:{is_active:true},required:false,attributes:['id','room_id'],include:[
+          {model:HostelRoom,where:{hostel_id},required:true,attributes:['room_number']}
+        ]}
+      ]},
       {model:Session,attributes:['name'],required:false}
     ] });
     const people = new Map();
-    for (const row of enrollments) people.set(row.student_id,{id:row.student_id,userId:row.student_id,userName:row.Student.userName,
-      username:row.Student.userName,roll_number:row.Student.roll_number,college:row.college,session:row.Session?.name,hostel_id});
+    for (const row of enrollments) {
+      const activeRoom = [...(row.Student.tbl_RoomAllotments || [])].sort((a,b)=>b.id-a.id)[0]?.HostelRoom;
+      people.set(row.student_id,{id:row.student_id,userId:row.student_id,userName:row.Student.userName,
+        username:row.Student.userName,roll_number:row.Student.roll_number,college:row.college,session:row.Session?.name,hostel_id,
+        room_number:activeRoom?.room_number ?? null});
+    }
     res.json({success:true,data:[...people.values()].sort((a,b)=>a.userName.localeCompare(b.userName))});
   } catch(error) {res.status(error.status||500).json({message:error.message});}
 }

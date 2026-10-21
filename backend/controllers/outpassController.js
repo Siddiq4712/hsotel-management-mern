@@ -53,6 +53,7 @@ export const getMyOutpasses = async (req, res) => {
   try {
     const outpasses = await Outpass.findAll({
       where: { student_id: req.user.userId },
+      include: [{ model: User, as: 'Approver', attributes: ['userId', 'userName'], required: false }],
       order: [['createdAt', 'DESC']]
     });
     res.json({ success: true, data: outpasses });
@@ -128,7 +129,7 @@ export const getWardenOutpasses = async (req, res) => {
         as: 'Student',
         attributes: ['userId', 'userName', 'roll_number', 'profile_picture'],
         where: search ? studentWhere : undefined
-      }],
+      }, { model: User, as: 'Approver', attributes: ['userId', 'userName'], required: false }],
       order: [['createdAt', 'DESC']]
     });
 

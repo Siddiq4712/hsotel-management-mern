@@ -1,5 +1,7 @@
+import { Text } from "./ReferenceDesign";
+import colors from '../../theme/colors';
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, TouchableOpacity } from 'react-native';
 import { User, Bed } from 'lucide-react-native';
 
 const StudentCard = ({ student, onPress, selected }) => {
@@ -8,7 +10,7 @@ const StudentCard = ({ student, onPress, selected }) => {
     <TouchableOpacity onPress={onPress} className={`p-4 rounded-xl mb-2 border ${selected ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'}`}>
       <View className="flex-row items-center">
         <View className="bg-blue-100 p-2 rounded-full mr-3">
-          <User size={16} color="#3B82F6" />
+          <User size={16} color={colors.primary} />
         </View>
         <View className="flex-1">
           <Text className="font-bold text-gray-900">{student.userName}</Text>
@@ -16,7 +18,7 @@ const StudentCard = ({ student, onPress, selected }) => {
         </View>
         {roomInfo ? (
           <View className="ml-2">
-            <Bed size={16} color="#10B981" />
+            <Bed size={16} color={colors.success} />
           </View>
         ) : null}
       </View>

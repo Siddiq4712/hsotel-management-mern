@@ -1,5 +1,6 @@
+import { Text } from "../common/ReferenceDesign";
 import React from 'react';
-import { View, Text, Image } from 'react-native';
+import { View, Image } from 'react-native';
 import { User } from 'lucide-react-native';
 
 const getInitials = (name) => {

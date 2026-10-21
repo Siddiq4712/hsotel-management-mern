@@ -48,6 +48,7 @@ export const User = sequelize.define('User', {
     field: 'role', // Maps JS "roleId" to SQL "role"
     references: { model: 'roles', key: 'roleId' }
   },
+  gender: { type: DataTypes.STRING(16), allowNull: true },
   roll_number: { type: DataTypes.STRING(50), allowNull: true, unique: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Hostel', key: 'id' } },
   google_id: { type: DataTypes.STRING(255), allowNull: true, unique: true },
@@ -135,6 +136,7 @@ export const Hostel = sequelize.define('Hostel', {
 }, { tableName: 'tbl_Hostel', timestamps: true });
 
 export const Session = sequelize.define('Session', {
+  gender: { type: DataTypes.STRING(16), allowNull: true },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   name: { type: DataTypes.STRING, allowNull: false },
   erp_batch_year: { type: DataTypes.INTEGER, allowNull: true },

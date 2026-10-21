@@ -1,5 +1,13 @@
+import { Text } from "../../components/common/ReferenceDesign";
+import moment from 'moment';
+import { Picker } from '@react-native-picker/picker';
+import MoreSectionNav from '../../components/common/MoreSectionNav';
+import Screen from '../../components/common/Screen';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
+import Card from '../../components/common/Card';
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Picker } from 'react-native';
+import { View, FlatList, TouchableOpacity, Modal, Alert } from 'react-native';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import { UserX, Plus, User, Calendar } from 'lucide-react-native';
@@ -39,20 +47,21 @@ const SuspensionManagementScreen = () => {
   };
 
   const renderSuspension = ({ item }) => (
-    <View className="bg-white p-4 rounded-xl mb-3 border border-gray-100">
+    <Card className="bg-white p-4 rounded-2xl mb-3 border border-gray-100">
       <Text className="font-bold text-gray-900">{item.Student?.userName}</Text>
       <Text className="text-gray-600 text-sm">{item.reason}</Text>
       <Text className="text-gray-500 text-xs">{moment(item.start_date).format('MMM DD')} - {item.end_date ? moment(item.end_date).format('MMM DD') : 'Indefinite'}</Text>
-    </View>
+    </Card>
   );
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <Screen className="flex-1 bg-background">
       <Header />
+      <MoreSectionNav />
       <View className="p-4">
-        <TouchableOpacity onPress={() => setModalVisible(true)} className="bg-red-600 p-4 rounded-xl items-center mb-4">
+        <Button onPress={() => setModalVisible(true)} className="bg-red-600 p-4 rounded-xl items-center mb-4">
           <Text className="text-white font-bold">Create Suspension</Text>
-        </TouchableOpacity>
+        </Button>
         <FlatList data={suspensions} renderItem={renderSuspension} keyExtractor={item => item.id.toString()} />
       </View>
       <Modal visible={modalVisible} animationType="slide">
@@ -61,15 +70,15 @@ const SuspensionManagementScreen = () => {
           <Picker selectedValue={formData.student_id} onValueChange={(v) => setFormData({...formData, student_id: v})} className="mb-3">
             {students.map(s => <Picker.Item key={s.id} label={s.userName} value={s.id} />)}
           </Picker>
-          <TextInput placeholder="Reason" value={formData.reason} onChangeText={(v) => setFormData({...formData, reason: v})} className="border p-3 rounded mb-3" />
-          <TextInput placeholder="Start Date (YYYY-MM-DD)" value={formData.start_date} onChangeText={(v) => setFormData({...formData, start_date: v})} className="border p-3 rounded mb-3" />
-          <TextInput placeholder="End Date (YYYY-MM-DD)" value={formData.end_date} onChangeText={(v) => setFormData({...formData, end_date: v})} className="border p-3 rounded mb-3" />
-          <TouchableOpacity onPress={createSuspension} className="bg-red-600 p-4 rounded">
+          <Input placeholder="Reason" value={formData.reason} onChangeText={(v) => setFormData({...formData, reason: v})} className="border p-3 rounded mb-3" />
+          <Input placeholder="Start Date (YYYY-MM-DD)" value={formData.start_date} onChangeText={(v) => setFormData({...formData, start_date: v})} className="border p-3 rounded mb-3" />
+          <Input placeholder="End Date (YYYY-MM-DD)" value={formData.end_date} onChangeText={(v) => setFormData({...formData, end_date: v})} className="border p-3 rounded mb-3" />
+          <Button onPress={createSuspension} className="bg-red-600 p-4 rounded">
             <Text className="text-white text-center font-bold">Create</Text>
-          </TouchableOpacity>
+          </Button>
         </View>
       </Modal>
-    </View>
+    </Screen>
   );
 };
 

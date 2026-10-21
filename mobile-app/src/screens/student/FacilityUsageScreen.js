@@ -1,9 +1,15 @@
+import { Text } from "../../components/common/ReferenceDesign";
+import Screen from '../../components/common/Screen';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
+import Card from '../../components/common/Card';
+import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity, TextInput, Modal } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { Wifi, Plus, Clock, DollarSign, CheckCircle, AlertCircle, TrendingUp, History } from 'lucide-react-native';
 import moment from 'moment';
-import Header from '../../components/common/Header';
+import Header from '../../components/student/StudentHeader';
 import { Picker } from '@react-native-picker/picker';
 const FacilityUsageScreen = () => {
   const [facilities, setFacilities] = useState([]);
@@ -99,30 +105,30 @@ const FacilityUsageScreen = () => {
   if (loading) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-100">
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text className="mt-4 text-lg text-gray-700">Loading facilities...</Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-gray-50">
-      <Header />
-      <ScrollView className="p-4">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">Hostel Facilities</Text>
+    <Screen className="flex-1 bg-background">
+      <Header title="Facilities" back />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+        <Text className="text-2xl font-bold text-indigo-900 mb-2">Hostel Facilities</Text>
         <Text className="text-gray-600 mb-6">Use available facilities and track your usage</Text>
 
         {/* Available Facilities */}
         <View className="mb-8">
           <Text className="text-xl font-semibold text-gray-900 mb-4 flex-row items-center">
-            <TrendingUp size={20} color="#3B82F6" className="mr-2" /> Available Facilities
+            <TrendingUp size={20} color={colors.primary} className="mr-2" /> Available Facilities
           </Text>
           <View className="flex-row flex-wrap justify-between">
             {facilities.map((facility) => (
-              <View key={facility.id} className="w-[48%] bg-white rounded-lg shadow-md p-4 mb-4">
+              <Card key={facility.id} className="w-[48%] bg-white rounded-2xl shadow-sm p-4 mb-3">
                 <View className="flex-row items-center justify-between mb-3">
                   <View className="flex-row items-center">
-                    <View className="bg-blue-100 p-2 rounded-lg">
+                    <View className="bg-blue-100 p-2 rounded-xl">
                       <Wifi className="text-blue-600" size={20} />
                     </View>
                     <View className="ml-2">
@@ -151,37 +157,37 @@ const FacilityUsageScreen = () => {
                 </View>
 
                 {facility.status === 'active' ? (
-                  <TouchableOpacity
+                  <Button
                     onPress={() => handleUseFacility(facility)}
-                    className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg flex-row items-center justify-center"
+                    className="w-full bg-blue-600 text-white py-2 px-4 rounded-xl flex-row items-center justify-center"
                   >
                     <Plus size={16} color="white" className="mr-2" />
                     <Text className="text-white font-semibold">Use Facility</Text>
-                  </TouchableOpacity>
+                  </Button>
                 ) : (
-                  <View className="w-full bg-gray-300 py-2 px-4 rounded-lg items-center">
+                  <View className="w-full bg-gray-300 py-2 px-4 rounded-xl items-center">
                     <Text className="text-gray-600">
                       {facility.status === 'maintenance' ? 'Under Maintenance' : 'Not Available'}
                     </Text>
                   </View>
                 )}
-              </View>
+              </Card>
             ))}
           </View>
 
           {facilities.length === 0 && (
-            <View className="text-center py-12 bg-white rounded-lg shadow-md">
+            <Card className="text-center py-12 bg-white rounded-2xl shadow-sm">
               <Wifi className="mx-auto h-12 w-12 text-gray-400" />
               <Text className="mt-2 text-sm font-medium text-gray-900">No facilities available</Text>
               <Text className="mt-1 text-sm text-gray-500">
                 Available facilities will appear here.
               </Text>
-            </View>
+            </Card>
           )}
         </View>
 
         {/* Usage History */}
-        <View className="bg-white shadow-md rounded-lg overflow-hidden mb-8">
+        <Card className="bg-white shadow-sm rounded-2xl overflow-hidden mb-8">
           <View className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex-row items-center">
             <History className="text-gray-400 mr-2" size={20} />
             <Text className="text-lg font-medium text-gray-900">Usage History</Text>
@@ -235,7 +241,7 @@ const FacilityUsageScreen = () => {
               </Text>
             </View>
           )}
-        </View>
+        </Card>
 
         {/* Use Facility Modal */}
         <Modal
@@ -245,12 +251,13 @@ const FacilityUsageScreen = () => {
           onRequestClose={() => setShowUseModal(false)}
         >
           <View className="flex-1 justify-center items-center bg-black/50 p-4">
-            <View className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <Card className="bg-white rounded-2xl shadow-sm w-full max-w-md" style={{ maxHeight: '85%' }}>
+              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
               <Text className="text-lg font-medium text-gray-900 mb-4">
                 Use {selectedFacility?.name}
               </Text>
               
-              <View className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <View className="mb-4 p-3 bg-gray-50 rounded-xl">
                 <Text className="text-sm text-gray-600">
                   <Text className="font-bold">Facility Type:</Text> {selectedFacility?.HostelFacilityType?.name}
                 </Text>
@@ -261,12 +268,12 @@ const FacilityUsageScreen = () => {
                 )}
               </View>
               
-              <View className="space-y-4">
+              <View className="gap-3">
                 <View>
                   <Text className="block text-sm font-medium text-gray-700 mb-1">
                     Duration (minutes) *
                   </Text>
-                  <TextInput
+                  <Input
                     value={usageForm.duration_minutes}
                     onChangeText={(text) => setUsageForm({
                       ...usageForm,
@@ -288,7 +295,7 @@ const FacilityUsageScreen = () => {
                   <Text className="block text-sm font-medium text-gray-700 mb-1">
                     Remarks (Optional)
                   </Text>
-                  <TextInput
+                  <Input
                     value={usageForm.remarks}
                     onChangeText={(text) => setUsageForm({
                       ...usageForm,
@@ -302,35 +309,36 @@ const FacilityUsageScreen = () => {
                   />
                 </View>
 
-                <View className="flex-row gap-3 pt-4">
-                  <TouchableOpacity
+                <View className="pt-4" style={{ gap: 12, alignSelf: 'stretch' }}>
+                  <Button
                     onPress={handleSubmitUsage}
                     disabled={submittingUsage}
-                    className="flex-1 bg-blue-600 py-3 rounded-md flex-row items-center justify-center disabled:opacity-50"
+                    className="bg-blue-600 py-3 rounded-xl flex-row items-center justify-center disabled:opacity-50"
                   >
                     {submittingUsage ? (
-                      <ActivityIndicator size="small" color="#fff" />
+                      <ActivityIndicator size="small" color={colors.card} />
                     ) : (
                       <Text className="text-white font-semibold">Record Usage</Text>
                     )}
-                  </TouchableOpacity>
+                  </Button>
                   <TouchableOpacity
                     onPress={() => {
                       setShowUseModal(false);
                       setSelectedFacility(null);
                       setUsageForm({ duration_minutes: '', remarks: '' });
                     }}
-                    className="flex-1 bg-gray-300 py-3 rounded-md flex-row items-center justify-center"
+                    className="bg-gray-300 py-3 rounded-xl flex-row items-center justify-center" style={{ minHeight: 48 }}
                   >
                     <Text className="text-gray-700 font-semibold">Cancel</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-            </View>
+              </ScrollView>
+            </Card>
           </View>
         </Modal>
       </ScrollView>
-    </View>
+    </Screen>
   );
 };
 

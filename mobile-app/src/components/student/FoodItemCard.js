@@ -1,73 +1,48 @@
+import { Text } from "../common/ReferenceDesign";
 import React from 'react';
-import { View, Text, TouchableOpacity, Image } from 'react-native';
-import { Plus, Utensils } from 'lucide-react-native';
+import { View, StyleSheet } from 'react-native';
+import { Plus, Clock3, CalendarDays } from 'lucide-react-native';
+import Button from '../common/Button';
+import Card from '../common/Card';
+import colors from '../../theme/colors';
 import { WEEK_DAYS, foodDeadline, foodOrderingClosed, nextFoodDate } from '../../utils/additionalFood';
 
-// Helper function to safely format price
-const formatPrice = (price) => {
-  const numPrice = parseFloat(price);
-  return !isNaN(numPrice) ? numPrice.toFixed(2) : price;
-};
-
-const FoodItemCard = ({ item, onAdd, now }) => {
+const formatPrice = price => { const value = parseFloat(price); return Number.isNaN(value) ? price : value.toFixed(2); };
+const FoodItemCard = React.memo(function FoodItemCard({ item, onAdd, now }) {
   const servingDate = nextFoodDate(item.weekly_day);
   const closed = foodOrderingClosed(item, servingDate, now);
-  const getCategoryColor = (category) => {
-    const colors = ['bg-pink-100 text-pink-700', 'bg-red-100 text-red-700', 'bg-orange-100 text-orange-700', 'bg-amber-100 text-amber-700', 'bg-yellow-100 text-yellow-700', 'bg-lime-100 text-lime-700', 'bg-green-100 text-green-700', 'bg-emerald-100 text-emerald-700', 'bg-teal-100 text-teal-700', 'bg-cyan-100 text-cyan-700', 'bg-blue-100 text-blue-700', 'bg-indigo-100 text-indigo-700', 'bg-violet-100 text-violet-700', 'bg-purple-110 text-purple-700', 'bg-fuchsia-100 text-fuchsia-700'];
-    const hashCode = (str) => {
-      let hash = 0;
-      for (let i = 0; i < str.length; i++) {
-        hash = str.charCodeAt(i) + ((hash << 5) - hash);
-      }
-      return hash;
-    };
-    const index = Math.abs(hashCode(category)) % colors.length;
-    return colors[index];
-  };
-
-  return (
-    <View className="bg-white rounded-lg shadow-md mb-4 overflow-hidden">
-      {item.image_url ? (
-        <Image
-          source={{ uri: item.image_url }}
-          className="w-full h-40 object-cover"
-          resizeMode="cover"
-        />
-      ) : (
-        <View className="w-full h-40 bg-gray-200 flex items-center justify-center">
-          <Utensils size={48} className="text-gray-400" />
-          <Text className="text-gray-500 mt-2">No Image</Text>
+  return <Card style={styles.card}>
+    <View style={styles.top}>
+      <View style={{ flex: 1, gap: 8 }}>
+        <Text style={styles.name}>{item.name}</Text>
+        <View style={styles.tags}>
+          <Text style={styles.tag}>{['Veg', 'Non-Veg'].includes(item.category) ? item.category : 'Category not set'}</Text>
+          <Text style={styles.meal}>{item.meal_type || 'Meal not set'}</Text>
         </View>
-      )}
-      <View className="p-4">
-        <Text className="text-xl font-semibold text-gray-900 mb-1">{item.name}</Text>
-        <View className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(item.category)} self-start mb-2`}>
-            <Text className={`text-xs font-medium ${getCategoryColor(item.category).split(' ').find(cls => cls.startsWith('text-'))}`}>{['Veg', 'Non-Veg'].includes(item.category) ? item.category : 'Category not set'}</Text>
-        </View>
-        <Text className="text-sm font-medium text-gray-700 mb-2">{item.meal_type || 'Meal not set'}</Text>
-        <Text className="text-xs text-gray-600 mb-2">Maximum {item.max_quantity_per_student ?? 1} per student per date.</Text>
-        <Text className="text-lg font-bold text-blue-600 mb-2">₹{formatPrice(item.price)}</Text>
-        <Text className="text-sm text-gray-600 mb-3" numberOfLines={2}>
-          {item.weekly_day == null ? 'Available food' : `Every ${WEEK_DAYS[item.weekly_day]}`}
-        </Text>
-        {item.preparation_time_minutes && (
-          <Text className="text-xs text-gray-500 mb-3">Prep Time: {item.preparation_time_minutes} min</Text>
-        )}
-        <Text className="text-xs text-gray-600 mb-3">Order before {foodDeadline(item, servingDate).format('h:mm A')} on the serving day (IST).</Text>
-        <TouchableOpacity
-          onPress={() => onAdd(item)}
-          disabled={closed}
-          accessibilityRole="button"
-          accessibilityLabel={`Add ${item.name}`}
-          style={{ height: 44, opacity: closed ? 0.5 : 1 }}
-          className="bg-blue-600 py-3 rounded-lg flex-row items-center justify-center"
-        >
-          <Plus size={18} color="white" className="mr-2" />
-          <Text className="text-white font-semibold text-base">{closed ? 'Closed' : 'Add'}</Text>
-        </TouchableOpacity>
       </View>
+      <Text style={styles.price}>₹{formatPrice(item.price)}</Text>
     </View>
-  );
-};
-
+    <View style={styles.detail}><CalendarDays size={15} color={colors.mutedText} />
+      <Text style={styles.body}>{item.weekly_day == null ? 'Available food' : `Every ${WEEK_DAYS[item.weekly_day]}`}</Text></View>
+    <View style={styles.detail}><Clock3 size={15} color={colors.mutedText} />
+      <Text style={styles.body}>Order before {foodDeadline(item, servingDate).format('h:mm A')} on the serving day (IST)</Text></View>
+    {item.preparation_time_minutes ? <Text style={styles.small}>Preparation: {item.preparation_time_minutes} min</Text> : null}
+    <View style={styles.bottom}>
+      <Text style={[styles.small, { flex: 1 }]}>Up to {item.max_quantity_per_student ?? 1} per student per date</Text>
+      <Button onPress={() => onAdd(item)} disabled={closed} accessibilityLabel={`Add ${item.name}`}
+        style={{ paddingHorizontal: 18, paddingVertical: 12, backgroundColor: closed ? colors.surface : colors.buttonBackground }}>
+        {!closed && <Plus size={18} color={colors.card} style={{ marginRight: 6 }} />}
+        <Text style={{ color: closed ? colors.mutedText : colors.card, fontSize: 14, fontWeight: '700' }}>{closed ? 'Closed' : 'Add'}</Text>
+      </Button>
+    </View>
+  </Card>;
+});
 export default FoodItemCard;
+const styles = StyleSheet.create({
+  card: { padding: 16, gap: 12, marginBottom: 12 }, top: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  name: { fontSize: 17, fontWeight: '700', color: colors.text }, tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  tag: { color: colors.accent, backgroundColor: colors.accentSoft, paddingHorizontal: 8, paddingVertical: 5, fontSize: 11, fontWeight: '600', borderRadius: 8 },
+  meal: { color: colors.mutedText, fontSize: 12 }, price: { color: colors.primary, fontSize: 18, fontWeight: '700', flexShrink: 1 },
+  detail: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 }, body: { color: colors.mutedText, fontSize: 13, lineHeight: 19, flex: 1 },
+  small: { color: colors.mutedText, fontSize: 12, lineHeight: 18 }, bottom: { flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: colors.surface, paddingTop: 12, gap: 12 },
+});

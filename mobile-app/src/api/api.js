@@ -1,9 +1,12 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import appConfig from '../../app.json';
 
-// Replace with your backend API
-// Using emulator local loopback because IP networking is failing
-export const API_BASE_URL = 'http://10.0.2.2:5001/api';
+// Keep login, OAuth and other requests on the same configured backend.
+// Physical phones use the computer's Wi-Fi IP; 10.0.2.2 is emulator-only.
+export const API_BASE_URL = (
+  process.env.EXPO_PUBLIC_API_URL || appConfig.expo.extra.API_BASE_URL
+).replace(/\/+$/, '');
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -205,6 +208,9 @@ export const gpsAttendanceAPI = {
    OUTPASS APIs
 =========================== */
 export const outpassAPI = {
+  getWardenOutpasses: (params) => api.get('/outpass/warden', { params }),
+  approveOutpass: (id, remarks) => api.put(`/outpass/approve/${id}`, { remarks }),
+  rejectOutpass: (id, remarks) => api.put(`/outpass/reject/${id}`, { remarks }),
   createOutpass: (data) => api.post('/outpass', data),
   getMyOutpasses: () => api.get('/outpass/my'),
   getCurrentOutpass: () => api.get('/outpass/current'),
@@ -216,6 +222,20 @@ export const outpassAPI = {
 };
 
 export default api;
+
+export const notificationAPI = {
+  getNotifications: params => api.get('/notifications', { params }),
+  markRead: id => api.patch(`/notifications/${id}/read`),
+  markAllRead: data => api.patch('/notifications/read-all', data),
+};
+
+// Existing parent routes; authorization and linked-student checks stay on the server.
+export const parentAPI = {
+  getStudents: () => api.get('/parent/students'),
+  getStudentDashboard: studentId => api.get(`/parent/dashboard/${studentId}`),
+  getNotifications: () => api.get('/parent/notifications'),
+  markNotificationRead: id => api.put(`/parent/notifications/${id}/read`),
+};
 
 export const reductionAPI = {
   list:(role,params)=>api.get('/'+role+'/day-reduction-requests',{params}),

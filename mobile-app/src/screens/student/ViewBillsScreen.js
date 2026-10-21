@@ -1,10 +1,16 @@
+import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
+import { Text } from "../../components/common/ReferenceDesign";
+import Screen from '../../components/common/Screen';
+import Button from '../../components/common/Button';
+import Card from '../../components/common/Card';
+import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { DollarSign, AlertTriangle, CheckCircle, Calendar, FileText, Download, CreditCard, Clock, XCircle, ExternalLink } from 'lucide-react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import moment from 'moment';
-import Header from '../../components/common/Header';
+import Header from '../../components/student/StudentHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 
 const ViewBillsScreen = () => {
@@ -103,7 +109,7 @@ const ViewBillsScreen = () => {
   };
 
   const BillCard = ({ bill }) => (
-    <View className="bg-white rounded-lg shadow-sm p-4 mb-3 border border-gray-200">
+    <Card className="bg-white rounded-2xl shadow-sm p-4 mb-3 border border-gray-200">
       <View className="flex-row justify-between items-center mb-2">
         <View>
           <Text className="font-bold text-lg text-gray-900">
@@ -119,76 +125,70 @@ const ViewBillsScreen = () => {
       </View>
       <View className="flex-row justify-end space-x-2 mt-4">
         {bill.status !== 'paid' && (
-          <TouchableOpacity
+          <Button
             onPress={() => handlePayNow(bill)}
-            className="bg-green-600 py-2 px-3 rounded-lg flex-row items-center"
+            className="bg-indigo-600 py-2 px-3 rounded-xl flex-row items-center"
           >
             <CreditCard size={16} color="white" className="mr-1" />
             <Text className="text-white text-sm font-semibold">Pay Now</Text>
-          </TouchableOpacity>
+          </Button>
         )}
         {bill.status === 'paid' && (
           <TouchableOpacity
             onPress={() => handleDownloadReceipt(bill)}
-            className="bg-gray-300 py-2 px-3 rounded-lg flex-row items-center"
+            className="bg-gray-300 py-2 px-3 rounded-xl flex-row items-center"
           >
-            <Download size={16} color="#4B5563" className="mr-1" />
+            <Download size={16} color={colors.mutedText} className="mr-1" />
             <Text className="text-gray-700 text-sm font-semibold">Receipt</Text>
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </Card>
   );
 
   if (loading) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-100">
-        <ActivityIndicator size="large" color="#4F46E5" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text className="mt-4 text-lg text-gray-700">Loading mess bills...</Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <Screen className="flex-1 bg-background">
       <Header />
-      <ScrollView className="p-4">
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled" className="p-4">
         <View className="flex-row justify-between items-center mb-6">
-          <Text className="text-3xl font-bold text-gray-900">My Mess Bills</Text>
-          <TouchableOpacity onPress={() => setMonthPickerVisible(true)} className="flex-row items-center p-2 bg-white rounded-lg border border-gray-300">
-            <Calendar size={20} color="#4B5563" className="mr-2" />
+          <Text className="text-2xl font-bold text-indigo-900">My Mess Bills</Text>
+          <TouchableOpacity onPress={() => setMonthPickerVisible(true)} className="flex-row items-center p-2 bg-white rounded-xl border border-gray-300">
+            <Calendar size={20} color={colors.mutedText} className="mr-2" />
             <Text className="text-gray-700 font-medium">{selectedMonth.format('MMMM YYYY')}</Text>
           </TouchableOpacity>
         </View>
 
-        <View className="flex-row flex-wrap justify-between mb-6">
-          <View className="w-[48%] bg-white rounded-lg shadow-md p-3 mb-3">
-            <Text className="text-gray-600 text-sm flex-row items-center"><FileText size={16} className="mr-1" color="#6B7280" /> Total Amount</Text>
-            <Text className="text-2xl font-bold text-blue-600 mt-1">₹{stats.totalAmount.toFixed(2)}</Text>
-          </View>
-          <View className="w-[48%] bg-white rounded-lg shadow-md p-3 mb-3">
-            <Text className="text-gray-600 text-sm flex-row items-center"><CheckCircle size={16} className="mr-1" color="#10B981" /> Paid Amount</Text>
-            <Text className="text-2xl font-bold text-green-600 mt-1">₹{stats.paidAmount.toFixed(2)}</Text>
-          </View>
-          <View className="w-[48%] bg-white rounded-lg shadow-md p-3">
-            <Text className="text-gray-600 text-sm flex-row items-center"><Clock size={16} className="mr-1" color="#F59E0B" /> Pending Amount</Text>
-            <Text className="text-2xl font-bold text-yellow-600 mt-1">₹{stats.pendingAmount.toFixed(2)}</Text>
-          </View>
-          <View className="w-[48%] bg-white rounded-lg shadow-md p-3">
-            <Text className="text-gray-600 text-sm flex-row items-center"><AlertTriangle size={16} className="mr-1" color="#EF4444" /> Overdue Amount</Text>
-            <Text className="text-2xl font-bold text-red-600 mt-1">₹{stats.overdueAmount.toFixed(2)}</Text>
-          </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
+          {[
+            ['Total Amount', stats.totalAmount, FileText],
+            ['Paid Amount', stats.paidAmount, CheckCircle],
+            ['Pending Amount', stats.pendingAmount, Clock],
+            ['Overdue Amount', stats.overdueAmount, AlertTriangle],
+          ].map(([label, value, Icon]) => <HighlightCard key={label} style={{ flexGrow: 1, flexBasis: '46%', padding: 16 }}>
+            <View style={[highlightStyles.badge, { alignSelf: 'flex-start' }]}><Icon size={18} color={colors.highlightText} /></View>
+            <Text style={highlightStyles.detail}>{label}</Text>
+            <Text style={[highlightStyles.value, { fontSize: 24 }]}>₹{value.toFixed(2)}</Text>
+          </HighlightCard>)}
         </View>
 
         {/* Today's Attendance Status Card */}
-        <View className="bg-white rounded-lg shadow-md mb-6">
+        <Card className="bg-white rounded-2xl shadow-sm mb-6">
           <View className="p-4 flex-row items-center border-b border-gray-200">
-            <Calendar className="mr-2" size={18} color="#4B5563" />
+            <Calendar className="mr-2" size={18} color={colors.mutedText} />
             <Text className="text-lg font-medium text-gray-900">Today's Attendance ({moment().format('DD MMM YYYY')})</Text>
           </View>
           {attendanceLoading ? (
             <View className="flex justify-center py-8">
-              <ActivityIndicator size="small" color="#4F46E5" />
+              <ActivityIndicator size="small" color={colors.primary} />
             </View>
           ) : (
             <View className={`flex-col items-center p-6 border-b border-gray-200 rounded-b-lg ${attendanceStatusInfo.color}`}>
@@ -208,9 +208,9 @@ const ViewBillsScreen = () => {
               {!todayAttendance && <Text className="text-sm text-gray-500">No attendance record for today</Text>}
             </View>
           )}
-        </View>
+        </Card>
 
-        <View className="bg-white rounded-lg shadow-md mb-6 p-4">
+        <Card className="bg-white rounded-2xl shadow-sm mb-6 p-4">
           <Text className="text-xl font-semibold text-gray-900 mb-4">Bills for {selectedMonth.format('MMMM YYYY')}</Text>
           {messBills.length > 0 ? (
             <View>
@@ -223,9 +223,9 @@ const ViewBillsScreen = () => {
               <Text className="mt-1 text-sm text-gray-500">Payment instructions below.</Text>
             </View>
           )}
-        </View>
+        </Card>
 
-        <View className="bg-gray-100 rounded-lg shadow-md p-4 mb-6">
+        <View className="bg-gray-100 rounded-xl shadow-sm p-4 mb-6">
           <Text className="text-lg font-semibold text-gray-900 mb-3">Payment Instructions</Text>
           <Text className="text-sm text-gray-700">
             • Bills are generated at the end of each month based on the mess services provided{"\n"}
@@ -243,7 +243,7 @@ const ViewBillsScreen = () => {
         onCancel={() => setMonthPickerVisible(false)}
         date={selectedMonth.toDate()}
       />
-    </View>
+    </Screen>
   );
 };
 

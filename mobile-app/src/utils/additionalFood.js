@@ -5,6 +5,12 @@ export const foodToday = () => moment().utcOffset(330).format('YYYY-MM-DD');
 export const foodDeadline = (food, date) => moment.parseZone(`${date}T${food.order_deadline_time || '19:00'}:00+05:30`);
 export const foodOrderingClosed = (food, date, now = Date.now()) => moment(now).isSameOrAfter(foodDeadline(food, date));
 
+// Cancellation removes an unpaid charge; it does not turn it into a payment or refund.
+export function foodOrderPaymentStatus(order) {
+  if (order.status === 'cancelled' && order.payment_status === 'pending') return 'not_payable';
+  return ['pending', 'paid', 'refunded'].includes(order.payment_status) ? order.payment_status : 'unknown';
+}
+
 export function nextFoodDate(day, today = foodToday()) {
   const date = moment(today, 'YYYY-MM-DD', true);
   if (day != null) date.add((Number(day) - date.day() + 7) % 7, 'days');

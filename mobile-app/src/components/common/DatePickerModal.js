@@ -1,5 +1,6 @@
+import { Text } from "./ReferenceDesign";
 import React, { useState } from 'react';
-import { View, TouchableOpacity, Modal, Text } from 'react-native';
+import { View, TouchableOpacity, Modal } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const DatePickerModal = ({ visible, onSelect, onCancel, value }) => {

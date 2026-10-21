@@ -1,11 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, FlatList } from 'react-native';
+import { NewRequestCard, requestStyles } from '../../components/student/RequestUI';
+import { Text } from "../../components/common/ReferenceDesign";
+import { useStudentVisible } from '../../components/student/StudentPresentation';
+import Button from '../../components/common/Button';
+import Card from '../../components/common/Card';
+import colors from '../../theme/colors';
+import React, { useState, useCallback } from 'react';
+import { View, Image, ActivityIndicator, Alert, FlatList } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { outpassAPI } from '../../api/api';
-import { QrCode, Clock, CheckCircle2, AlertTriangle, ChevronRight, Plus, RefreshCw, XCircle } from 'lucide-react-native';
+import { QrCode, Clock, ChevronRight } from 'lucide-react-native';
 import moment from 'moment';
 
-const OutpassStatusScreen = ({ navigation }) => {
+const OutpassStatusScreen = ({ navigation, refreshToken = 0 }) => {
+  const isVisible = useStudentVisible();
   const [currentOutpass, setCurrentOutpass] = useState(null);
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -29,8 +36,8 @@ const OutpassStatusScreen = ({ navigation }) => {
 
   useFocusEffect(
     useCallback(() => {
-      fetchData();
-    }, [])
+      if (isVisible) fetchData();
+    }, [refreshToken, isVisible])
   );
 
   const handleCancel = async () => {
@@ -60,121 +67,47 @@ const OutpassStatusScreen = ({ navigation }) => {
     );
   };
 
-  const getStatusColor = (status) => {
-    const colors = {
-      pending: 'text-amber-500 bg-amber-50',
-      approved: 'text-blue-500 bg-blue-50',
-      outside: 'text-violet-500 bg-violet-50',
-      completed: 'text-emerald-500 bg-emerald-50',
-      cancelled: 'text-gray-400 bg-gray-50',
-      rejected: 'text-rose-500 bg-rose-50',
-      expired: 'text-red-500 bg-red-50',
-      late_return: 'text-red-500 bg-red-50'
-    };
-    return colors[status] || 'text-gray-500 bg-gray-50';
+  const badge = status => {
+    const tone = ['approved','outside'].includes(status) ? 'primary' : status === 'completed' ? 'success' : status === 'pending' ? 'warning' : ['rejected','expired','late_return'].includes(status) ? 'danger' : 'mutedText';
+    return <Text style={{ color: colors[tone], backgroundColor: colors[`${tone}Soft`] || colors.surface, fontSize: 12, fontWeight: '600', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20, textTransform: 'capitalize' }}>{status?.replace(/_/g,' ')}</Text>;
   };
-
-  return (
-    <ScrollView className="flex-1 bg-gray-50 p-4">
-      {/* Current/Active Outpass Card */}
-      {loading ? (
-        <ActivityIndicator size="large" color="#4F46E5" className="my-10" />
-      ) : currentOutpass ? (
-        <View className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm mb-6 items-center">
-          <View className="w-full flex-row justify-between items-center mb-4">
-            <Text className="text-gray-900 font-extrabold text-lg">Active Gate Pass</Text>
-            <View className={`px-3 py-1 rounded-full ${getStatusColor(currentOutpass.status)}`}>
-              <Text className="text-xs font-bold uppercase">{currentOutpass.status}</Text>
-            </View>
+  const openRequest = () => navigation.navigate('OutpassRequest');
+  return <FlatList style={{flex:1,backgroundColor:colors.background}} contentContainerStyle={{padding:16,paddingBottom:32}}
+    refreshing={loading} onRefresh={fetchData} keyboardShouldPersistTaps="handled"
+    data={history.filter(item=>String(item.id)!==String(currentOutpass?.id))} keyExtractor={item=>String(item.id)}
+    ListHeaderComponent={<View style={{gap:16,paddingBottom:16}}>
+      {loading && <ActivityIndicator color={colors.primary}/>}
+      {currentOutpass ? <>
+        <Card style={{padding:18,gap:16}}>
+          <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8}}>
+            <Text style={{color:colors.mutedText,fontSize:12,fontWeight:'600',letterSpacing:0.7}}>ACTIVE GATE PASS</Text>{badge(currentOutpass.status)}
           </View>
-
-          {/* Details */}
-          <View className="w-full space-y-2 mb-6">
-            <Text className="text-gray-800 font-bold text-sm">Purpose: <Text className="font-normal text-gray-600">{currentOutpass.purpose}</Text></Text>
-            <Text className="text-gray-800 font-bold text-sm">To: <Text className="font-normal text-gray-600">{currentOutpass.destination}</Text></Text>
-            <Text className="text-gray-800 font-bold text-sm">Exit: <Text className="font-normal text-gray-600">{moment(currentOutpass.from_date).format('lll')}</Text></Text>
-            <Text className="text-gray-800 font-bold text-sm">Expect Return: <Text className="font-normal text-gray-600">{moment(currentOutpass.to_date).format('lll')}</Text></Text>
+          <View style={{gap:4}}><Text style={{fontSize:18,fontWeight:'700',color:colors.text}}>{currentOutpass.purpose}</Text><Text style={requestStyles.small}>{currentOutpass.destination}</Text></View>
+          {['approved','outside'].includes(currentOutpass.status) && currentOutpass.qr_token ? <>
+            <View style={{alignSelf:'center',padding:8,borderWidth:1,borderColor:colors.primaryTint,backgroundColor:colors.card}}>
+              <Image accessibilityLabel="Approved gate pass QR code" source={{uri:`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(currentOutpass.qr_token)}`}} style={{width:168,height:168}}/>
+            </View><Text style={[requestStyles.small,{textAlign:'center'}]}>Show this code to security on exit and return.</Text>
+          </> : currentOutpass.status==='pending' ? <View style={{padding:16,borderRadius:12,backgroundColor:colors.warningSoft,alignItems:'center',gap:8}}>
+            <Clock size={26} color={colors.warning}/><Text style={{color:colors.warning,fontSize:13,fontWeight:'600'}}>Pending warden approval</Text>
+          </View> : null}
+          <View style={{flexDirection:'row',alignItems:'center',gap:8,backgroundColor:colors.surface,padding:12,borderRadius:12}}>
+            <View style={{flex:1,gap:4}}><Text style={requestStyles.small}>EXIT</Text><Text style={{fontSize:12,fontWeight:'700'}}>{moment(currentOutpass.from_date).format('DD MMM · h:mm A')}</Text></View>
+            <ChevronRight size={18} color={colors.text}/>
+            <View style={{flex:1,gap:4}}><Text style={requestStyles.small}>RETURN BY</Text><Text style={{fontSize:12,fontWeight:'700'}}>{moment(currentOutpass.to_date).format('DD MMM · h:mm A')}</Text></View>
           </View>
-
-          {/* QR Display if approved or outside */}
-          {(currentOutpass.status === 'approved' || currentOutpass.status === 'outside') && currentOutpass.qr_token ? (
-            <View className="items-center mb-6">
-              <View className="p-4 bg-indigo-50/50 rounded-3xl border border-indigo-100/50 mb-3">
-                <Image 
-                  source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${currentOutpass.qr_token}` }}
-                  className="w-48 h-48"
-                />
-              </View>
-              <Text className="text-gray-400 text-xs font-semibold text-center px-4">
-                Present this QR code to the gate security officer on exit and return.
-              </Text>
-            </View>
-          ) : currentOutpass.status === 'pending' ? (
-            <View className="w-full items-center p-6 bg-amber-50/50 border border-amber-100 rounded-3xl mb-6">
-              <Clock size={40} color="#D97706" />
-              <Text className="text-amber-800 font-bold text-center mt-3">Pending Warden Approval</Text>
-              <Text className="text-amber-600 text-xs text-center mt-1">Your outpass request is currently in the review queue.</Text>
-            </View>
-          ) : null}
-
-          {/* Cancel button for pending */}
-          {currentOutpass.status === 'pending' && (
-            <TouchableOpacity 
-              onPress={handleCancel}
-              disabled={cancelling}
-              className="w-full bg-rose-50 border border-rose-100 p-4 rounded-2xl items-center flex-row justify-center space-x-2"
-            >
-              <XCircle size={18} color="#EF4444" />
-              <Text className="text-rose-600 font-extrabold">Cancel Request</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ) : (
-        <View className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm mb-6 items-center">
-          <QrCode size={60} color="#9CA3AF" />
-          <Text className="text-gray-800 font-bold text-lg mt-4 text-center">No Active Outpass</Text>
-          <Text className="text-gray-400 text-sm text-center mt-2 mb-6">
-            You don't have any active outpass request. Submit a request if you need to leave the hostel.
-          </Text>
-          <TouchableOpacity 
-            onPress={() => navigation.navigate('OutpassRequest')}
-            className="bg-indigo-600 px-6 py-4 rounded-2xl flex-row items-center space-x-2"
-          >
-            <Plus size={18} color="#fff" />
-            <Text className="text-white font-extrabold">Request Outpass</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Outpass History */}
-      <View className="bg-white rounded-3xl border border-gray-100 shadow-sm p-5 mb-8">
-        <Text className="text-gray-900 font-extrabold text-base mb-4">Outpass Logs History</Text>
-        
-        <FlatList
-          data={history}
-          keyExtractor={(item) => item.id.toString()}
-          scrollEnabled={false}
-          renderItem={({ item }) => (
-            <View className="flex-row justify-between items-center py-3.5 border-b border-gray-50">
-              <View className="space-y-1">
-                <Text className="text-gray-800 font-bold text-sm">{item.purpose}</Text>
-                <Text className="text-gray-400 text-xs font-semibold">To: {item.destination}</Text>
-                <Text className="text-gray-400 text-[10px]">
-                  {moment(item.from_date).format('ll')} - {moment(item.to_date).format('ll')}
-                </Text>
-              </View>
-              <View className={`px-2 py-0.5 rounded-full ${getStatusColor(item.status)}`}>
-                <Text className="text-[10px] font-bold uppercase">{item.status.replace('_', ' ')}</Text>
-              </View>
-            </View>
-          )}
-          ListEmptyComponent={
-            <Text className="text-gray-400 text-sm text-center py-6">No previous outpass logs found</Text>
-          }
-        />
-      </View>
-    </ScrollView>
-  );
+          <Button variant="ghost" onPress={()=>navigation.navigate('StudentRequestDetails',{kind:'gatepass',id:currentOutpass.id})}>View details</Button>
+          {currentOutpass.status==='pending'&&<Button variant="danger" loading={cancelling} onPress={handleCancel}>Cancel request</Button>}
+        </Card>
+        <Button variant="secondary" onPress={openRequest} style={requestStyles.outline}>Request another gate pass</Button>
+      </> : !loading && <NewRequestCard icon={QrCode} title="Gate pass request" description="Request permission to leave the hostel." button="New gate pass request" onPress={openRequest}/>}
+      <Text accessibilityRole="header" style={requestStyles.sectionTitle}>Recent passes</Text>
+    </View>}
+    renderItem={({item})=><Card style={{padding:14,marginBottom:12,flexDirection:'row',alignItems:'center',gap:12}}>
+      <View style={[requestStyles.icon,{backgroundColor:colors.accentSoft}]}><QrCode size={22} color={colors.accent}/></View>
+      <View style={{flex:1,gap:5}}><Text style={{fontSize:14,fontWeight:'600',color:colors.text}}>{item.purpose}</Text><Text style={requestStyles.small}>{moment(item.from_date).format('DD MMM YYYY')} · {item.destination}</Text><Button variant="ghost" onPress={()=>navigation.navigate('StudentRequestDetails',{kind:'gatepass',id:item.id})} style={{alignSelf:'flex-start',paddingHorizontal:0}}>View details</Button></View>
+      {badge(item.status)}
+    </Card>}
+    ListEmptyComponent={!loading&&<Card><Text style={requestStyles.small}>No previous gate passes.</Text></Card>}
+  />;
 };
-
 export default OutpassStatusScreen;

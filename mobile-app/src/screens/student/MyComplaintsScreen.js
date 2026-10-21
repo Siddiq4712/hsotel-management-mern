@@ -1,9 +1,16 @@
+import ProgressiveRows from "../../components/common/ProgressiveRows";
+import { Text } from "../../components/common/ReferenceDesign";
+import Screen from '../../components/common/Screen';
+import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
+import Card from '../../components/common/Card';
+import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity, TextInput, Modal } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { MessageCircle, Calendar, CheckCircle, Clock, AlertCircle, XCircle, User, AlertTriangle, ChevronDown, ChevronUp, Search } from 'lucide-react-native';
 import moment from 'moment';
-import Header from '../../components/common/Header';
+import Header from '../../components/student/StudentHeader';
 import StatusBadge from '../../components/common/StatusBadge'; // Reusing common badge component
 import { Picker } from '@react-native-picker/picker';
 const ComplaintManagementScreen = ({ navigation }) => {
@@ -156,24 +163,24 @@ const ComplaintManagementScreen = ({ navigation }) => {
   ];
 
   return (
-    <View className="flex-1 bg-gray-50">
-      <Header />
-      <ScrollView className="p-4">
-        <Text className="text-3xl font-bold text-gray-900 mb-2">Complaint Management</Text>
+    <Screen className="flex-1 bg-background">
+      <Header title="Complaints" back />
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+        <Text className="text-2xl font-bold text-indigo-900 mb-2">Complaint Management</Text>
         <Text className="text-gray-600 mb-6">Submit and track complaints related to your hostel stay</Text>
 
         {/* Statistics */}
         <View className="flex-row flex-wrap justify-between mb-6">
-          <View className="w-[48%] bg-white rounded-lg shadow-md p-3 mb-2">
+          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mb-2">
             <View className="flex-row items-center">
               <MessageCircle className="text-gray-600" size={24} />
               <View className="ml-3">
                 <Text className="text-sm text-gray-600">Total</Text>
-                <Text className="text-2xl font-bold text-gray-900">{complaints.length}</Text>
+                <Text className="text-2xl font-bold text-indigo-900">{complaints.length}</Text>
               </View>
             </View>
-          </View>
-          <View className="w-[48%] bg-white rounded-lg shadow-md p-3 mb-2">
+          </Card>
+          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mb-2">
             <View className="flex-row items-center">
               <AlertCircle className="text-yellow-600" size={24} />
               <View className="ml-3">
@@ -183,8 +190,8 @@ const ComplaintManagementScreen = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-          </View>
-          <View className="w-[48%] bg-white rounded-lg shadow-md p-3 mt-2">
+          </Card>
+          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mt-2">
             <View className="flex-row items-center">
               <Clock className="text-blue-600" size={24} />
               <View className="ml-3">
@@ -194,8 +201,8 @@ const ComplaintManagementScreen = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-          </View>
-          <View className="w-[48%] bg-white rounded-lg shadow-md p-3 mt-2">
+          </Card>
+          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mt-2">
             <View className="flex-row items-center">
               <CheckCircle className="text-green-600" size={24} />
               <View className="ml-3">
@@ -205,25 +212,25 @@ const ComplaintManagementScreen = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-          </View>
+          </Card>
         </View>
 
         {/* Submit Complaint Form */}
-        <View className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <Card className="bg-white rounded-2xl shadow-sm p-4 mb-6">
           <View className="flex-row items-center mb-4">
             <MessageCircle className="text-gray-500 mr-2" size={20} />
             <Text className="text-lg font-medium text-gray-900">Submit New Complaint</Text>
           </View>
 
-          <View className="space-y-5">
+          <View style={{ gap: 16, minWidth: 0, alignSelf: 'stretch' }}>
             <View>
               <Text className="block text-sm font-medium text-gray-700 mb-1">Subject *</Text>
               <View className="relative">
                 <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <TextInput
+                <Input
                   value={formData.subject}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, subject: text }))}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-gray-900"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl text-gray-900"
                   placeholder="Brief summary of your complaint"
                 />
               </View>
@@ -234,7 +241,7 @@ const ComplaintManagementScreen = ({ navigation }) => {
               <Picker
                 selectedValue={formData.category}
                 onValueChange={(itemValue) => setFormData(prev => ({ ...prev, category: itemValue }))}
-                className="w-full border border-gray-300 rounded-lg h-12"
+                className="w-full border border-gray-300 rounded-xl h-12"
               >
                 <Picker.Item label="Select Category" value="" />
                 {categories.map(category => (
@@ -277,12 +284,12 @@ const ComplaintManagementScreen = ({ navigation }) => {
 
             <View>
               <Text className="block text-sm font-medium text-gray-700 mb-1">Description *</Text>
-              <TextInput
+              <Input
                 value={formData.description}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
                 multiline
                 numberOfLines={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg h-32 text-gray-900"
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl h-32 text-gray-900"
                 placeholder="Provide detailed information about your complaint..."
                 textAlignVertical="top"
               />
@@ -291,28 +298,28 @@ const ComplaintManagementScreen = ({ navigation }) => {
               </Text>
             </View>
 
-            <View className="flex-row gap-3">
-              <TouchableOpacity
+            <View style={{ gap: 12, alignSelf: 'stretch' }}>
+              <Button
                 onPress={handleSubmit}
                 disabled={submitting}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg flex-row items-center justify-center disabled:opacity-50"
+                style={{ alignSelf: 'stretch' }}
               >
                 {submitting ? (
-                  <ActivityIndicator size="small" color="#fff" className="mr-2" />
+                  <ActivityIndicator size="small" color={colors.card} className="mr-2" />
                 ) : (
                   <Text className="text-white text-sm font-semibold">Submit Complaint</Text>
                 )}
-              </TouchableOpacity>
-              <TouchableOpacity
+              </Button>
+              <Button variant="secondary"
                 onPress={handleResetForm}
-                className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg flex-row items-center justify-center"
+                style={{ alignSelf: 'stretch' }}
               >
                 <Text className="text-gray-700 text-sm font-semibold">Reset</Text>
-              </TouchableOpacity>
+              </Button>
             </View>
 
             {/* Guidelines */}
-            <View className="mt-5 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <View className="mt-5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
               <View className="flex-row items-start">
                 <AlertTriangle className="text-amber-600 mt-0.5 mr-2" size={16} />
                 <View className="flex-1">
@@ -327,27 +334,27 @@ const ComplaintManagementScreen = ({ navigation }) => {
               </View>
             </View>
           </View>
-        </View>
+        </Card>
         
         {/* Complaints History */}
-        <View className="bg-white shadow-md rounded-lg overflow-hidden h-full">
+        <Card className="bg-white shadow-sm rounded-2xl overflow-hidden">
           <View className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex-row justify-between items-center">
             <View className="flex-row items-center">
               <MessageCircle className="text-gray-400 mr-2" size={20} />
               <Text className="text-lg font-medium text-gray-900">Complaint History</Text>
             </View>
             <TouchableOpacity onPress={() => setShowFilterModal(true)} className="p-2 bg-gray-100 rounded-md">
-                <Search size={20} color="#6B7280" />
+                <Search size={20} color={colors.mutedText} />
             </TouchableOpacity>
           </View>
 
           {loading ? (
             <View className="flex items-center justify-center h-64">
-              <ActivityIndicator size="small" color="#4F46E5" />
+              <ActivityIndicator size="small" color={colors.primary} />
             </View>
           ) : filteredComplaints.length > 0 ? (
             <View className="divide-y divide-gray-200">
-              {filteredComplaints.map((complaint) => (
+              <ProgressiveRows data={filteredComplaints} resetKey={JSON.stringify(appliedFilters)} renderItem={(complaint) => (
                 <View key={complaint.id} className="p-4 hover:bg-gray-50">
                   <View className="flex-row justify-between items-start mb-2">
                     <View className="flex-1 mr-2">
@@ -383,13 +390,13 @@ const ComplaintManagementScreen = ({ navigation }) => {
                     )}
                   </View>
                   {complaint.resolution && (
-                    <View className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <View className="mt-3 p-3 bg-green-50 border border-green-200 rounded-xl">
                       <Text className="text-xs font-medium text-green-800 mb-1">Resolution</Text>
                       <Text className="text-sm text-green-700">{complaint.resolution}</Text>
                     </View>
                   )}
                 </View>
-              ))}
+              )} />
             </View>
           ) : (
             <View className="text-center py-12">
@@ -410,7 +417,7 @@ const ComplaintManagementScreen = ({ navigation }) => {
                 )}
             </View>
           )}
-        </View>
+        </Card>
 
         {/* Filter Modal */}
         <Modal
@@ -420,21 +427,22 @@ const ComplaintManagementScreen = ({ navigation }) => {
           onRequestClose={() => setShowFilterModal(false)}
         >
           <View className="flex-1 justify-end bg-black/50">
-            <View className="bg-white rounded-t-xl p-6">
+            <Card className="bg-white rounded-2xl" style={{ maxHeight: '85%' }}>
+              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
               <View className="flex-row justify-between items-center mb-4">
-                <Text className="text-2xl font-bold">Filter Complaints</Text>
+                <Text className="text-2xl font-bold" style={{ flex: 1, minWidth: 0 }}>Filter Complaints</Text>
                 <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-                  <XCircle size={28} color="#6B7280" />
+                  <XCircle size={28} color={colors.mutedText} />
                 </TouchableOpacity>
               </View>
 
-              <View className="space-y-4">
+              <View className="gap-3">
                 <View>
                   <Text className="text-sm font-medium text-gray-700 mb-1">Status</Text>
                   <Picker
                     selectedValue={tempFilters.status}
                     onValueChange={(itemValue) => setTempFilters(prev => ({ ...prev, status: itemValue }))}
-                    className="w-full border border-gray-300 rounded-lg h-12"
+                    className="w-full border border-gray-300 rounded-xl h-12"
                   >
                     <Picker.Item label="All Statuses" value="all" />
                     {complaintStatuses.map(s => <Picker.Item key={s.value} label={s.label} value={s.value} />)}
@@ -445,7 +453,7 @@ const ComplaintManagementScreen = ({ navigation }) => {
                   <Picker
                     selectedValue={tempFilters.category}
                     onValueChange={(itemValue) => setTempFilters(prev => ({ ...prev, category: itemValue }))}
-                    className="w-full border border-gray-300 rounded-lg h-12"
+                    className="w-full border border-gray-300 rounded-xl h-12"
                   >
                     <Picker.Item label="All Categories" value="all" />
                     {categories.map(c => <Picker.Item key={c.value} label={c.label} value={c.value} />)}
@@ -456,7 +464,7 @@ const ComplaintManagementScreen = ({ navigation }) => {
                   <Picker
                     selectedValue={tempFilters.priority}
                     onValueChange={(itemValue) => setTempFilters(prev => ({ ...prev, priority: itemValue }))}
-                    className="w-full border border-gray-300 rounded-lg h-12"
+                    className="w-full border border-gray-300 rounded-xl h-12"
                   >
                     <Picker.Item label="All Priorities" value="all" />
                     {priorities.map(p => <Picker.Item key={p.value} label={p.label} value={p.value} />)}
@@ -464,28 +472,29 @@ const ComplaintManagementScreen = ({ navigation }) => {
                 </View>
                 <View>
                   <Text className="text-sm font-medium text-gray-700 mb-1">Search</Text>
-                  <TextInput
+                  <Input
                     value={tempFilters.searchQuery}
                     onChangeText={(text) => setTempFilters(prev => ({ ...prev, searchQuery: text }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-xl text-gray-900"
                     placeholder="Search in subject or description..."
                   />
                 </View>
               </View>
 
-              <View className="flex-row justify-between items-center mt-6 pt-4 border-t border-gray-200">
-                <TouchableOpacity onPress={handleResetFilters} className="bg-gray-300 py-3 px-4 rounded-lg">
+              <View className="mt-6 pt-4 border-t border-gray-200" style={{ gap: 12, alignSelf: 'stretch' }}>
+                <TouchableOpacity onPress={handleResetFilters} className="bg-gray-300 py-3 px-4 rounded-xl">
                   <Text className="font-semibold text-gray-700">Reset Filters</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleApplyFilters} className="bg-blue-600 py-3 px-6 rounded-lg">
+                <Button onPress={handleApplyFilters} className="bg-blue-600 py-3 px-6 rounded-xl">
                   <Text className="text-white font-semibold text-lg">Apply Filters</Text>
-                </TouchableOpacity>
+                </Button>
               </View>
-            </View>
+              </ScrollView>
+            </Card>
           </View>
         </Modal>
       </ScrollView>
-    </View>
+    </Screen>
   );
 };
 

@@ -1,5 +1,12 @@
+import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
+import { Text } from "../../components/common/ReferenceDesign";
+import MoreSectionNav from '../../components/common/MoreSectionNav';
+import Screen from '../../components/common/Screen';
+import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
+import Card from '../../components/common/Card';
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, FlatList, TouchableOpacity, Modal, Alert, ActivityIndicator } from 'react-native';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -58,7 +65,7 @@ const MessBillManagementScreen = () => {
   };
 
   const renderBill = ({ item }) => (
-    <View className="bg-white p-4 rounded-xl mb-3 border border-gray-100">
+    <Card className="bg-white p-4 rounded-2xl mb-3 border border-gray-100">
       <View className="flex-row justify-between items-center mb-2">
         <Text className="font-bold text-gray-900">{item.MessBillStudent?.userName}</Text>
         <StatusBadge status={item.status} type="bill" />
@@ -66,48 +73,49 @@ const MessBillManagementScreen = () => {
       <Text className="text-gray-600">₹{parseFloat(item.amount).toFixed(2)}</Text>
       <Text className="text-gray-500 text-xs">Due: {moment(item.due_date).format('DD MMM YYYY')}</Text>
       {item.status !== 'paid' && (
-        <TouchableOpacity onPress={() => updateStatus(item.id, 'paid')} className="bg-green-600 p-2 rounded mt-2">
+        <Button onPress={() => updateStatus(item.id, 'paid')} className="bg-indigo-600 p-2 rounded mt-2">
           <Text className="text-white text-center">Mark Paid</Text>
-        </TouchableOpacity>
+        </Button>
       )}
-    </View>
+    </Card>
   );
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <Screen className="flex-1 bg-background">
       <Header />
+      <MoreSectionNav />
       <View className="p-4">
-        <TouchableOpacity onPress={() => setGenerateModal(true)} className="bg-blue-600 p-4 rounded-xl items-center mb-4">
+        <Button onPress={() => setGenerateModal(true)} className="bg-blue-600 p-4 rounded-xl items-center mb-4">
           <Text className="text-white font-bold">Generate Bills</Text>
-        </TouchableOpacity>
-        <View className="grid grid-cols-2 gap-4 mb-4">
-          <View className="bg-blue-50 p-3 rounded-xl">
-            <Text className="text-blue-600 font-bold">Total: ₹{summary.totalAmount?.toFixed(2)}</Text>
-            <Text className="text-blue-500 text-sm">{summary.totalBills} bills</Text>
-          </View>
-          <View className="bg-green-50 p-3 rounded-xl">
-            <Text className="text-green-600 font-bold">Pending: ₹{summary.pendingAmount?.toFixed(2)}</Text>
-            <Text className="text-green-500 text-sm">{summary.pendingBills} bills</Text>
-          </View>
+        </Button>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+          <HighlightCard style={{ flex: 1, minWidth: 140, padding: 16 }}>
+            <Text style={highlightStyles.title}>Total: ₹{summary.totalAmount?.toFixed(2)}</Text>
+            <Text style={highlightStyles.detail}>{summary.totalBills} bills</Text>
+          </HighlightCard>
+          <HighlightCard style={{ flex: 1, minWidth: 140, padding: 16 }}>
+            <Text style={highlightStyles.title}>Pending: ₹{summary.pendingAmount?.toFixed(2)}</Text>
+            <Text style={highlightStyles.detail}>{summary.pendingBills} bills</Text>
+          </HighlightCard>
         </View>
         <FlatList data={bills} renderItem={renderBill} keyExtractor={item => item.id.toString()} />
       </View>
       <Modal visible={generateModal} animationType="slide">
         <View className="flex-1 bg-white p-6">
           <Text className="text-xl font-bold mb-4">Generate Mess Bills</Text>
-          <TextInput
+          <Input
             placeholder="Amount per day (₹)"
             value={amountPerDay}
             onChangeText={setAmountPerDay}
             keyboardType="numeric"
             className="border p-3 rounded mb-4"
           />
-          <TouchableOpacity onPress={generateBills} className="bg-green-600 p-4 rounded">
+          <Button onPress={generateBills} className="bg-indigo-600 p-4 rounded">
             <Text className="text-white text-center font-bold">Generate</Text>
-          </TouchableOpacity>
+          </Button>
         </View>
       </Modal>
-    </View>
+    </Screen>
   );
 };
 

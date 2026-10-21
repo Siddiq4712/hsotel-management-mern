@@ -1,143 +1,66 @@
-import MessReductionsScreen from '../screens/MessReductionsScreen';
-import React from 'react';
+import React, { useEffect } from 'react';
+import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import {
-  Home,
-  Users,
-  CheckSquare,
-  MapPin,
-  FileText,
-  MessageCircle,
-  Bed,
-  DollarSign,
-  MoreHorizontal,
-} from 'lucide-react-native';
-// ✅ Corrected import path: from src/navigation/ to src/components/common/Header is '../components/common/Header'
-import Header from '../components/common/Header';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Home, CheckSquare, FileText, QrCode, MoreHorizontal, Percent } from 'lucide-react-native';
+import MobileTabBar from '../components/common/MobileTabBar';
+import colors from '../theme/colors';
 import WardenDashboardScreen from '../screens/warden/WardenDashboardScreen';
-import ManageStudentsScreen from '../screens/warden/ManageStudentsScreen';
 import AttendanceManagementScreen from '../screens/warden/AttendanceManagementScreen';
 import GPSAttendanceScreen from '../screens/warden/GPSAttendanceScreen';
 import LeaveRequestsScreen from '../screens/warden/LeaveRequestsScreen';
-import ComplaintManagementScreen from '../screens/warden/ComplaintManagementScreen';
-import RoomAllotmentScreen from '../screens/warden/RoomAllotmentScreen';
-import MessBillManagementScreen from '../screens/warden/MessBillManagementScreen';
+import MessReductionsScreen from '../screens/MessReductionsScreen';
+import GatePassRequestsScreen from '../screens/warden/GatePassRequestsScreen';
 import MoreScreen from '../screens/warden/MoreScreen';
+import RequestsScreen, { requestAliases } from '../screens/warden/RequestsScreen';
+import WardenRequestDetailsScreen from '../screens/warden/WardenRequestDetailsScreen';
+import Screen from '../components/common/Screen';
+import Header from '../components/common/Header';
+import { PageIntro, Segments, EmbeddedHeader } from '../components/common/ReferenceDesign';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
+function AttendanceFrame({ mode, navigation, children }) {
+  return <Screen><Header /><View style={{ padding: 16, paddingBottom: 8, gap: 10 }}>
+    <PageIntro title="Attendance" />
+    <Segments items={[[ 'manual', 'Manual roster' ], [ 'gps', 'GPS session' ]]}
+      value={mode} onChange={value => navigation.navigate(value === 'manual' ? 'AttendanceRecords' : 'GPSAttendance')} />
+  </View><EmbeddedHeader value={true}>{children}</EmbeddedHeader></Screen>;
+}
+function ManualAttendance(props) {
+  return <AttendanceFrame mode="manual" navigation={props.navigation}><AttendanceManagementScreen {...props} /></AttendanceFrame>;
+}
+function GPSAttendance(props) {
+  return <AttendanceFrame mode="gps" navigation={props.navigation}><GPSAttendanceScreen {...props} /></AttendanceFrame>;
+}
+function AttendanceNavigator() {
+  return <Stack.Navigator initialRouteName="AttendanceRecords" screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="AttendanceRecords" component={ManualAttendance} />
+    <Stack.Screen name="GPSAttendance" component={GPSAttendance} />
+  </Stack.Navigator>;
+}
+const tabs = [
+  ['Dashboard', 'Overview', WardenDashboardScreen, Home],
+  ['Attendance', 'Attendance', AttendanceNavigator, CheckSquare],
+  ['Requests', 'Requests', RequestsScreen, FileText],
+  ['More', 'More', MoreScreen, MoreHorizontal],
+];
+function WardenTabs() {
+  return <Tab.Navigator initialRouteName="Dashboard" tabBar={props => <MobileTabBar {...props} />}
+    screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.mutedText }}>
+    {tabs.map(([name, label, component, Icon]) => <Tab.Screen key={name} name={name} component={component}
+      options={{ tabBarLabel: label, tabBarIcon: ({ color, size }) => <Icon color={color} size={size} /> }} />)}
+  </Tab.Navigator>;
+}
 
-const WardenTabNavigator = () => {
-  return (
-    <Tab.Navigator
-      screenOptions={{
-        // ❌ Removed global header to avoid conflict with per-screen <Header />
-        headerShown: false,
-        tabBarActiveTintColor: '#4F46E5',
-        tabBarInactiveTintColor: '#6B7280',
-        tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 1,
-          borderTopColor: '#E5E7EB',
-          paddingBottom: 5,
-          height: 60,
-        },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
-        tabBarIconStyle: { marginBottom: -3 },
-      }}
-    >
-      <Tab.Screen name="MessReductions" component={MessReductionsScreen} options={{tabBarLabel:'Reductions',tabBarIcon:({color,size})=><FileText color={color} size={size}/>}} />
-      <Tab.Screen
-        name="Dashboard"
-        component={WardenDashboardScreen}
-        options={{
-          tabBarLabel: 'Dashboard',
-          tabBarIcon: ({ color, size }) => (
-            <Home color={color} size={size} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Students"
-        component={ManageStudentsScreen}
-        options={{
-          tabBarLabel: 'Students',
-          tabBarIcon: ({ color, size }) => (
-            <Users color={color} size={size} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Attendance"
-        component={AttendanceManagementScreen}
-        options={{
-          tabBarLabel: 'Attendance',
-          tabBarIcon: ({ color, size }) => (
-            <CheckSquare color={color} size={size} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="GPSAttendance"
-        component={GPSAttendanceScreen}
-        options={{
-          tabBarLabel: 'GPS',
-          tabBarIcon: ({ color, size }) => (
-            <MapPin color={color} size={size} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Leaves"
-        component={LeaveRequestsScreen}
-        options={{
-          tabBarLabel: 'Leaves',
-          tabBarIcon: ({ color, size }) => (
-            <FileText color={color} size={size} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Complaints"
-        component={ComplaintManagementScreen}
-        options={{
-          tabBarLabel: 'Complaints',
-          tabBarIcon: ({ color, size }) => (
-            <MessageCircle color={color} size={size} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Rooms"
-        component={RoomAllotmentScreen}
-        options={{
-          tabBarLabel: 'Rooms',
-          tabBarIcon: ({ color, size }) => (
-            <Bed color={color} size={size} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Bills"
-        component={MessBillManagementScreen}
-        options={{
-          tabBarLabel: 'Bills',
-          tabBarIcon: ({ color, size }) => (
-            <DollarSign color={color} size={size} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="More"
-        component={MoreScreen}
-        options={{
-          tabBarLabel: 'More',
-          tabBarIcon: ({ color, size }) => (
-            <MoreHorizontal color={color} size={size} />
-          ),
-        }}
-      />
-    </Tab.Navigator>
-  );
-};
-
-export default WardenTabNavigator;
+function LegacyRequest({ navigation, route }) {
+  useEffect(() => { navigation.replace('WardenWorkspace', { screen: 'Requests', params: { kind: requestAliases[route.name], request: Date.now() } }); }, [navigation, route.name]);
+  return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+}
+export default function WardenTabNavigator() {
+  return <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="WardenWorkspace" component={WardenTabs} />
+    <Stack.Screen name="WardenRequestDetails" component={WardenRequestDetailsScreen} />
+    {Object.keys(requestAliases).map(name => <Stack.Screen key={name} name={name} component={LegacyRequest} />)}
+  </Stack.Navigator>;
+}

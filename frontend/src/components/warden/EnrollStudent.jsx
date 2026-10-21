@@ -44,6 +44,7 @@ const FormSkeleton = () => (
 
 const EnrollStudent = () => {
   const [form] = Form.useForm();
+  const watchedGender = Form.useWatch('gender', form);
   const watchedBatchYear = Form.useWatch('erp_batch_year', form);
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState([]);
@@ -79,7 +80,7 @@ const EnrollStudent = () => {
     }
   };
 
-  useEffect(() => { form.setFieldValue('session_id', studentBatch(watchedBatchYear, sessions)?.id); }, [watchedBatchYear, sessions, form]);
+  useEffect(() => { form.setFieldValue('session_id', studentBatch(watchedBatchYear, sessions, watchedGender)?.id); }, [watchedBatchYear, watchedGender, sessions, form]);
 
   // --- EXCEL FILE UPLOAD & PARSER ---
   const handleExcelUpload = (file) => {
@@ -108,7 +109,7 @@ const EnrollStudent = () => {
             return {
               ...mappedStudent,
               key: mappedStudent.key || `student_${index}_${Date.now()}`,
-              session_id: studentBatch(mappedStudent.erp_batch_year, sessions)?.id,
+              session_id: studentBatch(mappedStudent.erp_batch_year, sessions, mappedStudent.gender)?.id,
               requires_bed: false // Initially not checked
             };
           })
@@ -163,9 +164,9 @@ const EnrollStudent = () => {
     }
 
     // Verify all rows have batch selected
-    const missingBatch = previewStudents.some((s) => !studentBatch(s.erp_batch_year, sessions));
+    const missingBatch = previewStudents.some((s) => !studentBatch(s.erp_batch_year, sessions, s.gender));
     if (missingBatch) {
-      message.error('Some students have a missing or unconfigured batch admission year. Configure the years in Manage Batches first.');
+      message.error('Some students have a missing or unconfigured batch admission year and gender. Configure the years in Manage Batches first.');
       return;
     }
 
@@ -178,9 +179,10 @@ const EnrollStudent = () => {
           userName: s.name || s.userName,
           roll_number: s.roll_number,
           erp_batch_year: s.erp_batch_year,
+          gender: s.gender,
           email: s.email || `${s.roll_number}@${selectedCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in'}`.toLowerCase(),
           college: selectedCollege,
-          session_id: studentBatch(s.erp_batch_year, sessions)?.id,
+          session_id: studentBatch(s.erp_batch_year, sessions, s.gender)?.id,
           requires_bed: Boolean(s.requires_bed)
         }))
       };
@@ -243,9 +245,10 @@ const EnrollStudent = () => {
       userName: finalUsername,
       password: allValues.password,
       email: allValues.email || `${baseName.toLowerCase()}@hostel.com`,
-      session_id: studentBatch(allValues.erp_batch_year, sessions)?.id,
+      session_id: studentBatch(allValues.erp_batch_year, sessions, allValues.gender)?.id,
       roll_number: allValues.roll_number || "",
       erp_batch_year: allValues.erp_batch_year,
+      gender: allValues.gender,
       college: allValues.college || "nec",
       requires_bed: allValues.requires_bed || false
     };
@@ -266,7 +269,7 @@ const EnrollStudent = () => {
     try {
       const fields = currentStep === 0 
         ? ['baseUsername', 'initial', 'password'] 
-        : ['roll_number', 'erp_batch_year', 'college', 'session_id'];
+        : ['roll_number', 'erp_batch_year', 'gender', 'college', 'session_id'];
       
       await form.validateFields(fields);
       setCurrentStep(currentStep + 1);
@@ -279,6 +282,7 @@ const EnrollStudent = () => {
 
   // --- PREVIEW TABLE COLUMNS ---
   const previewColumns = [
+    { title: 'Gender', dataIndex: 'gender', key: 'gender' },
     {
       title: '#',
       dataIndex: 'index',
@@ -340,11 +344,11 @@ const EnrollStudent = () => {
     },
     {
       title: 'Batch', key: 'session_id', width: 170,
-      render: (_, record) => studentBatch(record.erp_batch_year, sessions)?.name || <Tag color="error">No batch match</Tag>
+      render: (_, record) => studentBatch(record.erp_batch_year, sessions, record.gender)?.name || <Tag color="error">No batch match</Tag>
     },
     {
       title: 'Assigned Hostel', key: 'assigned_hostel', width: 190,
-      render: (_, record) => studentBatch(record.erp_batch_year, sessions)?.hostel_name || <Tag color="error">Unassigned</Tag>
+      render: (_, record) => studentBatch(record.erp_batch_year, sessions, record.gender)?.hostel_name || <Tag color="error">Unassigned</Tag>
     },
     {
       title: 'Need Bed',
@@ -514,10 +518,11 @@ const EnrollStudent = () => {
                         <Form.Item name="erp_batch_year" label="Batch Admission Year" rules={[{ required: true, message: 'Enter the student batch year from ERP' }, { type: 'number', min: 2000, max: 2100 }]}>
                           <InputNumber min={2000} max={2100} precision={0} placeholder="e.g. 2024" style={{ width: '100%' }} />
                         </Form.Item>
+                        <Form.Item name="gender" label="Gender" rules={[{ required: true, message: 'Select student gender' }]}><Select options={[{ value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }]} /></Form.Item>
                         <Form.Item name="session_id" label={<Text strong>Batch</Text>} rules={[{ required: true, message: 'No configured batch matches this admission year' }]}>
                           <Select disabled placeholder="Matched automatically from ERP batch year" options={sessions.map(batch => ({ value: batch.id, label: batch.name }))} />
                         </Form.Item>
-                        <Form.Item label="Assigned Hostel"><Input readOnly value={studentBatch(watchedBatchYear, sessions)?.hostel_name || 'No batch configured for this admission year'} /></Form.Item>
+                        <Form.Item label="Assigned Hostel"><Input readOnly value={studentBatch(watchedBatchYear, sessions, watchedGender)?.hostel_name || 'No batch configured for this admission year'} /></Form.Item>
                         <Form.Item name="requires_bed" valuePropName="checked" className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
                           <Checkbox>
                             <Text strong className="text-blue-700 ml-2 text-sm">Allocate Room/Bed</Text>
