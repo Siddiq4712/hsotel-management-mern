@@ -1,8 +1,9 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, Switch, ScrollView } from 'react-native';
+import { View, TouchableOpacity, Alert, Switch, ScrollView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';

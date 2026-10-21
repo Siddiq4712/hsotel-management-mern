@@ -1,24 +1,35 @@
+import ApplicationDetails from '../../components/student/ApplicationDetails';
+import { useEmbeddedHeader } from '../../components/common/ReferenceDesign';
+import { Text } from "../../components/common/ReferenceDesign";
 import RequestDetails, { personName, displayDate } from '../../components/common/RequestDetails';
+import WardenRequestCard from '../../components/warden/WardenRequestCard';
+import { SearchField } from '../../components/warden/WardenUI';
 import Screen from '../../components/common/Screen';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
+import ReviewSheet from '../../components/common/ReviewSheet';
 import colors from '../../theme/colors';
-import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { View, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import { CheckCircle, XCircle } from 'lucide-react-native';
 import moment from 'moment';
 
-const LeaveRequestsScreen = ({ navigation }) => {
+const LeaveRequestsScreen = ({ navigation, requestId }) => {
+  const detailView = requestId != null;
+  const RequestCard = detailView ? RequestDetails : WardenRequestCard;
   const [leaves, setLeaves] = useState([]);
+  const embedded = useEmbeddedHeader();
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedLeave, setSelectedLeave] = useState(null);
   const [remarks, setRemarks] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => { fetchLeaves(); }, []);
+  useFocusEffect(useCallback(() => { fetchLeaves(); }, []));
 
   const fetchLeaves = async () => {
     setLoading(true);
@@ -47,7 +58,9 @@ const LeaveRequestsScreen = ({ navigation }) => {
     }
   };
 
-  const renderLeaveItem = ({ item }) => <RequestDetails
+  const renderLeaveItem = ({ item }) => detailView ? <ApplicationDetails kind="leave" row={item}>
+    {item.status==='pending'&&<Button disabled={loading||actionLoading} onPress={()=>{setSelectedLeave(item);setRemarks('');setModalVisible(true);}}>Review request</Button>}
+  </ApplicationDetails> : <RequestCard detailLayout={detailView} kind="Leave request" studentMeta={item.Student?.roll_number}
     title={item.leave_type ? item.leave_type.charAt(0).toUpperCase()+item.leave_type.slice(1)+' leave' : 'Leave request'}
     reference={item.id} status={item.status}
     submittedBy={personName(item.Student,item.student_id)}
@@ -57,71 +70,65 @@ const LeaveRequestsScreen = ({ navigation }) => {
     fromDate={item.from_date} toDate={item.to_date}
     duration={(moment(item.to_date).startOf('day').diff(moment(item.from_date).startOf('day'),'days')+1)+' days, inclusive'}
     reason={item.reason} fields={[{label:'Remarks',value:item.remarks,full:true}]}>
-    {item.status==='pending'&&<Button onPress={()=>{setSelectedLeave(item);setRemarks('');setModalVisible(true);}}>Review request</Button>}
-  </RequestDetails>;
+    {item.status==='pending'&&<Button disabled={loading||actionLoading} onPress={()=>{setSelectedLeave(item);setRemarks('');setModalVisible(true);}}>Review request</Button>}
+  </RequestCard>;
 
   return (
     <Screen className="flex-1 bg-background">
       <Header />
       <View className="p-4 flex-1">
-        <Text className="text-2xl font-bold text-indigo-900 mb-4">Leave Requests</Text>
-        <Button variant="secondary" onPress={()=>navigation.navigate('GatePasses')} style={{marginBottom:16}}>Review gate passes</Button>
-        {loading ? <ActivityIndicator color={colors.primary} size="large" className="mt-10" /> : (
-          <FlatList 
+        {!embedded && <Text className="text-2xl font-bold text-indigo-900 mb-4">Leave Requests</Text>}
+        {!embedded && <Button variant="secondary" onPress={()=>navigation.navigate('GatePasses')} style={{marginBottom:16}}>Review gate passes</Button>}
+        {!detailView && <SearchField accessibilityLabel="Search requests" placeholder="Search leave requests" value={search} onChangeText={setSearch} style={{ marginBottom: 12 }} />}
+          <FlatList style={{flex:1}}
+            keyboardShouldPersistTaps="handled"
             refreshing={loading}
             onRefresh={fetchLeaves}
-            data={leaves}
+            data={leaves.filter(item => detailView ? String(item.id) === String(requestId) : JSON.stringify([item.Student?.userName, item.Student?.roll_number, item.leave_type, item.subject, item.reason, item.description]).toLowerCase().includes(search.toLowerCase()))}
             renderItem={renderLeaveItem}
             keyExtractor={item => item.id.toString()}
             contentContainerStyle={{ paddingBottom: 20 }}
-            ListEmptyComponent={<Text className="text-center text-gray-400 mt-10">No leave requests found.</Text>}
+            ListEmptyComponent={loading ? <ActivityIndicator color={colors.primary} size="large" style={{padding:32}}/> : <Text className="text-center text-gray-600 mt-10">{detailView ? 'This leave request is unavailable.' : 'No leave requests found.'}</Text>}
           />
-        )}
       </View>
 
       {/* Approval/Rejection Modal */}
-      <Modal visible={modalVisible} animationType="fade" transparent onRequestClose={()=>!actionLoading&&setModalVisible(false)}>
-        <View className="flex-1 bg-black/50 justify-center p-6">
-          <View className="bg-white rounded-3xl p-6 shadow-2xl">
-            <Text className="text-xl font-bold text-indigo-900 mb-2">Process Leave</Text>
-            <Text className="text-gray-500 text-sm mb-4">{personName(selectedLeave?.Student,selectedLeave?.student_id)} · {displayDate(selectedLeave?.from_date)} → {displayDate(selectedLeave?.to_date)}</Text>
-            
+      <ReviewSheet visible={modalVisible} title="Review leave" busy={actionLoading} onClose={()=>setModalVisible(false)}
+        description={`${personName(selectedLeave?.Student,selectedLeave?.student_id)} · ${displayDate(selectedLeave?.from_date)} → ${displayDate(selectedLeave?.to_date)}`}>
+            <Text style={{ fontWeight: '600', color: colors.text }}>Remarks</Text>
             <Input
+              accessibilityLabel="Leave review remarks"
               placeholder="Enter remarks (optional)..."
               multiline
               numberOfLines={4}
               value={remarks}
               onChangeText={setRemarks}
-              className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-gray-800 mb-6 text-start"
+              className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-gray-800"
+              style={{ minHeight: 110 }}
               textAlignVertical="top"
             />
 
-            <View className="flex-row space-x-3">
-              <TouchableOpacity 
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+              <Button variant="secondary"
                 disabled={actionLoading}
                 onPress={() => handleAction('rejected')}
-                className="flex-1 flex-row bg-red-50 py-4 rounded-2xl items-center justify-center border border-red-100"
+                style={{ flexGrow: 1, flexBasis: '42%', backgroundColor: colors.dangerSoft, borderColor: colors.dangerTint }}
               >
                 <XCircle size={18} color={colors.danger} className="mr-2" />
                 <Text className="text-red-600 font-bold">Reject</Text>
-              </TouchableOpacity>
+              </Button>
 
               <Button
                 disabled={actionLoading}
                 onPress={() => handleAction('approved')}
-                className="flex-1 flex-row bg-green-700 py-4 rounded-xl items-center justify-center"
+                style={{ flexGrow: 1, flexBasis: '42%', backgroundColor: colors.success }}
               >
                 <CheckCircle size={18} color="white" className="mr-2" />
                 <Text className="text-white font-bold">Approve</Text>
               </Button>
             </View>
 
-            <TouchableOpacity disabled={actionLoading} onPress={() => setModalVisible(false)} className="mt-4 items-center">
-              <Text className="text-gray-400 font-medium">Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      </ReviewSheet>
     </Screen>
   );
 };

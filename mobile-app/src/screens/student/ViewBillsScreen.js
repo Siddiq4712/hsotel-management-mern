@@ -1,9 +1,11 @@
+import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
+import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { DollarSign, AlertTriangle, CheckCircle, Calendar, FileText, Download, CreditCard, Clock, XCircle, ExternalLink } from 'lucide-react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
@@ -165,23 +167,17 @@ const ViewBillsScreen = () => {
           </TouchableOpacity>
         </View>
 
-        <View className="flex-row flex-wrap justify-between mb-6">
-          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mb-3">
-            <Text className="text-gray-600 text-sm flex-row items-center"><FileText size={16} className="mr-1" color={colors.mutedText} /> Total Amount</Text>
-            <Text className="text-2xl font-bold text-blue-600 mt-1">₹{stats.totalAmount.toFixed(2)}</Text>
-          </Card>
-          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mb-3">
-            <Text className="text-gray-600 text-sm flex-row items-center"><CheckCircle size={16} className="mr-1" color={colors.success} /> Paid Amount</Text>
-            <Text className="text-2xl font-bold text-green-600 mt-1">₹{stats.paidAmount.toFixed(2)}</Text>
-          </Card>
-          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3">
-            <Text className="text-gray-600 text-sm flex-row items-center"><Clock size={16} className="mr-1" color={colors.warning} /> Pending Amount</Text>
-            <Text className="text-2xl font-bold text-yellow-600 mt-1">₹{stats.pendingAmount.toFixed(2)}</Text>
-          </Card>
-          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3">
-            <Text className="text-gray-600 text-sm flex-row items-center"><AlertTriangle size={16} className="mr-1" color={colors.danger} /> Overdue Amount</Text>
-            <Text className="text-2xl font-bold text-red-600 mt-1">₹{stats.overdueAmount.toFixed(2)}</Text>
-          </Card>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
+          {[
+            ['Total Amount', stats.totalAmount, FileText],
+            ['Paid Amount', stats.paidAmount, CheckCircle],
+            ['Pending Amount', stats.pendingAmount, Clock],
+            ['Overdue Amount', stats.overdueAmount, AlertTriangle],
+          ].map(([label, value, Icon]) => <HighlightCard key={label} style={{ flexGrow: 1, flexBasis: '46%', padding: 16 }}>
+            <View style={[highlightStyles.badge, { alignSelf: 'flex-start' }]}><Icon size={18} color={colors.highlightText} /></View>
+            <Text style={highlightStyles.detail}>{label}</Text>
+            <Text style={[highlightStyles.value, { fontSize: 24 }]}>₹{value.toFixed(2)}</Text>
+          </HighlightCard>)}
         </View>
 
         {/* Today's Attendance Status Card */}

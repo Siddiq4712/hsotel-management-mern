@@ -1,10 +1,12 @@
+import ProgressiveRows from "../../components/common/ProgressiveRows";
+import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { MessageCircle, Calendar, CheckCircle, Clock, AlertCircle, XCircle, User, AlertTriangle, ChevronDown, ChevronUp, Search } from 'lucide-react-native';
 import moment from 'moment';
@@ -352,7 +354,7 @@ const ComplaintManagementScreen = ({ navigation }) => {
             </View>
           ) : filteredComplaints.length > 0 ? (
             <View className="divide-y divide-gray-200">
-              {filteredComplaints.map((complaint) => (
+              <ProgressiveRows data={filteredComplaints} resetKey={JSON.stringify(appliedFilters)} renderItem={(complaint) => (
                 <View key={complaint.id} className="p-4 hover:bg-gray-50">
                   <View className="flex-row justify-between items-start mb-2">
                     <View className="flex-1 mr-2">
@@ -394,7 +396,7 @@ const ComplaintManagementScreen = ({ navigation }) => {
                     </View>
                   )}
                 </View>
-              ))}
+              )} />
             </View>
           ) : (
             <View className="text-center py-12">

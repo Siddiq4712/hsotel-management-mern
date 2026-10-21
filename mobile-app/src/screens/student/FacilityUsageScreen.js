@@ -1,10 +1,11 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { Wifi, Plus, Clock, DollarSign, CheckCircle, AlertCircle, TrendingUp, History } from 'lucide-react-native';
 import moment from 'moment';

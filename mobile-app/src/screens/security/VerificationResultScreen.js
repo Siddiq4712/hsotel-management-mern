@@ -1,8 +1,10 @@
+import Screen from '../../components/common/Screen';
+import { Text } from "../../components/common/ReferenceDesign";
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
 import React from 'react';
-import { View, Text, TouchableOpacity, Image } from 'react-native';
+import { View, TouchableOpacity, Image, ScrollView } from 'react-native';
 import { CheckCircle, XCircle, AlertTriangle, User, Calendar, MapPin, ClipboardList, Clock } from 'lucide-react-native';
 import moment from 'moment';
 
@@ -37,7 +39,7 @@ const VerificationResultScreen = ({ route, navigation }) => {
   const isLateComer = isReturn && outpass?.to_date && moment(outpass.return_time || outpass.updatedAt).isAfter(moment(outpass.to_date));
 
   return (
-    <View className="flex-1 bg-gray-50 p-6 justify-between">
+    <Screen><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: 32, gap: 20 }}>
       <View className="items-center mt-6">
         {/* Visual Indicator */}
         {isSuccess ? (
@@ -147,7 +149,7 @@ const VerificationResultScreen = ({ route, navigation }) => {
       >
         <Text className="text-white font-extrabold text-base">Back to Console</Text>
       </Button>
-    </View>
+    </ScrollView></Screen>
   );
 };
 

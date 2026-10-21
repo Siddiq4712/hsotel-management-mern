@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '700', color: colors.text },
   account: { fontSize: 16, color: colors.mutedText, marginTop: 12 },
   description: { fontSize: 16, lineHeight: 24, color: colors.text, marginVertical: 20 },
-  primary: { backgroundColor: colors.primary, borderRadius: 12, padding: 14, alignItems: 'center' },
+  primary: { backgroundColor: colors.buttonBackground, borderRadius: 12, padding: 14, alignItems: 'center' },
   primaryText: { color: colors.card, fontWeight: '600', fontSize: 16 },
   hint: { fontSize: 13, lineHeight: 20, color: colors.mutedText, marginTop: 12 },
   secondary: { padding: 14, alignItems: 'center', marginTop: 12 },

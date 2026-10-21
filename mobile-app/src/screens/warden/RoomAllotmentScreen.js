@@ -1,3 +1,4 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Screen from '../../components/common/Screen';
 import Card from '../../components/common/Card';
@@ -5,7 +6,7 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, FlatList, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import { Bed, User, Users, Search, CheckCircle, ChevronRight, Info, Home } from 'lucide-react-native';

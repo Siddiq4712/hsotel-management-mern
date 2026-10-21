@@ -1,9 +1,7 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import colors from '../../theme/colors';
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import {
-  View, Text, ScrollView, ActivityIndicator, TouchableOpacity,
-  StyleSheet, Dimensions, Modal, Image, Alert
-} from "react-native";
+import { View, ScrollView, ActivityIndicator, TouchableOpacity, StyleSheet, Dimensions, Modal, Image, Alert } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { 
   Bed, ShieldCheck, ShowerHead, Laptop, 
@@ -358,7 +356,7 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.background, paddingBottom: 5 },
   infoLabel: { fontSize: 9, fontWeight: '800', color: colors.mutedText },
   infoVal: { fontSize: 10, fontWeight: '900', color: colors.primaryDark },
-  bookingBtn: { backgroundColor: colors.primaryDark, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  bookingBtn: { backgroundColor: colors.buttonBackground, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   bookingText: { color: colors.card, fontSize: 12, fontWeight: '900', letterSpacing: 1 },
   statusBanner: { padding: 16, backgroundColor: colors.success, alignItems: 'center' },
   statusText: { color: colors.card, fontSize: 12, fontWeight: '900' }

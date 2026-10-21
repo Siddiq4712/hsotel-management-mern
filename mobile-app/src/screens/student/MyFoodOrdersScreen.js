@@ -1,9 +1,10 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal, FlatList, StyleSheet } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal, FlatList, StyleSheet } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { Search, Clock, CheckCircle, XCircle, Eye, Download, Calendar, Utensils, Info } from 'lucide-react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
@@ -286,12 +287,6 @@ const MyFoodOrdersScreen = ({ navigation }) => {
         renderItem={({ item }) => <OrderCard order={item} />}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={<>
-        <TouchableOpacity accessibilityRole="button" onPress={() => navigation.goBack()} className="self-start py-2 mb-2">
-          <Text className="font-semibold text-blue-600">Back to Additional Food</Text>
-        </TouchableOpacity>
-        <Text className="text-2xl font-bold text-indigo-900 mb-2">My Additional Food Orders</Text>
-        <Text className="text-gray-600 mb-6">Track your additional food order history</Text>
-
         <View className="flex-row flex-wrap justify-between items-center mb-4">
           <TouchableOpacity
             onPress={() => { setShowDatePicker(true); setPickerMode('from'); }}

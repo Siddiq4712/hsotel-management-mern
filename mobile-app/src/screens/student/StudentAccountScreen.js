@@ -1,8 +1,9 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, Alert, Linking, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, ScrollView, Image, TouchableOpacity, Alert, Linking, StyleSheet, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { BedDouble, MessageSquare, ReceiptText, Utensils, ChevronRight, Monitor, LogOut, UserRound, ExternalLink } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { BedDouble, MessageSquare, ReceiptText, Utensils, ChevronRight, Building2, LogOut, UserRound } from 'lucide-react-native';
+import HighlightCard from '../../components/common/HighlightCard';
 import { studentAPI, API_BASE_URL } from '../../api/api';
 import { useAuth } from '../../hooks/useAuth';
 import Header from '../../components/student/StudentHeader';
@@ -51,14 +52,18 @@ export default function StudentAccountScreen({ navigation }) {
       </View>
       {loading && <ActivityIndicator color={colors.primary} />}
       {error ? <Card><Text style={styles.subtitle}>{error}</Text><Button variant="secondary" onPress={load}>Retry</Button></Card> : null}
-      <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.web}>
-        <Monitor size={24} color={colors.card} />
-        <Text style={styles.webTitle}>Web dashboard</Text>
-        <Text style={styles.webBody}>Access your full hostel workspace through the web application.</Text>
-        <Button variant="secondary" onPress={openWeb} style={{ backgroundColor: colors.card, paddingHorizontal: 16, paddingVertical: 12 }}>
-          <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '700' }}>Open web access</Text><ExternalLink size={16} color={colors.primary} style={{ marginLeft: 8 }} />
+      <HighlightCard gradientColors={[colors.highlightEnd, colors.highlightStart]} style={styles.web}>
+        <View style={styles.webHeading}>
+          <View style={styles.webIcon}><Building2 size={21} color={colors.buttonBackground} /></View>
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text style={styles.webTitle}>Web dashboard</Text>
+            <Text allowSmallText style={styles.webDescription}>Open account tools in your browser.</Text>
+          </View>
+        </View>
+        <Button variant="secondary" onPress={openWeb} style={styles.webButton}>
+          <Text allowSmallText style={styles.webButtonText}>Open web access</Text><ChevronRight size={15} color={colors.highlightEnd} />
         </Button>
-      </LinearGradient>
+      </HighlightCard>
       <Text style={styles.label}>STUDENT SERVICES</Text>
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         {menu.map(([Icon, label, detail, onPress], index) => <TouchableOpacity key={label} onPress={onPress}
@@ -84,22 +89,26 @@ export default function StudentAccountScreen({ navigation }) {
       ])} style={{ borderWidth: 1, borderColor: colors.dangerTint, backgroundColor: colors.card, padding: 14 }}>
         <LogOut size={18} color={colors.danger} /><Text style={{ color: colors.danger, fontWeight: '600', marginLeft: 8 }}>Sign out</Text>
       </Button>
-      <Text style={styles.footer}>Hostel Management</Text>
     </ScrollView>
   </View>;
 }
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background }, content: { padding: 16, paddingBottom: 32, gap: 16 },
-  identity: { alignItems: 'center', backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 24, padding: 24, gap: 8 },
-  avatar: { width: 76, height: 76, borderRadius: 38, borderWidth: 3, borderColor: colors.primarySoft },
+  identity: { alignItems: 'center', backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 18, padding: 22, gap: 8 },
+  avatar: { width: 76, height: 76, borderRadius: 22, borderWidth: 3, borderColor: colors.primarySoft },
   placeholder: { backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   name: { fontSize: 21, fontWeight: '700', color: colors.text, textAlign: 'center' },
   subtitle: { fontSize: 14, color: colors.mutedText, textAlign: 'center' },
   role: { fontSize: 10, fontWeight: '700', letterSpacing: 1, color: colors.primary, backgroundColor: colors.primarySoft, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  web: { padding: 20, borderRadius: 20, gap: 10 }, webTitle: { fontSize: 18, fontWeight: '700', color: colors.card },
-  webBody: { fontSize: 13, lineHeight: 20, color: colors.card }, label: { fontSize: 11, fontWeight: '600', letterSpacing: 1, color: colors.mutedText, marginTop: 4 },
+  web: { padding: 14, borderRadius: 18, gap: 10, boxShadow: 'none' },
+  webHeading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  webIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  webTitle: { fontSize: 14, fontWeight: '700', color: colors.highlightText },
+  webDescription: { fontSize: 11, lineHeight: 16, color: colors.highlightDescription },
+  webButton: { alignSelf: 'stretch', minHeight: 40, backgroundColor: colors.card, borderColor: colors.card, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 11, gap: 3 },
+  webButtonText: { fontSize: 11, fontWeight: '700', color: colors.highlightEnd },
+  label: { fontSize: 11, fontWeight: '600', letterSpacing: 1, color: colors.mutedText, marginTop: 4 },
   menuItem: { minHeight: 80, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   divider: { borderTopWidth: 1, borderTopColor: colors.surface }, menuIcon: { padding: 10, backgroundColor: colors.primarySoft, borderRadius: 12 },
   menuTitle: { color: colors.text, fontSize: 14, fontWeight: '600' }, small: { fontSize: 12, color: colors.mutedText, lineHeight: 18 },
-  footer: { fontSize: 11, textAlign: 'center', color: colors.mutedText, paddingVertical: 8 },
 });

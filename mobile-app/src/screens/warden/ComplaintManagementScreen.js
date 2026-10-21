@@ -1,16 +1,26 @@
+import { useEmbeddedHeader } from '../../components/common/ReferenceDesign';
+import { Text } from "../../components/common/ReferenceDesign";
 import RequestDetails, { personName, displayDate } from '../../components/common/RequestDetails';
+import WardenRequestCard from '../../components/warden/WardenRequestCard';
+import { SearchField } from '../../components/warden/WardenUI';
 import Screen from '../../components/common/Screen';
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
+import ReviewSheet from '../../components/common/ReviewSheet';
 import colors from '../../theme/colors';
-import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert, Modal } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { View, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 
-const ComplaintManagementScreen = () => {
+const ComplaintManagementScreen = ({ requestId } = {}) => {
+  const detailView = requestId != null;
+  const RequestCard = detailView ? RequestDetails : WardenRequestCard;
   const [complaints, setComplaints] = useState([]);
+  const embedded = useEmbeddedHeader();
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState(null);
@@ -18,7 +28,7 @@ const ComplaintManagementScreen = () => {
   const [statusUpdate, setStatusUpdate] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => { fetchComplaints(); }, []);
+  useFocusEffect(useCallback(() => { fetchComplaints(); }, []));
 
   const fetchComplaints = async () => {
     setLoading(true);
@@ -50,7 +60,7 @@ const ComplaintManagementScreen = () => {
     }
   };
 
-  const renderComplaintItem = ({ item }) => <RequestDetails
+  const renderComplaintItem = ({ item }) => <RequestCard detailLayout={detailView} kind="Complaint" studentMeta={item.Student?.roll_number}
     title={item.subject} reference={item.id} status={item.status}
     submittedBy={personName(item.Student,item.student_id)}
     reviewedBy={personName(item.AssignedTo,item.assigned_to)||'Not assigned'} reviewLabel="Assigned to"
@@ -60,41 +70,39 @@ const ComplaintManagementScreen = () => {
       {label:'Resolved on',value:item.resolved_date?displayDate(item.resolved_date):null},
       {label:'Resolution',value:item.resolution,full:true},
     ]}>
-    {item.status!=='resolved'&&item.status!=='closed'&&<Button variant="secondary"
+    {item.status!=='resolved'&&item.status!=='closed'&&<Button variant="secondary" disabled={loading||actionLoading}
       onPress={()=>{setSelectedComplaint(item);setResolution(item.resolution||'');setStatusUpdate(item.status);setModalVisible(true);}}>Update status</Button>}
-  </RequestDetails>;
+  </RequestCard>;
 
   return (
     <Screen className="flex-1 bg-background">
       <Header />
       <MoreSectionNav />
       <View className="p-4 flex-1">
-        <Text className="text-2xl font-bold text-indigo-900 mb-4">Complaints</Text>
-        {loading ? <ActivityIndicator color={colors.primary} size="large" className="mt-10" /> : (
-          <FlatList 
+        {!embedded && <Text className="text-2xl font-bold text-indigo-900 mb-4">Complaints</Text>}
+        {!detailView && <SearchField accessibilityLabel="Search requests" placeholder="Search complaints" value={search} onChangeText={setSearch} style={{ marginBottom: 12 }} />}
+          <FlatList style={{flex:1}}
+            keyboardShouldPersistTaps="handled"
             refreshing={loading}
             onRefresh={fetchComplaints}
-            ListEmptyComponent={<Text className="text-center text-gray-600 py-6">No complaints found.</Text>}
-            data={complaints}
+            ListEmptyComponent={loading ? <ActivityIndicator color={colors.primary} size="large" style={{padding:32}}/> : <Text className="text-center text-gray-600 py-6">{detailView ? 'This complaint is unavailable.' : 'No complaints found.'}</Text>}
+            data={complaints.filter(item => detailView ? String(item.id) === String(requestId) : JSON.stringify([item.Student?.userName, item.Student?.roll_number, item.leave_type, item.subject, item.reason, item.description]).toLowerCase().includes(search.toLowerCase()))}
             renderItem={renderComplaintItem}
             keyExtractor={item => item.id.toString()}
             contentContainerStyle={{ paddingBottom: 20 }}
           />
-        )}
       </View>
 
-      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={()=>!actionLoading&&setModalVisible(false)}>
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-white rounded-t-[40px] p-8 shadow-2xl">
-            <Text className="text-xl font-bold text-indigo-900 mb-6">Manage Complaint</Text>
-            
-            <Text className="text-gray-700 font-bold mb-3">Set Status</Text>
-            <View className="flex-row flex-wrap gap-2 mb-6">
+      <ReviewSheet visible={modalVisible} title="Update complaint" description={selectedComplaint?.subject} busy={actionLoading} onClose={()=>setModalVisible(false)}>
+            <Text style={{ fontWeight: '600', color: colors.text }}>Status</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {['in_progress', 'resolved', 'closed'].map((s) => (
                 <Button
                   key={s}
+                  disabled={actionLoading}
                   onPress={() => setStatusUpdate(s)}
-                  className={`px-4 py-2 rounded-full border ${statusUpdate === s ? 'bg-indigo-600 border-indigo-600' : 'bg-white border-gray-200'}`}
+                  variant={statusUpdate === s ? 'primary' : 'secondary'}
+                  accessibilityState={{ selected: statusUpdate === s, disabled: actionLoading }}
                 >
                   <Text className={`capitalize font-medium ${statusUpdate === s ? 'text-white' : 'text-gray-600'}`}>
                     {s.replace('_', ' ')}
@@ -103,31 +111,27 @@ const ComplaintManagementScreen = () => {
               ))}
             </View>
 
-            <Text className="text-gray-700 font-bold mb-2">Resolution Note</Text>
+            <Text style={{ fontWeight: '600', color: colors.text }}>Resolution note</Text>
             <Input
+              accessibilityLabel="Complaint resolution note"
               placeholder="Describe the solution..."
               multiline
               value={resolution}
               onChangeText={setResolution}
-              className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-gray-800 mb-8"
+              className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-gray-800"
               style={{ minHeight: 100 }}
               textAlignVertical="top"
             />
 
             <Button
               disabled={actionLoading}
+              loading={actionLoading}
               onPress={updateStatus}
-              className="bg-indigo-600 py-4 rounded-xl items-center shadow-sm shadow-indigo-200"
             >
               <Text className="text-white font-bold text-lg">Save Changes</Text>
             </Button>
 
-            <TouchableOpacity disabled={actionLoading} onPress={() => setModalVisible(false)} className="mt-6 items-center">
-              <Text className="text-gray-400 font-bold">Discard</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      </ReviewSheet>
     </Screen>
   );
 };

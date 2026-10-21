@@ -1,5 +1,6 @@
+import { Text } from "./ReferenceDesign";
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, FlatList, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, AppState, FlatList, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
 import { ArrowLeft, Bell, Check, ChevronRight, RefreshCw, X } from 'lucide-react-native';
@@ -133,7 +134,6 @@ export function AccountNotifications() {
             <Text selectable style={styles.body}>{selected.message}</Text>
             <Text style={styles.meta}>{selected.createdAt ? moment(selected.createdAt).format('DD MMM YYYY · h:mm A') : ''}</Text>
             {!!error && <Text style={styles.errorText}>{error}</Text>}
-            <Button variant="secondary" onPress={() => setSelected(null)}>Back to notifications</Button>
           </Card>
         </ScrollView> : <FlatList style={{ flex: 1 }} data={items} keyExtractor={item => String(item.id)}
           contentContainerStyle={styles.content} refreshing={loading} onRefresh={() => !working && load()}

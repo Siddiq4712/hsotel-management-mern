@@ -1,6 +1,7 @@
+import { Text } from "./ReferenceDesign";
 import colors from '../../theme/colors';
 import React from 'react';
-import { View, Text, ActivityIndicator, Modal, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, Modal, StyleSheet } from 'react-native';
 import Card from './Card';
 
 const LoadingOverlay = ({ 

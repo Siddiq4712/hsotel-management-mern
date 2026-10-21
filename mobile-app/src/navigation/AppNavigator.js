@@ -1,3 +1,4 @@
+import { Text } from "../components/common/ReferenceDesign";
 import colors from '../theme/colors';
 import React from 'react';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
@@ -8,8 +9,9 @@ import SecurityNavigator from './SecurityNavigator';
 import ParentNavigator from './ParentNavigator';
 import WebAccountScreen from '../screens/WebAccountScreen';
 import { useAuth } from '../hooks/useAuth';
-import { View, ActivityIndicator, Text } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { normalizeRole } from '../utils/role';
+import { ReferenceProvider, OriginalDesign } from '../components/common/ReferenceDesign';
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -45,7 +47,7 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer theme={navigationTheme}>
-      {user ? (
+      {user ? <ReferenceProvider>{(
         resolvedRole === 'student' ? (
           <StudentTabNavigator />
         ) : resolvedRole === 'warden' ? (
@@ -55,9 +57,9 @@ const AppNavigator = () => {
         ) : resolvedRole === 'parent' ? (
           <ParentNavigator />
         ) : (
-          <WebAccountScreen />
+          <OriginalDesign><WebAccountScreen /></OriginalDesign>
         )
-      ) : (
+      )}</ReferenceProvider> : (
         <AuthNavigator />
       )}
     </NavigationContainer>

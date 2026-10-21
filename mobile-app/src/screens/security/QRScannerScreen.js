@@ -1,3 +1,4 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import { useIsFocused } from '@react-navigation/native';
 import Screen from '../../components/common/Screen';
 import Card from '../../components/common/Card';
@@ -5,7 +6,7 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import colors from '../../theme/colors';
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { outpassAPI } from '../../api/api';
 

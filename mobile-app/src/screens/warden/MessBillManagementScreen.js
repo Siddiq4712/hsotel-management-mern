@@ -1,10 +1,12 @@
+import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
+import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Screen from '../../components/common/Screen';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, Alert, ActivityIndicator } from 'react-native';
+import { View, FlatList, TouchableOpacity, Modal, Alert, ActivityIndicator } from 'react-native';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -86,15 +88,15 @@ const MessBillManagementScreen = () => {
         <Button onPress={() => setGenerateModal(true)} className="bg-blue-600 p-4 rounded-xl items-center mb-4">
           <Text className="text-white font-bold">Generate Bills</Text>
         </Button>
-        <View className="grid grid-cols-2 gap-4 mb-4">
-          <View className="bg-blue-50 p-3 rounded-xl">
-            <Text className="text-blue-600 font-bold">Total: ₹{summary.totalAmount?.toFixed(2)}</Text>
-            <Text className="text-blue-500 text-sm">{summary.totalBills} bills</Text>
-          </View>
-          <View className="bg-green-50 p-3 rounded-xl">
-            <Text className="text-green-600 font-bold">Pending: ₹{summary.pendingAmount?.toFixed(2)}</Text>
-            <Text className="text-green-500 text-sm">{summary.pendingBills} bills</Text>
-          </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+          <HighlightCard style={{ flex: 1, minWidth: 140, padding: 16 }}>
+            <Text style={highlightStyles.title}>Total: ₹{summary.totalAmount?.toFixed(2)}</Text>
+            <Text style={highlightStyles.detail}>{summary.totalBills} bills</Text>
+          </HighlightCard>
+          <HighlightCard style={{ flex: 1, minWidth: 140, padding: 16 }}>
+            <Text style={highlightStyles.title}>Pending: ₹{summary.pendingAmount?.toFixed(2)}</Text>
+            <Text style={highlightStyles.detail}>{summary.pendingBills} bills</Text>
+          </HighlightCard>
         </View>
         <FlatList data={bills} renderItem={renderBill} keyExtractor={item => item.id.toString()} />
       </View>

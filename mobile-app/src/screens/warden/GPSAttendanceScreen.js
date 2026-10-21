@@ -1,20 +1,18 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
+import Card from '../../components/common/Card';
+import { SectionTitle, useEmbeddedHeader } from '../../components/common/ReferenceDesign';
+import { InfoNote, StudentIdentity } from '../../components/warden/WardenUI';
+import { MapPin, Clock, ArrowLeft } from 'lucide-react-native';
 import { useIsFocused } from '@react-navigation/native';
 import Input from '../../components/common/Input';
 import colors from '../../theme/colors';
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  SectionList,
-  Alert,
-  ActivityIndicator,
-  StyleSheet
-} from 'react-native';
+import { View, SectionList, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
+import { Picker } from '@react-native-picker/picker';
 import Header from '../../components/common/Header';
 import { gpsAttendanceAPI, wardenAPI } from '../../api/api';
 
@@ -31,6 +29,7 @@ const hasConfiguredGeofence =
 
 const GPSAttendanceScreen = ({ navigation }) => {
   const isFocused = useIsFocused();
+  const embedded = useEmbeddedHeader();
   const [activeSession, setActiveSession] = useState(null);
   const [lastClosedSession, setLastClosedSession] = useState(null);
   const [serverOffsetMs, setServerOffsetMs] = useState(0);
@@ -45,6 +44,8 @@ const GPSAttendanceScreen = ({ navigation }) => {
   const [closing, setClosing] = useState(false);
   const [radius, setRadius] = useState(String(DEFAULT_RADIUS));
   const [duration, setDuration] = useState(String(DEFAULT_DURATION));
+  const [customRadius, setCustomRadius] = useState(!['150','200','250'].includes(String(DEFAULT_RADIUS)));
+  const [customDuration, setCustomDuration] = useState(false);
   const [nowTick, setNowTick] = useState(0);
   const sessionForResults = activeSession || lastClosedSession;
   const isSessionActive = !!activeSession;
@@ -238,258 +239,89 @@ const GPSAttendanceScreen = ({ navigation }) => {
   };
 
   const renderStudent = ({ item }) => {
-    const statusColor =
-      item.status === 'P' ? colors.success : item.status === 'A' ? colors.danger : colors.warning;
-    const displayDistance = item.distance;
-
-    return (
-      <View style={styles.studentCard}>
-        <View style={styles.studentRow}>
-          <Text style={styles.studentName}>{item.userName}</Text>
-          <Text style={styles.rollText}>Roll: {item.roll_number || 'N/A'}</Text>
-        </View>
-        <View style={styles.studentRow}>
-          <Text style={[styles.statusPill, { backgroundColor: statusColor }]}>
-            {item.status}
-          </Text>
-          {displayDistance != null && (
-            <Text style={styles.metaText}>{Math.round(displayDistance)}m</Text>
-          )}
-        </View>
-      </View>
-    );
+    const tone = item.status === 'P' ? 'success' : item.status === 'A' ? 'danger' : 'warning';
+    return <Card style={styles.studentCard}>
+      <StudentIdentity name={item.userName} meta={[item.roll_number,item.distance != null ? Math.round(item.distance)+' m from center' : null].filter(Boolean).join(' · ')} style={{flex:1}} />
+      <Text style={[styles.statusPill,{backgroundColor:colors[tone+'Soft'],color:colors[tone]}]}>{item.status}</Text>
+    </Card>;
   };
-
   const renderBatchSection = () => {
     const preview = filteredStudents.slice(0, 6);
-    return (
-      <View style={styles.batchCard}>
-        <View style={styles.batchHeader}>
-          <Text style={styles.sessionLabel}>Enrolled Students</Text>
-          <TouchableOpacity onPress={fetchStudents} disabled={studentsLoading}>
-            <Text style={styles.refreshText}>
-              {studentsLoading ? 'Loading...' : 'Refresh'}
-            </Text>
-          </TouchableOpacity>
+    return <View style={{gap:12}}>
+      <SectionTitle title="Enrolled students" action={studentsLoading?'Loading…':'Refresh'} onPress={studentsLoading?undefined:fetchStudents} />
+      <Card style={{gap:14}}>
+        <View style={styles.enrollmentSummary}>
+          <View style={{flex:1,gap:4}}><Text style={styles.fieldLabel}>Enrollment year</Text><Text style={styles.summaryValue}>{selectedBatch==='all'?'All years':selectedBatch}</Text></View>
+          <View style={{flex:1,gap:4}}><Text style={styles.fieldLabel}>Eligible students</Text><Text style={styles.summaryValue}>{studentsLoading?'—':filteredStudents.length}</Text></View>
         </View>
-
-        <Text style={styles.metaText}>Filter by enrollment year</Text>
-        <View style={styles.filterRow}>
-          <Input
-            style={styles.filterInput}
-            keyboardType="numeric"
-            value={yearInput}
-            onChangeText={setYearInput}
-            placeholder="e.g. 2025"
-            maxLength={4}
-          />
-          <TouchableOpacity
-            onPress={() => {
-              const trimmed = yearInput.trim();
-              setSelectedBatch(trimmed || 'all');
-              fetchStudents(trimmed);
-            }}
-            style={styles.applyBtn}
-          >
-            <Text style={styles.applyBtnText}>Apply</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => {
-              setYearInput('');
-              setSelectedBatch('all');
-              fetchStudents('');
-            }}
-            style={styles.clearBtn}
-          >
-            <Text style={styles.clearBtnText}>Clear</Text>
-          </TouchableOpacity>
+        <View style={styles.yearFilter}>
+          <Input accessibilityLabel="Enrollment year" style={[styles.input,{flexGrow:1,flexBasis:110}]} keyboardType="numeric" value={yearInput} onChangeText={setYearInput} placeholder="e.g. 2025" maxLength={4} />
+          <Button onPress={()=>{const trimmed=yearInput.trim();setSelectedBatch(trimmed||'all');fetchStudents(trimmed);}}>Apply</Button>
+          <Button variant="ghost" onPress={()=>{setYearInput('');setSelectedBatch('all');fetchStudents('');}}>Clear</Button>
         </View>
-
-        <Text style={styles.metaText}>Total: {filteredStudents.length}</Text>
-
-        {filteredStudents.length === 0 ? (
-          <Text style={styles.emptyText}>No enrolled students for this batch.</Text>
-        ) : (
-          preview.map((s) => (
-            <Text key={s.id} style={styles.enrolledName}>
-              {s.userName || s.username || s.name || 'Student'}
-            </Text>
-          ))
-        )}
-
-        {filteredStudents.length > preview.length && (
-          <Text style={styles.metaText}>
-            +{filteredStudents.length - preview.length} more
-          </Text>
-        )}
-      </View>
-    );
-  };
-
-  return <Screen><Header />
-    <SectionList style={{flex:1}} keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{padding:16,paddingBottom:32}}
-      sections={sessionForResults ? [{title:'Present',data:presentList},{title:'Absent',data:absentList}] : []}
-      keyExtractor={item=>String(item.id)} renderItem={renderStudent}
-      stickySectionHeadersEnabled={false}
-      renderSectionHeader={({section})=><Text style={styles.sectionHeader}>{section.title}</Text>}
-      ListHeaderComponent={<View>
-        <Button variant="ghost" onPress={()=>navigation.navigate('AttendanceRecords')} style={{alignSelf:'flex-start',marginBottom:8}}>← Attendance</Button>
-        <Text style={styles.title}>Evening GPS Attendance</Text>
-        {loading ? <ActivityIndicator color={colors.primary}/> : sessionForResults ? <>
-          <View style={styles.sessionCard}>
-            <Text style={styles.sessionLabel}>{isSessionActive?'Active session':'Closed session results'}</Text>
-            <Text style={styles.sessionMeta}>Date: {sessionForResults.attendance_date||'N/A'}</Text>
-            <Text style={styles.sessionMeta}>Enrollment year: {activeBatch}</Text>
-            <Text style={styles.sessionMeta}>Radius: {Math.round(sessionForResults.geofence_radius_m)}m</Text>
-            {isSessionActive&&<Text style={styles.sessionMeta}>Ends in: {Math.floor(remainingSeconds/60)}m {remainingSeconds%60}s</Text>}
-          </View>
-          <View style={styles.resultCard}><Text style={styles.resultTitle}>Results</Text>
-            <Text style={styles.resultMeta}>Present: {presentList.length} | Absent: {absentList.length}</Text></View>
-          {renderBatchSection()}
-        </> : <View style={styles.startCard}>
-          <Text style={styles.sessionLabel}>Start evening attendance</Text>
-          <Text style={styles.sessionMeta}>{hasConfiguredGeofence?'Using hostel geofence coordinates configured for this app.':'Using warden live location as fallback geofence center.'}</Text>
-          {renderBatchSection()}
-          <Text style={styles.sessionLabel}>Radius (meters)</Text>
-          <Input accessibilityLabel="Geofence radius in meters" style={styles.input} keyboardType="numeric" value={radius} onChangeText={setRadius} placeholder="Radius (meters)"/>
-          <Text style={[styles.sessionLabel,{marginTop:14}]}>Duration (minutes)</Text>
-          <Input accessibilityLabel="Session duration in minutes" style={styles.input} keyboardType="numeric" value={duration} onChangeText={setDuration} placeholder="Duration (minutes)"/>
-          <Button onPress={startSession} loading={starting} style={{marginTop:16}}>Start session</Button>
+        {studentsLoading?<ActivityIndicator color={colors.primary}/>:!filteredStudents.length?<Text style={styles.meta}>No enrolled students for this batch.</Text>:<View style={{gap:10}}>
+          {preview.map(student=><StudentIdentity key={student.id} name={student.userName||student.username||student.name} meta={student.roll_number} />)}
+          {filteredStudents.length>preview.length&&<Text style={styles.meta}>+{filteredStudents.length-preview.length} more students</Text>}
         </View>}
+      </Card>
+    </View>;
+  };
+  return <Screen><Header />
+    <SectionList style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:16,paddingBottom:32}}
+      sections={sessionForResults?[{title:'Present',data:presentList},{title:'Absent',data:absentList}]:[]}
+      keyExtractor={item=>String(item.id)} renderItem={renderStudent} stickySectionHeadersEnabled={false}
+      renderSectionHeader={({section})=><Text style={styles.sectionHeader}>{section.title} · {section.data.length}</Text>}
+      ListHeaderComponent={<View style={{gap:16,paddingBottom:16}}>
+        {!embedded&&<Button variant="ghost" onPress={()=>navigation.navigate('AttendanceRecords')} style={{alignSelf:'flex-start'}}><ArrowLeft size={18} color={colors.primary}/>Attendance</Button>}
+        {loading?<ActivityIndicator color={colors.primary}/>:sessionForResults?<>
+          <Card style={styles.setup}>
+            <View style={styles.locationIcon}><MapPin size={25} color={colors.accent}/></View>
+            <Text style={styles.title}>{isSessionActive?'GPS session active':'Session completed'}</Text>
+            {isSessionActive&&<View style={styles.timer}><Clock size={18} color={colors.accent}/><Text style={styles.timerText}>{String(Math.floor(remainingSeconds/60)).padStart(2,'0')}:{String(remainingSeconds%60).padStart(2,'0')} remaining</Text></View>}
+            <View style={styles.sessionGrid}>
+              {[[ 'Date',sessionForResults.attendance_date||'Not recorded' ],[ 'Enrollment year',activeBatch==='all'?'All years':activeBatch ],[ 'Radius',Math.round(sessionForResults.geofence_radius_m)+' m' ]].map(([label,value])=><View key={label} style={styles.sessionDetail}><Text style={styles.fieldLabel}>{label}</Text><Text style={styles.summaryValue}>{value}</Text></View>)}
+            </View>
+            {isSessionActive&&<Button variant="danger" onPress={closeSession} loading={closing}>Close session</Button>}
+          </Card>
+          <View style={styles.results}>{[[ 'Present',presentList.length,'success' ],[ 'Absent',absentList.length,'danger' ]].map(([label,count,tone])=><Card key={label} style={{flex:1,gap:6,padding:16}}><Text style={styles.fieldLabel}>{label}</Text><Text style={{fontSize:26,fontWeight:'800',color:colors[tone]}}>{count}</Text></Card>)}</View>
+        </>:<Card style={styles.setup}>
+          <View style={styles.locationIcon}><MapPin size={25} color={colors.accent}/></View>
+          <Text style={styles.title}>Evening GPS attendance</Text>
+          <Text style={styles.setupDescription}>{hasConfiguredGeofence?'Start a timed session using the configured hostel coordinates.':'Start a timed session using your live location as the geofence center.'}</Text>
+          <View style={styles.parameterGrid}>
+            <View style={styles.parameter}><Text style={styles.fieldLabel}>Radius</Text>
+              <View style={styles.picker}><Picker accessibilityLabel="GPS radius" selectedValue={customRadius?'custom':radius} onValueChange={value=>{setCustomRadius(value==='custom');if(value!=='custom')setRadius(value);}}>
+                {['150','200','250'].map(value=><Picker.Item key={value} label={value+' m'} value={value}/>)}<Picker.Item label="Other" value="custom"/>
+              </Picker></View>
+              {customRadius&&<Input accessibilityLabel="Geofence radius in meters" style={styles.input} keyboardType="numeric" value={radius} onChangeText={setRadius} placeholder="Meters"/>}
+            </View>
+            <View style={styles.parameter}><Text style={styles.fieldLabel}>Duration</Text>
+              <View style={styles.picker}><Picker accessibilityLabel="GPS duration" selectedValue={customDuration?'custom':duration} onValueChange={value=>{setCustomDuration(value==='custom');if(value!=='custom')setDuration(value);}}>
+                {['15','20','30'].map(value=><Picker.Item key={value} label={value+' min'} value={value}/>)}<Picker.Item label="Other" value="custom"/>
+              </Picker></View>
+              {customDuration&&<Input accessibilityLabel="Session duration in minutes" style={styles.input} keyboardType="numeric" value={duration} onChangeText={setDuration} placeholder="Minutes"/>}
+            </View>
+          </View>
+          <Text style={styles.meta}>Choose an enrollment year below before starting.</Text>
+          <Button onPress={startSession} loading={starting}><MapPin size={19} color={colors.card}/>Start GPS session</Button>
+        </Card>}
+        {renderBatchSection()}
+        <InfoNote icon={Clock}>Active results refresh every 10 seconds. This session uses its own geofence radius, separate from the Home location check.</InfoNote>
       </View>}
-      ListFooterComponent={isSessionActive ? <Button variant="danger" onPress={closeSession} loading={closing} style={{marginTop:12}}>Close session</Button> : null}
     />
   </Screen>;
 };
 export default GPSAttendanceScreen;
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1, padding: 16 },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
-  sessionCard: {
-    backgroundColor: colors.card,
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  resultCard: {
-    backgroundColor: colors.card,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  resultTitle: { fontSize: 14, fontWeight: '700', marginBottom: 4 },
-  resultMeta: { color: colors.mutedText, fontSize: 12 },
-  sectionHeader: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
-    marginTop: 6,
-    marginBottom: 6
-  },
-  startCard: {
-    backgroundColor: colors.card,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  sessionLabel: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
-  sessionMeta: { color: colors.mutedText, fontSize: 12, marginBottom: 4 },
-  batchCard: {
-    backgroundColor: colors.card,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 12
-  },
-  batchHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
-  },
-  filterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    marginBottom: 6
-  },
-  enrolledName: { color: colors.text, fontSize: 13, marginTop: 4 },
-  input: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 8
-  },
-  filterInput: {
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    padding: 10,
-    flex: 1
-  },
-  applyBtn: {
-    backgroundColor: colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    marginLeft: 8
-  },
-  applyBtnText: { color: colors.card, fontWeight: '700', fontSize: 12 },
-  clearBtn: {
-    backgroundColor: colors.border,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    marginLeft: 6
-  },
-  clearBtnText: { color: colors.text, fontWeight: '700', fontSize: 12 },
-  startBtn: {
-    backgroundColor: colors.primary,
-    padding: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 12
-  },
-  startBtnText: { color: colors.card, fontWeight: '700' },
-  closeBtn: {
-    backgroundColor: colors.danger,
-    padding: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 10
-  },
-  closeBtnText: { color: colors.card, fontWeight: '700' },
-  studentCard: {
-    backgroundColor: colors.card,
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: colors.border
-  },
-  studentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  studentName: { fontWeight: '700', color: colors.text },
-  rollText: { color: colors.mutedText, fontSize: 12 },
-  statusPill: {
-    color: colors.card,
-    fontWeight: '700',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10
-  },
-  metaText: { color: colors.mutedText, fontSize: 12 },
-  emptyText: { textAlign: 'center', color: colors.mutedText, marginTop: 12 },
-  refreshText: { color: colors.primary, fontWeight: '700', fontSize: 12 }
+const styles=StyleSheet.create({
+  setup:{padding:20,gap:16,borderRadius:18},locationIcon:{width:50,height:50,borderRadius:14,backgroundColor:colors.accentSoft,alignSelf:'center',alignItems:'center',justifyContent:'center'},
+  title:{fontSize:20,lineHeight:28,fontWeight:'700',color:colors.primaryDark,textAlign:'center'},setupDescription:{fontSize:13,lineHeight:20,color:colors.mutedText,textAlign:'center'},
+  parameterGrid:{flexDirection:'row',flexWrap:'wrap',gap:12},parameter:{flexGrow:1,flexBasis:'44%',minWidth:115,gap:8},
+  input:{backgroundColor:colors.background,borderWidth:1,borderColor:colors.border,borderRadius:12,paddingHorizontal:12},fieldLabel:{fontSize:12,fontWeight:'600',color:colors.mutedText},
+  picker:{minHeight:50,backgroundColor:colors.background,borderWidth:1,borderColor:colors.border,borderRadius:12,overflow:'hidden'},
+  meta:{fontSize:12,lineHeight:18,color:colors.mutedText},yearFilter:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:8},
+  enrollmentSummary:{flexDirection:'row',flexWrap:'wrap',gap:12,paddingBottom:14,borderBottomWidth:1,borderBottomColor:colors.border},summaryValue:{fontSize:14,fontWeight:'700',color:colors.text},
+  sessionGrid:{flexDirection:'row',flexWrap:'wrap',gap:10},sessionDetail:{flexGrow:1,flexBasis:'44%',minWidth:110,gap:5,backgroundColor:colors.background,padding:12,borderRadius:12},
+  timer:{alignSelf:'center',flexDirection:'row',alignItems:'center',gap:8,backgroundColor:colors.accentSoft,padding:12,borderRadius:12},timerText:{fontSize:16,fontWeight:'700',color:colors.accent},
+  results:{flexDirection:'row',gap:12},sectionHeader:{fontSize:15,fontWeight:'700',color:colors.text,marginVertical:12},
+  studentCard:{padding:14,borderRadius:14,marginBottom:8,flexDirection:'row',alignItems:'center',gap:10},statusPill:{fontSize:12,fontWeight:'700',paddingHorizontal:10,paddingVertical:7,borderRadius:9},
 });
-

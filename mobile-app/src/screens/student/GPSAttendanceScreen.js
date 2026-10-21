@@ -1,15 +1,8 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import { useStudentVisible } from '../../components/student/StudentPresentation';
 import colors from '../../theme/colors';
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  StyleSheet,
-  Platform
-} from 'react-native';
+import { View, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
@@ -291,7 +284,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '700', marginBottom: 6 },
   meta: { color: colors.mutedText, fontSize: 14, marginBottom: 8 },
   markBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.buttonBackground,
     padding: 14, minHeight: 48,
     borderRadius: 12,
     alignItems: 'center',

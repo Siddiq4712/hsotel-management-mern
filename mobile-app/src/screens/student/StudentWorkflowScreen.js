@@ -1,5 +1,6 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react-native';
 import moment from 'moment';
@@ -10,9 +11,7 @@ import { StudentPresentation, useStudentVisible } from '../../components/student
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import GPSAttendanceScreen from './GPSAttendanceScreen';
-import ApplyLeaveScreen from './ApplyLeaveScreen';
 import MyLeavesScreen from './MyLeavesScreen';
-import OutpassRequestScreen from './OutpassRequestScreen';
 import OutpassStatusScreen from './OutpassStatusScreen';
 import MessReductionsScreen from '../MessReductionsScreen';
 
@@ -90,40 +89,20 @@ export default function StudentWorkflowScreen({ navigation, route }) {
   const initial = sections.some(([key]) => key === route.params?.workflow) ? route.params.workflow : 'attendance';
   const [section, setSection] = useState(initial);
   const [visited, setVisited] = useState({ [initial]: true });
-  const [views, setViews] = useState({ leave: 'form', gatepass: 'history' });
-  const [visitedViews, setVisitedViews] = useState({});
-  const [historyRevision, setHistoryRevision] = useState(0);
-  const [formRevision, setFormRevision] = useState({ leave: 0, gatepass: 0 });
   const choose = useCallback(key => {
     setVisited(current => current[key] ? current : { ...current, [key]: true }); setSection(key);
   }, []);
   useEffect(() => {
-    if (views[section]) {
-      const key = section + ':' + views[section];
-      setVisitedViews(current => current[key] ? current : { ...current, [key]: true });
-    }
-  }, [section, views]);
-  const seen = (key, view) => visitedViews[key + ':' + view] || (section === key && views[key] === view);
-  useEffect(() => {
     const key = route.params?.workflow;
-    if (sections.some(([value]) => value === key)) {
-      setSection(key); setVisited(current => current[key] ? current : { ...current, [key]: true });
-      if (route.params?.view) setViews(current => ({ ...current, [key]: route.params.view }));
+    if (sections.some(([value]) => value === key)) choose(key);
+    const form = { leave: 'ApplyLeave', reduction: 'MessReductionRequest', gatepass: 'OutpassRequest' }[key];
+    if (form && route.params?.view === 'form') {
+      navigation.setParams({ view: 'history' });
+      navigation.navigate(form);
     }
-  }, [route.params?.workflow, route.params?.view, route.params?.request]);
-  const formNavigation = useCallback(key => ({
-    ...navigation,
-    navigate: (name, params) => {
-      if (name === 'ApplyLeave') { choose('leave'); setViews(v => ({ ...v, leave: 'form' })); }
-      else if (name === 'OutpassRequest') { choose('gatepass'); setViews(v => ({ ...v, gatepass: 'form' })); }
-      else navigation.navigate(name, params);
-    },
-    goBack: () => { setViews(v => ({ ...v, [key]: 'history' })); setHistoryRevision(n => n + 1); setFormRevision(v => ({ ...v, [key]: v[key] + 1 })); },
-  }), [navigation, choose]);
-  const leaveNavigation = useMemo(() => formNavigation('leave'), [formNavigation]);
-  const passNavigation = useMemo(() => formNavigation('gatepass'), [formNavigation]);
+  }, [route.params?.workflow, route.params?.view, route.params?.request, choose, navigation]);
   return <View style={styles.page}>
-    <Header title="Workflows" back />
+    <Header title="Student services" />
     <View style={styles.segmentBar}>
       {sections.map(([key, label]) => <TouchableOpacity key={key} accessibilityRole="tab"
         accessibilityState={{ selected: section === key }} onPress={() => choose(key)}
@@ -131,26 +110,11 @@ export default function StudentWorkflowScreen({ navigation, route }) {
         <Text style={[styles.segmentText, section === key && { color: colors.primary }]}>{label}</Text>
       </TouchableOpacity>)}
     </View>
-    {['leave', 'gatepass'].includes(section) && <View style={styles.viewSwitch}>
-      <Text style={styles.sectionTitle}>{section === 'leave' ? 'Leave application' : 'Digital gate pass'}</Text>
-      <View style={{ flexDirection: 'row', gap: 6 }}>{[['form', 'Request'], ['history', section === 'leave' ? 'History' : 'My pass']].map(([key, label]) =>
-        <TouchableOpacity key={key} accessibilityRole="button" accessibilityState={{ selected: views[section] === key }}
-          onPress={() => setViews(v => ({ ...v, [section]: key }))}
-          style={[styles.mode, views[section] === key && { backgroundColor: colors.primarySoft }]}>
-          <Text style={{ color: views[section] === key ? colors.primary : colors.mutedText, fontSize: 12, fontWeight: '600' }}>{label}</Text>
-        </TouchableOpacity>)}</View>
-    </View>}
     <View style={styles.panel}>
       {visited.attendance && <WorkflowPanel active={section === 'attendance'}><AttendanceSection /></WorkflowPanel>}
-      {visited.leave && <View style={[styles.panel, section !== 'leave' && styles.hidden]}>
-        {seen('leave', 'form') && <WorkflowPanel active={section === 'leave' && views.leave === 'form'}><ApplyLeaveScreen key={`leave-form-${formRevision.leave}`} navigation={leaveNavigation} /></WorkflowPanel>}
-        {seen('leave', 'history') && <WorkflowPanel active={section === 'leave' && views.leave === 'history'}><MyLeavesScreen refreshToken={historyRevision} navigation={leaveNavigation} /></WorkflowPanel>}
-      </View>}
-      {visited.reduction && <WorkflowPanel active={section === 'reduction'}><MessReductionsScreen studentLayout embedded /></WorkflowPanel>}
-      {visited.gatepass && <View style={[styles.panel, section !== 'gatepass' && styles.hidden]}>
-        {seen('gatepass', 'form') && <WorkflowPanel active={section === 'gatepass' && views.gatepass === 'form'}><OutpassRequestScreen key={`pass-form-${formRevision.gatepass}`} navigation={passNavigation} /></WorkflowPanel>}
-        {seen('gatepass', 'history') && <WorkflowPanel active={section === 'gatepass' && views.gatepass === 'history'}><OutpassStatusScreen refreshToken={historyRevision} navigation={passNavigation} /></WorkflowPanel>}
-      </View>}
+      {visited.leave && <WorkflowPanel active={section === 'leave'}><MyLeavesScreen navigation={navigation} /></WorkflowPanel>}
+      {visited.reduction && <WorkflowPanel active={section === 'reduction'}><MessReductionsScreen studentLayout embedded view="history" navigation={navigation} /></WorkflowPanel>}
+      {visited.gatepass && <WorkflowPanel active={section === 'gatepass'}><OutpassStatusScreen navigation={navigation} /></WorkflowPanel>}
     </View>
   </View>;
 }
@@ -160,8 +124,6 @@ const styles = StyleSheet.create({
   segment: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 11, paddingHorizontal: 2 },
   selectedSegment: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   segmentText: { fontSize: 11, fontWeight: '700', color: colors.mutedText, textAlign: 'center' },
-  viewSwitch: { paddingHorizontal: 16, marginBottom: 8, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  mode: { minHeight: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
   sectionTitle: { fontSize: 16, color: colors.text, fontWeight: '700', flexShrink: 1 },
   monthRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   iconButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },

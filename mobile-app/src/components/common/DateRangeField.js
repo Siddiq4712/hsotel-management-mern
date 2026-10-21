@@ -1,5 +1,6 @@
+import { Text } from "./ReferenceDesign";
 import React, { useState } from 'react';
-import { View, Text, Modal, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Modal, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import moment from 'moment';
 import Button from './Button';
@@ -7,7 +8,7 @@ import colors from '../../theme/colors';
 import { dateKey, inclusiveDays, monthDays, selectRangeDay } from '../../utils/dateRange';
 
 // Native equivalent of the web Duration RangePicker; values stay YYYY-MM-DD.
-export default function DateRangeField({ from, to, onChange, minimumDate, disabled = false, label = 'Duration *', style, className }) {
+export default function DateRangeField({ from, to, onChange, minimumDate, disabled = false, label = 'Duration *', style, className, compact = false }) {
   const [visible, setVisible] = useState(false);
   const [draft, setDraft] = useState({ from: '', to: '' });
   const [month, setMonth] = useState(moment().startOf('month').format('YYYY-MM-DD'));
@@ -23,18 +24,24 @@ export default function DateRangeField({ from, to, onChange, minimumDate, disabl
   const calendarDays = monthDays(month);
   const weekCount = Math.ceil((moment(month).startOf('month').day() + moment(month).daysInMonth()) / 7);
   return <View className={className} style={[styles.field, style]}>
-    <View style={styles.labelRow}><Text style={styles.label}>{label}</Text>
-      {!!days && <Text style={styles.help}>{days} {days === 1 ? 'day' : 'days'}, inclusive</Text>}
+    <View style={styles.labelRow}><Text style={styles.label}>{compact ? label.replace(/\s*\*$/, '') : label}{compact && label.endsWith('*') && <Text style={{ color: colors.danger }}> *</Text>}</Text>
+      {!compact && !!days && <Text style={styles.help}>{days} {days === 1 ? 'day' : 'days'}, inclusive</Text>}
     </View>
     <Button variant="secondary" disabled={disabled} onPress={open} accessibilityLabel="Select duration date range"
       accessibilityHint="Choose the start and end dates in the calendar."
-      style={styles.trigger}>
-      <View style={styles.rangeValues}>
+      style={[styles.trigger, compact && { minHeight: 54, height: 'auto', paddingVertical: 10, backgroundColor: colors.card, borderColor: colors.borderStrong }]}>
+      {compact ? <>
+        <CalendarDays color={colors.text} size={20} />
+        <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ fontSize: 12, fontWeight: '600', color: colors.text }}>{from && to ? `${moment(from).format('DD MMM YYYY')} → ${moment(to).format('DD MMM YYYY')}` : 'Select dates'}</Text>
+          <Text style={{ fontSize: 12, color: colors.mutedText }}>{days ? `${days} ${days === 1 ? 'day' : 'days'}, inclusive` : 'Choose start and end dates'}</Text>
+        </View><ChevronRight size={18} color={colors.text} />
+      </> : <><View style={styles.rangeValues}>
         <Text style={[styles.value, styles.dateValue]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{from ? moment(from).format('DD MMM YYYY') : 'Start date'}</Text>
         <Text style={styles.arrow}>→</Text>
         <Text style={[styles.value, styles.dateValue]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{to ? moment(to).format('DD MMM YYYY') : 'End date'}</Text>
       </View>
-      <CalendarDays color={colors.primary} size={18} style={{ flexShrink: 0 }} />
+      <CalendarDays color={colors.primary} size={18} style={{ flexShrink: 0 }} /></>}
     </Button>
     <Modal visible={visible} transparent animationType="fade" onRequestClose={() => setVisible(false)}>
       <View style={styles.overlay}><View style={styles.dialog}>

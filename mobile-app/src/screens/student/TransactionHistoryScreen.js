@@ -1,8 +1,10 @@
+import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
+import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { CreditCard, Calendar, DollarSign, CheckCircle, XCircle, Clock, Filter } from 'lucide-react-native';
 import moment from 'moment';
@@ -85,47 +87,17 @@ const TransactionHistoryScreen = () => {
         </View>
 
         {/* Statistics */}
-        <View className="flex-row flex-wrap justify-between mb-8">
-          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mb-2">
-            <View className="flex-row items-center">
-              <CreditCard className="text-blue-600" size={24} />
-              <View className="ml-3">
-                <Text className="text-sm text-gray-600">Total Txns</Text>
-                <Text className="text-2xl font-bold text-blue-900">{transactions.length}</Text>
-              </View>
-            </View>
-          </Card>
-          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mb-2">
-            <View className="flex-row items-center">
-              <DollarSign className="text-green-600" size={24} />
-              <View className="ml-3">
-                <Text className="text-sm text-gray-600">Total Amount</Text>
-                <Text className="text-2xl font-bold text-green-900">₹{totalAmount.toFixed(2)}</Text>
-              </View>
-            </View>
-          </Card>
-          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mt-2">
-            <View className="flex-row items-center">
-              <CheckCircle className="text-green-600" size={24} />
-              <View className="ml-3">
-                <Text className="text-sm text-gray-600">Completed</Text>
-                <Text className="text-2xl font-bold text-green-900">
-                  {transactions.filter(t => t.status === 'completed').length}
-                </Text>
-              </View>
-            </View>
-          </Card>
-          <Card className="w-[48%] bg-white rounded-2xl shadow-sm p-3 mt-2">
-            <View className="flex-row items-center">
-              <Clock className="text-yellow-600" size={24} />
-              <View className="ml-3">
-                <Text className="text-sm text-gray-600">Pending</Text>
-                <Text className="text-2xl font-bold text-yellow-900">
-                  {transactions.filter(t => t.status === 'pending').length}
-                </Text>
-              </View>
-            </View>
-          </Card>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
+          {[
+            ['Total Txns', transactions.length, CreditCard],
+            ['Total Amount', `₹${totalAmount.toFixed(2)}`, DollarSign],
+            ['Completed', transactions.filter(t => t.status === 'completed').length, CheckCircle],
+            ['Pending', transactions.filter(t => t.status === 'pending').length, Clock],
+          ].map(([label, value, Icon]) => <HighlightCard key={label} style={{ flexGrow: 1, flexBasis: '46%', padding: 16 }}>
+            <View style={[highlightStyles.badge, { alignSelf: 'flex-start' }]}><Icon size={22} color={colors.highlightText} /></View>
+            <Text style={highlightStyles.detail}>{label}</Text>
+            <Text style={[highlightStyles.value, { fontSize: 24 }]}>{value}</Text>
+          </HighlightCard>)}
         </View>
 
         {/* Transactions List */}

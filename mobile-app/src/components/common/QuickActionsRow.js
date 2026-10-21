@@ -1,5 +1,6 @@
+import { Text } from "./ReferenceDesign";
 import React, { useMemo } from 'react';
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { ScrollView, View, TouchableOpacity, StyleSheet } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import colors from '../../theme/colors';
 

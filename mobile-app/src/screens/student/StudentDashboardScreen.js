@@ -1,4 +1,4 @@
-import { LinearGradient } from 'expo-linear-gradient';
+import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
@@ -25,6 +25,7 @@ const StudentDashboardScreen = ({ navigation }) => {
   const { width } = useWindowDimensions();
   const { user } = useAuth();
   const [profile, setProfile] = useState(null);
+  const [monthlyCharges, setMonthlyCharges] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -37,6 +38,17 @@ const StudentDashboardScreen = ({ navigation }) => {
     try { setProfile((await studentAPI.getProfile()).data.data); }
     catch (e) { console.error(e); }
     finally { setLoading(false); }
+  }, []);
+
+  const fetchCharges = useCallback(async () => {
+    try {
+      const response = await studentAPI.getMyDailyMessCharges({ month: moment().month() + 1, year: moment().year() });
+      const summary = response.data.data?.monthlySummary;
+      if (!summary) { setMonthlyCharges(null); return; }
+      const food = summary.historicalMessAmount ?? Number(summary.monthlyCalculatedDailyRate || 0) * Number(summary.studentTotalManDaysForMonth || 0);
+      const flatFees = (summary.flatFees || []).reduce((sum, fee) => sum + Number(fee.amount || 0), 0);
+      setMonthlyCharges(Number(summary.historicalFinalAmount ?? (Number(food) + Number(summary.totalMonthlySpecialFoodCost || 0) + flatFees)));
+    } catch (e) { setMonthlyCharges(null); console.error(e); }
   }, []);
 
   const fetchExpenses = useCallback(async () => {
@@ -60,12 +72,13 @@ const StudentDashboardScreen = ({ navigation }) => {
   }, [selectedYear, selectedMonth]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
+  useEffect(() => { fetchCharges(); }, [fetchCharges]);
   useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
   useEffect(() => { fetchHeatmap(); }, [fetchHeatmap]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchProfile(), fetchExpenses(), fetchHeatmap()]);
+    await Promise.all([fetchProfile(), fetchCharges(), fetchExpenses(), fetchHeatmap()]);
     setRefreshing(false);
   };
 
@@ -120,23 +133,28 @@ const StudentDashboardScreen = ({ navigation }) => {
       {loading && !refreshing && <ActivityIndicator color={colors.primary} />}
       <View style={styles.stats}>
         <Card style={styles.stat}><Text style={styles.eyebrow}>ATTENDANCE</Text>
-          <Text style={styles.statValue}>{ratio == null ? '—' : `${ratio}%`}</Text>
+          <Text style={[styles.statValue, { color: colors.primaryDark }]}>{ratio == null ? '—' : `${ratio}%`}</Text>
           <Text style={styles.small}>{moment().month(selectedMonth - 1).format('MMMM')} · P / OD</Text>
         </Card>
         <Card style={styles.stat}><Text style={styles.eyebrow}>YOUR ROOM</Text>
-          <Text style={styles.statValue}>{room || 'Not allotted'}</Text>
+          <Text style={[styles.statValue, { color: colors.primaryDark }, !room && { fontSize: 16 }]}>{room || 'Not allotted'}</Text>
           <Text style={styles.small}>{profile?.Hostel?.name || 'Room details in Profile'}</Text>
         </Card>
       </View>
-      <LinearGradient colors={[colors.primary, colors.primaryDark]} style={styles.feeCard}>
-        <Text style={styles.feeLabel}>{profile?.Hostel?.show_fee_reminder == 1 ? 'ANNUAL HOSTEL FEE · NEEDS ATTENTION' : 'MESS & HOSTEL CHARGES'}</Text>
-        <Text style={styles.feeValue}>{profile?.Hostel?.show_fee_reminder == 1 ? `₹${profile?.Hostel?.annual_fee_amount ?? '—'}` : 'Your monthly statement'}</Text>
-        <Text style={styles.feeDetail}>View food charges, additional food and approved reductions.</Text>
+      <HighlightCard gradientColors={colors.chargesGradient} style={styles.feeCard}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <Text style={[styles.feeLabel, { flex: 1 }]}>{profile?.Hostel?.show_fee_reminder == 1 ? 'ANNUAL HOSTEL FEE · NEEDS ATTENTION' : 'MESS & HOSTEL CHARGES'}</Text>
+          <View style={[highlightStyles.badge, { flexShrink: 0 }]}><Text style={{ color: colors.card, fontSize: 10, fontWeight: '700' }}>{moment().format('MMM YYYY').toUpperCase()}</Text></View>
+        </View>
+        <View style={{ gap: 4, marginTop: 10 }}>
+          <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={styles.feeValue}>{profile?.Hostel?.show_fee_reminder == 1 ? `₹${profile?.Hostel?.annual_fee_amount ?? '—'}` : monthlyCharges == null ? '—' : `₹${monthlyCharges.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</Text>
+          <Text style={[highlightStyles.detail, { fontSize: 11, lineHeight: 17 }]}>Includes food, additional orders and approved reductions.</Text>
+        </View>
         <Button variant="secondary" onPress={() => navigation.navigate('MessCharges', { screen: 'MessOverview' })}
-          style={{ backgroundColor: colors.card, marginTop: 6, paddingVertical: 12, paddingHorizontal: 16 }}>
-          <Text style={{ color: colors.primary, fontWeight: '700' }}>View fee details</Text>
+          style={[highlightStyles.button, { alignSelf: 'flex-start', marginTop: 12, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 14, gap: 10 }]}>
+          <Text style={{ color: '#39359D', fontSize: 12, fontWeight: '700' }}>View statement</Text><ChevronRight size={18} color="#39359D" />
         </Button>
-      </LinearGradient>
+      </HighlightCard>
       <View style={styles.sectionRow}><Text style={styles.sectionTitle}>Quick actions</Text>
         <View style={styles.swipeHint}><Text style={styles.small}>Swipe</Text><ChevronRight size={15} color={colors.mutedText} /></View>
       </View>
@@ -200,8 +218,8 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 13, color: colors.mutedText, lineHeight: 20 }, stats: { flexDirection: 'row', gap: 12 },
   stat: { flex: 1, padding: 16, gap: 8 }, eyebrow: { fontSize: 10, letterSpacing: 0.8, color: colors.mutedText, fontWeight: '600' },
   statValue: { fontSize: 23, color: colors.text, fontWeight: '700' }, small: { fontSize: 12, color: colors.mutedText, lineHeight: 18 },
-  feeCard: { borderRadius: 20, padding: 20, gap: 10 }, feeLabel: { color: colors.card, fontSize: 10, fontWeight: '600', letterSpacing: 0.7 },
-  feeValue: { color: colors.card, fontSize: 25, fontWeight: '700' }, feeDetail: { color: colors.card, fontSize: 13, lineHeight: 20 },
+  feeCard: { borderRadius: 24, padding: 20, gap: 10, boxShadow: 'none' }, feeLabel: { color: colors.card, fontSize: 9, fontWeight: '700', letterSpacing: 0.7 },
+  feeValue: { color: colors.card, fontSize: 28, lineHeight: 36, fontWeight: '800' }, feeDetail: { color: colors.card, fontSize: 13, lineHeight: 20 },
   sectionTitle: { color: colors.text, fontSize: 16, fontWeight: '700' }, quickRow: { gap: 12, paddingBottom: 4 }, swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 2 }, chart: { borderRadius: 12, marginLeft: -8 },
   quickAction: { width: 104, alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.card, padding: 12, minHeight: 100, borderWidth: 1, borderColor: colors.border, borderRadius: 16 },
   quickIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, quickLabel: { color: colors.text, fontSize: 12, fontWeight: '600', textAlign: 'center' },

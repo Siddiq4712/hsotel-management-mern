@@ -1,12 +1,12 @@
+import { Text, Segments } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal, RefreshControl } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal, RefreshControl } from 'react-native';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
-import { Picker } from '@react-native-picker/picker';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { Calendar, History, Minus, Plus, XCircle, Search } from 'lucide-react-native';
 import moment from 'moment';
@@ -92,22 +92,17 @@ export default function StudentFoodOrderScreen({ navigation }) {
       <View className="flex-row items-center bg-white border border-gray-200 rounded-xl px-4 mb-4">
         <Search size={19} color={colors.mutedText} /><Input accessibilityLabel="Search additional food" placeholder="Search food..." value={search} onChangeText={setSearch} className="flex-1 ml-3" />
       </View>
-      <Text className="text-gray-600 mb-4">Choose food from the weekly schedule, add it, and confirm a serving date.</Text>
       <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate('MyFoodOrders')} className="flex-row items-center self-start mb-4 py-2">
-        <History size={18} color={colors.primary} /><Text className="text-blue-600 font-semibold ml-2">My Additional Food Orders</Text>
+        <History size={18} color={colors.primary} /><Text className="text-blue-600 font-semibold ml-2">My orders</Text>
       </TouchableOpacity>
-      <Card className="border border-gray-300 rounded-2xl bg-white mb-3">
-        <Picker accessibilityLabel="Food category" selectedValue={category} onValueChange={setCategory}>
-          <Picker.Item label="All categories" value="all" />
-          {categories.map(value => <Picker.Item key={value} label={value} value={value} />)}
-        </Picker>
-      </Card>
-      <Card className="border border-gray-300 rounded-2xl bg-white mb-3">
-        <Picker accessibilityLabel="Meal" selectedValue={meal} onValueChange={setMeal}>
-          <Picker.Item label="All meals" value="all" />
-          {['Breakfast', 'Lunch', 'Dinner'].map(value => <Picker.Item key={value} label={value} value={value} />)}
-        </Picker>
-      </Card>
+      <View accessibilityLabel="Food category" style={{ gap: 6, marginBottom: 12 }}>
+        <Text style={{ color: colors.mutedText, fontSize: 12, fontWeight: '600' }}>Category</Text>
+        <Segments items={[[ 'all', 'All categories' ], ...categories.map(value => [value, value])]} value={category} onChange={setCategory} />
+      </View>
+      <View accessibilityLabel="Meal" style={{ gap: 6, marginBottom: 16 }}>
+        <Text style={{ color: colors.mutedText, fontSize: 12, fontWeight: '600' }}>Meal</Text>
+        <Segments items={[[ 'all', 'All meals' ], ...['Breakfast', 'Lunch', 'Dinner'].map(value => [value, value])]} value={meal} onChange={setMeal} />
+      </View>
       {loading && !foods.length ? <ActivityIndicator size="large" color={colors.primary} /> : visible.length ? <View>
         {visible.map(food => <FoodItemCard key={food.id} item={food} onAdd={add} now={now} />)}
       </View> : <Text className="text-center text-gray-600 py-12">No additional food available in this category.</Text>}

@@ -1,11 +1,15 @@
+import { Segments, useEmbeddedHeader } from '../../components/common/ReferenceDesign';
+import colors from '../../theme/colors';
+import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
-import Input from '../../components/common/Input';
+import { StudentIdentity, SearchField, AttendanceSort } from '../../components/warden/WardenUI';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, FlatList, TouchableOpacity, ActivityIndicator, Alert, StyleSheet } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import moment from 'moment';
+import { CalendarDays, ChevronDown, LockKeyhole } from 'lucide-react-native';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import { sortAttendanceStudents } from '../../utils/attendanceSort';
@@ -15,10 +19,12 @@ export default function AttendanceRecordsScreen({ navigation }) {
   const [search,setSearch]=useState(''),[loading,setLoading]=useState(false),[saving,setSaving]=useState(false);
   const [loadError,setLoadError]=useState(false);
   const [changes,setChanges]=useState({});
+  const embedded = useEmbeddedHeader();
+  const [attendanceFilter,setAttendanceFilter]=useState('all');
   const [sortBy,setSortBy]=useState('name');
   const visibleStudents=useMemo(()=>sortAttendanceStudents(students.filter(student=>
-    `${student.userName||student.username||''} ${student.roll_number||''} ${student.room_number??''}`.toLowerCase().includes(search.toLowerCase())
-  ),sortBy),[students,search,sortBy]);
+    `${student.userName||student.username||''} ${student.roll_number||''} ${student.room_number??''}`.toLowerCase().includes(search.toLowerCase()) && (attendanceFilter === 'all' || !(changes[student.userId ?? student.id] ?? records.find(row => Number(row.student_id) === Number(student.userId ?? student.id))?.status))
+  ),sortBy),[students,search,sortBy,attendanceFilter,changes,records]);
   const savingRef=useRef(false);
   const load=useCallback(async()=>{
     setLoading(true);setLoadError(false);setChanges({});
@@ -50,39 +56,60 @@ export default function AttendanceRecordsScreen({ navigation }) {
   };
   return <Screen className="flex-1 bg-background"><Header/>
     <FlatList style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:16,paddingBottom:32}}
-    ListHeaderComponent={<View>
-    <View className="flex-row items-center justify-between mb-4" style={{gap:12}}>
-      <Text className="text-2xl font-bold text-indigo-900" style={{flex:1}}>Attendance</Text>
-      <Button variant="secondary" onPress={()=>navigation.navigate('GPSAttendance')}>GPS attendance</Button>
-    </View>
-    <Text className="bg-indigo-50 p-3 rounded-xl mb-4 text-gray-600">Presence records do not grant food reductions. Use Mess Reductions for documented approval. Approval-linked attendance is managed through its request.</Text>
-    <TouchableOpacity disabled={saving||loading} className="bg-white border border-gray-200 p-3 rounded-xl mb-4" onPress={()=>setPicker(true)}><Text>{moment(date).format('DD MMM YYYY')} — select date</Text></TouchableOpacity>
-    <Input accessibilityLabel="Search attendance" placeholder="Search name, roll number or room" value={search} onChangeText={setSearch} className="p-3 bg-white rounded-xl mb-4"/>
-    <Text className="text-sm font-semibold text-gray-700 mb-2">Sort by</Text>
-    <View className="flex-row flex-wrap mb-4" style={{gap:8}}>
-      {[['name','Name'],['room_asc','Room ↑'],['room_desc','Room ↓']].map(([value,label])=><Button key={value}
-        variant={sortBy===value?'primary':'secondary'} accessibilityLabel={value==='name'?'Sort by student name':`Sort by room number ${value==='room_asc'?'ascending':'descending'}`}
-        accessibilityState={{selected:sortBy===value}} onPress={()=>setSortBy(value)} style={{flexGrow:1}}>{label}</Button>)}
-    </View>
-    <View className="flex-row mb-4" style={{gap:12}}>{[['P','Present all'],['A','Absent all']].map(([status,label])=><Button key={status} accessibilityRole="button" disabled={saving||loading||loadError||!editable.length} onPress={()=>markAll(status)} style={{flex:1}} variant={status==='P'?'primary':'danger'}>{label}</Button>)}</View>
-    <Text className="text-gray-600 mb-4">Select the whole roster, search and adjust individual students, then tap Save attendance to confirm. Approved reduction entries stay locked.</Text>
-    {loading&&<ActivityIndicator/>}
+    ListHeaderComponent={<View style={{ gap: 12, paddingBottom: 12 }}>
+      {!embedded && <View style={styles.standaloneHeading}><Text style={styles.title}>Attendance</Text><Button variant="secondary" onPress={()=>navigation.navigate('GPSAttendance')}>GPS session</Button></View>}
+      <View style={styles.filters}>
+        <Button variant="ghost" disabled={saving||loading} accessibilityLabel="Choose attendance date" onPress={()=>setPicker(true)} style={styles.date}>
+          <CalendarDays size={18} color={colors.mutedText} /><Text style={styles.dateText}>{moment(date).format('DD MMM YYYY')}</Text><ChevronDown size={16} color={colors.mutedText} />
+        </Button>
+        <SearchField accessibilityLabel="Search attendance" placeholder="Search student or room" value={search} onChangeText={setSearch} style={styles.search} />
+      </View>
+      <Segments items={[[ 'all', 'All students' ], [ 'unmarked', 'Unmarked' ]]} value={attendanceFilter} onChange={setAttendanceFilter} />
+      <AttendanceSort value={sortBy} onChange={setSortBy} />
+      <View style={styles.bulk}>
+        <Text style={styles.meta}>{visibleStudents.length} students · {Object.keys(changes).length} unsaved changes</Text>
+        <View style={styles.bulkButtons}>{[['P','Present all'],['A','Absent all']].map(([status,label])=><Button key={status} variant="ghost"
+          disabled={saving||loading||loadError||!editable.length} onPress={()=>markAll(status)} style={styles.bulkButton}>
+          <Text style={{fontSize:12,fontWeight:'700',color:status==='P'?colors.success:colors.danger}}>{label}</Text>
+        </Button>)}</View>
+      </View>
+      {loading&&<ActivityIndicator color={colors.primary}/>}
     </View>}
     data={visibleStudents} keyExtractor={s=>String(s.userId??s.id)} renderItem={({item})=>{
       const id=item.userId??item.id,record=records.find(r=>Number(r.student_id)===Number(id));
       const selectedStatus=changes[id]??record?.status;
-      return <Card className="bg-white rounded-2xl p-4 mb-3 border border-gray-200">
-        <Text className="font-bold">{item.userName||item.username}</Text><Text>{item.roll_number}</Text>
-        <Text className="text-gray-600 mt-1">Room: {String(item.room_number??'').trim()||'Not allotted'}</Text>
-        <Text className="my-2">{({P:'Present',A:'Absent',OD:'OD'})[selectedStatus]||'Unmarked'}</Text>
-        {record?.reduction_request_id?<Text className="text-indigo-700">Approved reduction #{record.reduction_request_id} · {record.ReductionRequest?.category} · {record.MarkedBy?.userName}</Text>
-          :<View className="flex-row flex-wrap" style={{gap:8}}>{[['P','Present'],['A','Absent'],['OD','OD']].map(([status,label])=><TouchableOpacity key={status} accessibilityRole="radio" accessibilityState={{checked:selectedStatus===status,disabled:saving||loading||loadError}} accessibilityLabel={`${label} for ${item.userName||item.username}`} disabled={saving||loading||loadError} onPress={()=>mark(id,status)} style={{minHeight:48,justifyContent:'center'}} className={`p-3 border rounded-xl ${selectedStatus===status?'bg-indigo-100 border-indigo-600':'bg-white border-gray-300'}`}><Text className="text-indigo-900">{selectedStatus===status?'✓ ':''}{label}</Text></TouchableOpacity>)}</View>}
+      return <Card style={[styles.rosterCard, record?.reduction_request_id && styles.locked]}>
+        <View style={styles.rosterRow}>
+          <StudentIdentity name={item.userName||item.username} meta={[item.roll_number,'Room '+(String(item.room_number??'').trim()||'not allotted')].filter(Boolean).join(' · ')} style={styles.identity} />
+          {record?.reduction_request_id ? <View style={styles.lockedBadge}><LockKeyhole size={13} color={colors.primary}/><Text style={styles.lockedText}>{selectedStatus || '—'} · Locked</Text></View>
+            : <View style={styles.choices}>{[['P','Present'],['A','Absent'],['OD','On duty']].map(([status,label])=><TouchableOpacity key={status}
+              accessibilityRole="radio" accessibilityState={{checked:selectedStatus===status,disabled:saving||loading||loadError}}
+              accessibilityLabel={label+' for '+(item.userName||item.username)} disabled={saving||loading||loadError} onPress={()=>mark(id,status)}
+              style={[styles.choice,selectedStatus===status&&{borderColor:({P:colors.success,A:colors.danger,OD:colors.accent})[status],backgroundColor:({P:colors.successSoft,A:colors.dangerSoft,OD:colors.accentSoft})[status]}]}>
+              <Text style={{fontSize:12,fontWeight:'700',color:selectedStatus===status?({P:colors.success,A:colors.danger,OD:colors.accent})[status]:colors.mutedText}}>{status}</Text>
+            </TouchableOpacity>)}</View>}
+        </View>
+        {record?.reduction_request_id && <Text style={styles.lockedDetail}>Reduction #{record.reduction_request_id}{record.ReductionRequest?.category ? ' · '+record.ReductionRequest.category : ''}{record.MarkedBy?.userName ? ' · '+record.MarkedBy.userName : ''}</Text>}
       </Card>;
     }}
-    ListEmptyComponent={!loading&&<Text className="text-gray-600 text-center my-4">{loadError?'Could not load the roster. Tap Refresh to retry.':'No matching students.'}</Text>}
-    ListFooterComponent={<View style={{gap:12,paddingTop:4}}>
-      <Button accessibilityLabel="Save attendance" disabled={saving||loading||loadError||!Object.keys(changes).length} onPress={save}>{saving?'Saving…':`Save attendance (${Object.keys(changes).length})`}</Button>
-      <Button variant="secondary" onPress={load} disabled={saving||loading}>Refresh</Button>
+    ListEmptyComponent={!loading&&<Text style={styles.empty}>{loadError?'Could not load the roster. Tap Refresh to retry.':'No matching students.'}</Text>}
+    ListFooterComponent={<View style={{gap:12,paddingTop:8}}>
+      <Button accessibilityLabel="Save attendance" disabled={saving||loading||loadError||!Object.keys(changes).length} onPress={save}>{saving?'Saving…':'Save attendance · '+Object.keys(changes).length+' changes'}</Button>
+      <Button variant="ghost" onPress={load} disabled={saving||loading}>Refresh</Button>
     </View>}/>
-  {picker&&<DateTimePicker value={date} mode="date" onChange={(event,value)=>{setPicker(false);if(value&&event.type!=='dismissed')setDate(value);}}/>}</Screen>;
+    {picker&&<DateTimePicker value={date} mode="date" onChange={(event,value)=>{setPicker(false);if(value&&event.type!=='dismissed')setDate(value);}}/>}
+  </Screen>;
 }
+const styles=StyleSheet.create({
+  standaloneHeading:{flexDirection:'row',alignItems:'center',gap:12},title:{flex:1,fontSize:24,fontWeight:'700',color:colors.primaryDark},
+  filters:{flexDirection:'row',flexWrap:'wrap',gap:8},
+  date:{flexGrow:1,flexBasis:135,minHeight:50,backgroundColor:colors.card,borderWidth:1,borderColor:colors.border,paddingHorizontal:10,gap:7,flexWrap:'nowrap'},
+  dateText:{flex:1,fontSize:12,fontWeight:'600'},search:{flexGrow:1.4,flexBasis:160},
+  bulk:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',justifyContent:'space-between',gap:4},
+  meta:{fontSize:12,lineHeight:18,color:colors.mutedText},bulkButtons:{flexDirection:'row',gap:4},bulkButton:{paddingHorizontal:8},
+  rosterCard:{padding:12,marginBottom:8,borderRadius:14,gap:8},
+  rosterRow:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',gap:10},identity:{flex:1,minWidth:112},
+  choices:{flexDirection:'row',gap:4},choice:{minWidth:48,minHeight:48,alignItems:'center',justifyContent:'center',borderRadius:9,borderWidth:1,borderColor:colors.border,backgroundColor:colors.background},
+  locked:{backgroundColor:colors.background},lockedBadge:{flexDirection:'row',alignItems:'center',gap:5,borderRadius:9,padding:8,backgroundColor:colors.primarySoft},lockedText:{fontSize:12,fontWeight:'700',color:colors.primary},lockedDetail:{fontSize:12,lineHeight:18,color:colors.mutedText},
+  empty:{color:colors.mutedText,textAlign:'center',paddingVertical:24},
+});

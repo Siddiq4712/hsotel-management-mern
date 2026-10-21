@@ -1,8 +1,9 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Alert, Image, TouchableOpacity } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Alert, Image, TouchableOpacity } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 import { studentAPI } from '../../api/api';
 import { User, Mail, Building, BookOpen, Phone, MapPin, Edit, Save, Bed } from 'lucide-react-native';

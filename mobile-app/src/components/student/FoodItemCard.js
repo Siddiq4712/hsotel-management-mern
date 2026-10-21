@@ -1,5 +1,6 @@
+import { Text } from "../common/ReferenceDesign";
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Plus, Clock3, CalendarDays } from 'lucide-react-native';
 import Button from '../common/Button';
 import Card from '../common/Card';
@@ -29,7 +30,7 @@ const FoodItemCard = React.memo(function FoodItemCard({ item, onAdd, now }) {
     <View style={styles.bottom}>
       <Text style={[styles.small, { flex: 1 }]}>Up to {item.max_quantity_per_student ?? 1} per student per date</Text>
       <Button onPress={() => onAdd(item)} disabled={closed} accessibilityLabel={`Add ${item.name}`}
-        style={{ paddingHorizontal: 18, paddingVertical: 12, backgroundColor: closed ? colors.surface : colors.primary }}>
+        style={{ paddingHorizontal: 18, paddingVertical: 12, backgroundColor: closed ? colors.surface : colors.buttonBackground }}>
         {!closed && <Plus size={18} color={colors.card} style={{ marginRight: 6 }} />}
         <Text style={{ color: closed ? colors.mutedText : colors.card, fontSize: 14, fontWeight: '700' }}>{closed ? 'Closed' : 'Add'}</Text>
       </Button>

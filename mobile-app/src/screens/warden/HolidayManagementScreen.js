@@ -1,3 +1,4 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Screen from '../../components/common/Screen';
 import Input from '../../components/common/Input';
@@ -5,14 +6,7 @@ import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  Modal,
-  Alert
-} from 'react-native';
+import { View, FlatList, TouchableOpacity, Modal, Alert } from 'react-native';
 
 import { Picker } from '@react-native-picker/picker';
 import moment from 'moment';

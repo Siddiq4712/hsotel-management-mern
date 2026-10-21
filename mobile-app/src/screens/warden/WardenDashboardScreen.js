@@ -1,32 +1,28 @@
+import { SectionTitle, ui } from '../../components/common/ReferenceDesign';
+import { AttendanceBreakdown } from '../../components/common/DashboardSummary';
+import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
+import { Text } from "../../components/common/ReferenceDesign";
 import QuickActionsRow from '../../components/common/QuickActionsRow';
 import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  RefreshControl,
-  TouchableOpacity,
-  useWindowDimensions,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import * as Location from 'expo-location'; // 1. Import Location
+import { View, ScrollView, RefreshControl, StyleSheet, Alert } from 'react-native';
+import * as Location from 'expo-location';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
+import WardenHomeDetails from '../../components/warden/WardenHomeDetails';
 import {
   Users,
   Bed,
   Clock,
-  AlertCircle,
-  MapPin, // 2. Import MapPin
+  MapPin,
   CheckCircle2,
-  CalendarCheck, FileText, DollarSign, MessageSquare, QrCode,
+  DoorOpen, TriangleAlert, RotateCw,
+  CalendarCheck, FileText, DollarSign, MessageSquare, QrCode, ChevronRight,
 } from 'lucide-react-native';
-import { LineChart } from 'react-native-chart-kit';
+import moment from 'moment';
 
 
 // STATIC HOSTEL COORDS (Change these to your hostel's actual location)
@@ -34,53 +30,10 @@ const HOSTEL_LAT = 9.1474619;
 const HOSTEL_LON = 77.8276993;
 const ALLOWED_RADIUS = 50; // meters
 
-const StatCard = React.memo(({ title, value, icon: Icon, color, subText, onPress }) => (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={!onPress}
-      className="bg-white p-4 rounded-2xl mb-4 border border-gray-200"
-    >
-      <View className="items-start">
-        <View className={`${color} p-3 rounded-xl mb-3`}>
-          <Icon size={24} color="white" />
-        </View>
-        <View className="w-full">
-          <Text className="text-gray-500 text-xs font-medium uppercase tracking-wider">
-            {title}
-          </Text>
-          <Text className="text-2xl font-bold text-indigo-900 mt-1">
-            {value}
-          </Text>
-          {subText && (
-            <Text className="text-gray-400 text-xs mt-1">
-              {subText}
-            </Text>
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  ));
-
-const chartConfig = {
-  backgroundGradientFrom: colors.card,
-  backgroundGradientTo: colors.card,
-  color: (opacity = 1) => colors.withOpacity(colors.primary, opacity),
-  strokeWidth: 2,
-  propsForDots: { r: '4', strokeWidth: '2', stroke: colors.primary },
-};
-
-const attendanceData = {
-  labels: ['Aug', 'Sep', 'Oct'],
-  datasets: [{ data: [95, 92, 98] }],
-};
-const AttendanceTrend = React.memo(function AttendanceTrend({ width }) {
-  return <LineChart data={attendanceData} width={width} height={200} chartConfig={chartConfig} bezier style={{ borderRadius: 16 }} />;
-});
-
 const WardenDashboardScreen = ({ navigation }) => {
-  const { width: screenWidth } = useWindowDimensions();
   const [stats, setStats] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [detailRefresh, setDetailRefresh] = useState(0);
   const [isVerifying, setIsVerifying] = useState(false); // GPS Loading state
   const [isVerified, setIsVerified] = useState(false);   // GPS Success state
 
@@ -145,6 +98,7 @@ const WardenDashboardScreen = ({ navigation }) => {
   }, []);
 
   const onRefresh = () => {
+    setDetailRefresh(value => value + 1);
     setRefreshing(true);
     fetchStats().finally(() => setRefreshing(false));
   };
@@ -153,109 +107,102 @@ const WardenDashboardScreen = ({ navigation }) => {
     { label: 'Attendance', icon: CalendarCheck, onPress: () => navigation.navigate('Attendance') },
     { label: 'Bills', icon: DollarSign, onPress: () => navigation.navigate('More', { screen: 'Bills', initial: false }) },
     { label: 'Complaints', icon: MessageSquare, color: colors.warning, backgroundColor: colors.warningSoft, onPress: () => navigation.navigate('More', { screen: 'Complaints', initial: false }) },
-    { label: 'Gate passes', icon: QrCode, onPress: () => navigation.navigate('GatePasses') },
+    { label: 'Gate passes', icon: QrCode, onPress: () => navigation.navigate('Requests', { kind: 'passes', request: Date.now() }) },
     { label: 'GPS Attendance', icon: MapPin, color: colors.accent, backgroundColor: colors.accentSoft, onPress: () => navigation.navigate('Attendance', { screen: 'GPSAttendance', initial: false }) },
-    { label: 'Leaves', icon: Clock, onPress: () => navigation.navigate('Leaves') },
-    { label: 'Reductions', icon: FileText, onPress: () => navigation.navigate('MessReductions') },
+    { label: 'Leaves', icon: Clock, onPress: () => navigation.navigate('Requests', { kind: 'leave', request: Date.now() }) },
+    { label: 'Reductions', icon: FileText, onPress: () => navigation.navigate('Requests', { kind: 'reductions', request: Date.now() }) },
     { label: 'Rooms', icon: Bed, onPress: () => navigation.navigate('More', { screen: 'Rooms', initial: false }) },
     { label: 'Students', icon: Users, onPress: () => navigation.navigate('More', { screen: 'Students', initial: false }) },
   ], [navigation]);
 
-  return (
-    <Screen className="flex-1 bg-background">
-      <Header />
-      <ScrollView keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        <Text className="text-2xl font-bold text-indigo-900 mb-2">
-          Hostel Overview
-        </Text>
-        <Text className="text-sm text-gray-500 mb-6">Your hostel, at a glance.</Text>
+  const pendingLeaves = Number(stats?.pendingLeaves || 0);
+  const pendingPasses = Number(stats?.outpasses?.pending || 0);
+  const pendingComplaints = Number(stats?.pendingComplaints || 0);
+  const pendingTotal = pendingLeaves + pendingPasses + pendingComplaints;
+  const reviewRequests = () => navigation.navigate('Requests', {
+    kind: pendingLeaves ? 'leave' : pendingPasses ? 'passes' : pendingComplaints ? 'complaints' : 'leave',
+    request: Date.now(),
+  });
 
-        <QuickActionsRow actions={actions} style={{ marginBottom: 20 }} />
-
-        {/* --- GPS VERIFICATION SECTION --- */}
-        <Card className="bg-white p-5 rounded-2xl mb-6 shadow-sm border-2 border-blue-50">
-          <View className="flex-row justify-between items-center mb-4">
-            <View>
-              <Text className="text-lg font-bold text-gray-900">Presence Check</Text>
-              <Text className="text-gray-500 text-xs">Verify your location within hostel</Text>
-            </View>
-            <MapPin size={24} color={isVerified ? colors.success : colors.primary} />
-          </View>
-
-          <Button
-            onPress={handleGPSVerify}
-            disabled={isVerifying}
-            className={`py-3 rounded-xl flex-row justify-center items-center ${
-              isVerified ? 'bg-green-500' : 'bg-blue-600'
-            }`}
-          >
-            {isVerifying ? (
-              <ActivityIndicator color="white" size="small" />
-            ) : isVerified ? (
-              <>
-                <CheckCircle2 size={18} color="white" className="mr-2" />
-                <Text className="text-white font-bold ml-2">Location Verified</Text>
-              </>
-            ) : (
-              <Text className="text-white font-bold">Mark My Attendance</Text>
-            )}
+  return <Screen className="flex-1 bg-background">
+    <Header />
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[ui.content, styles.content]}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
+      <View style={styles.intro}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={styles.roleBadge}><Text style={styles.roleText}>WARDEN</Text></View>
+          <Button variant="ghost" accessibilityLabel="Refresh hostel overview" disabled={refreshing} onPress={onRefresh} style={styles.refresh}>
+            <RotateCw size={21} color={colors.highlightStart} />
           </Button>
-        </Card>
-
-        {/* --- EXISTING STAT CARDS --- */}
-        <View className="flex-row flex-wrap justify-between">
-            <View style={{width: '48%'}}>
-                <StatCard
-                    title="Students"
-                    value={stats?.totalStudents || 0}
-                    icon={Users}
-                    color="bg-blue-500"
-                />
-            </View>
-            <View style={{width: '48%'}}>
-                <StatCard
-                    title="Beds"
-                    value={stats?.availableBeds || 0}
-                    icon={Bed}
-                    color="bg-green-500"
-                />
-            </View>
         </View>
-
-        <StatCard
-          title="Pending Leaves"
-          value={stats?.pendingLeaves || 0}
-          icon={Clock}
-          color="bg-yellow-500"
-          subText="Awaiting approval"
-          onPress={() => navigation.navigate('Leaves')}
-        />
-
-        <StatCard
-          title="Pending Complaints"
-          value={stats?.pendingComplaints || 0}
-          icon={AlertCircle}
-          color="bg-red-500"
-          subText="Open issues"
-          onPress={() => navigation.navigate('More', { screen: 'Complaints', initial: false })}
-        />
-
-        {/* --- CHART SECTION --- */}
-        <Card className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mt-4 mb-10">
-          <Text className="text-lg font-bold text-gray-900 mb-4">
-            Attendance Trend
-          </Text>
-          <AttendanceTrend width={Math.max(240, screenWidth - 64)} />
-          <Text className="text-xs text-gray-500 mt-3">Illustrative chart · sample values, not live attendance</Text>
-        </Card>
-      </ScrollView>
-    </Screen>
-  );
+        <Text accessibilityRole="header" style={styles.title}>Hostel overview</Text>
+        <Text style={styles.date}>{moment().format('dddd, D MMMM')}</Text>
+      </View>
+      <HighlightCard gradientColors={[colors.highlightEnd, colors.highlightStart]} style={styles.priority}>
+        <Text style={styles.priorityEyebrow}>NEXT PRIORITY</Text>
+        <View style={styles.priorityContent}>
+          <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
+            <Text style={styles.priorityTitle}>{stats ? pendingTotal === 1 ? '1 request needs review' : `${pendingTotal} requests need review` : 'Loading requests…'}</Text>
+            <Text style={styles.priorityDetail}>{stats ? `${pendingLeaves} leave · ${pendingPasses} gate pass · ${pendingComplaints} complaints` : 'Fetching current review counts'}</Text>
+          </View>
+          <Button variant="secondary" disabled={!stats} onPress={reviewRequests} style={[highlightStyles.button, styles.reviewButton]}>
+            <Text style={styles.reviewText}>Review now</Text><ChevronRight size={17} color={colors.highlightEnd} />
+          </Button>
+        </View>
+      </HighlightCard>
+      <View style={styles.metrics}>
+        {[
+          ['Students', stats?.totalStudents, Users],
+          ['Free beds', stats?.availableBeds, DoorOpen],
+          ['Pending', stats ? pendingTotal : null, TriangleAlert],
+        ].map(([label, value, Icon]) => <Card key={label} style={styles.metric}>
+          <Icon size={23} color={colors.highlightStart} />
+          <Text adjustsFontSizeToFit minimumFontScale={0.7} numberOfLines={1} style={styles.metricValue}>{value ?? '—'}</Text>
+          <Text style={styles.metricLabel}>{label}</Text>
+        </Card>)}
+      </View>
+      <QuickActionsRow actions={actions} />
+      <WardenHomeDetails navigation={navigation} refreshToken={detailRefresh} />
+      <SectionTitle title="Today's attendance" />
+      <Card style={{ gap: 14 }}>
+        <AttendanceBreakdown records={stats?.attendanceStatus} />
+        <Text style={ui.small}>{stats ? (stats.totalTodayAttendance ?? 0) + ' recorded entries' : 'Loading attendance summary…'}</Text>
+      </Card>
+      <Card style={{ gap: 14 }}>
+        <View style={styles.locationHeading}>
+          <View style={styles.locationIcon}><MapPin size={21} color={colors.accent} /></View>
+          <View style={{ flex: 1, gap: 4 }}><Text style={ui.sectionTitle}>Your location</Text><Text style={ui.small}>Local check only; does not mark attendance.</Text></View>
+        </View>
+        <Button onPress={handleGPSVerify} disabled={isVerifying} loading={isVerifying}
+          style={isVerified ? { backgroundColor: colors.success } : undefined}>
+          {isVerified && <CheckCircle2 size={19} color={colors.card} />}
+          <Text style={{ color: colors.card, fontWeight: '700' }}>{isVerified ? 'Location verified' : 'Verify my location'}</Text>
+        </Button>
+      </Card>
+    </ScrollView>
+  </Screen>;
 };
 
+const styles = StyleSheet.create({
+  content: { padding: 20, gap: 12 },
+  intro: { gap: 5, marginBottom: 6 },
+  roleBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.primarySoft },
+  roleText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5, color: colors.highlightStart },
+  refresh: { minHeight: 40, minWidth: 40, paddingHorizontal: 8, paddingVertical: 8 },
+  title: { color: colors.text, fontSize: 28, lineHeight: 36, fontWeight: '800', letterSpacing: -0.7 },
+  date: { color: colors.mutedText, fontSize: 14, lineHeight: 21 },
+  metrics: { flexDirection: 'row', gap: 10 },
+  metric: { flex: 1, minWidth: 0, padding: 14, gap: 7, borderRadius: 16 },
+  metricValue: { color: colors.text, fontSize: 24, lineHeight: 32, fontWeight: '800' },
+  metricLabel: { color: colors.mutedText, fontSize: 11 },
+  priority: { padding: 20, gap: 12, borderRadius: 22, minHeight: 140, justifyContent: 'center', boxShadow: 'none' },
+  priorityEyebrow: { color: colors.highlightDescription, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  priorityContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  priorityTitle: { color: colors.card, fontSize: 20, lineHeight: 27, fontWeight: '700' },
+  priorityDetail: { color: colors.highlightDescription, fontSize: 11, lineHeight: 18 },
+  reviewButton: { minHeight: 42, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, flexWrap: 'nowrap', gap: 2 },
+  reviewText: { color: colors.highlightEnd, fontSize: 11, fontWeight: '700' },
+  locationHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  locationIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' },
+});
 export default WardenDashboardScreen;

@@ -1,10 +1,12 @@
-import React from 'react';
-import { ScrollView, Text, View, StyleSheet } from 'react-native';
+import { PageIntro, ServiceLink } from '../../components/common/ReferenceDesign';
+import { Wallet, MessageSquare, Building2, Users, CalendarDays, DoorOpen, AlertTriangle } from 'lucide-react-native';
+import { Text } from "../../components/common/ReferenceDesign";
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ChevronRight } from 'lucide-react-native';
 import Header from '../../components/common/Header';
 import Screen from '../../components/common/Screen';
-import Button from '../../components/common/Button';
+import Input from '../../components/common/Input';
 import { moreSections } from '../../components/common/MoreSectionNav';
 import colors from '../../theme/colors';
 import HolidayManagementScreen from './HolidayManagementScreen';
@@ -19,15 +21,16 @@ import MessBillManagementScreen from './MessBillManagementScreen';
 import ComplaintManagementScreen from './ComplaintManagementScreen';
 
 const Stack = createNativeStackNavigator();
+const sectionIcons = { Bills: Wallet, Complaints: MessageSquare, Students: Users, EnrollStudent: Users, Rooms: DoorOpen, RoomRequests: DoorOpen, Holidays: CalendarDays, Suspensions: AlertTriangle, CreateRoom: Building2, ViewLayout: Building2 };
 function MoreHome({ navigation }) {
+  const [search, setSearch] = useState('');
+  const matching = moreSections.filter(([, label, description]) => `${label} ${description}`.toLowerCase().includes(search.trim().toLowerCase()));
   return <Screen><Header /><ScrollView contentContainerStyle={styles.content}>
-    <Text style={styles.title}>More</Text>
-    <Text style={styles.subtitle}>Manage your hostel and review student complaints.</Text>
-    {moreSections.map(([name, label, description]) => <Button key={name} variant="ghost"
-      onPress={() => navigation.navigate(name)} style={styles.row}>
-      <View style={{ flex: 1 }}><Text style={styles.label}>{label}</Text><Text style={styles.description}>{description}</Text></View>
-      <ChevronRight color={colors.primary} size={20} />
-    </Button>)}
+    <PageIntro title="All sections" />
+    <Input accessibilityLabel="Search management sections" placeholder="Search sections" value={search} onChangeText={setSearch} style={styles.search} />
+    {matching.map(([name, label, description]) => <ServiceLink key={name} icon={sectionIcons[name] || Building2}
+      title={label} description={description} onPress={() => navigation.navigate(name)} />)}
+    {!matching.length && <Text style={styles.description}>No matching sections.</Text>}
   </ScrollView></Screen>;
 }
 export default function MoreScreen() {
@@ -47,9 +50,6 @@ export default function MoreScreen() {
 }
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 32, gap: 12 },
-  title: { fontSize: 26, fontWeight: '700', color: colors.primaryDark },
-  subtitle: { fontSize: 14, lineHeight: 21, color: colors.mutedText, marginBottom: 4 },
-  row: { backgroundColor: colors.card, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.border, gap: 12 },
-  label: { fontSize: 16, fontWeight: '600', color: colors.text },
+  search: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 14, minHeight: 48 },
   description: { fontSize: 13, lineHeight: 19, color: colors.mutedText, marginTop: 4 },
 });

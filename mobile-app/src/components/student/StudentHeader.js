@@ -1,16 +1,26 @@
+import { Text } from "../common/ReferenceDesign";
 import React from 'react';
-import { Image, Text, View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Image, View, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { ArrowLeft, UserRound } from 'lucide-react-native';
 import colors from '../../theme/colors';
 import { useStudentPresentation } from './StudentPresentation';
 import NotificationBell from '../common/NotificationBell';
+import ReferenceHeader from '../common/ReferenceHeader';
+import { useReferenceDesign } from '../common/ReferenceDesign';
 
 export default function StudentHeader({ title = 'Hostel Management', back = false }) {
   const navigation = useNavigation();
   const { embedded } = useStudentPresentation();
+  const { enabled } = useReferenceDesign();
   if (embedded) return null;
+  if (enabled) return <ReferenceHeader title={title} back={back}
+    actions={<TouchableOpacity
+      accessibilityRole="button" accessibilityLabel="Open student profile" style={styles.control}
+      onPress={() => navigation.navigate('StudentTabs', { screen: 'Profile', params: { screen: 'StudentAccount' } })}>
+      <UserRound size={21} color={colors.primary} />
+    </TouchableOpacity>} />;
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.safe}>
       <View style={styles.row}>

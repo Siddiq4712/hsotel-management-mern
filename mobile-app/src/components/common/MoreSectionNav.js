@@ -1,8 +1,10 @@
+import { Text } from "./ReferenceDesign";
 import React from 'react';
-import { ScrollView, Text, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Button from './Button';
 import colors from '../../theme/colors';
+import { useEmbeddedHeader } from './ReferenceDesign';
 
 export const moreSections = [
   ['Bills', 'Bills', 'Generate bills and manage payments'],
@@ -18,6 +20,8 @@ const sections = [['MoreHome', 'All sections'], ...moreSections];
 export default function MoreSectionNav() {
   const navigation = useNavigation();
   const route = useRoute();
+  const embedded = useEmbeddedHeader();
+  if (embedded) return null;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false}
       style={styles.bar} contentContainerStyle={styles.content}>

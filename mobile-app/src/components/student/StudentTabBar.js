@@ -1,5 +1,6 @@
+import { Text } from "../common/ReferenceDesign";
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Keyboard } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 

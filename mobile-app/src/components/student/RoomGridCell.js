@@ -1,6 +1,7 @@
+import { Text } from "../common/ReferenceDesign";
 import colors from '../../theme/colors';
 import React from 'react';
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import { View, TouchableOpacity, Alert } from 'react-native';
 import { CheckCircle, XCircle, Home, Users } from 'lucide-react-native';
 
 const RequestStatusBadge = ({ status }) => {

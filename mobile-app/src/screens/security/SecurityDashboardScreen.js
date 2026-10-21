@@ -1,20 +1,22 @@
-import QuickActionsRow from '../../components/common/QuickActionsRow';
+import Screen from '../../components/common/Screen';
+import ReferenceHeader from '../../components/common/ReferenceHeader';
+import { SectionTitle, ui } from '../../components/common/ReferenceDesign';
+import { Text } from "../../components/common/ReferenceDesign";
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
+import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
 import colors from '../../theme/colors';
-import React, { useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback, useRef } from 'react';
+import { View, ScrollView, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { outpassAPI } from '../../api/api';
-import { Shield, Scan, Users, ExternalLink, History, RefreshCw, LogOut, KeyRound } from 'lucide-react-native';
+import { Scan, ExternalLink, RefreshCw, LogOut, KeyRound } from 'lucide-react-native';
 import { useAuth } from '../../hooks/useAuth';
 import moment from 'moment';
 
-const SecurityDashboardScreen = ({ navigation }) => {
+const SecurityDashboardScreen = ({ navigation, route }) => {
+  const activity = route?.params?.section === 'activity';
   const { logout } = useAuth();
-  const scroll = useRef(null);
-  const recentOffset = useRef(0);
   const loadingRef = useRef(false);
   const [stats, setStats] = useState({ exits: 0, returns: 0, outside: 0 });
   const [recentScans, setRecentScans] = useState([]);
@@ -58,100 +60,29 @@ const SecurityDashboardScreen = ({ navigation }) => {
     }, [fetchData])
   );
 
-  const actions = useMemo(() => [
-    { label: 'Manual token', icon: KeyRound, onPress: () => navigation.navigate('QRScanner', { manual: true }) },
-    { label: 'Recent scans', icon: History, onPress: () => scroll.current?.scrollTo({ y: Math.max(0, recentOffset.current - 8), animated: true }) },
-    { label: 'Refresh', icon: RefreshCw, disabled: loading, onPress: fetchData },
-    { label: 'Scan QR', icon: Scan, onPress: () => navigation.navigate('QRScanner', { manual: false }) },
-  ], [navigation, fetchData, loading]);
-
-  return (
-    <SafeAreaView className="flex-1 bg-gray-50" edges={['left', 'right', 'bottom']}>
-      <ScrollView ref={scroll} contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled" className="flex-1 p-4">
-        {/* Header Profile Section */}
-        <Card className="flex-row justify-between items-center bg-white p-4 rounded-2xl shadow-sm mb-6 border border-gray-100">
-          <View className="flex-row items-center space-x-3">
-            <View className="p-2.5 bg-indigo-50 rounded-2xl">
-              <Shield size={24} color={colors.primary} />
-            </View>
-            <View>
-              <Text className="text-gray-900 font-bold text-lg">Duty Officer</Text>
-              <Text className="text-gray-400 text-xs font-semibold">Security Gate Console</Text>
-            </View>
-          </View>
-          <TouchableOpacity onPress={logout} className="p-2 bg-rose-50 rounded-xl">
-            <LogOut size={20} color={colors.danger} />
-          </TouchableOpacity>
-        </Card>
-
-        <QuickActionsRow actions={actions} style={{ marginBottom: 20 }} />
-
-        {/* Main Scan Trigger */}
-        <Button
-          onPress={() => navigation.navigate('QRScanner', { manual: false })}
-          className="bg-indigo-600 p-6 rounded-xl shadow-sm shadow-indigo-100 items-center justify-center mb-6 flex-row space-x-3"
-        >
-          <Scan size={28} color={colors.card} />
-          <Text className="text-white font-extrabold text-xl">Scan Student QR</Text>
-        </Button>
-
-        {/* Stat Cards */}
-        <View className="flex-row justify-between mb-6">
-          <Card className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm w-[31%] items-center">
-            <ExternalLink size={20} color={colors.primary} />
-            <Text className="text-gray-400 text-xs mt-1 font-bold uppercase">Outside</Text>
-            <Text className="text-violet-700 font-extrabold text-xl mt-1">{stats.outside}</Text>
-          </Card>
-
-          <Card className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm w-[31%] items-center">
-            <Scan size={20} color={colors.success} />
-            <Text className="text-gray-400 text-xs mt-1 font-bold uppercase">Exits Today</Text>
-            <Text className="text-emerald-700 font-extrabold text-xl mt-1">{stats.exits}</Text>
-          </Card>
-
-          <Card className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm w-[31%] items-center">
-            <RefreshCw size={20} color={colors.primary} />
-            <Text className="text-gray-400 text-xs mt-1 font-bold uppercase">Returns</Text>
-            <Text className="text-blue-700 font-extrabold text-xl mt-1">{stats.returns}</Text>
-          </Card>
-        </View>
-
-        {/* Recent Scans Section */}
-        <Card onLayout={event => { recentOffset.current = event.nativeEvent.layout.y; }} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-8">
-          <View className="flex-row items-center space-x-2 mb-4">
-            <History size={18} color={colors.mutedText} />
-            <Text className="text-gray-800 font-bold text-base">Recent Gate Scans</Text>
-          </View>
-
-          {loading ? (
-            <ActivityIndicator size="small" color={colors.primary} className="my-6" />
-          ) : (
-            <View>
-              {recentScans.map(item => (
-                <View key={item.id} className="flex-row justify-between items-center py-3 border-b border-gray-50">
-                  <View>
-                    <Text className="text-gray-800 font-bold text-sm">{item.Student?.userName}</Text>
-                    <Text className="text-gray-400 text-xs font-semibold">Roll: {item.Student?.roll_number}</Text>
-                  </View>
-                  <View className="items-end">
-                    <Text className={`text-xs font-bold uppercase ${item.status === 'outside' ? 'text-violet-600' : 'text-emerald-600'}`}>
-                      {item.status.replace('_', ' ')}
-                    </Text>
-                    <Text className="text-xs text-gray-400 mt-0.5">
-                      {moment(item.updatedAt).format('LT')}
-                    </Text>
-                  </View>
-                </View>
-              ))}
-              {recentScans.length === 0 && (
-                <Text className="text-gray-400 text-sm text-center py-6">No scans recorded today</Text>
-              )}
-            </View>
-          )}
-        </Card>
-      </ScrollView>
-    </SafeAreaView>
-  );
+  return <Screen>
+    <ReferenceHeader title={activity ? 'Gate activity' : 'Security console'} notifications={false} actions={<Button variant="ghost" onPress={logout} accessibilityLabel="Log out"><LogOut size={20} color={colors.mutedText} /></Button>} />
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ui.content}>
+      {!activity && <>
+      <HighlightCard>
+        <Scan size={36} color={colors.highlightText} /><Text style={[highlightStyles.value, { fontSize: 21 }]}>Scan student QR</Text>
+        <Button variant="secondary" onPress={() => navigation.navigate('Scan', { screen: 'QRScanner', params: { manual: false } })} style={highlightStyles.button}>Open scanner</Button>
+      </HighlightCard>
+      <Button variant="ghost" onPress={() => navigation.navigate('Scan', { screen: 'QRScanner', params: { manual: true } })}><KeyRound size={18} color={colors.primary} />Use manual token instead</Button>
+      </>}
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {[[stats.outside, 'Outside now', ExternalLink], [stats.exits, 'Exits today', Scan], [stats.returns, 'Returns', RefreshCw]].map(([count, label, Icon]) => <HighlightCard key={label} style={{ flex: 1, minWidth: 0, padding: 12, gap: 9 }}>
+          <View style={[highlightStyles.badge, { alignSelf: 'flex-start', paddingHorizontal: 8 }]}><Icon size={19} color={colors.highlightText} /></View><Text style={[highlightStyles.value, { fontSize: 25 }]}>{count}</Text><Text style={highlightStyles.detail}>{label}</Text>
+        </HighlightCard>)}
+      </View>
+      {activity && <Card style={{ padding: 16, gap: 8 }}>
+        <SectionTitle title="Recent scans" action="Refresh" onPress={fetchData} />
+        {loading ? <ActivityIndicator color={colors.primary} /> : recentScans.length ? recentScans.map(item => <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: colors.surface, paddingVertical: 14 }}>
+          <View style={{ flex: 1, gap: 5 }}><Text style={{ fontWeight: '700' }}>{item.Student?.userName}</Text><Text style={ui.small}>{item.Student?.roll_number || 'No roll number'}</Text></View>
+          <View style={{ alignItems: 'flex-end', gap: 5 }}><Text style={{ fontSize: 12, fontWeight: '700', color: item.status === 'outside' ? colors.primary : colors.success }}>{item.status.replaceAll('_', ' ')}</Text><Text style={ui.small}>{moment(item.updatedAt).format('h:mm A')}</Text></View>
+        </View>) : <Text style={[ui.description, { paddingVertical: 18 }]}>No scans recorded today</Text>}
+      </Card>}
+    </ScrollView>
+  </Screen>;
 };
-
 export default SecurityDashboardScreen;

@@ -1,8 +1,9 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity } from 'react-native';
+import { View, FlatList, TouchableOpacity } from 'react-native';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import { MapPin, Save } from 'lucide-react-native';

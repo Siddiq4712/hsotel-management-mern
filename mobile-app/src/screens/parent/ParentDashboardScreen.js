@@ -1,24 +1,28 @@
-import QuickActionsRow from '../../components/common/QuickActionsRow';
+import { useParentStudent } from '../../hooks/useParentStudent';
+import Screen from '../../components/common/Screen';
+import Button from '../../components/common/Button';
+import ReferenceHeader from '../../components/common/ReferenceHeader';
+import { SectionTitle, ui } from '../../components/common/ReferenceDesign';
+import { MetricCard, AttendanceBreakdown } from '../../components/common/DashboardSummary';
+import { Text } from "../../components/common/ReferenceDesign";
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert } from 'react-native';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
+import { View, ScrollView, RefreshControl, ActivityIndicator, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { parentAPI } from '../../api/api';
 import { useAuth } from '../../hooks/useAuth';
 import { Picker } from '@react-native-picker/picker';
-import { User, Building, Calendar, IndianRupee, Bell, Info, LogOut, RefreshCw } from 'lucide-react-native';
+import { Bell, LogOut, CalendarCheck, IndianRupee } from 'lucide-react-native';
 import moment from 'moment';
 
-const ParentDashboardScreen = () => {
+const ParentDashboardScreen = ({ route }) => {
+  const section = route?.params?.section || 'overview';
+  const selection = useParentStudent();
   const { logout } = useAuth();
-  const scroll = useRef(null);
-  const bodyOffset = useRef(0);
-  const sectionPositions = useRef({});
   const dashboardRequest = useRef(0);
   const [students, setStudents] = useState([]);
-  const [selectedStudentId, setSelectedStudentId] = useState(null);
+  const { selectedStudentId, setSelectedStudentId } = selection;
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -78,150 +82,92 @@ const ParentDashboardScreen = () => {
     }
   };
 
-  const scrollToSection = useCallback(key => {
-    const offset = sectionPositions.current[key];
-    if (offset != null) scroll.current?.scrollTo({ y: Math.max(0, bodyOffset.current + offset - 8), animated: true });
-  }, []);
-  const rememberSection = key => event => { sectionPositions.current[key] = event.nativeEvent.layout.y; };
   const hasCurrentStudent = dashboardData && String(dashboardData.student?.userId) === String(selectedStudentId);
-  const actions = useMemo(() => [
-    { label: 'Attendance', icon: Calendar, disabled: loading || !hasCurrentStudent, onPress: () => scrollToSection('summary') },
-    { label: 'Fees', icon: IndianRupee, disabled: loading || !hasCurrentStudent, onPress: () => scrollToSection('summary') },
-    { label: 'Notices', icon: Info, disabled: loading || !hasCurrentStudent, onPress: () => scrollToSection('notices') },
-    { label: 'Notifications', icon: Bell, disabled: loading || !hasCurrentStudent, onPress: () => scrollToSection('notifications') },
-    { label: 'Refresh', icon: RefreshCw, disabled: loading, onPress: () => { fetchDashboard(); fetchNotifications(); } },
-  ], [loading, hasCurrentStudent, scrollToSection, fetchDashboard, fetchNotifications]);
   const outstandingDues = useMemo(() => dashboardData ? (
     dashboardData.fees.filter(f => f.status !== 'paid').reduce((sum, f) => sum + parseFloat(f.amount), 0) +
     dashboardData.messBills.filter(b => b.status !== 'paid').reduce((sum, b) => sum + parseFloat(b.total_amount), 0)
   ).toFixed(0) : '0', [dashboardData]);
 
-  return (
-    <SafeAreaView className="flex-1 bg-gray-50" edges={['left', 'right', 'bottom']}>
-      <ScrollView ref={scroll} contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled" className="flex-1 p-4">
+  const studentName = hasCurrentStudent ? dashboardData.student?.userName : students.find(student => String(student.userId) === String(selectedStudentId))?.userName;
+  const initials = (studentName || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase();
 
-        {/* Header Console Banner */}
-        <Card className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm mb-6 flex-row justify-between items-center">
-          <View className="flex-row items-center space-x-3">
-            <View className="p-2.5 bg-blue-50 rounded-2xl">
-              <User size={24} color={colors.primary} />
-            </View>
-            <View>
-              <Text className="text-gray-900 font-extrabold text-base">Parent Portal</Text>
-              <Text className="text-gray-400 text-xs font-semibold">Monitoring Console</Text>
-            </View>
+  return <Screen>
+    <ReferenceHeader title={section === 'attendance' ? 'Student attendance' : section === 'alerts' ? 'Alerts & notices' : 'Parent portal'} actions={<Button variant="ghost" onPress={logout} accessibilityLabel="Log out"><LogOut size={20} color={colors.mutedText} /></Button>} />
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ui.content}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { fetchDashboard(); fetchNotifications(); }} tintColor={colors.primary} colors={[colors.primary]} />}>
+      <Card style={styles.identity}>
+        <View style={styles.identityRow}>
+          <View style={{ flex: 1, gap: 6 }}>
+            <Text style={ui.eyebrow}>YOUR STUDENT</Text>
+            <Text accessibilityRole="header" style={styles.studentName}>{studentName || 'Student details'}</Text>
+            {hasCurrentStudent && <Text style={ui.description}>{[dashboardData.student?.roll_number, dashboardData.student?.Hostel?.name, dashboardData.room?.room_number && 'Room ' + dashboardData.room.room_number].filter(Boolean).join(' · ')}</Text>}
           </View>
-          <TouchableOpacity onPress={logout} className="p-2 bg-rose-50 rounded-xl">
-            <LogOut size={20} color={colors.danger} />
-          </TouchableOpacity>
+          {!!initials && <View style={styles.avatar}><Text style={styles.initials}>{initials}</Text></View>}
+        </View>
+        {students.length > 1 && <View style={styles.studentPicker}>
+          <Text style={styles.pickerLabel}>Switch student</Text>
+          <Picker accessibilityLabel="Choose linked student" selectedValue={selectedStudentId} onValueChange={setSelectedStudentId} style={{ color: colors.text }}>
+            {students.map(student => <Picker.Item key={student.userId} label={student.userName + ' · ' + (student.roll_number || 'No roll number')} value={student.userId} />)}
+          </Picker>
+        </View>}
+      </Card>
+      {section !== 'alerts' && (loading ? <View style={styles.loading} accessibilityLabel="Loading student details"><ActivityIndicator color={colors.primary} size="large" /></View> : hasCurrentStudent ? <>
+        <View style={styles.metrics}>
+          <MetricCard title="Attendance" value={(dashboardData.attendanceSummary.total ? Math.round(dashboardData.attendanceSummary.present / dashboardData.attendanceSummary.total * 100) : 0) + '%'}
+            detail={dashboardData.attendanceSummary.total + ' recorded days'} icon={CalendarCheck} />
+          {section === 'overview' && <MetricCard title="Outstanding dues" value={'₹' + outstandingDues} detail="Fees & mess charges" icon={IndianRupee} tone={Number(outstandingDues) > 0 ? 'warning' : 'success'} />}
+        </View>
+        <Card style={{ gap: 14 }}>
+          <Text style={ui.sectionTitle}>Attendance breakdown</Text>
+          <AttendanceBreakdown records={{ P: dashboardData.attendanceSummary.present, A: dashboardData.attendanceSummary.absent, OD: dashboardData.attendanceSummary.od }} />
         </Card>
-
-        <QuickActionsRow actions={actions} style={{ marginBottom: 20 }} />
-
-        {/* Student Selector Dropdown */}
-        {students.length > 1 && (
-          <Card className="bg-white rounded-2xl border border-gray-100 shadow-sm mb-6 overflow-hidden">
-            <Picker
-              selectedValue={selectedStudentId}
-              onValueChange={setSelectedStudentId}
-              style={{ height: 50, width: '100%' }}
-            >
-              {students.map(s => (
-                <Picker.Item key={s.userId} label={`${s.userName} (${s.roll_number})`} value={s.userId} />
-              ))}
-            </Picker>
-          </Card>
-        )}
-
-        {loading ? (
-          <ActivityIndicator size="large" color={colors.primary} className="my-10" />
-        ) : hasCurrentStudent ? (
-          <View className="gap-4" onLayout={event => { bodyOffset.current = event.nativeEvent.layout.y; }}>
-
-            {/* Student Profile Card */}
-            <Card className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex-row items-center space-x-4">
-              <Image
-                source={dashboardData.student?.profile_picture ? { uri: dashboardData.student.profile_picture } : require('../../../assets/adaptive-icon.png')}
-                className="w-16 h-16 rounded-2xl border border-gray-200 shrink-0"
-              />
-              <View className="flex-1">
-                <Text className="text-gray-900 font-extrabold text-base">{dashboardData.student?.userName}</Text>
-                <Text className="text-gray-400 text-xs mt-0.5">Roll No: {dashboardData.student?.roll_number}</Text>
-                <View className="flex-row items-center mt-2 space-x-2">
-                  <Building size={14} color={colors.primary} />
-                  <Text className="text-gray-700 text-xs font-bold">{dashboardData.student?.Hostel?.name || 'Assigned Hostel'}</Text>
-                </View>
-              </View>
-            </Card>
-
-            {/* Attendance & Dues Row */}
-            <View className="flex-row justify-between" onLayout={rememberSection('summary')}>
-              {/* Attendance Card */}
-              <Card className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm w-[48%] items-center justify-between">
-                <Text className="text-gray-400 text-xs font-extrabold uppercase">Attendance</Text>
-                <Text className="text-blue-600 font-extrabold text-2xl my-2">
-                  {dashboardData.attendanceSummary.total ? Math.round((dashboardData.attendanceSummary.present / dashboardData.attendanceSummary.total) * 100) : 0}%
-                </Text>
-                <Text className="text-gray-500 text-xs font-semibold">
-                  Pres: {dashboardData.attendanceSummary.present} / {dashboardData.attendanceSummary.total} days
-                </Text>
-              </Card>
-
-              {/* Dues Card */}
-              <Card className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm w-[48%] items-center justify-between">
-                <Text className="text-gray-400 text-xs font-extrabold uppercase">Outstanding Dues</Text>
-                <Text className="text-rose-600 font-extrabold text-2xl my-2">
-                  ₹{outstandingDues}
-                </Text>
-                <Text className="text-gray-400 text-xs font-bold text-center">Unpaid Fees & Mess Bills</Text>
-              </Card>
-            </View>
-
-            {/* Live Feed alerts */}
-            <Card onLayout={rememberSection('notifications')} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-              <View className="flex-row items-center space-x-2 mb-4">
-                <Bell size={18} color={colors.primary} />
-                <Text className="text-gray-900 font-extrabold text-base">Alerts Feed</Text>
-              </View>
-              {notifications.map(item => (
-                <View key={item.id} className="flex-row justify-between items-start py-3 border-b border-gray-50 last:border-0">
-                  <View className="flex-1 mr-2">
-                    <Text className={`text-sm font-bold ${item.status === 'unread' ? 'text-blue-700' : 'text-gray-700'}`}>
-                      {item.title}
-                    </Text>
-                    <Text className="text-gray-400 text-xs mt-0.5">{item.message}</Text>
-                  </View>
-                  {item.status === 'unread' && (
-                    <TouchableOpacity onPress={() => handleMarkRead(item.id)} className="px-2.5 py-1 bg-blue-50 rounded-xl">
-                      <Text className="text-xs text-blue-600 font-bold">Acknowledge</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ))}
-            </Card>
-
-            {/* Announcements Card */}
-            <Card onLayout={rememberSection('notices')} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm mb-8">
-              <View className="flex-row items-center space-x-2 mb-4">
-                <Info size={18} color={colors.primary} />
-                <Text className="text-gray-900 font-extrabold text-base">Hostel Notices</Text>
-              </View>
-              {dashboardData.notices?.slice(0, 3).map(item => (
-                <View key={item.id} className="py-3 border-b border-gray-50 last:border-0">
-                  <Text className="text-gray-800 font-bold text-sm">{item.title}</Text>
-                  <Text className="text-gray-400 text-xs mt-1 leading-relaxed">{item.content}</Text>
-                  <Text className="text-gray-400 text-xs mt-2 block text-right">{moment(item.createdAt).format('LL')}</Text>
-                </View>
-              ))}
-            </Card>
-
+      </> : <Card style={{ gap: 12 }}><Text style={ui.description}>{students.length ? 'Unable to load student details.' : 'No student mapping found'}</Text>{students.length > 0 && <Button variant="secondary" onPress={fetchDashboard}>Retry</Button>}</Card>)}
+      {section === 'alerts' && <><SectionTitle title="Alerts" action="Refresh" onPress={fetchNotifications} />
+      {notifications.length ? notifications.map(item => <Card key={item.id} style={[styles.alert, item.status === 'unread' && styles.unread]}>
+        <View style={styles.alertHeading}>
+          <View style={styles.alertIcon}><Bell size={19} color={colors.primary} /></View>
+          <View style={{ flex: 1, gap: 5 }}>
+            <Text style={styles.cardTitle}>{item.title}</Text>
+            <Text style={ui.small}>{moment(item.createdAt).format('DD MMM YYYY, h:mm A')}</Text>
           </View>
-        ) : (
-          <Text className="text-gray-400 text-center my-10 font-bold">{students.length ? 'Unable to load student details. Use Refresh to try again.' : 'No student mapping found'}</Text>
-        )}
-      </ScrollView>
-    </SafeAreaView>
-  );
+          {item.status === 'unread' && <Text style={styles.unreadLabel}>Unread</Text>}
+        </View>
+        <Text style={ui.description}>{item.message}</Text>
+        {item.status === 'unread' && <Button variant="secondary" onPress={() => handleMarkRead(item.id)}>Acknowledge</Button>}
+      </Card>) : <Card style={styles.empty}><Bell size={23} color={colors.mutedText} /><Text style={ui.description}>No alerts yet.</Text></Card>}</>}
+      {section !== 'attendance' && hasCurrentStudent && <>
+        <SectionTitle title="Hostel notices" />
+        {dashboardData.notices?.length ? dashboardData.notices.slice(0, 3).map(item => <Card key={item.id} style={styles.notice}>
+          <View style={styles.noticeDate}>
+            <Text style={styles.noticeDay}>{moment(item.createdAt).format('DD')}</Text>
+            <Text style={styles.noticeMonth}>{moment(item.createdAt).format('MMM').toUpperCase()}</Text>
+          </View>
+          <View style={{ flex: 1, minWidth: 0, gap: 7 }}><Text style={styles.cardTitle}>{item.title}</Text><Text style={ui.description}>{item.content}</Text><Text style={ui.small}>Posted {moment(item.createdAt).format('DD MMM YYYY')}</Text></View>
+        </Card>) : <Card><Text style={ui.description}>No hostel notices.</Text></Card>}
+      </>}
+    </ScrollView>
+  </Screen>;
 };
-
+const styles = StyleSheet.create({
+  identity: { padding: 20, gap: 18 },
+  identityRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  studentName: { fontSize: 24, lineHeight: 32, fontWeight: '800', color: colors.primaryDark },
+  avatar: { width: 56, height: 56, borderRadius: 18, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  initials: { fontSize: 20, fontWeight: '700', color: colors.primary },
+  studentPicker: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, borderRadius: 12, overflow: 'hidden' },
+  pickerLabel: { fontSize: 12, color: colors.mutedText, paddingHorizontal: 16, paddingTop: 10 },
+  metrics: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  loading: { minHeight: 160, alignItems: 'center', justifyContent: 'center' },
+  alert: { padding: 16, gap: 14 },
+  unread: { borderLeftWidth: 3, borderLeftColor: colors.primary },
+  alertHeading: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
+  alertIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  cardTitle: { fontSize: 15, lineHeight: 22, fontWeight: '700', color: colors.text },
+  unreadLabel: { fontSize: 12, fontWeight: '600', color: colors.primary, backgroundColor: colors.primarySoft, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8 },
+  empty: { padding: 24, alignItems: 'center', gap: 10 },
+  notice: { padding: 16, flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+  noticeDate: { width: 50, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.primarySoft, alignItems: 'center', gap: 2 },
+  noticeDay: { fontSize: 22, fontWeight: '800', color: colors.primary },
+  noticeMonth: { fontSize: 12, fontWeight: '600', color: colors.primary },
+});
 export default ParentDashboardScreen;

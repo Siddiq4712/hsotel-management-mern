@@ -1,6 +1,7 @@
+import { Text } from "./ReferenceDesign";
 import colors from '../../theme/colors';
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, TouchableOpacity } from 'react-native';
 import { User, Bed } from 'lucide-react-native';
 
 const StudentCard = ({ student, onPress, selected }) => {

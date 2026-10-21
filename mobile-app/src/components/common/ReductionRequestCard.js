@@ -1,8 +1,10 @@
+import { Text } from "./ReferenceDesign";
 import React, { useState } from 'react';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
 import RequestDetails, { personName, displayDate } from './RequestDetails';
 import Button from './Button';
 import colors from '../../theme/colors';
+import WardenRequestCard from '../warden/WardenRequestCard';
 
 export function reductionReview(row) {
   const decisions = [...(row.Decisions || [])].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt) || b.id - a.id);
@@ -19,15 +21,16 @@ export function reductionReview(row) {
   };
 }
 
-export default function ReductionRequestCard({ row, categoryLabel, submittedBy, children }) {
+export default function ReductionRequestCard({ row, categoryLabel, submittedBy, children, wardenLayout = false, queueActions, detailLayout = false }) {
   const [expanded, setExpanded] = useState(false);
   const review = reductionReview(row);
   const statusLabel = {
     pending_admin: 'Pending review', approved_by_admin: 'Approved', approved_by_warden: 'Approved',
     rejected_by_admin: 'Rejected', rejected_by_warden: 'Rejected', needs_correction: 'Needs correction', cancelled: 'Cancelled',
   }[row.status];
-  return <RequestDetails title={categoryLabel} reference={row.id} status={row.status} statusLabel={statusLabel}
-    submittedBy={submittedBy || [personName(row.Student, row.student_id), row.Student?.roll_number].filter(Boolean).join(' · ')}
+  const Details = wardenLayout ? WardenRequestCard : RequestDetails;
+  return <Details {...(wardenLayout || detailLayout ? { kind: 'Reduction', studentMeta: row.Student?.roll_number, queueActions, detailLayout } : {})} title={categoryLabel} reference={row.id} status={row.status} statusLabel={statusLabel}
+    submittedBy={submittedBy || (wardenLayout || detailLayout ? personName(row.Student, row.student_id) : [personName(row.Student, row.student_id), row.Student?.roll_number].filter(Boolean).join(' · '))}
     reviewedBy={review.reviewedBy} reviewLabel={review.label} submittedAt={row.createdAt}
     reviewedAt={row.status === 'pending_admin' ? null : row.decided_at}
     fromDate={row.from_date} toDate={row.to_date} duration={row.requested_days ? `${row.requested_days} days, inclusive` : null}
@@ -44,5 +47,5 @@ export default function ReductionRequestCard({ row, categoryLabel, submittedBy, 
         {!!item.remarks && <Text style={{ color: colors.text, fontSize: 14, lineHeight: 21 }}>{item.remarks}</Text>}
       </View>)}
     </>}
-  </RequestDetails>;
+  </Details>;
 }

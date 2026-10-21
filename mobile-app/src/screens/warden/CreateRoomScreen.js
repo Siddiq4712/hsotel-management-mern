@@ -1,9 +1,10 @@
+import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, FlatList } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Alert, FlatList } from 'react-native';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import { Building2, DoorRight, Layers, Save } from 'lucide-react-native';
