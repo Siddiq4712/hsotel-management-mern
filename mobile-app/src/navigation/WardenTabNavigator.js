@@ -47,7 +47,7 @@ const tabs = [
 ];
 function WardenTabs() {
   return <Tab.Navigator initialRouteName="Dashboard" tabBar={props => <MobileTabBar {...props} />}
-    screenOptions={{ headerShown: false, tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.mutedText }}>
+    screenOptions={{ headerShown: false, freezeOnBlur: true, tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.mutedText }}>
     {tabs.map(([name, label, component, Icon]) => <Tab.Screen key={name} name={name} component={component}
       options={{ tabBarLabel: label, tabBarIcon: ({ color, size }) => <Icon color={color} size={size} /> }} />)}
   </Tab.Navigator>;

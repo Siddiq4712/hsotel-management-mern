@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Screen from '../../components/common/Screen';
@@ -8,7 +9,7 @@ import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
 import { View, FlatList, TouchableOpacity, Modal, Alert } from 'react-native';
 
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from '../../components/common/Picker';
 import moment from 'moment';
 
 import { wardenAPI } from '../../api/api';
@@ -154,4 +155,4 @@ const HolidayManagementScreen = () => {
   );
 };
 
-export default HolidayManagementScreen;
+export default withScreenPermission(HolidayManagementScreen, 'holidays');

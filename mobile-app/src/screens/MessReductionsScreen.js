@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../auth/PermissionContext';
 import ApplicationDetails from '../components/student/ApplicationDetails';
 import { requestReview } from '../utils/requestDetails';
 import { RequestPage, RequestField, RequestSelect, NewRequestCard, ApplicationCard, requestStyles } from '../components/student/RequestUI';
@@ -17,7 +18,7 @@ import ReviewSheet from '../components/common/ReviewSheet';
 import { SearchField } from '../components/warden/WardenUI';
 import React, { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Platform, ScrollView, TouchableOpacity, View } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from '../components/common/Picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -36,9 +37,9 @@ const categories = [
   ['study_holiday', 'Study holiday', 'Tutor-signed reduction letter', 'Absent']
 ];
 const empty = {category:'',from_date:moment().format('YYYY-MM-DD'),to_date:moment().format('YYYY-MM-DD'),reason:'',activity:''};
-const Button = ({ children, onPress, disabled, variant = 'primary' }) => <AppButton variant={variant} disabled={disabled} onPress={onPress} style={{ marginVertical: 4 }}>{children}</AppButton>;
+const Button = ({ children, onPress, disabled, permissionAction, variant = 'primary' }) => <AppButton permissionAction={permissionAction} variant={variant} disabled={disabled} onPress={onPress} style={{ marginVertical: 4 }}>{children}</AppButton>;
 
-export default function MessReductionsScreen({ studentLayout = false, embedded = false, requestId, view, onViewChange, navigation, route }) {
+function MessReductionsScreen({ studentLayout = false, embedded = false, requestId, view, onViewChange, navigation, route }) {
   const { user } = useAuth();
   const isVisible = useStudentVisible();
   const initialRequest = route?.params?.request;
@@ -106,7 +107,7 @@ export default function MessReductionsScreen({ studentLayout = false, embedded =
       <View style={requestStyles.overlay}><Card style={{ gap: 14 }}>
         <Text style={requestStyles.sectionTitle}>Cancel reduction request</Text>
         <Input accessibilityLabel="Cancellation reason" placeholder="Cancellation reason" multiline maxLength={2000} value={remarks} onChangeText={setRemarks} style={requestStyles.input}/>
-        <AppButton variant="danger" loading={saving} onPress={decide}>Confirm cancellation</AppButton>
+        <AppButton permissionAction="delete" variant="danger" loading={saving} onPress={decide}>Confirm cancellation</AppButton>
         <AppButton variant="ghost" disabled={saving} onPress={()=>setDecision(null)}>Back</AppButton>
       </Card></View>
     </Modal>;
@@ -116,7 +117,7 @@ export default function MessReductionsScreen({ studentLayout = false, embedded =
         {loading ? <ActivityIndicator color={colors.primary}/> : row ? <ApplicationDetails kind="reduction" onDocument={viewDocument} onBack={()=>navigation.goBack()} row={row} categoryLabel={categories.find(c=>c[0]===row.category)?.[1]||'Legacy request'} submittedBy={user?.userName||user?.username}>
           {row.legacy&&<Text style={requestStyles.small}>Resubmit with a category and supporting document.</Text>}
           {['pending_admin','needs_correction','rejected_by_admin','rejected_by_warden'].includes(row.status)&&<AppButton variant="secondary" disabled={saving} onPress={()=>navigation.navigate('MessReductionRequest',{request:row})}>Edit / resubmit</AppButton>}
-          {['pending_admin','needs_correction'].includes(row.status)&&<AppButton variant="danger" disabled={saving} onPress={()=>choose(row,'cancel')}>Cancel request</AppButton>}
+          {['pending_admin','needs_correction'].includes(row.status)&&<AppButton permissionAction="delete" variant="danger" disabled={saving} onPress={()=>choose(row,'cancel')}>Cancel request</AppButton>}
         </ApplicationDetails> : <Text style={requestStyles.small}>This reduction request is unavailable.</Text>}
         {decisionModal}
       </RequestPage>;
@@ -140,7 +141,7 @@ export default function MessReductionsScreen({ studentLayout = false, embedded =
           <Text style={{fontSize:12,fontWeight:'600',color:colors.primary}}>Browse</Text>
         </TouchableOpacity>
       </RequestField>
-      <View style={{gap:10}}><AppButton loading={saving} onPress={submit}>Submit for approval</AppButton>
+      <View style={{gap:10}}><AppButton permissionAction={editing ? 'edit' : 'create'} loading={saving} onPress={submit}>Submit for approval</AppButton>
         <AppButton variant="secondary" disabled={saving} onPress={()=>navigation.goBack()} style={requestStyles.outline}>Cancel</AppButton></View>
     </RequestPage>;
     return <Screen className="flex-1 bg-background">
@@ -173,19 +174,19 @@ export default function MessReductionsScreen({ studentLayout = false, embedded =
       keyExtractor={row=>String(row.id)}
       ListEmptyComponent={loading ? <ActivityIndicator color={colors.primary}/> : <Text style={{color:colors.mutedText,textAlign:'center',padding:24}}>{requestId != null ? 'This reduction request is unavailable.' : 'No matching reduction requests.'}</Text>}
       renderItem={({item:row})=><ReviewerCard kind="reduction" onDocument={viewDocument} wardenLayout={requestId == null} detailLayout={requestId != null} row={row} categoryLabel={categories.find(c=>c[0]===row.category)?.[1]||'Legacy request'}
-        queueActions={['pending_admin','needs_correction'].includes(row.status)?<AppButton disabled={saving||row.legacy||!row.document} onPress={()=>choose(row,'approve')}>Approve</AppButton>:null}>
+        queueActions={['pending_admin','needs_correction'].includes(row.status)?<AppButton permissionAction="approve" disabled={saving||row.legacy||!row.document} onPress={()=>choose(row,'approve')}>Approve</AppButton>:null}>
         {requestId == null&&row.document&&<Button variant="secondary" onPress={()=>viewDocument(row)}>Open supporting document</Button>}
         {row.legacy&&<Text>Legacy request: resubmit category and supporting document.</Text>}
         {['pending_admin','needs_correction'].includes(row.status)&&<>
-          <Button disabled={saving||row.legacy||!row.document} onPress={()=>choose(row,'approve')}>Approve date range</Button>
-          <Button variant="danger" disabled={saving} onPress={()=>choose(row,'reject')}>Reject</Button><Button variant="secondary" disabled={saving} onPress={()=>choose(row,'return')}>Return for correction</Button>
+          <Button permissionAction="approve" disabled={saving||row.legacy||!row.document} onPress={()=>choose(row,'approve')}>Approve date range</Button>
+          <Button permissionAction="approve" variant="danger" disabled={saving} onPress={()=>choose(row,'reject')}>Reject</Button><Button permissionAction="approve" variant="secondary" disabled={saving} onPress={()=>choose(row,'return')}>Return for correction</Button>
         </>}
-        {!row.legacy&&row.status.startsWith('approved')&&<Button variant="danger" disabled={saving} onPress={()=>choose(row,'cancel')}>Cancel approval</Button>}
+        {!row.legacy&&row.status.startsWith('approved')&&<Button permissionAction="approve" variant="danger" disabled={saving} onPress={()=>choose(row,'cancel')}>Cancel approval</Button>}
       </ReviewerCard>}/>
     <ReviewSheet visible={Boolean(decision)} title={`${decision?.action||'Review'} reduction #${decision?.row.id||''}`} busy={saving} onClose={()=>setDecision(null)}>
       <Text>{decision?.row.from_date} → {decision?.row.to_date}. {decision?.action==='approve'?`Attendance becomes ${decision.row.attendance_status==='A'?'Absent':'OD'}. Only eligible food charges are reduced.`:decision?.action==='cancel'?'Cancellation restores approval-generated attendance. Recorded bills are protected.':decision?.action==='return'?'The student can correct and resubmit the request. Enter the required changes below.':'Enter a reason for rejecting this request.'}</Text>
       <Input accessibilityLabel="Decision remarks" placeholder={decision?.action==='approve'?'Remarks (optional)':'Reason (required)'} multiline maxLength={2000} value={remarks} onChangeText={setRemarks} style={{borderWidth:1,borderColor:colors.border,borderRadius:12,padding:12}}/>
-      <AppButton loading={saving} onPress={decide}>Confirm decision</AppButton>
+      <AppButton permissionAction="approve" loading={saving} onPress={decide}>Confirm decision</AppButton>
     </ReviewSheet>
   </Screen>;
   return <Screen className="flex-1 bg-background"><Header/><ScrollView contentContainerStyle={{padding:16,paddingBottom:40}} keyboardShouldPersistTaps="handled">
@@ -199,7 +200,7 @@ export default function MessReductionsScreen({ studentLayout = false, embedded =
       <Input accessibilityLabel="Activity" placeholder="Activity / organization (optional)" maxLength={150} value={values.activity} onChangeText={activity=>setValues(v=>({...v,activity}))} className="border border-gray-300 p-3 rounded-xl my-2"/>
       <Input accessibilityLabel="Reason" placeholder="Reason" multiline maxLength={2000} value={values.reason} onChangeText={reason=>setValues(v=>({...v,reason}))} className="border border-gray-300 p-3 rounded-xl my-2"/>
       <Text>Required: {info?.[2]}. PDF / PNG / JPEG, up to 5 MB.</Text><Button disabled={saving} onPress={pick}>{document?.name||editing?.document?.name||'Choose supporting document'}</Button>
-      <Button disabled={saving} onPress={submit}>{saving?'Submitting…':'Submit for approval'}</Button>
+      <Button permissionAction={editing ? 'edit' : 'create'} disabled={saving} onPress={submit}>{saving?'Submitting…':'Submit for approval'}</Button>
       {editing&&<Button disabled={saving} onPress={()=>{setEditing(null);setValues(empty);setDocument(null);}}>New request</Button>}
     </View>}
     <Text>Filter requests</Text><Picker selectedValue={status} onValueChange={setStatus}>{[['all','All'],['pending_admin','Pending review'],['approved','Approved'],['needs_correction','Returned'],['rejected','Rejected'],['cancelled','Cancelled']].map(([value,label])=><Picker.Item key={value} value={value} label={label}/>)}</Picker>
@@ -211,19 +212,21 @@ export default function MessReductionsScreen({ studentLayout = false, embedded =
       {row.document&&<Button variant="secondary" onPress={()=>viewDocument(row)}>Open supporting document</Button>}
       {row.legacy&&<Text>Legacy request: resubmit category and supporting document.</Text>}
       {reviewer&&['pending_admin','needs_correction'].includes(row.status)&&<>
-        <Button disabled={saving||row.legacy||!row.document} onPress={()=>choose(row,'approve')}>Approve date range</Button>
-        <Button variant="danger" disabled={saving} onPress={()=>choose(row,'reject')}>Reject</Button><Button variant="secondary" disabled={saving} onPress={()=>choose(row,'return')}>Return for correction</Button>
+        <Button permissionAction="approve" disabled={saving||row.legacy||!row.document} onPress={()=>choose(row,'approve')}>Approve date range</Button>
+        <Button permissionAction="approve" variant="danger" disabled={saving} onPress={()=>choose(row,'reject')}>Reject</Button><Button permissionAction="approve" variant="secondary" disabled={saving} onPress={()=>choose(row,'return')}>Return for correction</Button>
       </>}
-      {reviewer&&!row.legacy&&row.status.startsWith('approved')&&<Button variant="danger" disabled={saving} onPress={()=>choose(row,'cancel')}>Cancel approval</Button>}
+      {reviewer&&!row.legacy&&row.status.startsWith('approved')&&<Button permissionAction="approve" variant="danger" disabled={saving} onPress={()=>choose(row,'cancel')}>Cancel approval</Button>}
       {!reviewer&&['pending_admin','needs_correction','rejected_by_admin','rejected_by_warden'].includes(row.status)&&<Button disabled={saving} onPress={()=>{setEditing(row);setValues({category:row.category||'medical',from_date:row.from_date,to_date:row.to_date,reason:row.reason,activity:row.activity||''});setDocument(null);}}>Edit / resubmit</Button>}
-      {!reviewer&&['pending_admin','needs_correction'].includes(row.status)&&<Button disabled={saving} onPress={()=>choose(row,'cancel')}>Cancel request</Button>}
+      {!reviewer&&['pending_admin','needs_correction'].includes(row.status)&&<Button permissionAction="delete" disabled={saving} onPress={()=>choose(row,'cancel')}>Cancel request</Button>}
     </ReductionRequestCard>} />
   </ScrollView>
     <Modal visible={Boolean(decision)} transparent animationType="fade" onRequestClose={()=>!saving&&setDecision(null)}><View className="flex-1 justify-center p-6 bg-black/40"><View className="bg-white rounded-xl p-5">
       <Text className="font-bold text-lg">{decision?.action} reduction #{decision?.row.id}</Text>
       <Text>{decision?.row.from_date} → {decision?.row.to_date}. {decision?.action==='approve'?`Attendance becomes ${decision.row.attendance_status==='A'?'Absent':'OD'}.`:'Cancellation restores approval-generated attendance. Recorded bills are protected.'}</Text>
       <Input accessibilityLabel="Decision remarks" placeholder={decision?.action==='approve'?'Remarks (optional)':'Reason (required)'} multiline maxLength={2000} value={remarks} onChangeText={setRemarks} className="border border-gray-300 p-3 rounded-xl my-3"/>
-      <Button disabled={saving} onPress={decide}>Confirm decision</Button><Button disabled={saving} onPress={()=>setDecision(null)}>Back</Button>
+      <Button permissionAction={reviewer ? 'approve' : 'delete'} disabled={saving} onPress={decide}>Confirm decision</Button><Button disabled={saving} onPress={()=>setDecision(null)}>Back</Button>
     </View></View></Modal>
   </Screen>;
 }
+
+export default withScreenPermission(MessReductionsScreen, (_, role) => role === 'warden' ? 'warden-reductions' : 'my-reductions');

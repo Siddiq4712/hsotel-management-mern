@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Screen from '../../components/common/Screen';
@@ -74,4 +75,4 @@ const ViewLayoutScreen = ({ navigation }) => {
   );
 };
 
-export default ViewLayoutScreen;
+export default withScreenPermission(ViewLayoutScreen, 'warden-rooms');

@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
@@ -5,14 +6,14 @@ import Card from '../../components/common/Card';
 import { SectionTitle, useEmbeddedHeader } from '../../components/common/ReferenceDesign';
 import { InfoNote, StudentIdentity } from '../../components/warden/WardenUI';
 import { MapPin, Clock, ArrowLeft } from 'lucide-react-native';
-import { useIsFocused } from '@react-navigation/native';
+import useForegroundScreen from '../../hooks/useForegroundScreen';
 import Input from '../../components/common/Input';
 import colors from '../../theme/colors';
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, SectionList, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from '../../components/common/Picker';
 import Header from '../../components/common/Header';
 import { gpsAttendanceAPI, wardenAPI } from '../../api/api';
 
@@ -27,8 +28,21 @@ const hasConfiguredGeofence =
   Number.isFinite(CONFIG_GEOFENCE.latitude) &&
   Number.isFinite(CONFIG_GEOFENCE.longitude);
 
+// Keep the one-second clock local so attendance rows do not render on each tick.
+const SessionCountdown = React.memo(function SessionCountdown({ endTime, serverOffsetMs, active }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [active, endTime]);
+  const remaining = Math.max(0, Math.floor((new Date(endTime).getTime() - now - serverOffsetMs) / 1000)) || 0;
+  return <View style={styles.timer}><Clock size={18} color={colors.accent}/><Text style={styles.timerText}>{String(Math.floor(remaining / 60)).padStart(2, '0')}:{String(remaining % 60).padStart(2, '0')} remaining</Text></View>;
+});
+
 const GPSAttendanceScreen = ({ navigation }) => {
-  const isFocused = useIsFocused();
+  const isFocused = useForegroundScreen();
   const embedded = useEmbeddedHeader();
   const [activeSession, setActiveSession] = useState(null);
   const [lastClosedSession, setLastClosedSession] = useState(null);
@@ -46,16 +60,8 @@ const GPSAttendanceScreen = ({ navigation }) => {
   const [duration, setDuration] = useState(String(DEFAULT_DURATION));
   const [customRadius, setCustomRadius] = useState(!['150','200','250'].includes(String(DEFAULT_RADIUS)));
   const [customDuration, setCustomDuration] = useState(false);
-  const [nowTick, setNowTick] = useState(0);
   const sessionForResults = activeSession || lastClosedSession;
   const isSessionActive = !!activeSession;
-
-  const remainingSeconds = useMemo(() => {
-    if (!activeSession?.end_time) return 0;
-    const now = Date.now() + serverOffsetMs;
-    const end = new Date(activeSession.end_time).getTime();
-    return Math.max(0, Math.floor((end - now) / 1000));
-  }, [activeSession, serverOffsetMs, nowTick]);
 
   useEffect(() => {
     if (!isFocused) return;
@@ -67,13 +73,8 @@ const GPSAttendanceScreen = ({ navigation }) => {
     if (!isFocused || !activeSession?.id) return;
     fetchSummary();
     const summaryTimer = setInterval(fetchSummary, 10000);
-    const clockTimer = setInterval(() => {
-      setNowTick((prev) => prev + 1);
-    }, 1000);
-
     return () => {
       clearInterval(summaryTimer);
-      clearInterval(clockTimer);
     };
   }, [activeSession?.id, isFocused]);
 
@@ -277,11 +278,11 @@ const GPSAttendanceScreen = ({ navigation }) => {
           <Card style={styles.setup}>
             <View style={styles.locationIcon}><MapPin size={25} color={colors.accent}/></View>
             <Text style={styles.title}>{isSessionActive?'GPS session active':'Session completed'}</Text>
-            {isSessionActive&&<View style={styles.timer}><Clock size={18} color={colors.accent}/><Text style={styles.timerText}>{String(Math.floor(remainingSeconds/60)).padStart(2,'0')}:{String(remainingSeconds%60).padStart(2,'0')} remaining</Text></View>}
+            {isSessionActive&&<SessionCountdown endTime={activeSession.end_time} serverOffsetMs={serverOffsetMs} active={isFocused} />}
             <View style={styles.sessionGrid}>
               {[[ 'Date',sessionForResults.attendance_date||'Not recorded' ],[ 'Enrollment year',activeBatch==='all'?'All years':activeBatch ],[ 'Radius',Math.round(sessionForResults.geofence_radius_m)+' m' ]].map(([label,value])=><View key={label} style={styles.sessionDetail}><Text style={styles.fieldLabel}>{label}</Text><Text style={styles.summaryValue}>{value}</Text></View>)}
             </View>
-            {isSessionActive&&<Button variant="danger" onPress={closeSession} loading={closing}>Close session</Button>}
+            {isSessionActive&&<Button permissionAction="edit" variant="danger" onPress={closeSession} loading={closing}>Close session</Button>}
           </Card>
           <View style={styles.results}>{[[ 'Present',presentList.length,'success' ],[ 'Absent',absentList.length,'danger' ]].map(([label,count,tone])=><Card key={label} style={{flex:1,gap:6,padding:16}}><Text style={styles.fieldLabel}>{label}</Text><Text style={{fontSize:26,fontWeight:'800',color:colors[tone]}}>{count}</Text></Card>)}</View>
         </>:<Card style={styles.setup}>
@@ -303,7 +304,7 @@ const GPSAttendanceScreen = ({ navigation }) => {
             </View>
           </View>
           <Text style={styles.meta}>Choose an enrollment year below before starting.</Text>
-          <Button onPress={startSession} loading={starting}><MapPin size={19} color={colors.card}/>Start GPS session</Button>
+          <Button permissionAction="create" onPress={startSession} loading={starting}><MapPin size={19} color={colors.card}/>Start GPS session</Button>
         </Card>}
         {renderBatchSection()}
         <InfoNote icon={Clock}>Active results refresh every 10 seconds. This session uses its own geofence radius, separate from the Home location check.</InfoNote>
@@ -311,7 +312,7 @@ const GPSAttendanceScreen = ({ navigation }) => {
     />
   </Screen>;
 };
-export default GPSAttendanceScreen;
+export default withScreenPermission(GPSAttendanceScreen, 'gps-attendance');
 const styles=StyleSheet.create({
   setup:{padding:20,gap:16,borderRadius:18},locationIcon:{width:50,height:50,borderRadius:14,backgroundColor:colors.accentSoft,alignSelf:'center',alignItems:'center',justifyContent:'center'},
   title:{fontSize:20,lineHeight:28,fontWeight:'700',color:colors.primaryDark,textAlign:'center'},setupDescription:{fontSize:13,lineHeight:20,color:colors.mutedText,textAlign:'center'},

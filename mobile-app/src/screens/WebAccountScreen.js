@@ -1,8 +1,10 @@
 import QuickActionsRow from '../components/common/QuickActionsRow';
-import { Monitor, LogOut } from 'lucide-react-native';
+import { Monitor, LogOut, Settings } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
 import colors from '../theme/colors';
 import React from 'react';
-import { Alert, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '../components/common/ReferenceDesign';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../hooks/useAuth';
 import { API_BASE_URL } from '../api/api';
@@ -10,6 +12,7 @@ import { normalizeRole } from '../utils/role';
 
 export default function WebAccountScreen() {
   const { user, logout } = useAuth();
+  const navigation = useNavigation();
   const role = normalizeRole(user?.role) || 'unassigned';
   const webUrl = process.env.EXPO_PUBLIC_WEB_URL ||
     API_BASE_URL.replace(/:\d+\/api\/?$/, ':3000');
@@ -23,6 +26,7 @@ export default function WebAccountScreen() {
   };
 
   const actions = [
+    { label: 'Settings', icon: Settings, onPress: () => navigation.navigate('Settings') },
     { label: 'Open web dashboard', icon: Monitor, onPress: openDashboard },
     { label: 'Switch account', icon: LogOut, onPress: logout },
   ];

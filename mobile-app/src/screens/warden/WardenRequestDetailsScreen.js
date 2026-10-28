@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import React from 'react';
 import Screen from '../../components/common/Screen';
 import ReferenceHeader from '../../components/common/ReferenceHeader';
@@ -13,7 +14,7 @@ const titles = { leave: 'Leave request details', passes: 'Gate pass details', co
 
 // Route parameters contain only the request kind and ID. Each existing screen
 // reloads the hostel-scoped record and owns its original review handlers.
-export default function WardenRequestDetailsScreen({ route, navigation }) {
+function WardenRequestDetailsScreen({ route, navigation }) {
   const { kind, requestId } = route.params || {};
   const Component = screens[kind];
   const valid = Component && requestId != null && String(requestId).trim() !== '';
@@ -24,3 +25,5 @@ export default function WardenRequestDetailsScreen({ route, navigation }) {
       : <Text style={{ padding: 24 }}>This request is unavailable.</Text>}
   </Screen>;
 }
+
+export default withScreenPermission(WardenRequestDetailsScreen, props => ({ leave: 'leave-approvals', passes: 'outpass-approvals', complaints: 'complaint-management', reductions: 'warden-reductions' })[props.route?.params?.kind]);

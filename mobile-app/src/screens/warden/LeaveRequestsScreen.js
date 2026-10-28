@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import ApplicationDetails from '../../components/student/ApplicationDetails';
 import { useEmbeddedHeader } from '../../components/common/ReferenceDesign';
 import { Text } from "../../components/common/ReferenceDesign";
@@ -109,7 +110,7 @@ const LeaveRequestsScreen = ({ navigation, requestId }) => {
             />
 
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-              <Button variant="secondary"
+              <Button permissionAction="approve" variant="secondary"
                 disabled={actionLoading}
                 onPress={() => handleAction('rejected')}
                 style={{ flexGrow: 1, flexBasis: '42%', backgroundColor: colors.dangerSoft, borderColor: colors.dangerTint }}
@@ -118,7 +119,7 @@ const LeaveRequestsScreen = ({ navigation, requestId }) => {
                 <Text className="text-red-600 font-bold">Reject</Text>
               </Button>
 
-              <Button
+              <Button permissionAction="approve"
                 disabled={actionLoading}
                 onPress={() => handleAction('approved')}
                 style={{ flexGrow: 1, flexBasis: '42%', backgroundColor: colors.success }}
@@ -133,4 +134,4 @@ const LeaveRequestsScreen = ({ navigation, requestId }) => {
   );
 };
 
-export default LeaveRequestsScreen;
+export default withScreenPermission(LeaveRequestsScreen, 'leave-approvals');

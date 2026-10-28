@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import colors from '../../theme/colors';
 import React, { useEffect, useMemo, useState, useCallback } from "react";
@@ -362,4 +363,4 @@ const styles = StyleSheet.create({
   statusText: { color: colors.card, fontSize: 12, fontWeight: '900' }
 });
 
-export default ViewRoomsScreen;
+export default withScreenPermission(ViewRoomsScreen, 'my-rooms');

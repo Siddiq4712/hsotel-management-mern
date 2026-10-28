@@ -1,5 +1,6 @@
+import { withScreenPermission, usePermissions } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
-import { useIsFocused } from '@react-navigation/native';
+import useForegroundScreen from '../../hooks/useForegroundScreen';
 import Screen from '../../components/common/Screen';
 import Card from '../../components/common/Card';
 import Input from '../../components/common/Input';
@@ -11,7 +12,8 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { outpassAPI } from '../../api/api';
 
 const QRScannerScreen = ({ navigation, route }) => {
-  const isFocused = useIsFocused();
+  const { can } = usePermissions();
+  const isFocused = useForegroundScreen();
   const manualMode = Boolean(route?.params?.manual);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -49,6 +51,7 @@ const QRScannerScreen = ({ navigation, route }) => {
   };
 
   const processToken = async (token) => {
+    if (!can('gate-scan', 'create')) return;
     setSubmitting(true);
     try {
       const res = await outpassAPI.scanOutpassQR(token);
@@ -79,6 +82,7 @@ const QRScannerScreen = ({ navigation, route }) => {
   };
 
   // Release the native camera whenever another screen is shown.
+  if (!can('gate-scan', 'create')) return <Screen><Text style={{ padding: 24 }}>View-only access. Gate-pass scanning is disabled for your role.</Text></Screen>;
   if (!isFocused) return <View className="flex-1 bg-gray-50" />;
   if (manualMode) return <Screen className="flex-1 bg-background">
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
@@ -189,4 +193,4 @@ const QRScannerScreen = ({ navigation, route }) => {
   );
 };
 
-export default QRScannerScreen;
+export default withScreenPermission(QRScannerScreen, 'gate-scan');

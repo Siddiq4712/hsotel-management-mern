@@ -10,7 +10,7 @@ export default function ParentNavigator() {
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const selection = useMemo(() => ({ selectedStudentId, setSelectedStudentId }), [selectedStudentId]);
   return <ParentStudentContext.Provider value={selection}>
-    <Tab.Navigator tabBar={props => <MobileTabBar {...props} />} screenOptions={{ headerShown: false }}>
+    <Tab.Navigator tabBar={props => <MobileTabBar {...props} />} screenOptions={{ headerShown: false, freezeOnBlur: true }}>
       <Tab.Screen name="ParentDashboard" component={ParentDashboardScreen} initialParams={{ section: 'overview' }}
         options={{ tabBarLabel: 'Overview', tabBarIcon: ({ color, size }) => <Home color={color} size={size} /> }} />
       <Tab.Screen name="ParentAttendance" component={ParentDashboardScreen} initialParams={{ section: 'attendance' }}

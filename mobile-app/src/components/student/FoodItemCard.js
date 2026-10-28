@@ -5,6 +5,7 @@ import { Plus, Clock3, CalendarDays } from 'lucide-react-native';
 import Button from '../common/Button';
 import Card from '../common/Card';
 import colors from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { WEEK_DAYS, foodDeadline, foodOrderingClosed, nextFoodDate } from '../../utils/additionalFood';
 
 const formatPrice = price => { const value = parseFloat(price); return Number.isNaN(value) ? price : value.toFixed(2); };
@@ -40,7 +41,7 @@ const FoodItemCard = React.memo(function FoodItemCard({ item, onAdd, now }) {
 export default FoodItemCard;
 const styles = StyleSheet.create({
   card: { padding: 16, gap: 12, marginBottom: 12 }, top: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  name: { fontSize: 17, fontWeight: '700', color: colors.text }, tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
+  name: { fontSize: typography.item, fontWeight: '700', color: colors.text }, tags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   tag: { color: colors.accent, backgroundColor: colors.accentSoft, paddingHorizontal: 8, paddingVertical: 5, fontSize: 11, fontWeight: '600', borderRadius: 8 },
   meal: { color: colors.mutedText, fontSize: 12 }, price: { color: colors.primary, fontSize: 18, fontWeight: '700', flexShrink: 1 },
   detail: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 }, body: { color: colors.mutedText, fontSize: 13, lineHeight: 19, flex: 1 },

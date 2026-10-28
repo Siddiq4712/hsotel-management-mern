@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { RequestPage, RequestField, RequestNote, requestStyles } from '../../components/student/RequestUI';
 import { Text } from "../../components/common/ReferenceDesign";
 import DateRangeField from '../../components/common/DateRangeField';
@@ -82,7 +83,7 @@ const OutpassRequestScreen = ({ navigation }) => {
       <View style={{ flex: 1, gap: 4 }}><Text style={requestStyles.small}>EXPECTED RETURN</Text><Text style={{ fontSize: 12, fontWeight: '700' }}>{moment(toDate).format('DD MMM · h:mm A')}</Text></View>
     </View>}
     <View style={{ gap: 10 }}>
-      <Button onPress={handleSubmit} loading={loading}>Submit gate pass request</Button>
+      <Button permissionAction="create" onPress={handleSubmit} loading={loading}>Submit gate pass request</Button>
       <Button variant="secondary" disabled={loading} onPress={() => navigation.goBack()} style={requestStyles.outline}>Cancel</Button>
     </View>
     <DateTimePickerModal isVisible={fromPickerVisible} date={fromDate || new Date()} mode="time"
@@ -91,4 +92,4 @@ const OutpassRequestScreen = ({ navigation }) => {
       onConfirm={date => { setToDate(moment(toDate).hour(date.getHours()).minute(date.getMinutes()).second(0).millisecond(0).toDate()); setToPickerVisible(false); }} onCancel={() => setToPickerVisible(false)} />
   </RequestPage>;
 };
-export default OutpassRequestScreen;
+export default withScreenPermission(OutpassRequestScreen, 'my-outpass');

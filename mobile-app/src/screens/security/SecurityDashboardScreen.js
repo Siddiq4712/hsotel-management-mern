@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import Screen from '../../components/common/Screen';
 import ReferenceHeader from '../../components/common/ReferenceHeader';
 import { SectionTitle, ui } from '../../components/common/ReferenceDesign';
@@ -8,8 +9,8 @@ import HighlightCard, { highlightStyles } from '../../components/common/Highligh
 import colors from '../../theme/colors';
 import React, { useState, useCallback, useRef } from 'react';
 import { View, ScrollView, ActivityIndicator } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { outpassAPI } from '../../api/api';
+import useAfterPaintFocusEffect from '../../hooks/useAfterPaintFocusEffect';
+import { getDashboardResource } from '../../api/api';
 import { Scan, ExternalLink, RefreshCw, LogOut, KeyRound } from 'lucide-react-native';
 import { useAuth } from '../../hooks/useAuth';
 import moment from 'moment';
@@ -18,19 +19,21 @@ const SecurityDashboardScreen = ({ navigation, route }) => {
   const activity = route?.params?.section === 'activity';
   const { logout } = useAuth();
   const loadingRef = useRef(false);
+  const loaded = useRef(false);
+  const scanSource = useRef(null);
   const [stats, setStats] = useState({ exits: 0, returns: 0, outside: 0 });
   const [recentScans, setRecentScans] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (force = false) => {
     if (loadingRef.current) return;
     loadingRef.current = true;
-    setLoading(true);
+    if (!loaded.current || force === true) setLoading(true);
     try {
       const [activityRes, outsideRes, scansRes] = await Promise.all([
-        outpassAPI.getTodayGateActivity(),
-        outpassAPI.getStudentsCurrentlyOutside(),
-        outpassAPI.getRecentScans()
+        getDashboardResource('/outpass/today-activity', {}, { force }),
+        getDashboardResource('/outpass/outside', {}, { force }),
+        getDashboardResource('/outpass/recent-scans', {}, { force })
       ]);
 
       const activities = activityRes.data.data || [];
@@ -39,13 +42,14 @@ const SecurityDashboardScreen = ({ navigation, route }) => {
       const exitsToday = activities.filter(a => a.exit_time).length;
       const returnsToday = activities.filter(a => a.return_time).length;
 
-      setStats({
-        exits: exitsToday,
-        returns: returnsToday,
-        outside: outsideList.length
-      });
+      setStats(current => current.exits === exitsToday && current.returns === returnsToday && current.outside === outsideList.length
+        ? current : { exits: exitsToday, returns: returnsToday, outside: outsideList.length });
 
-      setRecentScans((scansRes.data.data || []).slice(0, 10));
+      if (scanSource.current !== scansRes.data.data) {
+        scanSource.current = scansRes.data.data;
+        setRecentScans((scansRes.data.data || []).slice(0, 10));
+      }
+      loaded.current = true;
     } catch (error) {
       console.error('Error fetching security dashboard data:', error);
     } finally {
@@ -54,7 +58,7 @@ const SecurityDashboardScreen = ({ navigation, route }) => {
     }
   }, []);
 
-  useFocusEffect(
+  useAfterPaintFocusEffect(
     useCallback(() => {
       fetchData();
     }, [fetchData])
@@ -76,7 +80,7 @@ const SecurityDashboardScreen = ({ navigation, route }) => {
         </HighlightCard>)}
       </View>
       {activity && <Card style={{ padding: 16, gap: 8 }}>
-        <SectionTitle title="Recent scans" action="Refresh" onPress={fetchData} />
+        <SectionTitle title="Recent scans" action="Refresh" onPress={() => fetchData(true)} />
         {loading ? <ActivityIndicator color={colors.primary} /> : recentScans.length ? recentScans.map(item => <View key={item.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: colors.surface, paddingVertical: 14 }}>
           <View style={{ flex: 1, gap: 5 }}><Text style={{ fontWeight: '700' }}>{item.Student?.userName}</Text><Text style={ui.small}>{item.Student?.roll_number || 'No roll number'}</Text></View>
           <View style={{ alignItems: 'flex-end', gap: 5 }}><Text style={{ fontSize: 12, fontWeight: '700', color: item.status === 'outside' ? colors.primary : colors.success }}>{item.status.replaceAll('_', ' ')}</Text><Text style={ui.small}>{moment(item.updatedAt).format('h:mm A')}</Text></View>
@@ -85,4 +89,4 @@ const SecurityDashboardScreen = ({ navigation, route }) => {
     </ScrollView>
   </Screen>;
 };
-export default SecurityDashboardScreen;
+export default withScreenPermission(SecurityDashboardScreen, 'gate-activity');

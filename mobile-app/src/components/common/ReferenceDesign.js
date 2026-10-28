@@ -1,12 +1,16 @@
 import React, { createContext, useContext } from 'react';
-import { Text as NativeText, View, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { Text as NativeText, View, ScrollView, StyleSheet } from 'react-native';
+import TouchableOpacity from './Touchable';
 import { useFonts } from 'expo-font';
 import { styled } from 'nativewind';
 import { ChevronRight } from 'lucide-react-native';
 import colors from '../../theme/colors';
+import { useTextSize } from '../../theme/TextSizeContext';
+import { textMetrics, typography } from '../../theme/typography';
 
 const DesignContext = createContext({ enabled: false, fontsReady: false });
 const EmbeddedContext = createContext(false);
+const TextNestingContext = createContext(false);
 export const useReferenceDesign = () => useContext(DesignContext);
 export const useEmbeddedHeader = () => useContext(EmbeddedContext);
 export const EmbeddedHeader = EmbeddedContext.Provider;
@@ -29,15 +33,18 @@ export function OriginalDesign({ children }) {
 
 const ReferenceText = React.forwardRef(({ style, className, allowSmallText = false, ...props }, ref) => {
   const { enabled, fontsReady } = useReferenceDesign();
+  const { preference } = useTextSize();
+  const nested = useContext(TextNestingContext);
   const flat = StyleSheet.flatten(style) || {};
   const weight = Number(flat.fontWeight) || (flat.fontWeight === 'bold' ? 700 : 400);
   const size = flat.fontSize || 14;
   const family = size >= 18 && weight >= 600
     ? (weight >= 800 ? 'ManropeExtraBold' : 'ManropeBold')
     : weight >= 600 ? 'DMBold' : weight >= 500 ? 'DMMedium' : 'DMRegular';
-  return <NativeText ref={ref} {...props} className={className}
-    style={[enabled && { color: colors.text, fontSize: 14 }, style, enabled && !allowSmallText && size < 12 && { fontSize: 12 },
-      enabled && fontsReady && { fontFamily: family, fontWeight: 'normal' }]} />;
+  const metrics = !nested || flat.fontSize != null ? textMetrics(flat, preference, { allowSmallText }) : null;
+  return <TextNestingContext.Provider value={true}><NativeText ref={ref} {...props} className={className}
+    style={[!nested && { color: colors.text, flexShrink: 1 }, style, metrics,
+      enabled && fontsReady && (!nested || flat.fontWeight != null || flat.fontSize != null) && { fontFamily: family, fontWeight: 'normal' }]} /></TextNestingContext.Provider>;
 });
 ReferenceText.displayName = 'ReferenceText';
 export const Text = styled(ReferenceText);
@@ -93,7 +100,7 @@ export const ui = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingTop: 20, paddingBottom: 32, gap: 12 },
   intro: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
-  title: { fontSize: 25, lineHeight: 33, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
+  title: { fontSize: typography.pageTitle, lineHeight: 33, fontWeight: '800', color: colors.text, letterSpacing: -0.5 },
   eyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1, color: colors.primary },
   description: { fontSize: 14, lineHeight: 21, color: colors.mutedText },
   small: { fontSize: 12, lineHeight: 18, color: colors.mutedText },
@@ -102,7 +109,7 @@ export const ui = StyleSheet.create({
   selectedSegment: { backgroundColor: colors.card, borderColor: colors.border },
   segmentLabel: { fontSize: 12, fontWeight: '700', color: colors.mutedText, textAlign: 'center' },
   section: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: colors.text, flexShrink: 1 },
+  sectionTitle: { fontSize: typography.section, fontWeight: '700', color: colors.text, flexShrink: 1 },
   textAction: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 4 },
   link: { color: colors.primary, fontSize: 13, fontWeight: '700' },
   service: { minHeight: 80, backgroundColor: colors.card, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 12 },

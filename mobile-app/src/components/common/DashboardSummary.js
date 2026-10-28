@@ -3,6 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import HighlightCard, { highlightStyles } from './HighlightCard';
 import { Text } from './ReferenceDesign';
 import colors from '../../theme/colors';
+import { typography } from '../../theme/typography';
 
 export function MetricCard({ title, value, detail, icon: Icon, style }) {
   return <HighlightCard style={[styles.metric, style]}>
@@ -31,7 +32,7 @@ const styles = StyleSheet.create({
   metricTop: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 9 },
   icon: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   metricTitle: { flex: 1, minWidth: 70, fontSize: 13, fontWeight: '600', color: colors.mutedText },
-  value: { fontSize: 30, lineHeight: 40, fontWeight: '800' },
+  value: { fontSize: typography.amount, lineHeight: 40, fontWeight: '800' },
   breakdown: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   status: { flexGrow: 1, flexBasis: '29%', minWidth: 75, padding: 12, borderRadius: 12, gap: 4 },
   count: { fontSize: 22, fontWeight: '700' },

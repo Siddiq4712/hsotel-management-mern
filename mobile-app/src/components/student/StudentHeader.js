@@ -1,9 +1,11 @@
 import { Text } from "../common/ReferenceDesign";
 import React from 'react';
-import { Image, View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Image, View, StyleSheet } from 'react-native';
+import TouchableOpacity from '../common/Touchable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowLeft, UserRound } from 'lucide-react-native';
+import { ArrowLeft, UserRound, Settings } from 'lucide-react-native';
+import { typography } from '../../theme/typography';
 import colors from '../../theme/colors';
 import { useStudentPresentation } from './StudentPresentation';
 import NotificationBell from '../common/NotificationBell';
@@ -32,6 +34,10 @@ export default function StudentHeader({ title = 'Hostel Management', back = fals
         <Text style={[styles.title, back && styles.center]} numberOfLines={back ? 1 : 2}>{title}</Text>
         <View style={styles.actions}>
         <NotificationBell />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open settings"
+          onPress={() => navigation.navigate('Settings')} style={styles.control}>
+          <Settings size={20} color={colors.mutedText} />
+        </TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open student profile"
           onPress={() => navigation.navigate('StudentTabs', { screen: 'Profile', params: { screen: 'StudentAccount' } })} style={styles.control}>
           <UserRound size={21} color={colors.primary} />
@@ -45,7 +51,7 @@ const styles = StyleSheet.create({
   safe: { backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border },
   row: { minHeight: 60, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 10 },
   logo: { width: 28, height: 36, marginHorizontal: 4 },
-  title: { flex: 1, minWidth: 0, fontSize: 16, lineHeight: 21, fontWeight: '700', color: colors.primaryDark },
+  title: { flex: 1, minWidth: 0, fontSize: typography.header, lineHeight: 21, fontWeight: '700', color: colors.primaryDark },
   center: { textAlign: 'center', color: colors.text },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   control: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },

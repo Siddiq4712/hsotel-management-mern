@@ -1,3 +1,5 @@
+import { PermissionTouchable } from '../../auth/PermissionContext';
+import { withScreenPermission } from '../../auth/PermissionContext';
 import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
 import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
@@ -5,64 +7,32 @@ import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { View, FlatList, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { DollarSign, AlertTriangle, CheckCircle, Calendar, FileText, Download, CreditCard, Clock, XCircle, ExternalLink } from 'lucide-react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import moment from 'moment';
 import Header from '../../components/student/StudentHeader';
 import StatusBadge from '../../components/common/StatusBadge';
+import usePagedHistory from '../../hooks/usePagedHistory';
+import HistoryFooter from '../../components/common/HistoryFooter';
 
 const ViewBillsScreen = () => {
-  const [loading, setLoading] = useState(true);
-  const [messBills, setMessBills] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(moment());
-  const [stats, setStats] = useState({
-    totalAmount: 0,
-    paidAmount: 0,
-    pendingAmount: 0,
-    overdueAmount: 0,
-  });
+  const history = usePagedHistory(studentAPI.getMessBills, { month: selectedMonth.month() + 1, year: selectedMonth.year() });
+  const { rows: messBills, loading } = history;
+  const stats = history.summary || {
+    totalAmount: messBills.reduce((sum, bill) => sum + Number(bill.amount || 0), 0),
+    ...Object.fromEntries(['paid', 'pending', 'overdue'].map(status => [`${status}Amount`,
+      messBills.filter(bill => bill.status === status).reduce((sum, bill) => sum + Number(bill.amount || 0), 0)])),
+  };
   const [todayAttendance, setTodayAttendance] = useState(null);
   const [attendanceLoading, setAttendanceLoading] = useState(true);
   const [isMonthPickerVisible, setMonthPickerVisible] = useState(false);
 
   useEffect(() => {
-    fetchMessBills();
     fetchAttendance();
-  }, [selectedMonth]);
-
-  const fetchMessBills = async () => {
-    setLoading(true);
-    try {
-      const month = selectedMonth.month() + 1; // 1-based month
-      const year = selectedMonth.year();
-      const response = await studentAPI.getMessBills({ month, year });
-      
-      const bills = response.data.data || [];
-      setMessBills(bills);
-      
-      const totalAmount = bills.reduce((sum, bill) => sum + parseFloat(bill.amount || 0), 0);
-      const paidAmount = bills.filter(bill => bill.status === 'paid')
-        .reduce((sum, bill) => sum + parseFloat(bill.amount || 0), 0);
-      const pendingAmount = bills.filter(bill => bill.status === 'pending')
-        .reduce((sum, bill) => sum + parseFloat(bill.amount || 0), 0);
-      const overdueAmount = bills.filter(bill => bill.status === 'overdue')
-        .reduce((sum, bill) => sum + parseFloat(bill.amount || 0), 0);
-      
-      setStats({ 
-        totalAmount, 
-        paidAmount, 
-        pendingAmount, 
-        overdueAmount,
-      });
-    } catch (error) {
-      console.error('Error fetching mess bills:', error);
-      Alert.alert('Error', error.message || 'Failed to load mess bills');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, []);
 
   const fetchAttendance = async () => {
     setAttendanceLoading(true);
@@ -108,7 +78,7 @@ const ViewBillsScreen = () => {
     Alert.alert('Download Receipt', `Generate and download receipt for Bill ID ${bill.id}. (Functionality Required)`);
   };
 
-  const BillCard = ({ bill }) => (
+  const renderBill = ({ item: bill }) => (
     <Card className="bg-white rounded-2xl shadow-sm p-4 mb-3 border border-gray-200">
       <View className="flex-row justify-between items-center mb-2">
         <View>
@@ -134,19 +104,19 @@ const ViewBillsScreen = () => {
           </Button>
         )}
         {bill.status === 'paid' && (
-          <TouchableOpacity
+          <PermissionTouchable permissionAction="export"
             onPress={() => handleDownloadReceipt(bill)}
             className="bg-gray-300 py-2 px-3 rounded-xl flex-row items-center"
           >
             <Download size={16} color={colors.mutedText} className="mr-1" />
             <Text className="text-gray-700 text-sm font-semibold">Receipt</Text>
-          </TouchableOpacity>
+          </PermissionTouchable>
         )}
       </View>
     </Card>
   );
 
-  if (loading) {
+  if (loading && !messBills.length) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-100">
         <ActivityIndicator size="large" color={colors.primary} />
@@ -158,7 +128,12 @@ const ViewBillsScreen = () => {
   return (
     <Screen className="flex-1 bg-background">
       <Header />
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled" className="p-4">
+      <FlatList style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} keyboardShouldPersistTaps="handled"
+        data={messBills} keyExtractor={item => String(item.id)}
+        refreshing={loading} onRefresh={history.reload}
+        initialNumToRender={8} maxToRenderPerBatch={8} windowSize={7}
+        renderItem={renderBill}
+        ListHeaderComponent={<>
         <View className="flex-row justify-between items-center mb-6">
           <Text className="text-2xl font-bold text-indigo-900">My Mess Bills</Text>
           <TouchableOpacity onPress={() => setMonthPickerVisible(true)} className="flex-row items-center p-2 bg-white rounded-xl border border-gray-300">
@@ -212,19 +187,17 @@ const ViewBillsScreen = () => {
 
         <Card className="bg-white rounded-2xl shadow-sm mb-6 p-4">
           <Text className="text-xl font-semibold text-gray-900 mb-4">Bills for {selectedMonth.format('MMMM YYYY')}</Text>
-          {messBills.length > 0 ? (
-            <View>
-              {messBills.map(bill => <BillCard key={bill.id} bill={bill} />)}
-            </View>
-          ) : (
+        </Card>
+        </>}
+        ListEmptyComponent={
             <View className="text-center py-8">
               <DollarSign className="mx-auto h-12 w-12 text-gray-400" />
               <Text className="mt-2 text-sm font-medium text-gray-900">No mess bills found for {selectedMonth.format('MMMM YYYY')}</Text>
               <Text className="mt-1 text-sm text-gray-500">Payment instructions below.</Text>
             </View>
-          )}
-        </Card>
-
+        }
+        ListFooterComponent={<>
+        <HistoryFooter history={history} />
         <View className="bg-gray-100 rounded-xl shadow-sm p-4 mb-6">
           <Text className="text-lg font-semibold text-gray-900 mb-3">Payment Instructions</Text>
           <Text className="text-sm text-gray-700">
@@ -234,7 +207,8 @@ const ViewBillsScreen = () => {
             • For any billing queries, please contact the mess office
           </Text>
         </View>
-      </ScrollView>
+        </>}
+      />
 
       <DateTimePickerModal
         isVisible={isMonthPickerVisible}
@@ -247,4 +221,4 @@ const ViewBillsScreen = () => {
   );
 };
 
-export default ViewBillsScreen;
+export default withScreenPermission(ViewBillsScreen, 'my-fees');

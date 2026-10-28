@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { useEmbeddedHeader } from '../../components/common/ReferenceDesign';
 import { Text } from "../../components/common/ReferenceDesign";
 import RequestDetails, { personName, displayDate } from '../../components/common/RequestDetails';
@@ -123,7 +124,7 @@ const ComplaintManagementScreen = ({ requestId } = {}) => {
               textAlignVertical="top"
             />
 
-            <Button
+            <Button permissionAction="edit"
               disabled={actionLoading}
               loading={actionLoading}
               onPress={updateStatus}
@@ -136,4 +137,4 @@ const ComplaintManagementScreen = ({ requestId } = {}) => {
   );
 };
 
-export default ComplaintManagementScreen;
+export default withScreenPermission(ComplaintManagementScreen, 'complaint-management');

@@ -1,19 +1,24 @@
+import { ScreenPermissionContext, usePermissions } from '../../auth/PermissionContext';
 import { Text } from "./ReferenceDesign";
 import React from 'react';
-import { ActivityIndicator, TouchableOpacity, StyleSheet } from 'react-native';
+import { ActivityIndicator, StyleSheet } from 'react-native';
+import Touchable from './Touchable';
 import colors from '../../theme/colors';
+import { typography } from '../../theme/typography';
 import { useReferenceDesign } from './ReferenceDesign';
 
 // Existing handlers, disabled conditions and children pass through unchanged.
-const Button = React.forwardRef(({ children, variant = 'primary', loading = false, disabled,
+const Button = React.forwardRef(({ children, variant = 'primary', loading = false, disabled, permissionAction, permissionScreen,
   className, style, accessibilityLabel, onFocus, onBlur, ...props }, ref) => {
-  const inactive = disabled || loading;
+  const current = React.useContext(ScreenPermissionContext);
+  const { can } = usePermissions();
+  const inactive = disabled || loading || (permissionAction && (permissionScreen || current) && !can(permissionScreen || current, permissionAction));
   const [focused, setFocused] = React.useState(false);
   const { enabled } = useReferenceDesign();
   const primaryButton = (!className && variant === 'primary') || /(?:^|\s)bg-(?:blue|indigo|purple|violet)-(?:400|500|600|700|800|900)(?=\s|$)/.test(className || '');
   const foreground = primaryButton ? colors.buttonText : variant === 'secondary' || variant === 'ghost' ? colors.primary : colors.card;
   return (
-    <TouchableOpacity
+    <Touchable
       ref={ref}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
@@ -33,7 +38,7 @@ const Button = React.forwardRef(({ children, variant = 'primary', loading = fals
         typeof child === 'string' || typeof child === 'number'
           ? <Text style={[styles.label, { color: foreground }]}>{child}</Text>
           : child)}
-    </TouchableOpacity>
+    </Touchable>
   );
 });
 Button.displayName = 'Button';
@@ -48,6 +53,6 @@ const styles = StyleSheet.create({
   ghost: { paddingHorizontal: 12, paddingVertical: 10 },
   danger: { backgroundColor: colors.danger, paddingHorizontal: 18, paddingVertical: 14 },
   disabled: { opacity: 0.55 },
-  label: { fontSize: 16, fontWeight: '600', textAlign: 'center', flexShrink: 1 },
+  label: { fontSize: typography.button, fontWeight: '600', textAlign: 'center', flexShrink: 1 },
 });
 export default Button;

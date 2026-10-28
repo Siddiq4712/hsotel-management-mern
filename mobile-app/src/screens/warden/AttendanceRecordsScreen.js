@@ -1,3 +1,5 @@
+import { PermissionTouchable } from '../../auth/PermissionContext';
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Segments, useEmbeddedHeader } from '../../components/common/ReferenceDesign';
 import colors from '../../theme/colors';
 import { Text } from "../../components/common/ReferenceDesign";
@@ -14,7 +16,7 @@ import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import { sortAttendanceStudents } from '../../utils/attendanceSort';
 
-export default function AttendanceRecordsScreen({ navigation }) {
+function AttendanceRecordsScreen({ navigation }) {
   const [date,setDate]=useState(new Date()),[picker,setPicker]=useState(false),[students,setStudents]=useState([]),[records,setRecords]=useState([]);
   const [search,setSearch]=useState(''),[loading,setLoading]=useState(false),[saving,setSaving]=useState(false);
   const [loadError,setLoadError]=useState(false);
@@ -68,7 +70,7 @@ export default function AttendanceRecordsScreen({ navigation }) {
       <AttendanceSort value={sortBy} onChange={setSortBy} />
       <View style={styles.bulk}>
         <Text style={styles.meta}>{visibleStudents.length} students · {Object.keys(changes).length} unsaved changes</Text>
-        <View style={styles.bulkButtons}>{[['P','Present all'],['A','Absent all']].map(([status,label])=><Button key={status} variant="ghost"
+        <View style={styles.bulkButtons}>{[['P','Present all'],['A','Absent all']].map(([status,label])=><Button permissionAction="edit" key={status} variant="ghost"
           disabled={saving||loading||loadError||!editable.length} onPress={()=>markAll(status)} style={styles.bulkButton}>
           <Text style={{fontSize:12,fontWeight:'700',color:status==='P'?colors.success:colors.danger}}>{label}</Text>
         </Button>)}</View>
@@ -82,19 +84,19 @@ export default function AttendanceRecordsScreen({ navigation }) {
         <View style={styles.rosterRow}>
           <StudentIdentity name={item.userName||item.username} meta={[item.roll_number,'Room '+(String(item.room_number??'').trim()||'not allotted')].filter(Boolean).join(' · ')} style={styles.identity} />
           {record?.reduction_request_id ? <View style={styles.lockedBadge}><LockKeyhole size={13} color={colors.primary}/><Text style={styles.lockedText}>{selectedStatus || '—'} · Locked</Text></View>
-            : <View style={styles.choices}>{[['P','Present'],['A','Absent'],['OD','On duty']].map(([status,label])=><TouchableOpacity key={status}
+            : <View style={styles.choices}>{[['P','Present'],['A','Absent'],['OD','On duty']].map(([status,label])=><PermissionTouchable permissionAction="edit" key={status}
               accessibilityRole="radio" accessibilityState={{checked:selectedStatus===status,disabled:saving||loading||loadError}}
               accessibilityLabel={label+' for '+(item.userName||item.username)} disabled={saving||loading||loadError} onPress={()=>mark(id,status)}
               style={[styles.choice,selectedStatus===status&&{borderColor:({P:colors.success,A:colors.danger,OD:colors.accent})[status],backgroundColor:({P:colors.successSoft,A:colors.dangerSoft,OD:colors.accentSoft})[status]}]}>
               <Text style={{fontSize:12,fontWeight:'700',color:selectedStatus===status?({P:colors.success,A:colors.danger,OD:colors.accent})[status]:colors.mutedText}}>{status}</Text>
-            </TouchableOpacity>)}</View>}
+            </PermissionTouchable>)}</View>}
         </View>
         {record?.reduction_request_id && <Text style={styles.lockedDetail}>Reduction #{record.reduction_request_id}{record.ReductionRequest?.category ? ' · '+record.ReductionRequest.category : ''}{record.MarkedBy?.userName ? ' · '+record.MarkedBy.userName : ''}</Text>}
       </Card>;
     }}
     ListEmptyComponent={!loading&&<Text style={styles.empty}>{loadError?'Could not load the roster. Tap Refresh to retry.':'No matching students.'}</Text>}
     ListFooterComponent={<View style={{gap:12,paddingTop:8}}>
-      <Button accessibilityLabel="Save attendance" disabled={saving||loading||loadError||!Object.keys(changes).length} onPress={save}>{saving?'Saving…':'Save attendance · '+Object.keys(changes).length+' changes'}</Button>
+      <Button permissionAction="edit" accessibilityLabel="Save attendance" disabled={saving||loading||loadError||!Object.keys(changes).length} onPress={save}>{saving?'Saving…':'Save attendance · '+Object.keys(changes).length+' changes'}</Button>
       <Button variant="ghost" onPress={load} disabled={saving||loading}>Refresh</Button>
     </View>}/>
     {picker&&<DateTimePicker value={date} mode="date" onChange={(event,value)=>{setPicker(false);if(value&&event.type!=='dismissed')setDate(value);}}/>}
@@ -113,3 +115,5 @@ const styles=StyleSheet.create({
   locked:{backgroundColor:colors.background},lockedBadge:{flexDirection:'row',alignItems:'center',gap:5,borderRadius:9,padding:8,backgroundColor:colors.primarySoft},lockedText:{fontSize:12,fontWeight:'700',color:colors.primary},lockedDetail:{fontSize:12,lineHeight:18,color:colors.mutedText},
   empty:{color:colors.mutedText,textAlign:'center',paddingVertical:24},
 });
+
+export default withScreenPermission(AttendanceRecordsScreen, 'attendance');

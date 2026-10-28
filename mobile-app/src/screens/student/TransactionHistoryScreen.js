@@ -1,39 +1,24 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
 import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import usePagedHistory from '../../hooks/usePagedHistory';
+import HistoryFooter from '../../components/common/HistoryFooter';
+import { View, FlatList, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { CreditCard, Calendar, DollarSign, CheckCircle, XCircle, Clock, Filter } from 'lucide-react-native';
 import moment from 'moment';
 import Header from '../../components/student/StudentHeader';
 import StatusBadge from '../../components/common/StatusBadge';
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from '../../components/common/Picker';
 
 const TransactionHistoryScreen = () => {
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
-
-  useEffect(() => {
-    fetchTransactions();
-  }, [filter]); // Re-fetch when filter changes
-
-  const fetchTransactions = async () => {
-    setLoading(true);
-    try {
-      const params = filter === 'all' ? {} : { status: filter };
-      const response = await studentAPI.getTransactions(params); // Assuming API can take status filter
-      setTransactions(response.data.data || []);
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      Alert.alert('Error', error.message || 'Failed to load transactions.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const history = usePagedHistory(studentAPI.getTransactions, filter === 'all' ? {} : { status: filter });
+  const { rows: transactions, loading, summary } = history;
 
   const getTransactionTypeColor = (type) => {
     switch (type) {
@@ -44,11 +29,11 @@ const TransactionHistoryScreen = () => {
     }
   };
 
-  const totalAmount = transactions.reduce((sum, transaction) => {
+  const totalAmount = Number(summary?.totalAmount ?? transactions.reduce((sum, transaction) => {
     return sum + parseFloat(transaction.amount);
-  }, 0);
+  }, 0));
 
-  if (loading) {
+  if (loading && !transactions.length) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-100">
         <ActivityIndicator size="large" color={colors.primary} />
@@ -60,7 +45,12 @@ const TransactionHistoryScreen = () => {
   return (
     <Screen className="flex-1 bg-background">
       <Header title="Transactions" back />
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled" className="p-4">
+      <FlatList style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 32 }} keyboardShouldPersistTaps="handled"
+        data={transactions} keyExtractor={item => String(item.id)}
+        refreshing={loading} onRefresh={history.reload}
+        ListFooterComponent={<HistoryFooter history={history} />}
+        initialNumToRender={8} maxToRenderPerBatch={8} windowSize={7}
+        ListHeaderComponent={<>
         <View className="mb-8 flex-row justify-between items-center">
           <View>
             <Text className="text-2xl font-bold text-indigo-900 mb-2">Transaction History</Text>
@@ -89,10 +79,10 @@ const TransactionHistoryScreen = () => {
         {/* Statistics */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
           {[
-            ['Total Txns', transactions.length, CreditCard],
+            ['Total Txns', summary?.totalTransactions ?? transactions.length, CreditCard],
             ['Total Amount', `₹${totalAmount.toFixed(2)}`, DollarSign],
-            ['Completed', transactions.filter(t => t.status === 'completed').length, CheckCircle],
-            ['Pending', transactions.filter(t => t.status === 'pending').length, Clock],
+            ['Completed', summary?.completed ?? transactions.filter(t => t.status === 'completed').length, CheckCircle],
+            ['Pending', summary?.pending ?? transactions.filter(t => t.status === 'pending').length, Clock],
           ].map(([label, value, Icon]) => <HighlightCard key={label} style={{ flexGrow: 1, flexBasis: '46%', padding: 16 }}>
             <View style={[highlightStyles.badge, { alignSelf: 'flex-start' }]}><Icon size={22} color={colors.highlightText} /></View>
             <Text style={highlightStyles.detail}>{label}</Text>
@@ -112,10 +102,10 @@ const TransactionHistoryScreen = () => {
             )}
           </View>
 
-          {transactions.length > 0 ? (
-            <View>
-              {transactions.map((transaction) => (
-                <View key={transaction.id} className="p-4 border-b border-gray-200 last:border-b-0">
+        </Card>
+        </>}
+        renderItem={({ item: transaction }) => (
+                <View className="bg-white p-4 border-b border-gray-200">
                   <View className="flex-row justify-between items-center mb-2">
                     <View className={`px-2 py-0.5 rounded-full text-xs font-medium border ${getTransactionTypeColor(transaction.transaction_type)}`}>
                         <Text className={`text-xs font-medium ${getTransactionTypeColor(transaction.transaction_type).split(' ').find(cls => cls.startsWith('text-'))}`}>
@@ -146,10 +136,9 @@ const TransactionHistoryScreen = () => {
                     <Text className="text-xs text-gray-500">Ref: {transaction.reference_id || 'N/A'}</Text>
                   </View>
                 </View>
-              ))}
-            </View>
-          ) : (
-            <View className="text-center py-12">
+        )}
+        ListEmptyComponent={
+            <View className="bg-white text-center py-12">
               <CreditCard className="mx-auto h-12 w-12 text-gray-400" />
               <Text className="mt-2 text-sm font-medium text-gray-900">No transactions found</Text>
               <Text className="mt-1 text-sm text-gray-500">
@@ -159,11 +148,10 @@ const TransactionHistoryScreen = () => {
                 }
               </Text>
             </View>
-          )}
-        </Card>
-      </ScrollView>
+        }
+      />
     </Screen>
   );
 };
 
-export default TransactionHistoryScreen;
+export default withScreenPermission(TransactionHistoryScreen, 'my-transactions');

@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Screen from '../../components/common/Screen';
@@ -231,4 +232,4 @@ const RoomAllotmentScreen = () => {
   );
 };
 
-export default RoomAllotmentScreen;
+export default withScreenPermission(RoomAllotmentScreen, 'room-allotment');

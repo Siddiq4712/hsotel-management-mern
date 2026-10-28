@@ -8,6 +8,7 @@ import { OriginalDesign } from '../components/common/ReferenceDesign';
 import StudentDashboardScreen from '../screens/student/StudentDashboardScreen';
 import StudentWorkflowScreen from '../screens/student/StudentWorkflowScreen';
 import StudentAccountScreen from '../screens/student/StudentAccountScreen';
+import PasswordScreen from '../screens/PasswordScreen';
 import MyMessChargesScreen from '../screens/student/MyMessChargesScreen';
 import StudentFoodOrderScreen from '../screens/student/StudentFoodOrderScreen';
 import MyFoodOrdersScreen from '../screens/student/MyFoodOrdersScreen';
@@ -38,6 +39,7 @@ function MessNavigator() {
 function ProfileNavigator() {
   return <ProfileStack.Navigator screenOptions={stackOptions}>
     <ProfileStack.Screen name="StudentAccount" component={StudentAccountScreen} />
+    <ProfileStack.Screen name="ChangePassword" component={PasswordScreen} />
     <ProfileStack.Screen name="Rooms" component={ViewRoomsScreen} />
     <ProfileStack.Screen name="Complaints" component={MyComplaintsScreen} />
   </ProfileStack.Navigator>;
@@ -47,7 +49,7 @@ function PreservedStudentHome(props) {
 }
 function StudentTabs() {
   return <Tab.Navigator initialRouteName="Dashboard" tabBar={props => <MobileTabBar {...props} />}
-    screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true }}>
+    screenOptions={{ headerShown: false, tabBarHideOnKeyboard: true, freezeOnBlur: true }}>
     <Tab.Screen name="Dashboard" component={PreservedStudentHome} options={{ tabBarLabel: 'Home', tabBarIcon: ({ color, size }) => <Home color={color} size={size} /> }} />
     <Tab.Screen name="Attendance" component={StudentWorkflowScreen} options={{ tabBarLabel: 'Services', tabBarIcon: ({ color, size }) => <CalendarCheck color={color} size={size} /> }} />
     <Tab.Screen name="MessCharges" component={MessNavigator} options={{ tabBarLabel: 'Mess', tabBarIcon: ({ color, size }) => <Utensils color={color} size={size} /> }} />

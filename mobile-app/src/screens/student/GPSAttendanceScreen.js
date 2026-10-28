@@ -1,3 +1,5 @@
+import { PermissionTouchable } from '../../auth/PermissionContext';
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import { useStudentVisible } from '../../components/student/StudentPresentation';
 import colors from '../../theme/colors';
@@ -233,7 +235,7 @@ const GPSAttendanceScreen = ({ embedded = false }) => {
               </Text>
             )}
 
-            <TouchableOpacity
+            <PermissionTouchable permissionAction="create"
               onPress={markAttendance}
               disabled={marking || !!markedStatus}
               style={[
@@ -250,7 +252,7 @@ const GPSAttendanceScreen = ({ embedded = false }) => {
                   ? 'Marking...'
                   : 'Mark Attendance'}
               </Text>
-            </TouchableOpacity>
+            </PermissionTouchable>
           </View>
         ) : (
           <View style={styles.card}>
@@ -268,7 +270,7 @@ const GPSAttendanceScreen = ({ embedded = false }) => {
   );
 };
 
-export default GPSAttendanceScreen;
+export default withScreenPermission(GPSAttendanceScreen, 'gps-attendance');
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },

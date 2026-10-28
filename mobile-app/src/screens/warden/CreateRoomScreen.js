@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Screen from '../../components/common/Screen';
@@ -64,7 +65,7 @@ const CreateRoomScreen = () => {
         <View className="gap-3">
           <View className="flex-row space-x-2">
             <Input value={floors.toString()} onChangeText={(v) => setFloors(parseInt(v))} keyboardType="numeric" className="flex-1 border p-2 rounded" />
-            <Button onPress={saveLayout} className="bg-indigo-600 p-3 rounded">
+            <Button permissionAction="edit" onPress={saveLayout} className="bg-indigo-600 p-3 rounded">
               <Save size={20} color="white" />
             </Button>
           </View>
@@ -89,4 +90,4 @@ const CreateRoomScreen = () => {
   );
 };
 
-export default CreateRoomScreen;
+export default withScreenPermission(CreateRoomScreen, 'warden-rooms');

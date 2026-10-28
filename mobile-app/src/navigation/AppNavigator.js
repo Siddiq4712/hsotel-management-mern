@@ -1,7 +1,10 @@
+import { PermissionProvider } from '../auth/PermissionContext';
 import { Text } from "../components/common/ReferenceDesign";
 import colors from '../theme/colors';
 import React from 'react';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import SettingsScreen from '../screens/SettingsScreen';
 import AuthNavigator from '../auth/AuthNavigator';
 import StudentTabNavigator from './StudentTabNavigator';
 import WardenTabNavigator from './WardenTabNavigator';
@@ -12,6 +15,7 @@ import { useAuth } from '../hooks/useAuth';
 import { View, ActivityIndicator } from 'react-native';
 import { normalizeRole } from '../utils/role';
 import { ReferenceProvider, OriginalDesign } from '../components/common/ReferenceDesign';
+import { useTextSize } from '../theme/TextSizeContext';
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -25,9 +29,11 @@ const navigationTheme = {
     notification: colors.danger,
   },
 };
+const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => {
   const { user, loading } = useAuth();
+  const { ready: textSizeReady } = useTextSize();
 
   const resolvedRole = normalizeRole(
     user?.role ??
@@ -36,7 +42,7 @@ const AppNavigator = () => {
       null
   );
 
-  if (loading) {
+  if (loading || !textSizeReady) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background, padding: 24 }}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -47,21 +53,24 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer theme={navigationTheme}>
-      {user ? <ReferenceProvider>{(
-        resolvedRole === 'student' ? (
-          <StudentTabNavigator />
-        ) : resolvedRole === 'warden' ? (
-          <WardenTabNavigator />
-        ) : resolvedRole === 'security' ? (
-          <SecurityNavigator />
-        ) : resolvedRole === 'parent' ? (
-          <ParentNavigator />
-        ) : (
-          <OriginalDesign><WebAccountScreen /></OriginalDesign>
-        )
-      )}</ReferenceProvider> : (
-        <AuthNavigator />
-      )}
+      <Stack.Navigator key={user ? 'signed-in' : 'signed-out'} screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="AppWorkspace">{() => (
+          user ? <PermissionProvider><ReferenceProvider>{(
+            resolvedRole === 'student' ? (
+              <StudentTabNavigator />
+            ) : resolvedRole === 'warden' ? (
+              <WardenTabNavigator />
+            ) : resolvedRole === 'security' ? (
+              <SecurityNavigator />
+            ) : resolvedRole === 'parent' ? (
+              <ParentNavigator />
+            ) : (
+              <OriginalDesign><WebAccountScreen /></OriginalDesign>
+            )
+          )}</ReferenceProvider></PermissionProvider> : <AuthNavigator />
+        )}</Stack.Screen>
+        <Stack.Screen name="Settings">{() => <ReferenceProvider><SettingsScreen /></ReferenceProvider>}</Stack.Screen>
+      </Stack.Navigator>
     </NavigationContainer>
   );
 };

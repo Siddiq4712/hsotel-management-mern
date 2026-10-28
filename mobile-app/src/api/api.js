@@ -1,11 +1,25 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform, DeviceEventEmitter } from 'react-native';
+import * as Device from 'expo-device';
 import appConfig from '../../app.json';
+import { createRequestCache } from '../utils/requestCache';
+import { createSessionToken } from '../utils/sessionToken';
+
+const dashboardCache = createRequestCache();
+const sessionToken = createSessionToken(() => AsyncStorage.getItem('token'));
+export const clearDashboardCache = () => dashboardCache.clear();
 
 // Keep login, OAuth and other requests on the same configured backend.
-// Physical phones use the computer's Wi-Fi IP; 10.0.2.2 is emulator-only.
+// Android emulators reach the development computer through 10.0.2.2.
+const isDevelopmentEmulator =
+  __DEV__ && Platform.OS === 'android' && Device.isDevice === false;
+
 export const API_BASE_URL = (
-  process.env.EXPO_PUBLIC_API_URL || appConfig.expo.extra.API_BASE_URL
+  process.env.EXPO_PUBLIC_API_URL ||
+  (isDevelopmentEmulator
+    ? 'http://10.0.2.2:5001/api'
+    : appConfig.expo.extra.API_BASE_URL)
 ).replace(/\/+$/, '');
 
 const api = axios.create({
@@ -17,6 +31,8 @@ const api = axios.create({
 });
 
 export const setAuthToken = (token) => {
+  sessionToken.set(token);
+  if (api.defaults.headers.common.Authorization !== (token ? `Bearer ${token}` : undefined)) clearDashboardCache();
   if (token) {
     api.defaults.headers.common.Authorization = `Bearer ${token}`;
   } else {
@@ -27,10 +43,13 @@ export const setAuthToken = (token) => {
 // Request interceptor: attach token if exists
 api.interceptors.request.use(
   async (config) => {
+    if (!['get', 'head', 'options'].includes(String(config.method || 'get').toLowerCase())) clearDashboardCache();
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await sessionToken.get();
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+      } else {
+        delete config.headers.Authorization;
       }
     } catch (err) {
       console.error('Error getting token from AsyncStorage:', err);
@@ -42,29 +61,50 @@ api.interceptors.request.use(
 
 // Response interceptor: centralized error handling
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (!['get', 'head', 'options'].includes(String(response.config?.method || 'get').toLowerCase())) clearDashboardCache();
+    return response;
+  },
   async (error) => {
+    if ([401, 403].includes(error.response?.status)
+      || !['get', 'head', 'options'].includes(String(error.config?.method || 'get').toLowerCase())) clearDashboardCache();
     console.log('API Error:', {
+      url: `${error.config?.baseURL || API_BASE_URL}${error.config?.url || ''}`,
       message: error.message,
       status: error?.response?.status,
       data: error?.response?.data,
     });
 
+    if (error.response?.data?.code === 'SCREEN_PERMISSION_DENIED') DeviceEventEmitter.emit('permissions-changed');
     if (error.response?.status === 401) {
+      setAuthToken(null);
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
-      setAuthToken(null);
       console.log('Unauthorized: Token expired or invalid.');
     }
 
     const message =
       error.response?.data?.message ||
+      (!error.response && error.request
+        ? (isDevelopmentEmulator
+          ? 'Cannot connect to the server. Check that the backend is running on your computer on port 5001.'
+          : 'Cannot connect to the server. Check that the backend is running and your phone and computer are on the same Wi-Fi.')
+        : null) ||
       error.message ||
       'An unexpected error occurred';
 
     return Promise.reject(new Error(`API Error: ${message}`));
   }
 );
+
+// Only dashboard callers opt in; operational screens always use live endpoints.
+export const getDashboardResource = (path, params = {}, options = {}) => {
+  const key = JSON.stringify([path, Object.keys(params).sort().map(key => [key, params[key]])]);
+  return dashboardCache.get(key, async () => {
+    const response = await api.get(path, { params });
+    return { data: response.data };
+  }, { force: options.force === true });
+};
 
 /* ===========================
    AUTH APIs
@@ -73,6 +113,9 @@ export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
   getProfile: () => api.get('/auth/profile'),
   changePassword: (data) => api.put('/auth/change-password', data),
+  forgotPassword: (data) => api.post('/auth/forgot-password', data, { timeout: 60000 }),
+  verifyPasswordOtp: (data) => api.post('/auth/verify-password-otp', data),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
   googleLogin: () => {
     console.warn('Google Login needs native implementation (expo-auth-session).');
   },
@@ -91,7 +134,7 @@ export const studentAPI = {
   getMyLeaves: () => api.get('/student/leave-requests'),
   createComplaint: (data) => api.post('/student/complaints', data),
   getMyComplaints: () => api.get('/student/complaints'),
-  getTransactions: () => api.get('/student/transactions'),
+  getTransactions: (params) => api.get('/student/transactions', { params }),
   getMyAttendance: (params) => api.get('/student/attendance', { params }),
   getFacilities: () => api.get('/student/facilities'),
   useFacility: (data) => api.post('/student/facility-usage', data),

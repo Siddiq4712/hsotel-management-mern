@@ -1,10 +1,11 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import React, { useState, useEffect } from 'react';
 import { View, TouchableOpacity, Alert, Switch, ScrollView } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from '../../components/common/Picker';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import { User, Lock, Hash, Mail, GraduationCap, Bed } from 'lucide-react-native';
@@ -29,7 +30,8 @@ const EnrollStudentScreen = () => {
     }
   };
 
-  const matchedBatch = sessions.find(batch => batch.is_active && Number(batch.erp_batch_year) === Number(formData.erp_batch_year) && batch.gender === formData.gender);
+  const matchingBatches = sessions.filter(batch => batch.is_active && (batch.college ?? 'nec') === 'nec' && Number(batch.erp_batch_year) === Number(formData.erp_batch_year) && batch.gender === formData.gender);
+  const matchedBatch = matchingBatches.length === 1 ? matchingBatches[0] : null;
 
   const enroll = async () => {
     if (!matchedBatch) { Alert.alert('Batch required', 'Enter an admission year and gender configured for your hostel.'); return; }
@@ -63,8 +65,8 @@ const EnrollStudentScreen = () => {
           <View>
             <Picker selectedValue={formData.college} onValueChange={(v) => setFormData({...formData, college: v})}>
               <Picker.Item label="NEC" value="nec" />
-              <Picker.Item label="LAPC" value="lapc" />
             </Picker>
+            <Text className="mb-3">Import LAPC students through Excel in the web app: Bulk Import &amp; Preview → Target College: LAPC.</Text>
             <Input accessibilityLabel="Batch Admission Year" placeholder="Batch admission year (e.g. 2024)" keyboardType="number-pad" maxLength={4} value={formData.erp_batch_year} onChangeText={value => setFormData({ ...formData, erp_batch_year: value })} className="border p-3 rounded mb-3" />
             <Picker accessibilityLabel="Gender" selectedValue={formData.gender} onValueChange={value => setFormData({ ...formData, gender: value })}>
               <Picker.Item label="Choose gender" value="" />
@@ -91,4 +93,4 @@ const EnrollStudentScreen = () => {
   );
 };
 
-export default EnrollStudentScreen;
+export default withScreenPermission(EnrollStudentScreen, 'students');

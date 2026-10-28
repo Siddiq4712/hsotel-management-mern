@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Input from '../../components/common/Input';
@@ -10,7 +11,7 @@ import { studentAPI } from '../../api/api';
 import { Wifi, Plus, Clock, DollarSign, CheckCircle, AlertCircle, TrendingUp, History } from 'lucide-react-native';
 import moment from 'moment';
 import Header from '../../components/student/StudentHeader';
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from '../../components/common/Picker';
 const FacilityUsageScreen = () => {
   const [facilities, setFacilities] = useState([]);
   const [usageHistory, setUsageHistory] = useState([]);
@@ -157,7 +158,7 @@ const FacilityUsageScreen = () => {
                 </View>
 
                 {facility.status === 'active' ? (
-                  <Button
+                  <Button permissionAction="create"
                     onPress={() => handleUseFacility(facility)}
                     className="w-full bg-blue-600 text-white py-2 px-4 rounded-xl flex-row items-center justify-center"
                   >
@@ -310,7 +311,7 @@ const FacilityUsageScreen = () => {
                 </View>
 
                 <View className="pt-4" style={{ gap: 12, alignSelf: 'stretch' }}>
-                  <Button
+                  <Button permissionAction="create"
                     onPress={handleSubmitUsage}
                     disabled={submittingUsage}
                     className="bg-blue-600 py-3 rounded-xl flex-row items-center justify-center disabled:opacity-50"
@@ -342,4 +343,4 @@ const FacilityUsageScreen = () => {
   );
 };
 
-export default FacilityUsageScreen;
+export default withScreenPermission(FacilityUsageScreen, 'my-facilities');

@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { useParentStudent } from '../../hooks/useParentStudent';
 import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
@@ -9,10 +10,10 @@ import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { View, ScrollView, RefreshControl, ActivityIndicator, StyleSheet } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { parentAPI } from '../../api/api';
+import useAfterPaintFocusEffect from '../../hooks/useAfterPaintFocusEffect';
+import { parentAPI, getDashboardResource } from '../../api/api';
 import { useAuth } from '../../hooks/useAuth';
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from '../../components/common/Picker';
 import { Bell, LogOut, CalendarCheck, IndianRupee } from 'lucide-react-native';
 import moment from 'moment';
 
@@ -21,15 +22,17 @@ const ParentDashboardScreen = ({ route }) => {
   const selection = useParentStudent();
   const { logout } = useAuth();
   const dashboardRequest = useRef(0);
+  const loadedStudent = useRef(null);
+  const notificationSource = useRef(null);
   const [students, setStudents] = useState([]);
   const { selectedStudentId, setSelectedStudentId } = selection;
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState([]);
 
-  const fetchStudents = useCallback(async () => {
+  const fetchStudents = useCallback(async (force = false) => {
     try {
-      const res = await parentAPI.getStudents();
+      const res = await getDashboardResource('/parent/students', {}, { force });
       const list = res.data.data || [];
       setStudents(list);
       setSelectedStudentId(current => list.some(student => String(student.userId) === String(current)) ? current : (list[0]?.userId ?? null));
@@ -38,13 +41,16 @@ const ParentDashboardScreen = ({ route }) => {
     }
   }, []);
 
-  const fetchDashboard = useCallback(async () => {
-    if (!selectedStudentId) { setDashboardData(null); setLoading(false); return; }
+  const fetchDashboard = useCallback(async (force = false) => {
+    if (!selectedStudentId) { loadedStudent.current = null; setDashboardData(null); setLoading(false); return; }
     const request = ++dashboardRequest.current;
-    setLoading(true);
+    if (force === true || loadedStudent.current !== String(selectedStudentId)) setLoading(true);
     try {
-      const res = await parentAPI.getStudentDashboard(selectedStudentId);
-      if (request === dashboardRequest.current) setDashboardData(res.data.data);
+      const res = await getDashboardResource(`/parent/dashboard/${selectedStudentId}`, {}, { force });
+      if (request === dashboardRequest.current) {
+        loadedStudent.current = String(selectedStudentId);
+        setDashboardData(res.data.data);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -52,23 +58,26 @@ const ParentDashboardScreen = ({ route }) => {
     }
   }, [selectedStudentId]);
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async (force = false) => {
     try {
-      const res = await parentAPI.getNotifications();
-      setNotifications((res.data.data || []).slice(0, 5));
+      const res = await getDashboardResource('/parent/notifications', {}, { force });
+      if (notificationSource.current !== res.data.data) {
+        notificationSource.current = res.data.data;
+        setNotifications((res.data.data || []).slice(0, 5));
+      }
     } catch (err) {
       console.error(err);
     }
   }, []);
 
-  useFocusEffect(
+  useAfterPaintFocusEffect(
     useCallback(() => {
       fetchStudents();
       fetchNotifications();
     }, [fetchStudents, fetchNotifications])
   );
 
-  useFocusEffect(useCallback(() => {
+  useAfterPaintFocusEffect(useCallback(() => {
     fetchDashboard();
     return () => { dashboardRequest.current += 1; };
   }, [fetchDashboard]));
@@ -94,7 +103,7 @@ const ParentDashboardScreen = ({ route }) => {
   return <Screen>
     <ReferenceHeader title={section === 'attendance' ? 'Student attendance' : section === 'alerts' ? 'Alerts & notices' : 'Parent portal'} actions={<Button variant="ghost" onPress={logout} accessibilityLabel="Log out"><LogOut size={20} color={colors.mutedText} /></Button>} />
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={ui.content}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { fetchDashboard(); fetchNotifications(); }} tintColor={colors.primary} colors={[colors.primary]} />}>
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { fetchStudents(true); fetchDashboard(true); fetchNotifications(true); }} tintColor={colors.primary} colors={[colors.primary]} />}>
       <Card style={styles.identity}>
         <View style={styles.identityRow}>
           <View style={{ flex: 1, gap: 6 }}>
@@ -111,7 +120,7 @@ const ParentDashboardScreen = ({ route }) => {
           </Picker>
         </View>}
       </Card>
-      {section !== 'alerts' && (loading ? <View style={styles.loading} accessibilityLabel="Loading student details"><ActivityIndicator color={colors.primary} size="large" /></View> : hasCurrentStudent ? <>
+      {section !== 'alerts' && (loading && !hasCurrentStudent ? <View style={styles.loading} accessibilityLabel="Loading student details"><ActivityIndicator color={colors.primary} size="large" /></View> : hasCurrentStudent ? <>
         <View style={styles.metrics}>
           <MetricCard title="Attendance" value={(dashboardData.attendanceSummary.total ? Math.round(dashboardData.attendanceSummary.present / dashboardData.attendanceSummary.total * 100) : 0) + '%'}
             detail={dashboardData.attendanceSummary.total + ' recorded days'} icon={CalendarCheck} />
@@ -170,4 +179,4 @@ const styles = StyleSheet.create({
   noticeDay: { fontSize: 22, fontWeight: '800', color: colors.primary },
   noticeMonth: { fontSize: 12, fontWeight: '600', color: colors.primary },
 });
-export default ParentDashboardScreen;
+export default withScreenPermission(ParentDashboardScreen, props => props.route?.params?.section === 'alerts' ? 'notifications' : 'parent-portal');

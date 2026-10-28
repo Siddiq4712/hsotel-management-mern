@@ -1,8 +1,8 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import useAfterPaintFocusEffect from '../../hooks/useAfterPaintFocusEffect';
 import moment from 'moment';
-import { wardenAPI, outpassAPI, reductionAPI } from '../../api/api';
+import { getDashboardResource } from '../../api/api';
 import { trendDates, buildAttendanceTrend, pendingApprovalRows } from '../../utils/wardenDashboard';
 import WardenRequestCard from './WardenRequestCard';
 import { Text, SectionTitle, ui } from '../common/ReferenceDesign';
@@ -13,29 +13,49 @@ import colors from '../../theme/colors';
 
 export default function WardenHomeDetails({ navigation, refreshToken = 0 }) {
   const serial = useRef(0);
+  const previousRefresh = useRef(refreshToken);
+  const loaded = useRef(false);
+  const sources = useRef([]);
+  const sourcesDay = useRef(null);
   const [pending, setPending] = useState([]), [trend, setTrend] = useState([]);
   const [loading, setLoading] = useState(true), [pendingError, setPendingError] = useState(false), [trendError, setTrendError] = useState(false);
   const today = moment().format('YYYY-MM-DD');
-  const load = useCallback(async () => {
+  const load = useCallback(async (force = false) => {
     const request = ++serial.current;
-    setLoading(true); setPendingError(false); setTrendError(false);
+    if (!loaded.current || force === true) setLoading(true);
+    setPendingError(false); setTrendError(false);
     const dates = trendDates(today);
     const months = [...new Set(dates.map(date => date.slice(0, 7)))];
     const results = await Promise.allSettled([
-      wardenAPI.getLeaveRequests({ status: 'pending' }),
-      outpassAPI.getWardenOutpasses({ status: 'pending' }),
-      reductionAPI.list('warden', { status: 'pending_admin' }),
-      ...months.map(month => wardenAPI.getAttendance({ view: 'monthly', year: Number(month.slice(0, 4)), month: Number(month.slice(5, 7)) })),
+      getDashboardResource('/warden/leave-requests', { status: 'pending' }, { force }),
+      getDashboardResource('/outpass/warden', { status: 'pending' }, { force }),
+      getDashboardResource('/warden/day-reduction-requests', { status: 'pending_admin' }, { force }),
+      ...months.map(month => getDashboardResource('/warden/attendance', { view: 'monthly', year: Number(month.slice(0, 4)), month: Number(month.slice(5, 7)) }, { force })),
     ]);
     if (request !== serial.current) return;
+    const nextSources = results.map(result => result.status === 'fulfilled' ? result.value.data.data : undefined);
+    if (loaded.current && sourcesDay.current === today && nextSources.length === sources.current.length
+      && results.every(result => result.status === 'fulfilled')
+      && nextSources.every((source, index) => source === sources.current[index])) {
+      setLoading(false);
+      return;
+    }
+    sources.current = nextSources;
+    sourcesDay.current = today;
+    loaded.current = true;
     const data = result => result.status === 'fulfilled' && Array.isArray(result.value?.data?.data) ? result.value.data.data : [];
     setPending(pendingApprovalRows(...results.slice(0, 3).map(data)));
     setPendingError(results.slice(0, 3).some(result => result.status === 'rejected'));
     setTrendError(results.slice(3).some(result => result.status === 'rejected'));
     setTrend(buildAttendanceTrend(results.slice(3).flatMap(data), dates));
     setLoading(false);
-  }, [today, refreshToken]);
-  useFocusEffect(useCallback(() => { load(); return () => { serial.current++; }; }, [load]));
+  }, [today]);
+  useAfterPaintFocusEffect(useCallback(() => {
+    const force = previousRefresh.current !== refreshToken;
+    previousRefresh.current = refreshToken;
+    load(force);
+    return () => { serial.current++; };
+  }, [load, refreshToken]));
   return <View style={{ gap: 12 }}>
     <SectionTitle title="Pending approvals" action="See all" onPress={() => navigation.navigate('Requests', { kind: 'leave', request: Date.now() })} />
     {loading ? <Card style={styles.loading}><ActivityIndicator color={colors.primary} /></Card> : <>

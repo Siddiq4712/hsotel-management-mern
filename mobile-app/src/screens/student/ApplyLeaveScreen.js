@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import React, { useRef, useState } from 'react';
 import { Alert, View } from 'react-native';
 import moment from 'moment';
@@ -9,7 +10,7 @@ import DateRangeField from '../../components/common/DateRangeField';
 import { RequestPage, RequestField, RequestNote, RequestSelect, requestStyles } from '../../components/student/RequestUI';
 
 const types = [['casual', 'Casual leave'], ['sick', 'Sick leave'], ['emergency', 'Emergency leave'], ['vacation', 'Vacation leave'], ['other', 'Other']];
-export default function ApplyLeaveScreen({ navigation }) {
+function ApplyLeaveScreen({ navigation }) {
   const [formData, setFormData] = useState({ leave_type: '', from_date: '', to_date: '', reason: '' });
   const [loading, setLoading] = useState(false);
   const busy = useRef(false);
@@ -38,8 +39,10 @@ export default function ApplyLeaveScreen({ navigation }) {
         onChangeText={reason => setFormData(v => ({ ...v, reason }))} style={[requestStyles.input, { minHeight: 120 }]} />
     </RequestField>
     <View style={{ gap: 10 }}>
-      <Button onPress={handleSubmit} loading={loading}>Submit leave request</Button>
+      <Button permissionAction="create" onPress={handleSubmit} loading={loading}>Submit leave request</Button>
       <Button variant="secondary" disabled={loading} onPress={() => navigation.goBack()} style={requestStyles.outline}>Cancel</Button>
     </View>
   </RequestPage>;
 }
+
+export default withScreenPermission(ApplyLeaveScreen, 'my-leaves');

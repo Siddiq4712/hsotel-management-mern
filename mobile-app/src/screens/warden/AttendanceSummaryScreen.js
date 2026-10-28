@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 // warden/AttendanceSummaryScreen.js
 import React, { useEffect, useState } from 'react';
@@ -26,4 +27,4 @@ const AttendanceSummaryScreen = () => {
   );
 };
 
-export default AttendanceSummaryScreen;
+export default withScreenPermission(AttendanceSummaryScreen, 'attendance');

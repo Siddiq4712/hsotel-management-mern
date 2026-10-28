@@ -1,7 +1,7 @@
 import { Text } from "./common/ReferenceDesign";
 import React from 'react';
 import { View } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from './common/Picker';
 
 const StudentPicker = ({ students, selectedStudent, onChange }) => (
   <View>

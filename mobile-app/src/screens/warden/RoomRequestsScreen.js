@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Screen from '../../components/common/Screen';
@@ -5,7 +6,8 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import React, { useState, useEffect } from 'react';
-import { View, FlatList, TouchableOpacity, Modal, Picker, Alert } from 'react-native';
+import { View, FlatList, TouchableOpacity, Modal, Alert } from 'react-native';
+import { Picker } from '../../components/common/Picker';
 import { wardenAPI } from '../../api/api';
 import Header from '../../components/common/Header';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -83,4 +85,4 @@ const RoomRequestsScreen = () => {
   );
 };
 
-export default RoomRequestsScreen;
+export default withScreenPermission(RoomRequestsScreen, 'room-requests');

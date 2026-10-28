@@ -1,3 +1,4 @@
+import { usePermissions } from '../../auth/PermissionContext';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import Screen from '../../components/common/Screen';
@@ -13,6 +14,8 @@ const sections = [['leave', 'Leave'], ['reductions', 'Reductions'], ['passes', '
 const screens = { leave: LeaveRequestsScreen, reductions: MessReductionsScreen, passes: GatePassRequestsScreen, complaints: ComplaintManagementScreen };
 
 export default function RequestsScreen({ navigation, route }) {
+  const { can } = usePermissions();
+  const allowedSections = sections.filter(([key]) => can(({ leave: 'leave-approvals', reductions: 'warden-reductions', passes: 'outpass-approvals', complaints: 'complaint-management' })[key]));
   const initial = sections.some(([key]) => key === route.params?.kind) ? route.params.kind : 'leave';
   const [kind, setKind] = useState(initial);
   const [visited, setVisited] = useState({ [initial]: true });
@@ -21,16 +24,17 @@ export default function RequestsScreen({ navigation, route }) {
     setKind(value);
   }, []);
   useEffect(() => { if (sections.some(([key]) => key === route.params?.kind)) choose(route.params.kind); }, [route.params?.kind, route.params?.request, choose]);
+  useEffect(() => { if (!allowedSections.some(([key]) => key === kind) && allowedSections.length) choose(allowedSections[0][0]); }, [kind, allowedSections.map(([key]) => key).join(','), choose]);
   const sectionNavigation = useMemo(() => ({ ...navigation, navigate(name, params) {
     if (requestAliases[name]) choose(requestAliases[name]); else navigation.navigate(name, params);
   } }), [navigation, choose]);
   return <Screen><Header />
     <View style={{ padding: 16, paddingBottom: 8, gap: 10 }}>
       <PageIntro title="Requests" />
-      <Segments scrollable items={sections} value={kind} onChange={choose} />
+      <Segments scrollable items={allowedSections} value={kind} onChange={choose} />
     </View>
     <EmbeddedHeader value={true}>
-      {sections.filter(([key]) => visited[key]).map(([key]) => {
+      {allowedSections.filter(([key]) => visited[key]).map(([key]) => {
         const Component = screens[key];
         return <View key={key} style={[ui.page, key !== kind && { display: 'none' }]}>
           <Component navigation={sectionNavigation} route={{ ...route, name: key }} />

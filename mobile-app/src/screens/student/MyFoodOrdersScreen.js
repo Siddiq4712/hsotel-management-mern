@@ -1,9 +1,12 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import usePagedHistory from '../../hooks/usePagedHistory';
+import HistoryFooter from '../../components/common/HistoryFooter';
 import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal, FlatList, StyleSheet } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { Search, Clock, CheckCircle, XCircle, Eye, Download, Calendar, Utensils, Info } from 'lucide-react-native';
@@ -12,7 +15,7 @@ import moment from 'moment';
 import Header from '../../components/student/StudentHeader';
 import StatusBadge from '../../components/common/StatusBadge';
 import { foodOrderPaymentStatus } from '../../utils/additionalFood';
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from '../../components/common/Picker';
 
 const PAYMENT_STATUSES = {
   pending: { label: 'Pending', color: colors.warning, backgroundColor: colors.warningTint },
@@ -30,50 +33,32 @@ const PaymentStatusBadge = ({ order }) => {
 };
 
 const MyFoodOrdersScreen = ({ navigation }) => {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [filters, setFilters] = useState({});
+  const history = usePagedHistory(studentAPI.getFoodOrders, filters);
+  const { rows: orders, loading } = history;
   const [dateRange, setDateRange] = useState({ startDate: null, endDate: null });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pickerMode, setPickerMode] = useState('from'); // 'from' or 'to'
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [viewModalVisible, setViewModalVisible] = useState(false);
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
-  const fetchOrders = async () => {
-    setLoading(true);
-    try {
-      let params = {};
-      if (dateRange.startDate && dateRange.endDate) {
-        params = {
-          from_date: moment(dateRange.startDate).format('YYYY-MM-DD'),
-          to_date: moment(dateRange.endDate).format('YYYY-MM-DD')
-        };
-      }
-      
-      const response = await studentAPI.getFoodOrders(params);
-      if (response.data.success) {
-        setOrders(response.data.data);
-      } else {
-        Alert.alert('Error', response.data.message || 'Failed to load orders');
-      }
-    } catch (error) {
-      console.error('Failed to fetch orders:', error);
-      Alert.alert('Error', error.message || 'Failed to load orders. Please try again later.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSearch = () => {
-    fetchOrders();
+    if (dateRange.startDate && dateRange.endDate && dateRange.startDate > dateRange.endDate) {
+      Alert.alert('Check dates', 'From date must be on or before To date.');
+      return;
+    }
+    const next = dateRange.startDate && dateRange.endDate ? {
+      from_date: moment(dateRange.startDate).format('YYYY-MM-DD'),
+      to_date: moment(dateRange.endDate).format('YYYY-MM-DD'),
+    } : {};
+    if (JSON.stringify(next) === JSON.stringify(filters)) history.reload();
+    else setFilters(next);
   };
 
   const handleReset = () => {
     setDateRange({ startDate: null, endDate: null });
-    fetchOrders();
+    if (Object.keys(filters).length) setFilters({});
+    else history.reload();
   };
 
   const handleViewOrder = (order) => {
@@ -92,7 +77,7 @@ const MyFoodOrdersScreen = ({ navigation }) => {
               const response = await studentAPI.cancelFoodOrder(id);
               if (response.data.success) {
                 Alert.alert('Success', 'Order cancelled successfully!');
-                fetchOrders();
+                history.reload();
               } else {
                 Alert.alert('Error', response.data.message || 'Failed to cancel order');
               }
@@ -132,7 +117,7 @@ const MyFoodOrdersScreen = ({ navigation }) => {
     }
   };
 
-  const OrderCard = ({ order }) => (
+  const renderOrder = ({ item: order }) => (
     <Card className="bg-white rounded-2xl shadow-sm p-4 mb-3">
       <View style={styles.orderHeading}>
         <Text className="font-bold text-lg" style={{ flexShrink: 1 }}>Order #{order.id}</Text>
@@ -164,7 +149,7 @@ const MyFoodOrdersScreen = ({ navigation }) => {
           <Text style={styles.actionLabel}>View</Text>
         </Button>
         {order.status === 'pending' && (
-          <Button
+          <Button permissionAction="delete"
             onPress={() => handleCancelOrder(order.id)}
             accessibilityLabel={`Cancel order ${order.id}`}
             variant="danger"
@@ -282,9 +267,12 @@ const MyFoodOrdersScreen = ({ navigation }) => {
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
         keyboardShouldPersistTaps="handled"
-        data={loading ? [] : orders}
+        data={orders}
+        refreshing={loading} onRefresh={history.reload}
+        ListFooterComponent={<HistoryFooter history={history} />}
+        initialNumToRender={6} maxToRenderPerBatch={6} windowSize={7}
         keyExtractor={item => item.id.toString()}
-        renderItem={({ item }) => <OrderCard order={item} />}
+        renderItem={renderOrder}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={<>
         <View className="flex-row flex-wrap justify-between items-center mb-4">
@@ -355,4 +343,4 @@ const styles = StyleSheet.create({
   paymentLabel: { fontSize: 12, fontWeight: '600', paddingEnd: 2, flexShrink: 1 },
 });
 
-export default MyFoodOrdersScreen;
+export default withScreenPermission(MyFoodOrdersScreen, 'my-food');

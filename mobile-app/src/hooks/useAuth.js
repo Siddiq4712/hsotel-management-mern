@@ -8,10 +8,5 @@ export const useAuth = () => {
     throw new Error('useAuth must be used inside AuthProvider');
   }
 
-  // Log role for debugging
-  if (context.user?.role) {
-    console.log('User role:', context.user.role);
-  }
-
   return context;
 };

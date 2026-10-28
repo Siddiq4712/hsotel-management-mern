@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
 import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
@@ -73,7 +74,7 @@ const MessBillManagementScreen = () => {
       <Text className="text-gray-600">₹{parseFloat(item.amount).toFixed(2)}</Text>
       <Text className="text-gray-500 text-xs">Due: {moment(item.due_date).format('DD MMM YYYY')}</Text>
       {item.status !== 'paid' && (
-        <Button onPress={() => updateStatus(item.id, 'paid')} className="bg-indigo-600 p-2 rounded mt-2">
+        <Button permissionAction="edit" onPress={() => updateStatus(item.id, 'paid')} className="bg-indigo-600 p-2 rounded mt-2">
           <Text className="text-white text-center">Mark Paid</Text>
         </Button>
       )}
@@ -110,7 +111,7 @@ const MessBillManagementScreen = () => {
             keyboardType="numeric"
             className="border p-3 rounded mb-4"
           />
-          <Button onPress={generateBills} className="bg-indigo-600 p-4 rounded">
+          <Button permissionAction="generate" onPress={generateBills} className="bg-indigo-600 p-4 rounded">
             <Text className="text-white text-center font-bold">Generate</Text>
           </Button>
         </View>
@@ -119,4 +120,4 @@ const MessBillManagementScreen = () => {
   );
 };
 
-export default MessBillManagementScreen;
+export default withScreenPermission(MessBillManagementScreen, 'mess-fees');

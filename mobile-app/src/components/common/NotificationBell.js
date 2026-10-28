@@ -11,6 +11,17 @@ import colors from '../../theme/colors';
 import Button from './Button';
 import Card from './Card';
 
+const sameNotificationRows = (left, right) => left.length === right.length && left.every((row, index) => {
+  const next = right[index];
+  return row.id === next?.id
+    && row.status === next.status
+    && row.title === next.title
+    && row.message === next.message
+    && row.type === next.type
+    && row.createdAt === next.createdAt
+    && row.updatedAt === next.updatedAt;
+});
+
 // A new account gets a fresh inbox; requests from an old account cannot populate it.
 export default function NotificationBell() {
   const { user } = useAuth();
@@ -48,16 +59,19 @@ export function AccountNotifications() {
     const version = ++request.current;
     const nextPage = append ? page.current + 1 : 1;
     fetching.current = version;
-    setLoading(true);
+    if (!background) setLoading(true);
     try {
       const response = await notificationAPI.getNotifications({ status: filter, page: nextPage, pageSize: 20 });
       if (!mounted.current || version !== request.current) return;
       const data = response.data;
       const rows = data.data || [];
       const keepHistory = background && filter === 'all' && page.current > 1;
-      setItems(current => append
-        ? [...current.filter(row => !rows.some(item => item.id === row.id)), ...rows]
-        : keepHistory ? [...rows, ...current.filter(row => !rows.some(item => item.id === row.id))] : rows);
+      setItems(current => {
+        const next = append
+          ? [...current.filter(row => !rows.some(item => item.id === row.id)), ...rows]
+          : keepHistory ? [...rows, ...current.filter(row => !rows.some(item => item.id === row.id))] : rows;
+        return sameNotificationRows(current, next) ? current : next;
+      });
       page.current = append ? nextPage : keepHistory ? page.current : 1;
       setUnread(data.unreadCount || 0);
       setTotal(data.total || 0);
@@ -67,7 +81,7 @@ export function AccountNotifications() {
       if (mounted.current && version === request.current) setError(failure.message || 'Unable to load notifications.');
     } finally {
       if (fetching.current === version) fetching.current = 0;
-      if (mounted.current && version === request.current) setLoading(false);
+      if (!background && mounted.current && version === request.current) setLoading(false);
     }
   }, [filter]);
 

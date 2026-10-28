@@ -3,9 +3,10 @@ import Input from '../components/common/Input';
 import Card from '../components/common/Card';
 import LoadingOverlay from '../components/common/LoadingOverlay';
 import colors from '../theme/colors';
+import { Text } from '../components/common/ReferenceDesign';
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, ActivityIndicator,
+  View, TouchableOpacity, ActivityIndicator,
   KeyboardAvoidingView, Platform, Alert, ScrollView,
   TouchableWithoutFeedback, Keyboard, StatusBar, Image } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
@@ -20,7 +21,7 @@ import * as Linking from 'expo-linking';
 // This is required to close the browser popup after redirect
 WebBrowser.maybeCompleteAuthSession();
 
-const LoginScreen = () => {
+const LoginScreen = ({ navigation }) => {
   const [credentials, setCredentials] = useState({ userName: '', password: '' });
   const [showError, setShowError] = useState('');
   const [showLoading, setShowLoading] = useState(false);
@@ -164,6 +165,9 @@ const LoginScreen = () => {
                   <Text className="text-white font-bold text-base">Sign In →</Text>
                 </Button>
 
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Forgot password" onPress={() => navigation.navigate('ForgotPassword')} disabled={showLoading} style={{ paddingVertical: 16, alignItems: 'center' }}>
+                  <Text style={{ color: colors.primary, fontWeight: '600' }}>Forgot password?</Text>
+                </TouchableOpacity>
                 <View className="my-6 flex-row items-center">
                   <View className="flex-1 h-px bg-gray-200" />
                   <Text className="mx-4 text-gray-400 font-semibold">OR</Text>
@@ -181,6 +185,7 @@ const LoginScreen = () => {
                 </Button>
               </Card>
 
+              <Button variant="ghost" onPress={() => navigation.navigate('Settings')}>Text size settings</Button>
               <Text className="mt-10 text-xs text-gray-400" style={{ alignSelf: 'stretch', textAlign: 'center' }}>© 2026 National Engineering College</Text>
             </View>
           </ScrollView>

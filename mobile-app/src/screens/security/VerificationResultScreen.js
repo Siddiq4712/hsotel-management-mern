@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import Screen from '../../components/common/Screen';
 import { Text } from "../../components/common/ReferenceDesign";
 import Button from '../../components/common/Button';
@@ -153,4 +154,4 @@ const VerificationResultScreen = ({ route, navigation }) => {
   );
 };
 
-export default VerificationResultScreen;
+export default withScreenPermission(VerificationResultScreen, 'gate-scan');

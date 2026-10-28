@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { SectionTitle, ui } from '../../components/common/ReferenceDesign';
 import { AttendanceBreakdown } from '../../components/common/DashboardSummary';
 import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
@@ -7,10 +8,12 @@ import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
-import React, { useState, useEffect, useMemo } from 'react';
+import { typography } from '../../theme/typography';
+import React, { useState, useCallback, useMemo } from 'react';
+import useAfterPaintFocusEffect from '../../hooks/useAfterPaintFocusEffect';
 import { View, ScrollView, RefreshControl, StyleSheet, Alert } from 'react-native';
 import * as Location from 'expo-location';
-import { wardenAPI } from '../../api/api';
+import { getDashboardResource } from '../../api/api';
 import Header from '../../components/common/Header';
 import WardenHomeDetails from '../../components/warden/WardenHomeDetails';
 import {
@@ -84,23 +87,23 @@ const WardenDashboardScreen = ({ navigation }) => {
   };
 
   // --- API LOGIC ---
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async (force = false) => {
     try {
-      const response = await wardenAPI.getDashboardStats();
+      const response = await getDashboardResource('/warden/dashboard-stats', {}, { force });
       setStats(response.data.data);
     } catch (error) {
       console.error('Dashboard fetch error:', error);
     }
-  };
-
-  useEffect(() => {
-    fetchStats();
   }, []);
+
+  useAfterPaintFocusEffect(useCallback(() => {
+    fetchStats();
+  }, [fetchStats]));
 
   const onRefresh = () => {
     setDetailRefresh(value => value + 1);
     setRefreshing(true);
-    fetchStats().finally(() => setRefreshing(false));
+    fetchStats(true).finally(() => setRefreshing(false));
   };
 
   const actions = useMemo(() => [
@@ -189,7 +192,7 @@ const styles = StyleSheet.create({
   roleBadge: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.primarySoft },
   roleText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5, color: colors.highlightStart },
   refresh: { minHeight: 40, minWidth: 40, paddingHorizontal: 8, paddingVertical: 8 },
-  title: { color: colors.text, fontSize: 28, lineHeight: 36, fontWeight: '800', letterSpacing: -0.7 },
+  title: { color: colors.text, fontSize: typography.pageTitle, lineHeight: 36, fontWeight: '800', letterSpacing: -0.7 },
   date: { color: colors.mutedText, fontSize: 14, lineHeight: 21 },
   metrics: { flexDirection: 'row', gap: 10 },
   metric: { flex: 1, minWidth: 0, padding: 14, gap: 7, borderRadius: 16 },
@@ -205,4 +208,4 @@ const styles = StyleSheet.create({
   locationHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   locationIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' },
 });
-export default WardenDashboardScreen;
+export default withScreenPermission(WardenDashboardScreen, 'dashboard');

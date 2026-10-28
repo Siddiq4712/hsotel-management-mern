@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Screen from '../../components/common/Screen';
@@ -211,4 +212,4 @@ const ManageStudentsScreen = () => {
   );
 };
 
-export default ManageStudentsScreen;
+export default withScreenPermission(ManageStudentsScreen, 'students');

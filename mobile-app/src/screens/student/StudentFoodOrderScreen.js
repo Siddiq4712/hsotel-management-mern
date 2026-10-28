@@ -1,12 +1,14 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text, Segments } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal, RefreshControl } from 'react-native';
-import { useFocusEffect, useIsFocused } from '@react-navigation/native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, FlatList, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import useForegroundScreen from '../../hooks/useForegroundScreen';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { Calendar, History, Minus, Plus, XCircle, Search } from 'lucide-react-native';
 import moment from 'moment';
@@ -15,8 +17,8 @@ import Header from '../../components/student/StudentHeader';
 import FoodItemCard from '../../components/student/FoodItemCard';
 import { additionalFoodRequest, foodDeadline, foodOrderingClosed, foodToday, nextFoodDate, WEEK_DAYS } from '../../utils/additionalFood';
 
-export default function StudentFoodOrderScreen({ navigation }) {
-  const isVisible = useIsFocused();
+function StudentFoodOrderScreen({ navigation }) {
+  const isVisible = useForegroundScreen();
   const [foods, setFoods] = useState([]);
   const [category, setCategory] = useState('all');
   const [meal, setMeal] = useState('all');
@@ -82,13 +84,21 @@ export default function StudentFoodOrderScreen({ navigation }) {
   };
   const changeQuantity = change => setQuantity(current => String(Math.min(selected?.max_quantity_per_student ?? 1, Math.max(1, (Number(current) || 1) + change))));
   const categories = ['Veg', 'Non-Veg'];
-  const visible = foods.filter(food => (category === 'all' || food.category === category) && (meal === 'all' || food.meal_type === meal) && (!search.trim() || `${food.name || ''} ${food.meal_type || ''} ${food.category || ''}`.toLowerCase().includes(search.trim().toLowerCase())));
+  const visible = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return foods.filter(food => (category === 'all' || food.category === category) && (meal === 'all' || food.meal_type === meal) && (!query || `${food.name || ''} ${food.meal_type || ''} ${food.category || ''}`.toLowerCase().includes(query)));
+  }, [foods, category, meal, search]);
+  const renderFood = useCallback(({ item }) => <FoodItemCard item={item} onAdd={add} now={now} />, [add, now]);
   const count = Number(quantity);
   const total = selected && Number.isInteger(count) && count > 0 ? (Math.round(Number(selected.price) * 100) * count / 100).toFixed(2) : '0.00';
 
   return <Screen className="flex-1 bg-background">
     <Header title="Additional food" back />
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 32 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={loadFoods} />}>
+    <FlatList style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+      data={visible} keyExtractor={item => String(item.id)} renderItem={renderFood}
+      extraData={now} refreshing={loading} onRefresh={loadFoods}
+      initialNumToRender={6} maxToRenderPerBatch={6} windowSize={7}
+      ListHeaderComponent={<>
       <View className="flex-row items-center bg-white border border-gray-200 rounded-xl px-4 mb-4">
         <Search size={19} color={colors.mutedText} /><Input accessibilityLabel="Search additional food" placeholder="Search food..." value={search} onChangeText={setSearch} className="flex-1 ml-3" />
       </View>
@@ -103,10 +113,9 @@ export default function StudentFoodOrderScreen({ navigation }) {
         <Text style={{ color: colors.mutedText, fontSize: 12, fontWeight: '600' }}>Meal</Text>
         <Segments items={[[ 'all', 'All meals' ], ...['Breakfast', 'Lunch', 'Dinner'].map(value => [value, value])]} value={meal} onChange={setMeal} />
       </View>
-      {loading && !foods.length ? <ActivityIndicator size="large" color={colors.primary} /> : visible.length ? <View>
-        {visible.map(food => <FoodItemCard key={food.id} item={food} onAdd={add} now={now} />)}
-      </View> : <Text className="text-center text-gray-600 py-12">No additional food available in this category.</Text>}
-    </ScrollView>
+      </>}
+      ListEmptyComponent={loading ? <ActivityIndicator size="large" color={colors.primary} /> : <Text className="text-center text-gray-600 py-12">No additional food available in this category.</Text>}
+    />
     <Modal visible={!!selected} transparent animationType="slide" onRequestClose={close}>
       <View className="flex-1 justify-end bg-black/50">
         <Card className="bg-white rounded-2xl p-6" style={{ maxHeight: '85%', paddingBottom: 32 }}>
@@ -146,3 +155,5 @@ export default function StudentFoodOrderScreen({ navigation }) {
     </Modal>
   </Screen>;
 }
+
+export default withScreenPermission(StudentFoodOrderScreen, 'my-food');

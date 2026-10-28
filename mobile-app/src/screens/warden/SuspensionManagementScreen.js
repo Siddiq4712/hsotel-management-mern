@@ -1,6 +1,7 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import moment from 'moment';
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from '../../components/common/Picker';
 import MoreSectionNav from '../../components/common/MoreSectionNav';
 import Screen from '../../components/common/Screen';
 import Input from '../../components/common/Input';
@@ -82,4 +83,4 @@ const SuspensionManagementScreen = () => {
   );
 };
 
-export default SuspensionManagementScreen;
+export default withScreenPermission(SuspensionManagementScreen, 'suspensions');

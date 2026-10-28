@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
 import Card from '../../components/common/Card';
@@ -161,4 +162,4 @@ const StudentProfileScreen = () => {
   );
 };
 
-export default StudentProfileScreen;
+export default withScreenPermission(StudentProfileScreen, 'my-profile');

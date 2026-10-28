@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { NewRequestCard, ApplicationCard, requestStyles } from '../../components/student/RequestUI';
 import { useFocusEffect } from '@react-navigation/native';
 import ProgressiveRows from "../../components/common/ProgressiveRows";
@@ -14,7 +15,7 @@ import { studentAPI } from '../../api/api';
 import { Calendar, Search, XCircle } from 'lucide-react-native';
 import moment from 'moment';
 import Header from '../../components/student/StudentHeader';
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from '../../components/common/Picker';
 const LeaveManagementScreen = ({ navigation, refreshToken = 0 }) => {
   const isVisible = useStudentVisible();
   const [leaves, setLeaves] = useState([]);
@@ -184,4 +185,4 @@ const LeaveManagementScreen = ({ navigation, refreshToken = 0 }) => {
   );
 };
 
-export default LeaveManagementScreen;
+export default withScreenPermission(LeaveManagementScreen, 'my-leaves');

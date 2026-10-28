@@ -1,29 +1,39 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { View, ScrollView, Image, TouchableOpacity, Alert, Linking, StyleSheet, ActivityIndicator } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { BedDouble, MessageSquare, ReceiptText, Utensils, ChevronRight, Building2, LogOut, UserRound } from 'lucide-react-native';
+import useAfterPaintFocusEffect from '../../hooks/useAfterPaintFocusEffect';
+import { BedDouble, MessageSquare, ReceiptText, Utensils, ChevronRight, Building2, LogOut, UserRound, ShieldCheck, Settings } from 'lucide-react-native';
 import HighlightCard from '../../components/common/HighlightCard';
-import { studentAPI, API_BASE_URL } from '../../api/api';
+import { getDashboardResource, API_BASE_URL } from '../../api/api';
 import { useAuth } from '../../hooks/useAuth';
 import Header from '../../components/student/StudentHeader';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import colors from '../../theme/colors';
 
-export default function StudentAccountScreen({ navigation }) {
+function StudentAccountScreen({ navigation }) {
   const { user, logout } = useAuth();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [imageError, setImageError] = useState(false);
-  const load = useCallback(async () => {
-    setLoading(true); setError('');
-    try { setProfile((await studentAPI.getProfile()).data.data); }
-    catch (e) { setError(e.message || 'Unable to load profile.'); }
-    finally { setLoading(false); }
+  const loaded = useRef(false);
+  const request = useRef(0);
+  const load = useCallback(async (force = false) => {
+    const sequence = ++request.current;
+    if (!loaded.current || force === true) setLoading(true);
+    setError('');
+    try {
+      const response = await getDashboardResource('/student/profile', {}, { force });
+      if (sequence !== request.current) return;
+      loaded.current = true;
+      setProfile(response.data.data);
+    }
+    catch (e) { if (sequence === request.current) setError(e.message || 'Unable to load profile.'); }
+    finally { if (sequence === request.current) setLoading(false); }
   }, []);
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useAfterPaintFocusEffect(useCallback(() => { load(); return () => { request.current++; }; }, [load]));
   const person = profile || user;
   const name = person?.userName || person?.username || person?.name || 'Student';
   const room = profile?.tbl_RoomAllotments?.[0]?.HostelRoom;
@@ -34,6 +44,7 @@ export default function StudentAccountScreen({ navigation }) {
     catch { Alert.alert('Unable to open web dashboard', `Open ${url} in your browser.`); }
   };
   const menu = [
+    [Settings, 'Settings', 'Adjust text size and preview your preference', () => navigation.navigate('Settings')],
     [BedDouble, 'Room details & requests', 'View layout, occupants and availability', () => navigation.navigate('Rooms')],
     [MessageSquare, 'Complaints', 'Submit an issue and follow its progress', () => navigation.navigate('Complaints')],
     [ReceiptText, 'Transaction history', 'View recorded payments and adjustments', () => navigation.navigate('MessCharges', { screen: 'Transactions' })],
@@ -51,7 +62,7 @@ export default function StudentAccountScreen({ navigation }) {
         <Text style={styles.role}>STUDENT</Text>
       </View>
       {loading && <ActivityIndicator color={colors.primary} />}
-      {error ? <Card><Text style={styles.subtitle}>{error}</Text><Button variant="secondary" onPress={load}>Retry</Button></Card> : null}
+      {error ? <Card><Text style={styles.subtitle}>{error}</Text><Button variant="secondary" onPress={() => load(true)}>Retry</Button></Card> : null}
       <HighlightCard gradientColors={[colors.highlightEnd, colors.highlightStart]} style={styles.web}>
         <View style={styles.webHeading}>
           <View style={styles.webIcon}><Building2 size={21} color={colors.buttonBackground} /></View>
@@ -84,6 +95,14 @@ export default function StudentAccountScreen({ navigation }) {
           <Text style={styles.small}>{label}</Text><Text style={styles.menuTitle}>{value || 'Not available'}</Text>
         </View>)}
       </Card>
+      <Text style={styles.label}>SECURITY</Text>
+      <Card style={{ padding: 0 }}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Change password" style={styles.menuItem} onPress={() => navigation.navigate('ChangePassword')}>
+          <View style={styles.menuIcon}><ShieldCheck size={20} color={colors.primary} /></View>
+          <View style={{ flex: 1, gap: 4 }}><Text style={styles.menuTitle}>Change password</Text><Text style={styles.small}>Use your current password to create a new one</Text></View>
+          <ChevronRight size={18} color={colors.mutedText} />
+        </TouchableOpacity>
+      </Card>
       <Button variant="ghost" onPress={() => Alert.alert('Sign out', 'Sign out of your student account?', [
         { text: 'Cancel', style: 'cancel' }, { text: 'Sign out', style: 'destructive', onPress: logout },
       ])} style={{ borderWidth: 1, borderColor: colors.dangerTint, backgroundColor: colors.card, padding: 14 }}>
@@ -112,3 +131,5 @@ const styles = StyleSheet.create({
   divider: { borderTopWidth: 1, borderTopColor: colors.surface }, menuIcon: { padding: 10, backgroundColor: colors.primarySoft, borderRadius: 12 },
   menuTitle: { color: colors.text, fontSize: 14, fontWeight: '600' }, small: { fontSize: 12, color: colors.mutedText, lineHeight: 18 },
 });
+
+export default withScreenPermission(StudentAccountScreen, 'my-profile');

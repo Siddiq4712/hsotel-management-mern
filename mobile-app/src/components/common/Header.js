@@ -3,7 +3,8 @@ import React, { useMemo, useState } from 'react';
 import { View, TouchableOpacity, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
-import { LogOut } from 'lucide-react-native';
+import { useNavigation } from '@react-navigation/native';
+import { LogOut, Settings } from 'lucide-react-native';
 import colors from '../../theme/colors';
 import Button from './Button';
 import NotificationBell from './NotificationBell';
@@ -12,6 +13,7 @@ import { useReferenceDesign, useEmbeddedHeader } from './ReferenceDesign';
 
 const Header = () => {
   const { user, logout } = useAuth();
+  const navigation = useNavigation();
   const { enabled } = useReferenceDesign();
   const embedded = useEmbeddedHeader();
   const [imageError, setImageError] = useState(false);
@@ -73,11 +75,14 @@ const Header = () => {
               style={{ width: 32, height: 40, marginRight: 10 }} resizeMode="contain"
               accessibilityLabel="National Engineering College logo" />
             <View className="flex-1" style={{ minWidth: 0 }}>
-              <Text className="text-base font-bold text-indigo-900">Hostel Management</Text>
+              <Text style={{ fontSize: 14 }} className="font-bold text-indigo-900">Hostel Management</Text>
             </View>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <NotificationBell />
+          <Button variant="ghost" accessibilityLabel="Open settings" onPress={() => navigation.navigate('Settings')}>
+            <Settings size={20} color={colors.mutedText} />
+          </Button>
           <Button onPress={handleLogout} variant="ghost" accessibilityLabel="Log out"
             style={{ backgroundColor: colors.dangerSoft }}>
             <LogOut size={20} color={colors.danger} />

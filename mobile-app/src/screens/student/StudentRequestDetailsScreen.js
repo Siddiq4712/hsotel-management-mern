@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -9,7 +10,7 @@ import Button from '../../components/common/Button';
 import { Text } from '../../components/common/ReferenceDesign';
 import colors from '../../theme/colors';
 
-export default function StudentRequestDetailsScreen({ navigation, route }) {
+function StudentRequestDetailsScreen({ navigation, route }) {
   const { kind, id } = route.params;
   const { user } = useAuth();
   const [row, setRow] = useState(null);
@@ -33,3 +34,5 @@ export default function StudentRequestDetailsScreen({ navigation, route }) {
     </> : row ? <ApplicationDetails kind={leave ? 'leave' : 'gatepass'} row={row} student={profile || user} onBack={() => navigation.goBack()} /> : <Text style={requestStyles.small}>This request is unavailable.</Text>}
   </RequestPage>;
 }
+
+export default withScreenPermission(StudentRequestDetailsScreen, props => props.route?.params?.kind === 'leave' ? 'my-leaves' : 'my-outpass');

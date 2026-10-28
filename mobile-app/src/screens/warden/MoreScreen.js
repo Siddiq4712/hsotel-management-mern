@@ -1,5 +1,6 @@
+import { usePermissions, mobileRouteScreens } from '../../auth/PermissionContext';
 import { PageIntro, ServiceLink } from '../../components/common/ReferenceDesign';
-import { Wallet, MessageSquare, Building2, Users, CalendarDays, DoorOpen, AlertTriangle } from 'lucide-react-native';
+import { Wallet, MessageSquare, Building2, Users, CalendarDays, DoorOpen, AlertTriangle, Settings } from 'lucide-react-native';
 import { Text } from "../../components/common/ReferenceDesign";
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
@@ -23,10 +24,12 @@ import ComplaintManagementScreen from './ComplaintManagementScreen';
 const Stack = createNativeStackNavigator();
 const sectionIcons = { Bills: Wallet, Complaints: MessageSquare, Students: Users, EnrollStudent: Users, Rooms: DoorOpen, RoomRequests: DoorOpen, Holidays: CalendarDays, Suspensions: AlertTriangle, CreateRoom: Building2, ViewLayout: Building2 };
 function MoreHome({ navigation }) {
+  const { can } = usePermissions();
   const [search, setSearch] = useState('');
-  const matching = moreSections.filter(([, label, description]) => `${label} ${description}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const matching = moreSections.filter(([name]) => (mobileRouteScreens('warden', name) || []).some(id => can(id))).filter(([, label, description]) => `${label} ${description}`.toLowerCase().includes(search.trim().toLowerCase()));
   return <Screen><Header /><ScrollView contentContainerStyle={styles.content}>
     <PageIntro title="All sections" />
+    <ServiceLink icon={Settings} title="Settings" description="Adjust the app's text size" onPress={() => navigation.navigate('Settings')} />
     <Input accessibilityLabel="Search management sections" placeholder="Search sections" value={search} onChangeText={setSearch} style={styles.search} />
     {matching.map(([name, label, description]) => <ServiceLink key={name} icon={sectionIcons[name] || Building2}
       title={label} description={description} onPress={() => navigation.navigate(name)} />)}

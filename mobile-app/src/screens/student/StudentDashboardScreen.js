@@ -1,14 +1,21 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  View, Text, ScrollView, ActivityIndicator, TouchableOpacity, 
+import { Text } from '../../components/common/ReferenceDesign';
+import { useTextSize } from '../../theme/TextSizeContext';
+import { textMetrics, typography } from '../../theme/typography';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
+import {
+  View, ScrollView, ActivityIndicator,
   StyleSheet, useWindowDimensions, RefreshControl, Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { studentAPI } from '../../api/api';
+import TouchableOpacity from '../../components/common/Touchable';
+import { getDashboardResource } from '../../api/api';
+import useAfterPaintFocusEffect from '../../hooks/useAfterPaintFocusEffect';
+import { expenseChartData } from '../../utils/expenseChartData';
 import { useAuth } from '../../hooks/useAuth';
 import { 
   Bed, Receipt, Calendar, Home, CreditCard, 
@@ -33,16 +40,19 @@ const StudentDashboardScreen = ({ navigation }) => {
   const [attendanceHeatmapData, setAttendanceHeatmapData] = useState([]);
   const [selectedYear, setSelectedYear] = useState(moment().year());
   const [selectedMonth, setSelectedMonth] = useState(moment().month() + 1);
+  const expenseRequest = useRef(0);
+  const loadedChartYear = useRef(null);
+  const heatmapRequest = useRef(0);
 
-  const fetchProfile = useCallback(async () => {
-    try { setProfile((await studentAPI.getProfile()).data.data); }
+  const fetchProfile = useCallback(async (force = false) => {
+    try { setProfile((await getDashboardResource('/student/profile', {}, { force })).data.data); }
     catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, []);
 
-  const fetchCharges = useCallback(async () => {
+  const fetchCharges = useCallback(async (force = false) => {
     try {
-      const response = await studentAPI.getMyDailyMessCharges({ month: moment().month() + 1, year: moment().year() });
+      const response = await getDashboardResource('/student/daily-mess-charges', { month: moment().month() + 1, year: moment().year() }, { force });
       const summary = response.data.data?.monthlySummary;
       if (!summary) { setMonthlyCharges(null); return; }
       const food = summary.historicalMessAmount ?? Number(summary.monthlyCalculatedDailyRate || 0) * Number(summary.studentTotalManDaysForMonth || 0);
@@ -51,34 +61,35 @@ const StudentDashboardScreen = ({ navigation }) => {
     } catch (e) { setMonthlyCharges(null); console.error(e); }
   }, []);
 
-  const fetchExpenses = useCallback(async () => {
-    setChartLoading(true);
+  const fetchExpenses = useCallback(async (force = false) => {
+    const request = ++expenseRequest.current;
+    if (force === true || loadedChartYear.current !== selectedYear) setChartLoading(true);
     try {
-      const messRes = await studentAPI.getMonthlyMessExpensesChart();
-      const expenses = Array(12).fill(0);
-      messRes.data.data?.forEach(d => { if (d.year === selectedYear) expenses[d.month - 1] = Number(d.total_amount); });
-      setMessExpenseChartData({ labels: moment.monthsShort(), datasets: [{ data: expenses }] });
+      const messRes = await getDashboardResource('/student/chart-data/mess-expenses', {}, { force });
+      if (request !== expenseRequest.current) return;
+      loadedChartYear.current = selectedYear;
+      setMessExpenseChartData(current => expenseChartData(current, messRes.data.data, selectedYear, moment.monthsShort()));
     } catch (e) { console.error(e); }
-    finally { setChartLoading(false); }
+    finally { if (request === expenseRequest.current) setChartLoading(false); }
   }, [selectedYear]);
 
-  const fetchHeatmap = useCallback(async () => {
+  const fetchHeatmap = useCallback(async (force = false) => {
+    const request = ++heatmapRequest.current;
     try {
       const start = moment().year(selectedYear).month(selectedMonth - 1).startOf('month').format('YYYY-MM-DD');
       const end = moment(start).endOf('month').format('YYYY-MM-DD');
-      const res = await studentAPI.getMyAttendance({ from_date: start, to_date: end });
-      setAttendanceHeatmapData(res.data.data || []);
+      const res = await getDashboardResource('/student/attendance', { from_date: start, to_date: end }, { force });
+      if (request === heatmapRequest.current) setAttendanceHeatmapData(res.data.data || []);
     } catch (e) { console.error(e); }
   }, [selectedYear, selectedMonth]);
 
-  useEffect(() => { fetchProfile(); }, [fetchProfile]);
-  useEffect(() => { fetchCharges(); }, [fetchCharges]);
-  useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
-  useEffect(() => { fetchHeatmap(); }, [fetchHeatmap]);
+  useAfterPaintFocusEffect(useCallback(() => { fetchProfile(); fetchCharges(); }, [fetchProfile, fetchCharges]));
+  useAfterPaintFocusEffect(useCallback(() => { fetchExpenses(); return () => { expenseRequest.current++; }; }, [fetchExpenses]));
+  useAfterPaintFocusEffect(useCallback(() => { fetchHeatmap(); return () => { heatmapRequest.current++; }; }, [fetchHeatmap]));
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchProfile(), fetchCharges(), fetchExpenses(), fetchHeatmap()]);
+    await Promise.all([fetchProfile(true), fetchCharges(true), fetchExpenses(true), fetchHeatmap(true)]);
     setRefreshing(false);
   };
 
@@ -190,20 +201,25 @@ const StudentDashboardScreen = ({ navigation }) => {
           <Text style={styles.sectionTitle}>{moment().month(selectedMonth - 1).format('MMMM')}</Text>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel="Next calendar month" style={styles.iconButton} onPress={() => setSelectedMonth(m => m === 12 ? 1 : m + 1)}><ChevronRight size={20} color={colors.mutedText} /></TouchableOpacity>
         </View>
-        <View style={styles.calendar}>
-          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label, index) => <Text key={index} style={styles.dayLabel}>{label}</Text>)}
-          {heatmapDays.map(day => <View key={day.key} style={[styles.day, !day.isCurrentMonth && { opacity: 0.4 },
-            day.status === 'P' && { backgroundColor: colors.success }, day.status === 'A' && { backgroundColor: colors.danger }, day.status === 'OD' && { backgroundColor: colors.accent }]}>
-            <Text style={[styles.dayText, ['P', 'A', 'OD'].includes(day.status) && { color: colors.card }]}>{day.date.date()}</Text>
-          </View>)}
-        </View>
+        <AttendanceCalendar days={heatmapDays} />
         <Text style={[styles.small, { marginTop: 12 }]}>P · Present     A · Absent     OD · On duty</Text>
       </Card>
     </ScrollView>
   </View>;
 };
+const AttendanceCalendar = React.memo(function AttendanceCalendar({ days }) {
+  return <View style={styles.calendar}>
+    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label, index) => <Text key={index} style={styles.dayLabel}>{label}</Text>)}
+    {days.map(day => <View key={day.key} style={[styles.day, !day.isCurrentMonth && { opacity: 0.4 },
+      day.status === 'P' && { backgroundColor: colors.success }, day.status === 'A' && { backgroundColor: colors.danger }, day.status === 'OD' && { backgroundColor: colors.accent }]}>
+      <Text style={[styles.dayText, ['P', 'A', 'OD'].includes(day.status) && { color: colors.card }]}>{day.date.date()}</Text>
+    </View>)}
+  </View>;
+});
 const ExpenseChart = React.memo(function ExpenseChart({ data, width }) {
-  return <BarChart data={data} width={width} height={210} yAxisLabel="₹" chartConfig={chartConfig}
+  const { preference } = useTextSize();
+  const fontSize = textMetrics({ fontSize: typography.metadata }, preference, { allowSmallText: true }).fontSize;
+  return <BarChart data={data} width={width} height={210} yAxisLabel="₹" chartConfig={{ ...chartConfig, propsForLabels: { fontSize } }}
     fromZero style={styles.chart} />;
 });
 const chartConfig = {
@@ -214,13 +230,13 @@ const chartConfig = {
 };
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.background }, content: { padding: 16, paddingBottom: 32, gap: 16 },
-  greeting: { flexDirection: 'row', alignItems: 'center', gap: 10 }, title: { fontSize: 23, fontWeight: '700', color: colors.text },
+  greeting: { flexDirection: 'row', alignItems: 'center', gap: 10 }, title: { fontSize: typography.pageTitle, fontWeight: '700', color: colors.text },
   subtitle: { fontSize: 13, color: colors.mutedText, lineHeight: 20 }, stats: { flexDirection: 'row', gap: 12 },
   stat: { flex: 1, padding: 16, gap: 8 }, eyebrow: { fontSize: 10, letterSpacing: 0.8, color: colors.mutedText, fontWeight: '600' },
   statValue: { fontSize: 23, color: colors.text, fontWeight: '700' }, small: { fontSize: 12, color: colors.mutedText, lineHeight: 18 },
   feeCard: { borderRadius: 24, padding: 20, gap: 10, boxShadow: 'none' }, feeLabel: { color: colors.card, fontSize: 9, fontWeight: '700', letterSpacing: 0.7 },
-  feeValue: { color: colors.card, fontSize: 28, lineHeight: 36, fontWeight: '800' }, feeDetail: { color: colors.card, fontSize: 13, lineHeight: 20 },
-  sectionTitle: { color: colors.text, fontSize: 16, fontWeight: '700' }, quickRow: { gap: 12, paddingBottom: 4 }, swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 2 }, chart: { borderRadius: 12, marginLeft: -8 },
+  feeValue: { color: colors.card, fontSize: typography.amount, lineHeight: 36, fontWeight: '800' }, feeDetail: { color: colors.card, fontSize: 13, lineHeight: 20 },
+  sectionTitle: { color: colors.text, fontSize: typography.section, fontWeight: '700' }, quickRow: { gap: 12, paddingBottom: 4 }, swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 2 }, chart: { borderRadius: 12, marginLeft: -8 },
   quickAction: { width: 104, alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: colors.card, padding: 12, minHeight: 100, borderWidth: 1, borderColor: colors.border, borderRadius: 16 },
   quickIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 12 }, quickLabel: { color: colors.text, fontSize: 12, fontWeight: '600', textAlign: 'center' },
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
@@ -231,4 +247,4 @@ const styles = StyleSheet.create({
   day: { width: '13%', aspectRatio: 1, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 5, borderRadius: 8 },
   dayText: { fontSize: 12, color: colors.text, fontWeight: '600' },
 });
-export default StudentDashboardScreen;
+export default withScreenPermission(StudentDashboardScreen, 'dashboard');

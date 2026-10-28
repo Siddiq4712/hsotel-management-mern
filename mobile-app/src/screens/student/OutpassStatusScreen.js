@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { NewRequestCard, requestStyles } from '../../components/student/RequestUI';
 import { Text } from "../../components/common/ReferenceDesign";
 import { useStudentVisible } from '../../components/student/StudentPresentation';
@@ -110,4 +111,4 @@ const OutpassStatusScreen = ({ navigation, refreshToken = 0 }) => {
     ListEmptyComponent={!loading&&<Card><Text style={requestStyles.small}>No previous gate passes.</Text></Card>}
   />;
 };
-export default OutpassStatusScreen;
+export default withScreenPermission(OutpassStatusScreen, 'my-outpass');

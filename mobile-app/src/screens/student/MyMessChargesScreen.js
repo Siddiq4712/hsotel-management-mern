@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import { Segments, ServiceLink } from '../../components/common/ReferenceDesign';
 import { Text } from "../../components/common/ReferenceDesign";
 import HighlightCard, { highlightStyles } from '../../components/common/HighlightCard';
@@ -5,8 +6,8 @@ import Screen from '../../components/common/Screen';
 import Button from '../../components/common/Button';
 import Card from '../../components/common/Card';
 import colors from '../../theme/colors';
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, ActivityIndicator, Alert, TouchableOpacity, Modal } from 'react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import { View, ScrollView, FlatList, ActivityIndicator, Alert, TouchableOpacity, Modal } from 'react-native';
 import { studentAPI } from '../../api/api';
 import { Receipt, Calendar, CheckCircle, XCircle, ChevronDown, ChevronUp, Clock, DollarSign, BookOpen, Droplet, ExternalLink, Bed, Utensils, History, ChevronRight } from 'lucide-react-native';
 import moment from 'moment';
@@ -55,6 +56,10 @@ const MyMessChargesScreen = ({ navigation }) => {
   const foodCharge = reductionSummary.historicalMessAmount ?? (monthlyCalculatedDailyRate * studentTotalManDaysForMonth);
   const totalFlatFeesSum = monthlyFlatFees.reduce((sum, fee) => sum + parseFloat(fee.amount || 0), 0);
   const totalMonthlyBill = reductionSummary.historicalFinalAmount ?? (foodCharge + totalMonthlySpecialFoodCost + totalFlatFeesSum);
+  const additionalFoodCharge = Number(totalMonthlySpecialFoodCost || 0) + monthlyFlatFees
+    .filter(fee => fee.fee_type === 'additional')
+    .reduce((sum, fee) => sum + Number(fee.amount || 0), 0);
+  const otherFlatFees = monthlyFlatFees.filter(fee => fee.fee_type !== 'additional');
 
   const handleMonthChange = (value) => {
     const [year, month] = value.split('-');
@@ -96,11 +101,7 @@ const MyMessChargesScreen = ({ navigation }) => {
   }).filter(opt => moment(opt.value, 'YYYY-MM').isSameOrBefore(moment(), 'month')); // Only show up to current month
 
   const money = value => Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return <Screen className="flex-1 bg-background">
-    <Header title="Mess & fees" />
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 16 }}>
-      <Segments items={[['statement', 'Monthly statement'], ['services', 'Mess services']]} value={mode} onChange={setMode} />
-      {mode === 'statement' ? <>
+  const statement = useMemo(() => <>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <Text style={{ color: colors.mutedText, fontSize: 12, fontWeight: '600', flexShrink: 1 }}>Billing period</Text>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Billing month: ${moment(new Date(currentYear, currentMonth - 1)).format('MMMM YYYY')}`}
@@ -125,12 +126,12 @@ const MyMessChargesScreen = ({ navigation }) => {
       <Card className="bg-white rounded-2xl border border-gray-200 p-4">
         {[
           ['Food charges', foodCharge, 'Monthly food share after applicable reductions'],
-          ['Additional food', totalMonthlySpecialFoodCost, 'Orders for the selected month'],
+          ['Additional food', additionalFoodCharge, 'Additional food charges for the selected month'],
         ].map(([label, amount, detail], index) => <View key={label} className={index ? 'border-t border-gray-100 py-4' : 'pb-4'}>
           <View className="flex-row justify-between" style={{ gap: 12 }}><Text className="text-sm font-semibold text-gray-900 flex-1">{label}</Text><Text className="text-sm font-bold text-gray-900">₹{money(amount)}</Text></View>
           <Text className="text-xs text-gray-600 mt-1">{detail}</Text>
         </View>)}
-        {monthlyFlatFees.map((fee, index) => <View key={fee.fee_type || index} className="border-t border-gray-100 py-4">
+        {otherFlatFees.map((fee, index) => <View key={fee.fee_type || index} className="border-t border-gray-100 py-4">
           <View className="flex-row items-center justify-between" style={{ gap: 12 }}>
             <View className="flex-row items-center flex-1">{getFeeIcon(fee.fee_type)}<Text className="text-sm font-semibold text-gray-900 capitalize flex-1">{fee.fee_type.replace(/_/g, ' ')}</Text></View>
             <Text className="text-sm font-bold text-gray-900">₹{money(fee.amount)}</Text>
@@ -144,10 +145,13 @@ const MyMessChargesScreen = ({ navigation }) => {
         <Text className="text-xs text-gray-600 mt-2">Recorded P / OD man-days: {studentTotalManDaysForMonth}</Text>
       </View>
       <Text className="text-base font-bold text-gray-900">Daily charges</Text>
-      {loading ? <ActivityIndicator color={colors.primary}/> : dailyCharges.length ? dailyCharges.map(charge => {
+      </>, [loading, currentMonth, currentYear, monthPickerOpen, reductionSummary, monthlyFlatFees,
+        monthlyCalculatedDailyRate, studentTotalManDaysForMonth, totalMonthlySpecialFoodCost]);
+
+  const renderCharge = ({ item: charge }) => {
         const statusInfo = getStatusInfo(charge.attendance_status);
         const isExpanded = expandedRow === charge.id;
-        return <Card key={charge.id} className="bg-white border border-gray-200 rounded-2xl p-4">
+        return <Card className="bg-white border border-gray-200 rounded-2xl p-4">
           <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: isExpanded }} accessibilityLabel={`Charges for ${moment(charge.date).format('DD MMM YYYY')}`} onPress={() => toggleRow(charge.id)}>
             <View className="flex-row items-center justify-between" style={{ gap: 12 }}>
               <View className="flex-1"><Text className="text-sm font-semibold text-gray-900">{moment(charge.date).format('ddd, DD MMM')}</Text>
@@ -166,8 +170,21 @@ const MyMessChargesScreen = ({ navigation }) => {
             ].map(([label, value])=><View key={label} className="flex-row justify-between" style={{ gap: 12 }}><Text className="text-sm text-gray-600 flex-1">{label}</Text><Text className="text-sm font-semibold text-gray-900">₹{money(value)}</Text></View>)}
           </View>}
         </Card>;
-      }) : <Card><Text className="text-sm text-gray-600 text-center">No charges found for this month.</Text></Card>}
-      </> : <>
+  };
+
+  return <Screen className="flex-1 bg-background">
+    <Header title="Mess & fees" />
+    <FlatList keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+      data={mode === 'statement' && !loading ? dailyCharges : []}
+      keyExtractor={charge => String(charge.id)} renderItem={renderCharge} extraData={expandedRow}
+      initialNumToRender={5} maxToRenderPerBatch={5} windowSize={5}
+      ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+      ListEmptyComponent={mode !== 'statement' ? null : loading ? <ActivityIndicator color={colors.primary} /> :
+        <Card><Text className="text-sm text-gray-600 text-center">No charges found for this month.</Text></Card>}
+      ListHeaderComponent={<View style={{ gap: 16, paddingBottom: mode === 'statement' ? 16 : 0 }}>
+      <Segments items={[['statement', 'Monthly statement'], ['services', 'Mess services']]} value={mode} onChange={setMode} />
+      {mode === 'statement' && statement}
+      {mode === 'services' && <>
         <Card style={{ padding: 16, gap: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Utensils size={22} color={colors.primary} /></View>
@@ -183,7 +200,8 @@ const MyMessChargesScreen = ({ navigation }) => {
         <ServiceLink icon={History} title="Transaction history" tone="warning" onPress={() => navigation.navigate('Transactions')} />
         <ServiceLink icon={Receipt} title="Mess reduction history" onPress={() => navigation.navigate('Attendance', { workflow: 'reduction', view: 'history', request: Date.now() })} />
       </>}
-    </ScrollView>
+      </View>}
+    />
     <Modal visible={monthPickerOpen} transparent animationType="fade" onRequestClose={() => setMonthPickerOpen(false)}>
       <View style={{ flex: 1, backgroundColor: '#00000066', justifyContent: 'center', padding: 24 }}>
         <Card accessibilityViewIsModal style={{ width: '100%', maxWidth: 360, maxHeight: '75%', alignSelf: 'center', gap: 12 }}>
@@ -204,4 +222,4 @@ const MyMessChargesScreen = ({ navigation }) => {
     </Modal>
   </Screen>;
 };
-export default MyMessChargesScreen;
+export default withScreenPermission(MyMessChargesScreen, 'my-fees');

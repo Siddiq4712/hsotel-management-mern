@@ -1,3 +1,4 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import ProgressiveRows from "../../components/common/ProgressiveRows";
 import { Text } from "../../components/common/ReferenceDesign";
 import Screen from '../../components/common/Screen';
@@ -12,7 +13,7 @@ import { MessageCircle, Calendar, CheckCircle, Clock, AlertCircle, XCircle, User
 import moment from 'moment';
 import Header from '../../components/student/StudentHeader';
 import StatusBadge from '../../components/common/StatusBadge'; // Reusing common badge component
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from '../../components/common/Picker';
 const ComplaintManagementScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
     subject: '',
@@ -299,7 +300,7 @@ const ComplaintManagementScreen = ({ navigation }) => {
             </View>
 
             <View style={{ gap: 12, alignSelf: 'stretch' }}>
-              <Button
+              <Button permissionAction="create"
                 onPress={handleSubmit}
                 disabled={submitting}
                 style={{ alignSelf: 'stretch' }}
@@ -498,4 +499,4 @@ const ComplaintManagementScreen = ({ navigation }) => {
   );
 };
 
-export default ComplaintManagementScreen;
+export default withScreenPermission(ComplaintManagementScreen, 'my-complaints');

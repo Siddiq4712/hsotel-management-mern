@@ -1,7 +1,9 @@
+import { usePermissions } from '../../auth/PermissionContext';
 import { Text } from "../../components/common/ReferenceDesign";
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, TouchableOpacity, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { View, ScrollView, ActivityIndicator, StyleSheet } from 'react-native';
+import TouchableOpacity from '../../components/common/Touchable';
+import useAfterPaintFocusEffect from '../../hooks/useAfterPaintFocusEffect';
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react-native';
 import moment from 'moment';
 import colors from '../../theme/colors';
@@ -46,7 +48,7 @@ function AttendanceHistory() {
     } catch (e) { setError(e.message || 'Unable to load attendance.'); }
     finally { setLoading(false); }
   }, [month]);
-  useFocusEffect(useCallback(() => { if (isVisible) load(); }, [load, isVisible]));
+  useAfterPaintFocusEffect(useCallback(() => { if (isVisible) load(); }, [load, isVisible]));
   const counted = records.filter(row => ['P', 'A', 'OD'].includes(row.status));
   const present = counted.filter(row => row.status === 'P' || row.status === 'OD').length;
   return <View style={{ gap: 12 }}>
@@ -86,6 +88,8 @@ function AttendanceSection() {
 }
 
 export default function StudentWorkflowScreen({ navigation, route }) {
+  const { can } = usePermissions();
+  const allowedSections = sections.filter(([key]) => can(({ attendance: 'gps-attendance', leave: 'my-leaves', reduction: 'my-reductions', gatepass: 'my-outpass' })[key]));
   const initial = sections.some(([key]) => key === route.params?.workflow) ? route.params.workflow : 'attendance';
   const [section, setSection] = useState(initial);
   const [visited, setVisited] = useState({ [initial]: true });
@@ -101,20 +105,21 @@ export default function StudentWorkflowScreen({ navigation, route }) {
       navigation.navigate(form);
     }
   }, [route.params?.workflow, route.params?.view, route.params?.request, choose, navigation]);
+  useEffect(() => { if (!allowedSections.some(([key]) => key === section) && allowedSections.length) choose(allowedSections[0][0]); }, [section, allowedSections.map(([key]) => key).join(','), choose]);
   return <View style={styles.page}>
     <Header title="Student services" />
     <View style={styles.segmentBar}>
-      {sections.map(([key, label]) => <TouchableOpacity key={key} accessibilityRole="tab"
+      {allowedSections.map(([key, label]) => <TouchableOpacity key={key} accessibilityRole="tab"
         accessibilityState={{ selected: section === key }} onPress={() => choose(key)}
         style={[styles.segment, section === key && styles.selectedSegment]}>
         <Text style={[styles.segmentText, section === key && { color: colors.primary }]}>{label}</Text>
       </TouchableOpacity>)}
     </View>
     <View style={styles.panel}>
-      {visited.attendance && <WorkflowPanel active={section === 'attendance'}><AttendanceSection /></WorkflowPanel>}
-      {visited.leave && <WorkflowPanel active={section === 'leave'}><MyLeavesScreen navigation={navigation} /></WorkflowPanel>}
-      {visited.reduction && <WorkflowPanel active={section === 'reduction'}><MessReductionsScreen studentLayout embedded view="history" navigation={navigation} /></WorkflowPanel>}
-      {visited.gatepass && <WorkflowPanel active={section === 'gatepass'}><OutpassStatusScreen navigation={navigation} /></WorkflowPanel>}
+      {can('gps-attendance') && visited.attendance && <WorkflowPanel active={section === 'attendance'}><AttendanceSection /></WorkflowPanel>}
+      {can('my-leaves') && visited.leave && <WorkflowPanel active={section === 'leave'}><MyLeavesScreen navigation={navigation} /></WorkflowPanel>}
+      {can('my-reductions') && visited.reduction && <WorkflowPanel active={section === 'reduction'}><MessReductionsScreen studentLayout embedded view="history" navigation={navigation} /></WorkflowPanel>}
+      {can('my-outpass') && visited.gatepass && <WorkflowPanel active={section === 'gatepass'}><OutpassStatusScreen navigation={navigation} /></WorkflowPanel>}
     </View>
   </View>;
 }

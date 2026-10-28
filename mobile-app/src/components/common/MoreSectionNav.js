@@ -1,3 +1,4 @@
+import { usePermissions, mobileRouteScreens } from '../../auth/PermissionContext';
 import { Text } from "./ReferenceDesign";
 import React from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
@@ -18,6 +19,7 @@ export const moreSections = [
 const sections = [['MoreHome', 'All sections'], ...moreSections];
 
 export default function MoreSectionNav() {
+  const { can } = usePermissions();
   const navigation = useNavigation();
   const route = useRoute();
   const embedded = useEmbeddedHeader();
@@ -25,7 +27,7 @@ export default function MoreSectionNav() {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false}
       style={styles.bar} contentContainerStyle={styles.content}>
-      {sections.map(([name, label]) => (
+      {sections.filter(([name]) => name === 'MoreHome' || (mobileRouteScreens('warden', name) || []).some(id => can(id))).map(([name, label]) => (
         <Button key={name} variant="ghost" onPress={() => navigation.navigate(name)}
           accessibilityState={{ selected: route.name === name }}
           style={[styles.item, route.name === name && styles.active]}>

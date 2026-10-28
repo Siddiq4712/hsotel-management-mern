@@ -7,6 +7,7 @@ import Screen from '../common/Screen';
 import Card from '../common/Card';
 import Button from '../common/Button';
 import colors from '../../theme/colors';
+import { typography } from '../../theme/typography';
 
 export function RequestHeader({ title, description, navigation, busy = false }) {
   return <SafeAreaView edges={['top']} style={requestStyles.headerSafe}>
@@ -100,14 +101,14 @@ export const requestStyles = StyleSheet.create({
   headerSafe: { backgroundColor: colors.card, borderBottomWidth: 1, borderBottomColor: colors.border },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 68, paddingRight: 16, paddingLeft: 8 },
   back: { width: 44, height: 48, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { color: colors.text, fontSize: 17, fontWeight: '700' },
+  headerTitle: { color: colors.text, fontSize: typography.header, fontWeight: '700' },
   content: { padding: 16, paddingBottom: 40, gap: 18 },
   label: { color: colors.text, fontSize: 13, fontWeight: '700' },
   input: { minHeight: 50, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: colors.card, color: colors.text, fontSize: 14 },
   select: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   small: { color: colors.mutedText, fontSize: 12, lineHeight: 18 },
   note: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, padding: 14, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primaryTint, borderRadius: 14 },
-  sectionTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  sectionTitle: { color: colors.text, fontSize: typography.section, fontWeight: '700' },
   outline: { backgroundColor: colors.card, borderColor: colors.primaryTint, borderWidth: 1 },
   icon: { width: 42, height: 42, borderRadius: 12, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   overlay: { flex: 1, justifyContent: 'center', backgroundColor: '#00000066', padding: 24 },

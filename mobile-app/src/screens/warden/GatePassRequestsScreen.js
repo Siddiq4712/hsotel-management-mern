@@ -1,9 +1,10 @@
+import { withScreenPermission } from '../../auth/PermissionContext';
 import ApplicationDetails from '../../components/student/ApplicationDetails';
 import { Text } from "../../components/common/ReferenceDesign";
 import React, { useCallback, useRef, useState } from 'react';
 import { View, FlatList, ScrollView, Modal, Alert, ActivityIndicator, StyleSheet } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Picker } from '@react-native-picker/picker';
+import { Picker } from '../../components/common/Picker';
 import Screen from '../../components/common/Screen';
 import Header from '../../components/common/Header';
 import Button from '../../components/common/Button';
@@ -14,7 +15,7 @@ import { SearchField } from '../../components/warden/WardenUI';
 import { outpassAPI } from '../../api/api';
 import colors from '../../theme/colors';
 
-export default function GatePassRequestsScreen({ requestId } = {}) {
+function GatePassRequestsScreen({ requestId } = {}) {
   const detailView = requestId != null;
   const RequestCard = detailView ? RequestDetails : WardenRequestCard;
   const [rows, setRows] = useState([]);
@@ -65,8 +66,8 @@ export default function GatePassRequestsScreen({ requestId } = {}) {
       ListEmptyComponent={loading ? <ActivityIndicator color={colors.primary}/> : <Text style={styles.help}>{detailView ? 'This gate pass is unavailable.' : 'No matching gate pass requests.'}</Text>}
       renderItem={({ item }) => detailView ? <ApplicationDetails kind="gatepass" row={item}>
         {item.status === 'pending' && <View style={styles.buttons}>
-          <Button disabled={saving} onPress={() => choose(item, 'approve')} style={{ flex: 1 }}>Approve</Button>
-          <Button variant="danger" disabled={saving} onPress={() => choose(item, 'reject')} style={{ flex: 1 }}>Reject</Button>
+          <Button permissionAction="approve" disabled={saving} onPress={() => choose(item, 'approve')} style={{ flex: 1 }}>Approve</Button>
+          <Button permissionAction="approve" variant="danger" disabled={saving} onPress={() => choose(item, 'reject')} style={{ flex: 1 }}>Reject</Button>
         </View>}
       </ApplicationDetails> : <RequestCard detailLayout={detailView} kind="Gate pass" title={item.purpose || 'Gate pass request'} reference={item.id} status={item.status}
         submittedBy={personName(item.Student, item.student_id)} studentMeta={item.Student?.roll_number}
@@ -79,8 +80,8 @@ export default function GatePassRequestsScreen({ requestId } = {}) {
           ...(item.return_time ? [{ label: 'Actual return', value: displayDate(item.return_time, true) }] : []),
         ]}>
         {item.status === 'pending' && <View style={styles.buttons}>
-          <Button disabled={saving} onPress={() => choose(item, 'approve')} style={{ flex: 1 }}>Approve</Button>
-          <Button variant="danger" disabled={saving} onPress={() => choose(item, 'reject')} style={{ flex: 1 }}>Reject</Button>
+          <Button permissionAction="approve" disabled={saving} onPress={() => choose(item, 'approve')} style={{ flex: 1 }}>Approve</Button>
+          <Button permissionAction="approve" variant="danger" disabled={saving} onPress={() => choose(item, 'reject')} style={{ flex: 1 }}>Reject</Button>
         </View>}
       </RequestCard>}
     />
@@ -89,7 +90,7 @@ export default function GatePassRequestsScreen({ requestId } = {}) {
         <Text style={styles.title}>{decision?.action === 'approve' ? 'Approve' : 'Reject'} gate pass</Text>
         <Text style={styles.help}>{decision?.row.Student?.userName} · #{decision?.row.id}</Text>
         <Input accessibilityLabel="Gate pass decision remarks" placeholder="Remarks (optional)" multiline value={remarks} onChangeText={setRemarks} style={{ minHeight: 100 }} />
-        <Button variant={decision?.action === 'reject' ? 'danger' : 'primary'} loading={saving} onPress={decide}>{`Confirm ${decision?.action === 'approve' ? 'approval' : 'rejection'}`}</Button>
+        <Button permissionAction="approve" variant={decision?.action === 'reject' ? 'danger' : 'primary'} loading={saving} onPress={decide}>{`Confirm ${decision?.action === 'approve' ? 'approval' : 'rejection'}`}</Button>
         <Button variant="ghost" disabled={saving} onPress={() => setDecision(null)}>Cancel</Button>
       </ScrollView></View></View>
     </Modal>
@@ -104,3 +105,5 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: '#0F172A80', justifyContent: 'center', padding: 16 },
   dialog: { padding: 20, borderRadius: 20, backgroundColor: colors.card, maxHeight: '85%' },
 });
+
+export default withScreenPermission(GatePassRequestsScreen, 'outpass-approvals');
