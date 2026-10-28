@@ -1,10 +1,12 @@
+import { PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, ConfigProvider, Form, Input, InputNumber, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from 'antd';
+import { Alert, Card, ConfigProvider, Form, Input, InputNumber, Select, Space, Table, Tabs, Tag, Typography, message } from 'antd';
 import { Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { messAPI } from '../../services/api';
 import InventoryPageHeader, { inventoryTheme } from './InventoryPageHeader';
 import PurchaseSuggestions from './PurchaseSuggestions';
 import './InventoryHub.css';
+import { useScopeForm } from '../common/WorkspaceScope';
 
 const money = value => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const errorText = error => error.response?.data?.message || 'Unable to load purchase orders. Please retry.';
@@ -21,6 +23,7 @@ export default function PurchaseOrder() {
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('received');
   const [form] = Form.useForm();
+  useScopeForm(form, open, saving);
   const lines = Form.useWatch('items', form) || [];
   const total = lines.reduce((sum, line) => sum + Number(line?.quantity || 0) * Number(line?.unit_price || 0), 0);
 
@@ -62,7 +65,7 @@ export default function PurchaseOrder() {
   return <ConfigProvider theme={inventoryTheme}><section className="inventory-hub">
     <InventoryPageHeader title="Purchase Orders" description="Record received orders to add stock. Ingredient costs enter daily mess calculations when consumed.">
       <Button icon={<RefreshCw size={16} />} onClick={load} loading={loading}>Refresh</Button>
-      <Button type="primary" icon={<Plus size={16} />} disabled={loading || !!error} onClick={() => start()}>Record received order</Button>
+      <Button permissionAction="create" type="primary" icon={<Plus size={16} />} disabled={loading || !!error} onClick={() => start()}>Record received order</Button>
     </InventoryPageHeader>
     {error && <Alert showIcon type="error" title={error} style={{ marginBottom: 20 }} />}
     <Tabs activeKey={tab} onChange={setTab} destroyOnHidden items={[
@@ -78,7 +81,7 @@ export default function PurchaseOrder() {
       </Card> },
       { key: 'suggestions', label: 'Purchase Suggestions', children: <PurchaseSuggestions onReceiveItem={start} /> },
     ]} />
-    <Modal title="Record received purchase order" open={open} width={920} onCancel={() => !saving && setOpen(false)}
+    <Modal permissionAction="create" title="Record received purchase order" open={open} width={920} onCancel={() => !saving && setOpen(false)}
       onOk={() => form.submit()} okText="Confirm receipt & add stock" confirmLoading={saving} closable={!saving} maskClosable={!saving} cancelButtonProps={{ disabled: saving }}>
       <Alert type="info" showIcon title="Save only after the items have arrived."
         description="This adds the received quantities to the selected inventory and records their purchase rates. It does not create a Daily Expenses entry. Ingredient consumption is costed separately." style={{ marginBottom: 20 }} />

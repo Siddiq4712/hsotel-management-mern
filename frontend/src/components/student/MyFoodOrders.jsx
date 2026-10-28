@@ -1,10 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Card, Table, Button, Space, Tag, Typography,
-  Timeline, Badge, Modal, message, ConfigProvider, theme,
-  Skeleton, Descriptions, Divider, Empty, Tooltip
-} from 'antd';
+import { Card, Table, Space, Tag, Typography, Timeline, Badge, Modal, message, ConfigProvider, theme, Skeleton, Descriptions, Divider, Empty, Tooltip } from 'antd';
 import { 
   Eye, XCircle, Search, RefreshCw, ClipboardList, 
   History, ShoppingBag, Clock, CheckCircle2, Truck, 
@@ -135,7 +132,7 @@ const MyFoodOrders = () => {
           />
           {r.status === 'pending' && (
             <Tooltip title="Void Request">
-              <Button 
+              <Button permissionAction="delete" 
                 danger 
                 type="text" 
                 icon={<XCircle size={14}/>} 

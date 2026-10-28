@@ -1,3 +1,4 @@
+import { PermissionNativeButton } from '../common/PermissionControls';
 import React, { useState } from 'react';
 import { studentAPI } from '../../services/api';
 import { MessageCircle, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
@@ -187,13 +188,13 @@ const SubmitComplaint = () => {
           </div>
 
           <div className="flex gap-4">
-            <button
+            <PermissionNativeButton permissionAction="create"
               type="submit"
               disabled={loading}
               className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Submitting...' : 'Submit Complaint'}
-            </button>
+            </PermissionNativeButton>
             
             <button
               type="button"

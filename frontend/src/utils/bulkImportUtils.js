@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 const REQUIRED_STUDENT_IMPORT_COLUMNS = [
   {
     key: 'name',
-    label: 'Name',
+    label: 'Student Name',
     aliases: ['name', 'student name', 'student_name', 'full name', 'student']
   },
   {
@@ -14,14 +14,16 @@ const REQUIRED_STUDENT_IMPORT_COLUMNS = [
   {
     key: 'email',
     label: 'Email',
-    aliases: ['email', 'email address', 'email_address', 'mail', 'student email', 'student_email', 'usermail', 'user_mail']
+    aliases: ['email', 'email address', 'email_address', 'mail', 'student email', 'student_email', 'usermail', 'user_mail'],
+    optional: true
   },
   {
     key: 'erp_batch_year',
-    label: 'Batch',
+    label: 'Admission Year',
     aliases: ['batch', 'batch year', 'batch_year', 'erp_batch_year', 'admission year', 'admission_year']
   },
-  { key: 'gender', label: 'Gender', aliases: ['gender', 'sex', 'student gender', 'student_gender'] }
+  { key: 'gender', label: 'Gender', aliases: ['gender', 'sex', 'student gender', 'student_gender'] },
+  { key: 'room_number', label: 'Room Number', aliases: ['room number', 'room_number', 'room no', 'room'], optional: true }
 ];
 
 const REQUIRED_ITEM_IMPORT_COLUMNS = [
@@ -143,7 +145,7 @@ export const getRequiredStockImportColumns = () => REQUIRED_STOCK_IMPORT_COLUMNS
 export const validateExcelImportHeaders = (headers = []) => {
   const normalizedHeaders = headers.map((header) => normalizeHeader(header));
 
-  const missingColumns = REQUIRED_STUDENT_IMPORT_COLUMNS.filter((column) => {
+  const missingColumns = REQUIRED_STUDENT_IMPORT_COLUMNS.filter((column) => !column.optional).filter((column) => {
     const found = column.aliases.some((alias) => normalizedHeaders.includes(normalizeHeader(alias)));
     return !found;
   }).map((column) => column.label);
@@ -220,9 +222,10 @@ export const mapExcelRowToStudent = (row = {}, headers = []) => {
     userName: normalizedName,
     roll_number: normalizedRollNumber,
     email: normalizedEmail,
+    room_number: String(getHeaderValue(row, REQUIRED_STUDENT_IMPORT_COLUMNS[5].aliases) ?? '').trim(),
     erp_batch_year: /^\d{4}$/.test(String(batchValue ?? '').trim()) ? Number(batchValue) : null,
     gender: String(getHeaderValue(row, REQUIRED_STUDENT_IMPORT_COLUMNS[4].aliases) ?? '').trim().toLowerCase(),
-    requires_bed: false // Initially not checked
+    requires_bed: Boolean(String(getHeaderValue(row, REQUIRED_STUDENT_IMPORT_COLUMNS[5].aliases) ?? '').trim())
   };
 };
 
@@ -326,9 +329,9 @@ const createWorkbookWithSheet = (data, sheetName = 'Sheet1') => {
 
 export const downloadStudentBulkImportTemplate = (fileName = 'student-bulk-import-template.xlsx') => {
   const worksheetData = [
-    ['Name', 'Roll Number', 'Email', 'Batch', 'Gender'],
-    ['John Doe', '20240001', 'johndoe@nec.edu.in', 2024, 'Male'],
-    ['Jane Smith', '20240002', 'janesmith@lapc.edu.in', 2024, 'Female']
+    ['Student Name', 'Roll Number', 'Admission Year', 'Gender', 'Room Number', 'Email'],
+    ['Example Student A', '24104001', 2024, 'Male', '', ''],
+    ['Example Student B', '24104002', 2024, 'Female', '', '']
   ];
 
   const workbook = createWorkbookWithSheet(worksheetData, 'Students');

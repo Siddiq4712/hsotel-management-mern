@@ -1,7 +1,8 @@
+import { PermissionButton as Button, PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 // src/components/mess/ItemPurchaseForm.jsx
 import React, { useState, useEffect } from 'react';
-import { Form, Button, Select, Table, InputNumber, Input, message, Spin, Alert, Popconfirm } from 'antd';
+import { Form, Select, Table, InputNumber, Input, message, Spin, Alert } from 'antd';
 import { PlusOutlined, DeleteOutlined, SaveOutlined, ReloadOutlined } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
@@ -226,7 +227,7 @@ const ItemPurchaseForm = () => {
       title: 'Action',
       key: 'action',
       render: (_, record) => (
-        <Popconfirm
+        <Popconfirm permissionAction="delete"
           title="Are you sure you want to remove this item?"
           onConfirm={() => removeItemRow(record.key)}
           okText="Yes"
@@ -318,7 +319,7 @@ const ItemPurchaseForm = () => {
         </Spin>
 
         <Form.Item style={{ marginTop: 16 }}>
-          <Button
+          <Button permissionAction="create"
             type="primary"
             htmlType="submit"
             loading={submitting}

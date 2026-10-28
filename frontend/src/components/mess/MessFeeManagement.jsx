@@ -1,9 +1,7 @@
+import { PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Card, Table, message, Button, Space, Typography, Row, Col,
-  Statistic, Modal, Form, Select, InputNumber, Input, Divider,
-  ConfigProvider, theme, Skeleton, Badge, Tooltip} from 'antd';
+import { App as AntdApp, Card, Table, Space, Typography, Row, Col, Statistic, Form, Select, InputNumber, Input, Divider, ConfigProvider, theme, Skeleton, Badge, Tooltip } from 'antd';
 import { 
   ChevronLeft, ChevronRight, Calculator, FileDown, 
   Plus, RefreshCw, User, Calendar, Users, 
@@ -38,6 +36,7 @@ const FeeSkeleton = () => (
 
 const MessFeeManagement = () => {
   const [form] = Form.useForm();
+  const { message } = AntdApp.useApp();
   
   // --- States ---
   const [reportData, setReportData] = useState([]);
@@ -287,8 +286,8 @@ const MessFeeManagement = () => {
           </div>
 
           <Space>
-            <Button disabled={historicalImport} icon={<Plus size={18}/>} onClick={() => setIsModalVisible(true)} className="rounded-xl h-12">Add Manual Fee</Button>
-            <Button 
+            <Button permissionAction="create" disabled={historicalImport} icon={<Plus size={18}/>} onClick={() => setIsModalVisible(true)} className="rounded-xl h-12">Add Manual Fee</Button>
+            <Button permissionAction="generate" 
               type="primary" 
               icon={<CheckCircle2 size={18} />} 
               onClick={handleFinalizeBills}
@@ -391,7 +390,7 @@ const MessFeeManagement = () => {
         )}
 
         {/* Manual Fee Modal */}
-        <Modal 
+        <Modal permissionAction="create" 
           title={<div className="flex items-center gap-2 text-blue-600"><Plus size={18}/> Manual Fee Recording</div>} 
           open={isModalVisible} 
           onCancel={() => setIsModalVisible(false)} 

@@ -1,3 +1,5 @@
+import { usePermissions } from '../../context/PermissionContext';
+import { screenForView } from '../../../../shared/permissions.js';
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Card, Row, Col, Statistic, List, Tag, Button, Spin, Empty, 
@@ -30,6 +32,7 @@ ChartJS.defaults.borderColor = '#f1f5f9'; // slate-100
 const { Title, Text } = Typography;
 
 const MessDashboard = ({ setCurrentView }) => {
+  const { can } = usePermissions();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [todayMenus, setTodayMenus] = useState([]);
@@ -279,7 +282,7 @@ const MessDashboard = ({ setCurrentView }) => {
                 { label: 'Additional Food Orders', icon: <ShoppingBag size={18}/>, id: 'food-orders-dashboard' },
                 { label: 'Billing/Fees', icon: <CreditCard size={18}/>, id: 'mess-fee' },
                 { label: 'Daily Rate', icon: <Calculator size={18}/>, id: 'daily-rate-report' },
-              ].map(action => (
+              ].filter(action => can(screenForView(action.id, 'mess'))).map(action => (
                 <button 
                     key={action.id}
                     className="bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/30 transition-all p-4 rounded-2xl flex flex-col items-center gap-3 shadow-sm group"

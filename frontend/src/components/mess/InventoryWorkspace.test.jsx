@@ -8,6 +8,8 @@ const auth = vi.hoisted(() => ({ user: { role: 'admin', userId: 1 } }));
 vi.mock('../../context/AuthContext', () => ({ useAuth: () => auth }));
 vi.mock('../../services/api', () => ({ inventoryAPI: { list: vi.fn() } }));
 vi.mock('antd', () => ({
+  Form: { Provider: ({ children }) => <>{children}</> },
+  Modal: { confirm: vi.fn() }, message: { info: vi.fn() },
   Space: ({ children }) => <div>{children}</div>,
   Typography: { Text: ({ children }) => <span>{children}</span> },
   Button: ({ children, onClick, href }) => <button onClick={onClick} data-href={href}>{children}</button>,
@@ -32,7 +34,7 @@ afterEach(cleanup);
 
 it('requires inventory selection, exposes supplied hostels, and resets entries when changing pools', async () => {
   render(<InventoryWorkspace><Entry /></InventoryWorkspace>);
-  await screen.findByText('Choose an inventory to view its stock or create one in Manage Inventories.');
+  await screen.findByText('Choose an inventory to view this page.');
   expect(screen.queryByLabelText('Entry quantity')).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Inventory for stock management'), { target: { value: '10' } });
   expect(screen.getByText('Supplies: Hostel A, Hostel B')).toBeInTheDocument();
@@ -60,5 +62,5 @@ it('does not load stock when inventory assignments fail and offers retry', async
   expect(screen.queryByLabelText('Entry quantity')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
   await waitFor(() => expect(inventoryAPI.list).toHaveBeenCalledTimes(2));
-  await screen.findByText('Choose an inventory to view its stock or create one in Manage Inventories.');
+  await screen.findByText('Choose an inventory to view this page.');
 });

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ForgotPassword from './ForgotPassword';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { User, Lock, ArrowRight } from 'lucide-react';
@@ -11,6 +12,7 @@ import necImage from '/nec_image.jpg';
 
 const Login = () => {
   const [credentials, setCredentials] = useState({ userName: '', password: '' });
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [oauthError, setOauthError] = useState('');
@@ -233,10 +235,11 @@ const Login = () => {
           {/* Lost Password Link */}
           <div className="mt-4 text-center">
             <a 
-              href="#" 
+              href="#"
+              onClick={event => { event.preventDefault(); setForgotPasswordOpen(true); }}
               className="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors duration-300 font-medium"
             >
-              Lost password?
+              Forgot password?
             </a>
           </div>
 
@@ -287,6 +290,7 @@ const Login = () => {
       </main>
 
       {/* Footer */}
+      {forgotPasswordOpen && <ForgotPassword onClose={() => setForgotPasswordOpen(false)} />}
       <footer className="bg-gray-900 text-white text-center py-4 text-sm shadow-lg">
         © 2025 National Engineering College. All rights reserved.
       </footer>

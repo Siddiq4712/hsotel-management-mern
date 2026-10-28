@@ -1,5 +1,6 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, App, Button, Card, Input, Space, Table, Tag, Typography } from 'antd';
+import { Alert, App, Card, Input, Space, Table, Tag, Typography } from 'antd';
 import { reductionAPI } from '../../services/api';
 import { approvedReduction, categoryInfo, reductionCategories, reductionStatus } from '../../utils/reductionOptions';
 import ReductionEvidence from '../common/ReductionEvidence';
@@ -78,7 +79,7 @@ export default function MessReductionApplication() {
           <input ref={fileInput} aria-label="Supporting document" type="file" accept="application/pdf,image/png,image/jpeg" required={!editing?.document} disabled={saving} onChange={e => setFile(e.target.files?.[0] || null)} />
         </label>
         {editing?.document && <p>Current document: {editing.document.name}. Choose a replacement if the reviewer requested one.</p>}
-        <Space><Button type="primary" htmlType="submit" loading={saving}>{editing ? 'Resubmit for approval' : 'Submit for approval'}</Button>{editing && <Button disabled={saving} onClick={reset}>New request</Button>}</Space>
+        <Space><Button permissionAction={editing ? 'edit' : 'create'} type="primary" htmlType="submit" loading={saving}>{editing ? 'Resubmit for approval' : 'Submit for approval'}</Button>{editing && <Button disabled={saving} onClick={reset}>New request</Button>}</Space>
       </form>
     </Card>
     <Card title="My requests"><Table rowKey="id" loading={loading} dataSource={rows} scroll={{ x: 900 }} columns={[
@@ -87,8 +88,8 @@ export default function MessReductionApplication() {
       { title: 'Status', key: 'status', render: (_, row) => <><Tag color={approvedReduction(row) ? 'green' : row.status === 'pending_admin' ? 'gold' : 'default'}>{reductionStatus(row)}</Tag><div>{row.admin_remarks || row.warden_remarks}</div></> },
       { title: 'Evidence', key: 'evidence', render: (_, row) => <ReductionEvidence role="student" request={row} /> },
       { title: 'Actions / history', key: 'actions', render: (_, row) => <Space direction="vertical">
-        {['pending_admin', 'needs_correction', 'rejected_by_admin', 'rejected_by_warden'].includes(row.status) && <Button size="small" disabled={saving} onClick={() => edit(row)}>Edit / resubmit</Button>}
-        {['pending_admin', 'needs_correction'].includes(row.status) && <Button size="small" danger disabled={saving} onClick={() => cancel(row)}>Cancel request</Button>}
+        {['pending_admin', 'needs_correction', 'rejected_by_admin', 'rejected_by_warden'].includes(row.status) && <Button permissionAction="edit" size="small" disabled={saving} onClick={() => edit(row)}>Edit / resubmit</Button>}
+        {['pending_admin', 'needs_correction'].includes(row.status) && <Button permissionAction="delete" size="small" danger disabled={saving} onClick={() => cancel(row)}>Cancel request</Button>}
         {(row.Decisions || []).slice().sort((a, b) => b.id - a.id).slice(0, 3).map(d => <small key={d.id}>{d.action} · {d.Actor?.userName || d.actor_role} · {new Date(d.createdAt).toLocaleDateString()} {d.remarks}</small>)}
       </Space> }
     ]} /></Card>

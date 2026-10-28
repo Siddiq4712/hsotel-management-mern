@@ -30,6 +30,10 @@ api.interceptors.request.use(async (config) => {
   const token = localStorage.getItem('token');
   const workspace = localStorage.getItem('adminWorkspace');
   if (['admin', 'warden', 'mess'].includes(workspace)) config.headers['X-Workspace'] = workspace;
+  const wardenHostel = sessionStorage.getItem('selectedWardenHostelId');
+  if (workspace === 'warden' && wardenHostel && (config.url?.startsWith('/warden/') || config.url?.startsWith('/outpass/warden')) && !config.headers['X-Workspace-Hostel-Id']) {
+    config.headers['X-Workspace-Hostel-Id'] = wardenHostel;
+  }
   const inventoryId = sessionStorage.getItem('selectedInventoryId');
   if (inventoryId && config.url?.startsWith('/mess/') && !config.headers['X-Inventory-Id']) config.headers['X-Inventory-Id'] = inventoryId;
   if (token) {
@@ -56,6 +60,7 @@ api.interceptors.response.use(
       return api.request({ ...error.config, entryHostelRetry: true,
         headers: { ...error.config.headers, 'X-Entry-Hostel-Id': hostelId } });
     }
+    if (error.response?.data?.code === 'SCREEN_PERMISSION_DENIED') window.dispatchEvent(new Event('permissions-changed'));
     const status = error.response?.status;
     const backendMessage = String(error.response?.data?.message || '').toLowerCase();
     const requestUrl = String(error.config?.url || '');
@@ -95,6 +100,9 @@ export const authAPI = {
     window.location.href = `${API_BASE_URL}/auth/google`;
   },
   changePassword: (data) => api.put('/auth/change-password', data),
+  forgotPassword: (data) => api.post('/auth/forgot-password', data, { timeout: 60000 }),
+  verifyPasswordOtp: (data) => api.post('/auth/verify-password-otp', data),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
 };
 
 // Admin API - Complete CRUD operations
@@ -141,6 +149,9 @@ export const adminAPI = {
 
   // Room Management - Complete CRUD
   createRoom: (data) => api.post('/admin/rooms', data),
+  previewBulkRooms: (data) => api.post('/admin/rooms/bulk-preview', data),
+  createBulkRooms: (data) => api.post('/admin/rooms/bulk', data),
+  deleteBulkRooms: (data) => api.post('/admin/rooms/bulk-delete', data),
   getRooms: (params) => api.get('/admin/rooms', { params }),
   updateRoom: (id, data) => api.put(`/admin/rooms/${id}`, data),
   deleteRoom: (id) => api.delete(`/admin/rooms/${id}`),
@@ -238,6 +249,9 @@ export const wardenAPI = {
 
   // Room Management - Complete CRUD (for warden)
   createRoom: (data) => api.post('/warden/rooms', data), // data may include layout_slot
+  previewBulkRooms: (data) => api.post('/warden/rooms/bulk-preview', data),
+  createBulkRooms: (data) => api.post('/warden/rooms/bulk', data),
+  deleteBulkRooms: (data) => api.post('/warden/rooms/bulk-delete', data),
   getRooms: (params) => api.get('/warden/rooms', { params }),
   updateRoom: (id, data) => api.put(`/warden/rooms/${id}`, data),
   deleteRoom: (id) => api.delete(`/warden/rooms/${id}`),

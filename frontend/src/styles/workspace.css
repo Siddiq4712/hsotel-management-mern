@@ -13,7 +13,7 @@
 }
 
 /* Layout owns the page gutter. Page components also render inside nested tabs. */
-.workspace-content > :where(div, section, form),
+.workspace-content > :where(div, section, form):not(:where(.workspace-scope-bar)),
 .workspace-content .module-page {
   padding: 0 !important;
   min-height: 0 !important;

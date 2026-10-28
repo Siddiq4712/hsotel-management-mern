@@ -16,3 +16,12 @@ it('requires both gender and year and routes female students separately', () => 
   expect(studentBatch(2024, [male], 'female')).toBeNull();
   expect(studentBatch(2024, [male])).toBeNull();
 });
+
+it('never previews an LAPC student in the NEC hostel for the same year and gender', () => {
+  const nec = { id: 1, gender: 'male', erp_batch_year: 2024, hostel_id: 1, is_active: true };
+  const lapc = { ...nec, id: 2, college: 'lapc', hostel_id: 8 };
+  expect(studentBatch(2024, [nec, lapc], 'male', 'LAPC')).toEqual(lapc);
+  expect(studentBatch(2024, [nec, lapc], 'male', 'nec')).toEqual(nec);
+  expect(studentBatch(2024, [nec], 'male', 'lapc')).toBeNull();
+  expect(studentBatch(2024, [nec, lapc], 'male', 'unknown')).toBeNull();
+});

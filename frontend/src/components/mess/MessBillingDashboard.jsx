@@ -1,6 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Select, Button, Table, message, Space, Modal, Spin } from 'antd';
+import { Card, Row, Col, Statistic, Select, Table, message, Space, Modal, Spin } from 'antd';
 import { DollarOutlined, UserOutlined, CalendarOutlined, FileTextOutlined } from '@ant-design/icons';
 import api from '../../services/api';
 import moment from 'moment';
@@ -212,7 +213,7 @@ const MessBillingDashboard = () => {
           </Col>
           <Col xs={24} sm={12} md={9} lg={9}>
             <Space>
-              <Button
+              <Button permissionAction="generate"
                 type="primary"
                 onClick={handleGenerateBills}
                 loading={generating}

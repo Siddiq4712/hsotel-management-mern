@@ -1,9 +1,6 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Card, Typography, Row, Col, Statistic, Button, Space, 
-  Select, Divider, ConfigProvider, theme, Skeleton, Badge, 
-  Tooltip, Tag, Table, Modal, Input, Empty, message
-} from 'antd';
+import { Card, Typography, Row, Col, Statistic, Space, Select, Divider, ConfigProvider, theme, Skeleton, Badge, Tooltip, Tag, Table, Modal, Input, Empty, message } from 'antd';
 import { 
   Calendar, User, Clock, CheckCircle2, XCircle, 
   RefreshCw, Filter, ShieldCheck, ClipboardList, 
@@ -153,7 +150,7 @@ const LeaveRequests = () => {
       render: (_, r) => (
         r.status === 'pending' ? (
           <Space>
-            <Button 
+            <Button permissionAction="approve" 
               type="primary" 
               size="small" 
               className="rounded-lg font-bold text-[10px] bg-emerald-600 border-none shadow-sm h-8"
@@ -161,7 +158,7 @@ const LeaveRequests = () => {
             >
               APPROVE
             </Button>
-            <Button 
+            <Button permissionAction="approve" 
               danger 
               size="small" 
               className="rounded-lg font-bold text-[10px] border-none bg-rose-50 h-8"
@@ -276,7 +273,7 @@ const LeaveRequests = () => {
           onCancel={() => setShowModal(false)}
           footer={[
             <Button key="back" onClick={() => setShowModal(false)} className="rounded-xl h-11 px-6">Cancel</Button>,
-            <Button 
+            <Button permissionAction="approve" 
               key="submit" 
               type="primary" 
               danger={actionType === 'rejected'}

@@ -1,9 +1,6 @@
+import { PermissionNativeButton, PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Card, Table, Button, Tag, Space, message, Modal,
-  Form, Input, Select, InputNumber, Typography,
-  Divider, ConfigProvider, theme, Row, Col, Popconfirm
-} from 'antd';
+import { Card, Table, Button, Tag, Space, message, Modal, Form, Input, Select, InputNumber, Typography, Divider, ConfigProvider, theme, Row, Col } from 'antd';
 import {
   Plus, Edit2, Trash2, Search, ChefHat, 
   BookOpen, Beaker, Save, X, Info, LayoutGrid, Utensils
@@ -232,7 +229,7 @@ const RecipeManagement = () => {
       render: (_, record) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <ActionBtn icon={<Edit2 size={13}/>} onClick={() => handleEdit(record)}>Edit</ActionBtn>
-          <Popconfirm title="Delete recipe?" onConfirm={() => handleDelete(record.id)}>
+          <Popconfirm permissionAction="delete" title="Delete recipe?" onConfirm={() => handleDelete(record.id)}>
             <ActionBtn icon={<Trash2 size={13}/>} variant="danger" />
           </Popconfirm>
         </div>
@@ -261,9 +258,9 @@ const RecipeManagement = () => {
               <div className="module-subtitle">Standardize ingredient ratios for mass cooking</div>
             </div>
           </div>
-          <button onClick={() => { setEditingRecipe(null); form.resetFields(); setModalVisible(true); }} style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: `0 2px 8px rgba(26,86,219,0.3)` }}>
+          <PermissionNativeButton permissionAction="create" onClick={() => { setEditingRecipe(null); form.resetFields(); setModalVisible(true); }} style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: `0 2px 8px rgba(26,86,219,0.3)` }}>
             <Plus size={16} /> New Recipe
-          </button>
+          </PermissionNativeButton>
         </div>
 
         <div className="space-y-6">
@@ -357,9 +354,9 @@ const RecipeManagement = () => {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
               <button type="button" onClick={() => setModalVisible(false)} style={{ padding: '9px 20px', borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.inkMid, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-              <button type="submit" style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: T.accent, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <PermissionNativeButton permissionAction={editingRecipe ? 'edit' : 'create'} type="submit" style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: T.accent, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Save size={16} /> {editingRecipe ? 'Update Recipe' : 'Save Recipe'}
-              </button>
+              </PermissionNativeButton>
             </div>
           </Form>
         </Modal>

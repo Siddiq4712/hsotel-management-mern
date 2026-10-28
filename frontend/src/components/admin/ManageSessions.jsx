@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
 import { adminAPI } from '../../services/api';
 import BatchAllocationReview from './BatchAllocationReview';
+import { COLLEGES } from '../../../../shared/colleges.js';
 const { Title, Text } = Typography;
 export default function ManageSessions() {
   const [form] = Form.useForm();
@@ -22,7 +23,7 @@ export default function ManageSessions() {
   useEffect(() => { load(); }, []);
   const edit = batch => {
     setEditing(batch); form.resetFields();
-    if (batch) form.setFieldsValue({ start_year: Number(batch.start_date.slice(0, 4)), end_year: Number(batch.end_date.slice(0, 4)), hostel_id: batch.hostel_id, gender: batch.gender });
+    if (batch) form.setFieldsValue({ start_year: Number(batch.start_date.slice(0, 4)), end_year: Number(batch.end_date.slice(0, 4)), hostel_id: batch.hostel_id, gender: batch.gender, college: batch.college ?? 'nec' });
     setOpen(true);
   };
   const save = async values => {
@@ -36,7 +37,7 @@ export default function ManageSessions() {
     finally { setSaving(false); }
   };
   const submit = values => {
-    if (editing && (Number(values.hostel_id) !== Number(editing.hostel_id) || Number(values.start_year) !== Number(editing.erp_batch_year) || values.gender !== editing.gender)) {
+    if (editing && (Number(values.hostel_id) !== Number(editing.hostel_id) || Number(values.start_year) !== Number(editing.erp_batch_year) || values.gender !== editing.gender || values.college !== (editing.college ?? 'nec'))) {
       Modal.confirm({ title: 'Change batch allocation rules?', content: `${editing.student_count || 0} students currently belong to this batch. After saving, review the proposed student changes before applying them.`, onOk: () => save(values) });
     } else return save(values);
   };
@@ -45,27 +46,30 @@ export default function ManageSessions() {
     catch (error) { message.error(error.response?.data?.message || 'Unable to archive batch'); }
   } });
   const query = search.trim().toLowerCase();
-  const filtered = batches.filter(batch => (!hostelFilter || batch.hostel_id === hostelFilter) && [batch.name, batch.erp_batch_year, batch.gender, batch.hostel_name].some(value => String(value || '').toLowerCase().includes(query)));
+  const filtered = batches.filter(batch => (!hostelFilter || batch.hostel_id === hostelFilter) && [batch.name, batch.college ?? 'nec', batch.erp_batch_year, batch.gender, batch.hostel_name].some(value => String(value || '').toLowerCase().includes(query)));
   return <div className="module-page p-8 bg-slate-50 min-h-screen">
     <div className="module-page-header flex flex-wrap justify-between gap-4 mb-6">
-      <div><Title level={2}>Manage Batches</Title><Text type="secondary">ERP admission year + Gender → Batch → Hostel</Text></div>
+      <div><Title level={2}>Manage Batches</Title><Text type="secondary">College + Admission year + Gender → Batch → Hostel</Text></div>
       <Space wrap><Button onClick={() => setReview(true)}>Review Batch Allocation</Button><Button onClick={load}>Refresh</Button><Button type="primary" onClick={() => edit(null)}>Add Batch</Button></Space>
     </div>
-    <Alert type="info" showIcon title="One batch belongs to one hostel. A hostel can contain multiple batches." description="Configure each ERP admission year and gender, then review allocation to correct existing students. Historical bills keep their original hostel and amounts." className="mb-4" />
+    <Alert type="info" showIcon title="One batch belongs to one hostel. A hostel can contain multiple batches." description="Configure each college, admission year and gender. Create LAPC batches for the LAPC hostel and import its students through Excel. In Manage Inventories, assign the boys’ and LAPC hostels to one inventory with Shared inventory billing for a common daily rate. Historical bills keep their original hostel and amounts." className="mb-4" />
     <Card>
       <Space wrap className="mb-4"><Input aria-label="Search batches" allowClear placeholder="Search batch, admission year or hostel" value={search} onChange={event => setSearch(event.target.value)} style={{ width: 280 }} /><Select aria-label="Filter batches by hostel" allowClear placeholder="All hostels" value={hostelFilter} onChange={setHostelFilter} style={{ width: 220 }} options={hostels.map(hostel => ({ value: hostel.id, label: hostel.name }))} /></Space>
       <Table loading={loading} rowKey="id" dataSource={filtered} scroll={{ x: 900 }} columns={[
         { title: 'Batch', dataIndex: 'name', sorter: (a, b) => a.name.localeCompare(b.name) },
+        { title: 'College', dataIndex: 'college', render: value => (value ?? 'nec').toUpperCase() },
         { title: 'ERP Batch Year', dataIndex: 'erp_batch_year', render: value => value || <Tag color="orange">Needs setup</Tag> },
         { title: 'Gender', dataIndex: 'gender', render: value => value ? value[0].toUpperCase() + value.slice(1) : <Tag color="orange">Needs setup</Tag> },
         { title: 'Assigned Hostel', dataIndex: 'hostel_name', render: value => value || 'Unassigned' },
+        { title: 'Inventory / Current Rate', key: 'inventory', render: (_, batch) => batch.inventory_name ? <>{batch.inventory_name}<br /><Tag color={batch.billing_mode === 'shared' ? 'blue' : 'default'}>{batch.billing_mode === 'shared' ? 'Shared daily rate' : 'Hostel daily rate'}</Tag></> : 'No inventory assigned' },
         { title: 'Students', dataIndex: 'student_count' },
         { title: 'Status', dataIndex: 'is_active', render: value => <Tag color={value ? 'green' : 'default'}>{value ? 'Active' : 'Archived'}</Tag> },
         { title: 'Actions', key: 'actions', render: (_, batch) => <Space><Button onClick={() => edit(batch)}>Edit</Button><Button danger disabled={!batch.is_active} onClick={() => archive(batch)}>Archive</Button></Space> }
       ]} />
     </Card>
     <Modal title={editing ? 'Edit Batch' : 'Add Batch'} open={open} onCancel={() => !saving && setOpen(false)} onOk={() => form.submit()} confirmLoading={saving} okText="Save Batch">
-      <Form form={form} layout="vertical" onFinish={submit} disabled={saving}>
+      <Form form={form} layout="vertical" initialValues={{ college: 'nec' }} onFinish={submit} disabled={saving}>
+        <Form.Item name="college" label="College" rules={[{ required: true }]} extra="NEC and LAPC can use the same admission year and gender with different hostels."><Select options={COLLEGES} /></Form.Item>
         <Space align="start"><Form.Item name="start_year" label="Start Year" rules={[{ required: true }]}><InputNumber min={2000} max={2099} onChange={year => { if (!editing && year) form.setFieldsValue({ end_year: year + 4 }); }} /></Form.Item><Form.Item name="end_year" label="End Year" dependencies={['start_year']} rules={[{ required: true }, { validator: (_, value) => value > form.getFieldValue('start_year') ? Promise.resolve() : Promise.reject(new Error('End year must be later')) }]}><InputNumber min={2001} max={2100} /></Form.Item></Space>
         <Form.Item label="Batch Name"><Input readOnly value={start && end ? `${start}-${end}` : ''} /></Form.Item>
         <Form.Item label="ERP Batch Year" htmlFor="erp-batch-year"><Input id="erp-batch-year" readOnly value={start || ''} /></Form.Item>

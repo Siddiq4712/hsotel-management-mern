@@ -1,5 +1,6 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Card, Col, Descriptions, Empty, Form, Input, InputNumber, Modal, Row, Segmented, Select, Space, Spin, Table, Tag, Typography, message } from 'antd';
+import { Card, Col, Descriptions, Empty, Form, Input, InputNumber, Modal, Row, Segmented, Select, Space, Spin, Table, Tag, Typography, message } from 'antd';
 import { DatePicker } from '../common/MomentPickers';
 import { studentAPI } from '../../services/api';
 import moment from 'moment';
@@ -90,7 +91,7 @@ export default function StudentFoodMenu() {
           <p>{item.weekly_day == null ? 'Available food' : `Every ${days[item.weekly_day]}`}</p>
           <p>Maximum {item.max_quantity_per_student ?? 1} per student per serving date.</p>
           <p>Order before {additionalFoodDeadline(item, nextServingDate(item.weekly_day).format('YYYY-MM-DD')).format('h:mm A')} on the serving day (IST).</p>
-          <div className="flex justify-between items-center"><Text strong>₹{Number(item.price).toFixed(2)}</Text><Button type="primary" disabled={additionalFoodClosed(item, nextServingDate(item.weekly_day).format('YYYY-MM-DD'), now)} onClick={() => add(item)}>{additionalFoodClosed(item, nextServingDate(item.weekly_day).format('YYYY-MM-DD'), now) ? 'Ordering closed' : 'Add'}</Button></div>
+          <div className="flex justify-between items-center"><Text strong>₹{Number(item.price).toFixed(2)}</Text><Button permissionAction="create" type="primary" disabled={additionalFoodClosed(item, nextServingDate(item.weekly_day).format('YYYY-MM-DD'), now)} onClick={() => add(item)}>{additionalFoodClosed(item, nextServingDate(item.weekly_day).format('YYYY-MM-DD'), now) ? 'Ordering closed' : 'Add'}</Button></div>
         </Card></Col>)}
       </Row>{!loading && !filtered.length && <Empty description="No additional food available" />}</Spin>
     </> : <Card title="My Additional Food Orders"><Table rowKey="id" columns={columns} dataSource={orders} loading={loading} scroll={{ x: 650 }} /></Card>}
@@ -106,7 +107,7 @@ export default function StudentFoodMenu() {
           <Form.Item label="Quantity" name="quantity" extra={`Maximum ${selected.max_quantity_per_student ?? 1} in total for this food on this serving date.`} rules={[{ required: true, type: 'integer', min: 1, max: selected.max_quantity_per_student ?? 1, message: `Enter a whole quantity from 1 to ${selected.max_quantity_per_student ?? 1}.` }]}><InputNumber min={1} max={selected.max_quantity_per_student ?? 1} precision={0} /></Form.Item>
           <p><Text strong>Total: ₹{(Math.round(Number(selected.price) * 100) * quantity / 100).toFixed(2)}</Text></p>
           <p><Text type="secondary">This request is for the selected serving date only. The amount is added to your additional bill.</Text></p>
-          <Space><Button onClick={() => setSelected(null)} disabled={saving}>Cancel</Button><Button type="primary" htmlType="submit" loading={saving} disabled={selectionClosed}>Confirm</Button></Space>
+          <Space><Button onClick={() => setSelected(null)} disabled={saving}>Cancel</Button><Button permissionAction="create" type="primary" htmlType="submit" loading={saving} disabled={selectionClosed}>Confirm</Button></Space>
         </Form>
       </>}
     </Modal>

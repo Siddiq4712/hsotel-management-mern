@@ -1,12 +1,10 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { studentBatch } from '../../utils/batchMatching';
+import './ImportPreview.css';
+import { useScopeDraft, useScopeForm } from '../common/WorkspaceScope';
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { 
-  Card, Form, Input, InputNumber, Select, Button, Checkbox,
-  Typography, Row, Col, Divider, message, 
-  ConfigProvider, Skeleton, Steps, Tag, Timeline, Descriptions, 
-  Upload, Table, Tabs, Modal, Alert, Space, Tooltip, Badge
-} from 'antd';
+import { Card, Form, Input, InputNumber, Select, Checkbox, Typography, Row, Col, Divider, message, ConfigProvider, Skeleton, Steps, Tag, Timeline, Descriptions, Upload, Table, Tabs, Modal, Alert, Space, Tooltip, Badge } from 'antd';
 import { 
   User, Lock, CheckCircle2, AlertCircle, Bed, School, 
   Hash, Mail, Send, ArrowRight, ArrowLeft, GraduationCap,
@@ -59,6 +57,9 @@ const EnrollStudent = () => {
   const [selectedCollege, setSelectedCollege] = useState('nec'); // 'nec' or 'lapc' common to preview
 
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [excelPassword, setExcelPassword] = useState('');
+  useScopeForm(form, activeTab === 'single', loading);
+  useScopeDraft(previewStudents.length > 0, bulkSubmitting);
 
   const requiredImportColumns = getRequiredImportColumns();
 
@@ -91,8 +92,8 @@ const EnrollStudent = () => {
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
-        const json = XLSX.utils.sheet_to_json(worksheet);
-        const headers = json.length > 0 ? Object.keys(json[0]) : [];
+        const json = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+        const headers = XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] || [];
         const validation = validateExcelImportHeaders(headers);
 
         if (!validation.isValid) {
@@ -109,8 +110,8 @@ const EnrollStudent = () => {
             return {
               ...mappedStudent,
               key: mappedStudent.key || `student_${index}_${Date.now()}`,
-              session_id: studentBatch(mappedStudent.erp_batch_year, sessions, mappedStudent.gender)?.id,
-              requires_bed: false // Initially not checked
+              session_id: studentBatch(mappedStudent.erp_batch_year, sessions, mappedStudent.gender, selectedCollege)?.id,
+              requires_bed: mappedStudent.requires_bed
             };
           })
           .filter(Boolean);
@@ -135,7 +136,7 @@ const EnrollStudent = () => {
   // --- BULK PREVIEW ROW HANDLERS ---
   const handleStudentBedChange = (key, checked) => {
     setPreviewStudents((prev) =>
-      prev.map((student) => (student.key === key ? { ...student, requires_bed: checked } : student))
+      prev.map((student) => (student.key === key ? { ...student, requires_bed: Boolean(student.room_number) || checked } : student))
     );
   };
 
@@ -146,13 +147,14 @@ const EnrollStudent = () => {
 
   const handleToggleAllBeds = (status) => {
     setPreviewStudents((prev) =>
-      prev.map((student) => ({ ...student, requires_bed: status }))
+      prev.map((student) => ({ ...student, requires_bed: Boolean(student.room_number) || status }))
     );
-    message.info(status ? 'All students marked as needing bed.' : 'All bed allocations unchecked.');
+    message.info(status ? 'All students marked as needing bed.' : 'Bed requirement cleared for students without an imported room.');
   };
 
   const handleClearPreview = () => {
     setPreviewStudents([]);
+    setExcelPassword('');
     message.info('Bulk preview cleared.');
   };
 
@@ -162,33 +164,47 @@ const EnrollStudent = () => {
       message.warning('No students in preview to register.');
       return;
     }
-
-    // Verify all rows have batch selected
-    const missingBatch = previewStudents.some((s) => !studentBatch(s.erp_batch_year, sessions, s.gender));
-    if (missingBatch) {
-      message.error('Some students have a missing or unconfigured batch admission year and gender. Configure the years in Manage Batches first.');
+    if (excelPassword.trim().length < 6 || new TextEncoder().encode(excelPassword).length > 72) {
+      message.error('Enter a default password of at least 6 characters (at most 72 bytes).');
       return;
     }
 
     setBulkSubmitting(true);
     try {
+      // Configuration may have changed since this preview was opened.
+      const batchResponse = await wardenAPI.getSessions();
+      const currentBatches = batchResponse.data?.data || [];
+      setSessions(currentBatches);
+      const unmatched = previewStudents.filter(student => !studentBatch(student.erp_batch_year, currentBatches, student.gender, selectedCollege));
+      if (unmatched.length) {
+        const groups = [...new Set(unmatched.map(student => `${student.erp_batch_year || 'missing admission year'} / ${student.gender || 'missing gender'}`))];
+        message.error({
+          content: `${unmatched.length} ${selectedCollege.toUpperCase()} students have no available batch: ${groups.slice(0, 5).join(', ')}${groups.length > 5 ? ', …' : ''}. Check that this college, year and gender has an active batch with an assigned hostel in Manage Batches. Wardens can only import into their assigned hostel.`,
+          duration: 10
+        });
+        return;
+      }
       const payload = {
         college: selectedCollege,
+        import_source: 'excel',
+        default_password: excelPassword,
 
         students: previewStudents.map((s) => ({
           userName: s.name || s.userName,
           roll_number: s.roll_number,
+          room_number: s.room_number,
           erp_batch_year: s.erp_batch_year,
           gender: s.gender,
           email: s.email || `${s.roll_number}@${selectedCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in'}`.toLowerCase(),
           college: selectedCollege,
-          session_id: studentBatch(s.erp_batch_year, sessions, s.gender)?.id,
+          session_id: studentBatch(s.erp_batch_year, currentBatches, s.gender, selectedCollege)?.id,
           requires_bed: Boolean(s.requires_bed)
         }))
       };
 
       const response = await wardenAPI.bulkEnrollStudents(payload);
       const { successful = 0, skipped = 0, errors = [] } = response.data?.data || {};
+      setExcelPassword('');
 
       Modal.success({
         title: 'Bulk Enrollment Completed',
@@ -282,7 +298,6 @@ const EnrollStudent = () => {
 
   // --- PREVIEW TABLE COLUMNS ---
   const previewColumns = [
-    { title: 'Gender', dataIndex: 'gender', key: 'gender' },
     {
       title: '#',
       dataIndex: 'index',
@@ -294,86 +309,76 @@ const EnrollStudent = () => {
       title: 'Student Name',
       dataIndex: 'userName',
       key: 'userName',
+      width: 220,
       render: (text) => (
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs uppercase">
-            {text ? text.charAt(0) : 'S'}
-          </div>
-          <span className="font-semibold text-slate-800 uppercase">{text}</span>
-        </div>
+        <span className="import-table-name">{text}</span>
       )
     },
     {
       title: 'Roll Number',
       dataIndex: 'roll_number',
       key: 'roll_number',
+      width: 145,
       render: (text) => (
-        <Tag color="cyan" className="px-2.5 py-1 rounded-lg font-mono font-bold text-xs">
-          {text}
-        </Tag>
+        <span className="import-table-roll">{text}</span>
       )
     },
     {
       title: 'Email Address',
       dataIndex: 'email',
       key: 'email',
+      width: 260,
       render: (text, record) => {
         const displayEmail = text || `${record.roll_number}@${selectedCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in'}`.toLowerCase();
         return (
-          <div className="flex items-center gap-1.5 text-xs text-slate-600">
-            <Mail size={13} className="text-slate-400" />
-            <span>{displayEmail}</span>
-          </div>
+          <span className="import-table-secondary">{displayEmail}</span>
         );
       }
     },
     {
       title: 'College',
       key: 'college',
+      width: 125,
       render: () => (
-        <Tag 
-          color={selectedCollege === 'lapc' ? 'purple' : 'blue'} 
-          className="font-bold uppercase px-3 py-1 rounded-full text-xs"
-        >
+        <span>
           {selectedCollege === 'lapc' ? 'LAPC Campus' : 'NEC'}
-        </Tag>
+        </span>
       )
     },
+    { title: 'Gender', dataIndex: 'gender', key: 'gender', width: 95, render: value => <span className="import-table-gender">{value}</span> },
     {
       title: 'ERP Batch Year', dataIndex: 'erp_batch_year', key: 'erp_batch_year', width: 130
     },
     {
       title: 'Batch', key: 'session_id', width: 170,
-      render: (_, record) => studentBatch(record.erp_batch_year, sessions, record.gender)?.name || <Tag color="error">No batch match</Tag>
+      render: (_, record) => studentBatch(record.erp_batch_year, sessions, record.gender, selectedCollege)?.name || <span className="import-table-error">No batch match</span>
     },
     {
       title: 'Assigned Hostel', key: 'assigned_hostel', width: 190,
-      render: (_, record) => studentBatch(record.erp_batch_year, sessions, record.gender)?.hostel_name || <Tag color="error">Unassigned</Tag>
+      render: (_, record) => studentBatch(record.erp_batch_year, sessions, record.gender, selectedCollege)?.hostel_name || <span className="import-table-error">Unassigned</span>
     },
     {
-      title: 'Need Bed',
+      title: 'Inventory / Current Rate', key: 'inventory', width: 220,
+      render: (_, record) => {
+        const batch = studentBatch(record.erp_batch_year, sessions, record.gender, selectedCollege);
+        return batch?.inventory_name ? <span>{batch.inventory_name}<br /><Tag color={batch.billing_mode === 'shared' ? 'blue' : 'default'}>{batch.billing_mode === 'shared' ? 'Shared daily rate' : 'Hostel daily rate'}</Tag></span> : <span className="import-table-error">No inventory assigned</span>;
+      }
+    },
+    { title: 'Room Number', dataIndex: 'room_number', key: 'room_number', width: 130, render: value => value || <span className="import-table-secondary">Unassigned</span> },
+    {
+      title: 'Bed Allocation',
       key: 'requires_bed',
       width: 170,
       render: (_, record) => (
-        <div 
-          onClick={() => handleStudentBedChange(record.key, !record.requires_bed)}
-          className={`cursor-pointer px-3 py-2 rounded-xl border flex items-center gap-2 transition-all ${
-            record.requires_bed 
-              ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' 
-              : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
-          }`}
-        >
           <Checkbox 
-            checked={record.requires_bed}
+            checked={Boolean(record.room_number) || record.requires_bed}
+            disabled={Boolean(record.room_number)}
             onChange={(e) => handleStudentBedChange(record.key, e.target.checked)}
-          />
-          <div className="flex items-center gap-1">
-            <Bed size={15} className={record.requires_bed ? "text-blue-600" : "text-slate-400"} />
-            <span className="text-xs font-semibold">
-              {record.requires_bed ? "Hosteller" : "Day Scholar"}
-            </span>
-          </div>
-        </div>
+            className="import-table-bed"
+            aria-label={`Allocate bed for ${record.userName} (${record.roll_number})`}
+          >
+            {Boolean(record.room_number) || record.requires_bed ? 'Hosteller' : 'Day Scholar'}
+          </Checkbox>
       )
     },
     {
@@ -385,6 +390,7 @@ const EnrollStudent = () => {
           <Button
             type="text"
             danger
+            aria-label={`Remove ${record.userName} (${record.roll_number})`}
             icon={<Trash2 size={16} />}
             onClick={() => handleRemoveStudentRow(record.key)}
             className="hover:bg-red-50 rounded-lg p-2 flex items-center justify-center"
@@ -477,6 +483,7 @@ const EnrollStudent = () => {
 
                     <Form 
                       form={form} 
+                      initialValues={{ college: 'nec' }}
                       layout="vertical" 
                       onFinish={onSingleFinish} 
                       className="px-8 pb-8"
@@ -512,9 +519,9 @@ const EnrollStudent = () => {
                         <Form.Item name="college" label={<Text strong>College / Campus</Text>} rules={[{ required: true, message: 'Please select college' }]}>
                           <Select className="h-12 rounded-xl" placeholder="Select Affiliated College">
                             <Option value="nec">National Engineering College (NEC)</Option>
-                            <Option value="lapc">LAPC Campus</Option>
                           </Select>
                         </Form.Item>
+                        <Alert type="info" showIcon title="LAPC students are admitted through Excel only." description="Use Bulk Import & Preview and select LAPC as the target college." className="mb-4" />
                         <Form.Item name="erp_batch_year" label="Batch Admission Year" rules={[{ required: true, message: 'Enter the student batch year from ERP' }, { type: 'number', min: 2000, max: 2100 }]}>
                           <InputNumber min={2000} max={2100} precision={0} placeholder="e.g. 2024" style={{ width: '100%' }} />
                         </Form.Item>
@@ -592,7 +599,7 @@ const EnrollStudent = () => {
                             Next Step <ArrowRight size={18}/>
                           </Button>
                         ) : (
-                          <Button 
+                          <Button permissionAction="create" 
                             type="primary" 
                             htmlType="submit" 
                             size="large" 
@@ -631,7 +638,7 @@ const EnrollStudent = () => {
                   <div className="p-4">
                     <Title level={5} className="mb-2">Bulk Import Available</Title>
                     <Paragraph className="text-xs text-slate-500 mb-4 leading-relaxed">
-                      Need to enroll multiple students at once? Use the <strong>Bulk Import & Preview</strong> tab to upload an Excel file with Name, Roll Number, and Email.
+                      Use the <strong>Bulk Import & Preview</strong> tab to upload Student Name, Roll Number, Admission Year, and Gender. Room Number and Email are optional.
                     </Paragraph>
                     <Button
                       type="default"
@@ -655,7 +662,7 @@ const EnrollStudent = () => {
             {/* If no students loaded, show Upload Zone */}
             {previewStudents.length === 0 ? (
               <Card className="border-none shadow-sm rounded-[32px] bg-white p-6 md:p-10 text-center">
-                <div className="max-w-2xl mx-auto space-y-6">
+                <div className="max-w-5xl mx-auto space-y-6">
                   <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
                     <FileSpreadsheet size={36} />
                   </div>
@@ -669,18 +676,19 @@ const EnrollStudent = () => {
                   </div>
 
                   {/* Required Columns Info */}
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 inline-block text-left w-full max-w-lg">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 text-left w-full">
                     <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <Info size={14} className="text-blue-600" />
-                      Required Sheet Columns (Exact or Similar Headers):
+                      Sheet Columns (Exact or Similar Headers):
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {requiredImportColumns.map((col) => (
-                        <Tag key={col.key} color="blue" className="px-3 py-1 rounded-lg font-semibold text-xs">
-                          {col.label}
+                        <Tag key={col.key} color={col.optional ? 'default' : 'blue'} className="px-3 py-1 rounded-lg font-semibold text-xs">
+                          {col.label}{col.optional ? ' (Optional)' : ' *'}
                         </Tag>
                       ))}
                     </div>
+                    <p className="text-xs text-slate-600 mt-2">Leave Email blank to generate rollno@nec.edu.in (rollno@lapc.edu.in for LAPC). Room Number must match an existing room in the assigned hostel; leave it blank to allot a room later. Keep room numbers such as 01 as text in Excel.</p>
                   </div>
 
                   {/* Upload Dragger Zone */}
@@ -719,11 +727,11 @@ const EnrollStudent = () => {
               <div className="space-y-6">
                 
                 {/* Top Section: Common College & Global Batch Controls */}
-                <Card className="border-none shadow-sm rounded-[24px] bg-white overflow-hidden">
-                  <div className="p-6">
-                    <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-100">
+                <Card className="import-preview-card border-none shadow-sm rounded-[24px] bg-white overflow-hidden">
+                  <div className="import-preview-body">
+                    <div className="import-preview-header">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="import-preview-title">
                           <span className="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">
                             Live Preview
                           </span>
@@ -734,7 +742,7 @@ const EnrollStudent = () => {
                         </Text>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="import-preview-actions">
                         <Upload
                           accept=".xlsx, .xls"
                           showUploadList={false}
@@ -760,24 +768,25 @@ const EnrollStudent = () => {
                     </div>
 
                     {/* TOP DROPDOWNS SECTION: College (Common to All) and Default Batch */}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pt-6 items-end">
+                    <div className="import-preview-controls">
                       
                       {/* Top Dropdown: College (Applied to all) */}
-                      <div className="md:col-span-5 bg-blue-50/60 p-4 rounded-2xl border border-blue-100">
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="text-xs font-bold text-blue-900 flex items-center gap-1.5 uppercase tracking-wide">
+                      <div className="import-preview-panel import-preview-college">
+                        <div className="import-preview-label-row">
+                          <label htmlFor="excel-target-college" className="import-preview-label">
                             <Building2 size={16} className="text-blue-600" />
-                            Target College (Applied to all students)
+                            Target College
                           </label>
-                          <Tag color="blue" className="rounded-full text-[10px] font-bold px-2">Common to all</Tag>
+                          <Tag className="import-preview-common-tag">Common to all</Tag>
                         </div>
                         <Select
+                          id="excel-target-college"
                           value={selectedCollege}
                           onChange={(value) => {
                             setSelectedCollege(value);
                             message.success(`College set to ${value === 'lapc' ? 'LAPC Campus' : 'NEC'} for all preview students.`);
                           }}
-                          className="w-full h-12 text-sm font-semibold"
+                          className="import-preview-select"
                           size="large"
                         >
                           <Option value="nec">
@@ -788,25 +797,29 @@ const EnrollStudent = () => {
                           </Option>
                           <Option value="lapc">
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-purple-700">LAPC</span>
+                              <span className="font-bold text-blue-700">LAPC</span>
                               <span className="text-slate-500 text-xs">- LAPC Campus</span>
                             </div>
                           </Option>
                         </Select>
-                        <p className="text-[11px] text-blue-600/80 m-0 mt-2 italic">
-                          Selecting this will assign <strong>{selectedCollege.toUpperCase()}</strong> to every student in this batch.
+                        <p className="import-preview-help">
+                          Applies <strong>{selectedCollege.toUpperCase()}</strong> to every student in this import.
                         </p>
                       </div>
 
-                      <div className="md:col-span-4"><Alert type="info" showIcon title="Automatic batch and hostel allocation" description="Each student’s Batch column (for example 2024) is matched to a configured batch and hostel. Missing or unconfigured admission years must be corrected before importing." /></div>
+                      <div className="import-preview-panel">
+                        <label htmlFor="excel-default-password" className="import-preview-label">Default Password <span className="text-red-500">*</span></label>
+                        <Input.Password id="excel-default-password" value={excelPassword} onChange={event => setExcelPassword(event.target.value)} disabled={bulkSubmitting} maxLength={72} size="large" autoComplete="new-password" placeholder="Enter password for new students" />
+                        <p className="import-preview-help">Used for new students only. Minimum 6 characters.</p>
+                      </div>
 
                       {/* Quick Bed Toggle Actions */}
-                      <div className="md:col-span-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 flex flex-col justify-between">
-                        <label className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5 uppercase tracking-wide">
+                      <div className="import-preview-panel">
+                        <div className="import-preview-label">
                           <Bed size={16} className="text-slate-500" />
                           Bed Allocation
-                        </label>
-                        <div className="flex gap-2">
+                        </div>
+                        <div className="import-preview-bed-actions">
                           <Button
                             size="middle"
                             onClick={() => handleToggleAllBeds(true)}
@@ -822,27 +835,28 @@ const EnrollStudent = () => {
                             Uncheck All
                           </Button>
                         </div>
+                        <p className="import-preview-help">You can adjust beds for each student below.</p>
                       </div>
 
                     </div>
 
                     {/* Summary Stats Badges */}
-                    <div className="flex flex-wrap items-center gap-3 mt-6 pt-4 border-t border-slate-100 text-xs">
-                      <div className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-semibold flex items-center gap-1.5">
+                    <div className="import-preview-summary">
+                      <div className="import-preview-stat">
                         <Users size={14} className="text-slate-500" />
-                        Total Students: <span className="font-bold text-blue-600">{previewStudents.length}</span>
+                        Total Students: <strong>{previewStudents.length}</strong>
                       </div>
-                      <div className="px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 font-semibold flex items-center gap-1.5">
+                      <div className="import-preview-stat">
                         <Building2 size={14} />
-                        College: <span className="font-bold uppercase">{selectedCollege}</span>
+                        College: <strong className="uppercase">{selectedCollege}</strong>
                       </div>
-                      <div className="px-3 py-1.5 rounded-xl bg-green-50 text-green-700 font-semibold flex items-center gap-1.5">
+                      <div className="import-preview-stat">
                         <Bed size={14} />
-                        Hostellers (Bed): <span className="font-bold">{previewStudents.filter(s => s.requires_bed).length}</span>
+                        Hostellers (Bed): <strong>{previewStudents.filter(s => s.requires_bed).length}</strong>
                       </div>
-                      <div className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-700 font-semibold flex items-center gap-1.5">
+                      <div className="import-preview-stat">
                         <User size={14} />
-                        Day Scholars: <span className="font-bold">{previewStudents.filter(s => !s.requires_bed).length}</span>
+                        Day Scholars: <strong>{previewStudents.filter(s => !s.requires_bed).length}</strong>
                       </div>
                     </div>
                   </div>
@@ -856,7 +870,7 @@ const EnrollStudent = () => {
                       columns={previewColumns}
                       pagination={{ pageSize: 10, showSizeChanger: true, pageSizeOptions: ['10', '25', '50', '100'] }}
                       rowKey="key"
-                      scroll={{ x: 900 }}
+                      scroll={{ x: 1785 }}
                       className="custom-preview-table"
                     />
 
@@ -867,7 +881,7 @@ const EnrollStudent = () => {
                       <div className="flex items-center gap-3 text-xs text-slate-500 max-w-xl">
                         <ShieldCheck size={20} className="text-blue-600 flex-shrink-0" />
                         <span>
-                          Once applied, all student credentials and academic enrollment records will be created in the database matching the individual registration structure. Default login password is <code>12345678</code>.
+                          New students use the default password entered above. Existing passwords are preserved.
                         </span>
                       </div>
 
@@ -879,7 +893,7 @@ const EnrollStudent = () => {
                         >
                           Cancel
                         </Button>
-                        <Button
+                        <Button permissionAction="create"
                           type="primary"
                           size="large"
                           loading={bulkSubmitting}

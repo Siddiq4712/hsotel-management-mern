@@ -24,10 +24,24 @@ describe('Admin workspace switcher',()=>{
     expect(picker).toHaveAttribute('aria-expanded','false');
     fireEvent.click(picker);
     const warden=await screen.findByRole('menuitem',{name:/Warden/});
-    expect(screen.getAllByRole('menuitem')).toHaveLength(3);
+    expect(screen.getAllByRole('menuitem')).toHaveLength(4);
     expect(picker).toHaveAttribute('aria-expanded','true');
     fireEvent.click(warden);
     expect(change).toHaveBeenCalledWith('warden');
+    expect(picker).toHaveAttribute('aria-expanded','false');
+  });
+  it('logs out from the bottom of the Workspace menu without switching workspace',async()=>{
+    const logout=vi.fn();
+    const change=vi.fn();
+    useAuth.mockReturnValue({user:{role:'admin'},logout});
+    render(<Header workspace="admin" onWorkspaceChange={change} />);
+    const picker=screen.getByRole('button',{name:'Workspace'});
+    fireEvent.click(picker);
+    const item=await screen.findByRole('menuitem',{name:'Logout'});
+    expect(screen.getAllByRole('menuitem').at(-1)).toBe(item);
+    fireEvent.click(item);
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(change).not.toHaveBeenCalled();
     expect(picker).toHaveAttribute('aria-expanded','false');
   });
   it('does not offer workspace switching to a regular Warden',()=>{

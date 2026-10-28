@@ -1,5 +1,6 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Checkbox, Modal, Select, Space, Table, Typography, message } from 'antd';
+import { Alert, Checkbox, Modal, Select, Space, Table, Typography, message } from 'antd';
 import { DatePicker } from '../common/MomentPickers';
 import moment from 'moment';
 import * as XLSX from 'xlsx';
@@ -67,7 +68,7 @@ export default function AdditionalFoodStudentReport() {
         <Select disabled={busy} aria-label="Report meal" value={meal} onChange={value => { setMeal(value); setReport(null); }} style={{ minWidth: 150 }} options={['all', 'Breakfast', 'Lunch', 'Dinner'].map(value => ({ value, label: value === 'all' ? 'All meals' : value }))} />
         <Checkbox disabled={busy} checked={includeStaff} onChange={event => { setIncludeStaff(event.target.checked); setReport(null); }}>Include supervisor extras</Checkbox>
         <Button loading={busy} onClick={loadPreview}>Refresh Preview</Button>
-        <Button type="primary" disabled={!report || busy} onClick={exportReport}>Export Report</Button>
+        <Button permissionAction="export" type="primary" disabled={!report || busy} onClick={exportReport}>Export Report</Button>
       </Space>
       <Typography.Paragraph type="secondary">The preview loads automatically for the selected serving date, which may be different from the date the student placed the order.</Typography.Paragraph>
       {report && <>

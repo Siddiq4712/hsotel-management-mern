@@ -1,10 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Card, Form, Select, Button, Typography, Row, Col,
-  Space, Divider, Table, Tag, Modal, Input, ConfigProvider,
-  theme, Skeleton, Badge, Tooltip, Empty, message
-} from 'antd';
+import { Card, Form, Select, Typography, Row, Col, Space, Divider, Table, Tag, Modal, Input, ConfigProvider, theme, Skeleton, Badge, Tooltip, Empty, message } from 'antd';
 import { 
   Calendar, FileText, Send, RefreshCw, Filter, 
   Eye, Info, ClipboardList, Clock, ShieldCheck, 
@@ -226,7 +223,7 @@ const LeaveManagement = () => {
 
                 <Divider className="my-6" />
                 
-                <Button 
+                <Button permissionAction="create" 
                   type="primary" 
                   htmlType="submit" 
                   block 

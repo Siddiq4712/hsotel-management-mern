@@ -1,19 +1,55 @@
-.report-sort-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding-top: 16px; }
-.report-filter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); align-items: start; gap: 16px; padding-top: 16px; }
-.report-filter-field { display: grid; grid-template-rows: 20px 64px; gap: 4px; min-width: 0; }
-.report-filter-field > .ant-typography { margin: 0; line-height: 20px; }
+.report-preview { min-width: 0; color: #334155; }
+.report-preview-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.report-preview-search { flex: 1 1 220px; max-width: 360px; min-width: 0; }
+.report-preview-search .ant-input-prefix { margin-right: 8px; color: #94a3b8; }
+.report-preview-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.report-entry-count { margin-right: 8px; white-space: nowrap; color: #334155; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.report-entry-count > span { color: #64748b; font-weight: 400; }
+.report-filter-panel { margin: 0 0 16px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+.report-filter-panel > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; list-style: none; cursor: pointer; color: #475569; font-size: 13px; font-weight: 600; border-radius: 10px; }
+.report-filter-panel > summary::-webkit-details-marker { display: none; }
+.report-filter-panel > summary:hover { background: #f1f5f9; }
+.report-filter-panel > summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.report-filter-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.report-filter-heading > svg { color: #64748b; flex-shrink: 0; }
+.report-filter-chevron { color: #64748b; transition: transform 150ms ease; flex-shrink: 0; }
+.report-filter-panel[open] > summary .report-filter-chevron { transform: rotate(180deg); }
+.report-active-count { padding: 2px 7px; border-radius: 5px; background: #dbeafe; color: #1d4ed8; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.report-sort-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; padding: 4px 14px 14px; }
+.report-sort-field { display: grid; gap: 6px; flex: 0 1 220px; min-width: 160px; }
+.report-sort-direction { flex-basis: 160px; }
+.report-sort-field > span { color: #64748b; font-size: 12px; line-height: 18px; font-weight: 500; }
+.report-sort-field .ant-select { width: 100%; }
+.report-sort-controls .report-reset { margin-left: auto; color: #64748b; border-color: #e2e8f0; background: #fff; }
+.report-standalone-sort { padding: 0 0 16px; }
+.report-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); align-items: start; gap: 16px; padding: 14px; border-top: 1px solid #e2e8f0; }
+.report-filter-field { display: grid; grid-template-rows: 18px 60px; gap: 6px; min-width: 0; max-width: 440px; }
+.report-filter-field > .ant-typography { margin: 0; color: #475569; font-size: 12px; line-height: 18px; font-weight: 600; }
 .report-filter-select { align-self: end; min-width: 0; }
 .report-filter-range { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.report-filter-range > label { display: grid; grid-template-rows: 20px 40px; gap: 4px; min-width: 0; line-height: 20px; }
-.report-filter-range input { box-sizing: border-box; width: 100%; min-width: 0; height: 40px; padding: 8px 10px; border: 1px solid #d9d9d9; border-radius: 8px; background: #fff; font: inherit; color: inherit; }
-.report-filter-range input:focus { outline: 2px solid #bfdbfe; outline-offset: 1px; border-color: #2563eb; }
-.report-preview .report-filter-select .ant-select,
+.report-filter-range > label { display: grid; grid-template-rows: 16px 38px; gap: 6px; min-width: 0; color: #64748b; font-size: 11px; line-height: 16px; }
+.report-filter-range input { box-sizing: border-box; width: 100%; min-width: 0; height: 38px; padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; font: inherit; font-size: 13px; color: #334155; }
+.report-filter-range input:hover { border-color: #93c5fd; }
+.report-filter-range input:focus { outline: 2px solid #dbeafe; outline-offset: 1px; border-color: #2563eb; }
+.report-preview .ant-input-affix-wrapper,
 .report-preview .report-sort-controls .ant-select,
+.report-preview .report-filter-select .ant-select,
 .report-preview .report-sort-controls .ant-btn,
-.report-preview .report-preview-toolbar .ant-select,
-.report-preview .report-preview-toolbar .ant-btn,
-.report-preview .report-preview-toolbar .ant-input-affix-wrapper { height: 40px; min-height: 40px; }
-@media (max-width: 600px) {
-  .report-sort-controls > .ant-select { flex: 1 1 140px; min-width: 0 !important; }
-  .report-sort-controls > .ant-btn { width: 100%; }
+.report-preview .report-preview-actions .ant-btn { height: 38px; min-height: 38px; border-radius: 8px; font-size: 13px; box-shadow: none; }
+.report-preview .ant-input-affix-wrapper,
+.report-preview .report-sort-controls .ant-select-selector,
+.report-preview .report-filter-select .ant-select-selector { border-color: #e2e8f0; background: #fff; }
+.report-preview .ant-input-affix-wrapper input { font-size: 13px; }
+.report-preview-actions .ant-btn { padding-inline: 13px; font-weight: 500; }
+.report-preview .report-preview-note { margin-bottom: 12px; color: #64748b; font-size: 12px; }
+.report-preview .ant-table-thead > tr > th { background: #f8fafc; color: #475569; }
+.report-preview .ant-pagination { margin-bottom: 0; font-size: 12px; }
+@media (max-width: 640px) {
+  .report-preview-search { max-width: none; flex-basis: 100%; }
+  .report-preview-actions { width: 100%; }
+  .report-entry-count { margin-right: auto; }
+  .report-sort-field { flex: 1 1 140px; min-width: 0; }
+  .report-sort-controls .report-reset { margin-left: 0; }
+  .report-filter-field { max-width: none; }
 }
+@media (prefers-reduced-motion: reduce) { .report-filter-chevron { transition: none; } }

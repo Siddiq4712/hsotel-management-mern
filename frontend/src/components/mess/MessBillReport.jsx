@@ -1,7 +1,8 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { exportWorkbook } from '../../utils/reportExport';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState } from 'react';
-import { Card, Button, Row, Col, Table, message, Spin, Descriptions, Tag, Typography } from 'antd';
+import { Card, Row, Col, Table, message, Spin, Descriptions, Tag, Typography } from 'antd';
 import { DownloadOutlined, CalculatorOutlined } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
@@ -132,7 +133,7 @@ const MessBillReport = () => {
           </Button>
         </Col>
         <Col>
-          <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={!summaryData}>
+          <Button permissionAction="export" icon={<DownloadOutlined />} onClick={handleExport} disabled={!summaryData}>
             Export to Excel
           </Button>
         </Col>

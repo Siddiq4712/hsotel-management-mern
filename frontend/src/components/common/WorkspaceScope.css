@@ -1,0 +1,30 @@
+.workspace-scope-bar { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 16px 24px; margin-bottom: 24px; padding: 18px 20px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; color: #334155; }
+.workspace-scope-main { display: flex; align-items: flex-start; flex: 1 1 340px; gap: 12px; min-width: 0; }
+.workspace-scope-icon { display: flex; align-items: center; justify-content: center; width: 38px; height: 38px; margin-top: 24px; flex-shrink: 0; background: #eff6ff; color: #2563eb; border-radius: 10px; }
+.workspace-scope-choice { display: grid; gap: 6px; width: 300px; max-width: 100%; min-width: 0; }
+.workspace-scope-label { color: #64748b; font-size: 12px; font-weight: 600; line-height: 18px; }
+.workspace-scope-choice > .ant-select { width: 100%; height: 38px; font-size: 13px; }
+.workspace-scope-choice > strong { display: flex; align-items: center; min-height: 38px; font-size: 14px; }
+.workspace-scope-description { color: #64748b; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.workspace-scope-controls, .scope-report-controls { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
+.workspace-scope-controls:empty { display: none; }
+.workspace-scope-controls label, .scope-report-controls label { color: #64748b; font-size: 12px; font-weight: 600; line-height: 24px; }
+.workspace-scope-controls :is(.ant-picker, .ant-select, .ant-btn), .scope-report-controls :is(.ant-picker, .ant-select, .ant-btn) { height: 38px; font-size: 13px; border-radius: 8px; }
+.workspace-scope-controls .ant-picker { width: 148px; }
+.workspace-scope-actions { margin-top: 24px; margin-left: auto; }
+.workspace-scope-actions .ant-btn { height: 38px; font-size: 13px; border-radius: 8px; white-space: nowrap; }
+.workspace-scope-content { min-width: 0; }
+.workspace-scope-anchor:empty { display: none; }
+.workspace-scope-anchor .workspace-scope-bar { margin-bottom: 0; }
+.report-page .workspace-scope-anchor { margin-bottom: 20px; }
+.scope-report-controls { margin-bottom: 20px; padding: 16px; border: 1px solid #e2e8f0; background: #fff; border-radius: 12px; }
+.scope-entry-context { color: #64748b; font-size: 12px; font-weight: 400; }
+@media (max-width: 640px) {
+  .workspace-scope-bar { padding: 14px; gap: 12px; }
+  .workspace-scope-main { flex: 1 1 100%; }
+  .workspace-scope-choice { flex: 1; }
+  .workspace-scope-choice > .ant-select { width: 100%; }
+  .workspace-scope-controls { flex-basis: 100%; }
+  .workspace-scope-actions { margin: 0; width: 100%; }
+  .workspace-scope-actions .ant-btn { width: 100%; }
+}

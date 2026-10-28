@@ -1,8 +1,6 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Card, Button, Row, Col, Table, message, Typography,
-  Space, Divider, ConfigProvider, theme, Skeleton, Tooltip, Modal, Radio, Statistic
-} from 'antd';
+import { Card, Row, Col, Table, message, Typography, Space, Divider, ConfigProvider, theme, Skeleton, Tooltip, Modal, Radio, Statistic, Alert } from 'antd';
 import {
   Calculator, FileDown, ChevronLeft, ChevronRight,
   Send, Monitor, Save, ArrowRight, MinusCircle, UserCheck, Receipt, Info
@@ -35,7 +33,8 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
       setReportData(response.data.data);
       setAllHostels(Boolean(response.data.allHostels));
     } catch (error) {
-      message.error('Failed to generate report');
+      setReportData(null);
+      message.error(error.message || 'Failed to generate report');
     } finally {
       setTimeout(() => setLoading(false), 600);
     }
@@ -83,10 +82,15 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
       const response = await messAPI.exportDailyRateReport({ month, year });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `DailyRate_${month}_${year}.xlsx`);
-      document.body.appendChild(link);
-      link.click();
+      try {
+        link.href = url;
+        link.setAttribute('download', `DailyRate_${month}_${year}.xlsx`);
+        document.body.appendChild(link);
+        link.click();
+      } finally {
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      }
     } catch (error) {
       if (error.code === 'ERR_CANCELED') return;
       message.error('Export failed');
@@ -125,9 +129,10 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
               </div>
 
               <Space>
-                <Button
+                <Button permissionAction="generate"
                   icon={<Save size={18} className="text-blue-600" />}
                   onClick={handleSaveToLedger}
+                  disabled={Boolean(reportData?.historicalImport)}
                   loading={saving}
                   className="rounded-xl h-12 font-semibold bg-white border-blue-200 hover:bg-blue-50"
                 >
@@ -140,7 +145,7 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
                 >
                   Notify Admin
                 </Button>
-                <Button
+                <Button permissionAction="export"
                   type="primary"
                   icon={<FileDown size={18}/>}
                   onClick={handleExport}
@@ -155,6 +160,10 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
 
         {loading ? <Skeleton active /> : (
           <>
+            {reportData?.historicalImport && <Alert className="mb-6" type="info" showIcon
+              title={`August 2026 imported statement${reportData.scopeLabel ? ` — ${reportData.scopeLabel}` : ''}`}
+              description="This statement already includes both boys’ hostels. Its approved mess days, expenses and rounded daily rate are preserved."
+            />}
             {/* NEW: FORMULA BREAKDOWN BAR */}
             <Card className="mb-8 border-none shadow-md rounded-[32px] overflow-hidden bg-white">
               <div className="flex flex-col lg:flex-row items-center justify-around p-2 gap-4 lg:gap-0 text-center">
@@ -174,7 +183,7 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
                 </div>
                 <ArrowRight className="text-slate-300 hidden lg:block" size={24} />
                 <div className="px-8 py-3 bg-blue-600 rounded-[24px] text-white shadow-xl shadow-blue-200">
-                  <Text className="text-white opacity-80 uppercase text-[10px] tracking-wider font-bold block">{allHostels ? 'Average Daily Rate (All Hostels)' : 'Food Daily Rate'}</Text>
+                  <Text className="text-white opacity-80 uppercase text-[10px] tracking-wider font-bold block">{reportData?.historicalImport ? 'Approved Shared Daily Rate' : allHostels ? 'Average Daily Rate (All Hostels)' : 'Food Daily Rate'}</Text>
                   <Title level={2} className="m-0 text-white">₹{reportData?.dailyRate?.toFixed(2)}</Title>
                 </div>
               </div>
@@ -237,7 +246,7 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
 
                   <Card className="shadow-sm rounded-3xl border-l-4 border-l-blue-600">
                     <Statistic
-                      title={reportData?.legacyFinalized ? 'Recorded net cost (legacy)' : 'Net food cost (water excluded)'}
+                      title={reportData?.historicalImport ? 'Imported net expenses' : reportData?.legacyFinalized ? 'Recorded net cost (legacy)' : 'Net food cost (water excluded)'}
                       value={reportData?.foodExpenses ?? reportData?.totalExpenses}
                       precision={2}
                       prefix="₹"
@@ -245,7 +254,7 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
                     <div className="mt-4 p-3 bg-blue-50 rounded-xl flex items-start gap-3">
                       <Info size={16} className="text-blue-600 mt-1 shrink-0" />
                       <Text className="text-blue-800 text-xs">
-                        {reportData?.legacyFinalized ? 'Recorded legacy rate and totals are preserved. Unavailable food/water and deduction breakdowns are not reconstructed.' : <>This food cost is divided by {reportData?.totalManDays} billable food days. Approved reductions: {reportData?.totalReductionDays ?? 0} days. Water ₹{Number(reportData?.waterTotal || 0).toFixed(2)} is charged separately without reduction.</>}
+                        {reportData?.historicalImport ? 'The original preparation sheet determines these expenses and mess days. Current student enrollments are not added to this historical statement.' : reportData?.legacyFinalized ? 'Recorded legacy rate and totals are preserved. Unavailable food/water and deduction breakdowns are not reconstructed.' : <>This food cost is divided by {reportData?.totalManDays} billable food days. Approved reductions: {reportData?.totalReductionDays ?? 0} days. Water ₹{Number(reportData?.waterTotal || 0).toFixed(2)} is charged separately without reduction.</>}
                       </Text>
                     </div>
                   </Card>

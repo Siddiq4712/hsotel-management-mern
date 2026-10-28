@@ -1,9 +1,6 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  Card, Typography, Row, Col, Statistic, Button, Space, 
-  Select, Divider, ConfigProvider, theme, Skeleton, Badge, 
-  Tooltip, Tag, Input, Form, Empty, message, Radio
-} from 'antd';
+import { Card, Typography, Row, Col, Statistic, Space, Select, Divider, ConfigProvider, theme, Skeleton, Badge, Tooltip, Tag, Input, Form, Empty, message, Radio } from 'antd';
 import { 
   MessageCircle, Send, RefreshCw, Filter, 
   Clock, CheckCircle2, AlertCircle, XCircle,
@@ -196,7 +193,7 @@ const ComplaintManagement = () => {
                   </Text>
                 </div>
 
-                <Button 
+                <Button permissionAction="create" 
                   type="primary" 
                   htmlType="submit" 
                   block 

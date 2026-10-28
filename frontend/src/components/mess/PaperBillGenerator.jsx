@@ -1,8 +1,6 @@
+import { PermissionButton as Button, PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Card, Form, Select, Input, InputNumber, Button, message, Table, 
-  Row, Col, Typography, ConfigProvider, theme, Skeleton, Space, Divider, Tag, Popconfirm, Tooltip
-} from 'antd';
+import { Card, Form, Select, Input, InputNumber, message, Table, Row, Col, Typography, ConfigProvider, theme, Skeleton, Space, Divider, Tag, Tooltip } from 'antd';
 import { 
   Newspaper, Plus, RefreshCw, ChevronLeft, ChevronRight, 
   History, GraduationCap, Receipt, Calendar, User, Save, Trash2, Info, AlertTriangle
@@ -160,7 +158,7 @@ const handleDeleteBatch = async (batch) => {
           {/* <Tooltip title="View full logs for this action">
              <Button icon={<Info size={14}/>} type="text" shape="circle" />
           </Tooltip> */}
-          <Popconfirm
+          <Popconfirm permissionAction="delete"
             title="Undo this action?"
             description={`This will delete all ${r.studentCount} individual fee records created in this batch. This cannot be undone.`}
             onConfirm={() => handleDeleteBatch(r)}
@@ -244,7 +242,7 @@ const handleDeleteBatch = async (batch) => {
                   </Text>
                 </div>
 
-                <Button 
+                <Button permissionAction="create" 
                   type="primary" 
                   htmlType="submit" 
                   block 

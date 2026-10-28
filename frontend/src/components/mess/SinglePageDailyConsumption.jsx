@@ -1,10 +1,8 @@
+import { PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
+import { useScopeDraft } from '../common/WorkspaceScope';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import {
-  Card, Table, Button, Tag, Space, message, Modal,
-  Form, Input, Select, InputNumber, Typography,
-  Divider, ConfigProvider, Row, Col, Alert, Badge, Spin, Tooltip, Progress
-} from 'antd';
+import { Card, Table, Tag, Space, message, Form, Input, Select, InputNumber, Typography, Divider, ConfigProvider, Row, Col, Alert, Badge, Spin, Tooltip, Progress } from 'antd';
 import {
   Zap, Calendar, Plus, Trash2, CheckCircle2, AlertTriangle,
   Coffee, Sun, Sunset, Moon, Package, ArrowRight, RefreshCw,
@@ -77,6 +75,7 @@ const SinglePageDailyConsumption = () => {
   });
 
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  useScopeDraft(Object.values(mealEntries).some(entries => entries.some(entry => entry.item_id || entry.quantity)), submitting);
   const [resultModalData, setResultModalData] = useState(null);
 
   const fetchHostels = useCallback(async () => {
@@ -444,7 +443,7 @@ if (!validateStockBeforeSubmit()) {
               Refresh Stock
             </Button>
 
-            <Button
+            <Button permissionAction="create"
               type="primary"
               size="large"
               icon={<CheckCircle2 size={18} />}
@@ -719,7 +718,7 @@ if (!validateStockBeforeSubmit()) {
             </Text>
           </div>
 
-          <Button
+          <Button permissionAction="create"
             type="primary"
             size="large"
             icon={<CheckCircle2 size={18} />}
@@ -737,7 +736,7 @@ if (!validateStockBeforeSubmit()) {
         </div>
 
         {/* ─── Confirmation Modal ─── */}
-        <Modal
+        <Modal permissionAction="create"
           title={
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <ShieldAlert color="#2563EB" size={22} />

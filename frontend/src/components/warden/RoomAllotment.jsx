@@ -1,15 +1,13 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  Card, Table, Tag, Button, Input, Select, Typography, 
-  Row, Col, Statistic, Space, Skeleton, Modal, Badge, 
-  Progress, Divider, Empty, message, ConfigProvider, theme 
-} from 'antd';
+import { Card, Table, Tag, Input, Select, Typography, Row, Col, Statistic, Space, Skeleton, Modal, Badge, Progress, Divider, Empty, message, ConfigProvider, theme } from 'antd';
 import { 
   Bed, User, CheckCircle2, AlertCircle, Users, Home, Eye, 
   Search, RefreshCw, Building, Users2, MapPin, Inbox,
   ShieldCheck, ArrowRight, UserPlus
 } from 'lucide-react';
 import { wardenAPI } from '../../services/api';
+import { useScopeDraft } from '../common/WorkspaceScope';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -51,6 +49,7 @@ const RoomAllotment = () => {
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  useScopeDraft(selectedStudentIds.length > 0, loading);
 
   // --- Data Synchronization ---
   const fetchData = useCallback(async () => {
@@ -249,7 +248,7 @@ const RoomAllotment = () => {
                       </div>
                     </div>
 
-                    <Button 
+                    <Button permissionAction="create" 
                       type="primary" 
                       block 
                       size="large" 
@@ -311,7 +310,7 @@ const RoomAllotment = () => {
           onCancel={() => setConfirmModalVisible(false)}
           footer={[
             <Button key="back" onClick={() => setConfirmModalVisible(false)} className="rounded-xl h-11 px-8">Cancel</Button>,
-            <Button key="submit" type="primary" loading={loading} onClick={confirmAllotment} className="rounded-xl h-11 px-12 font-bold shadow-lg shadow-blue-100">Confirm & Save</Button>
+            <Button permissionAction="create" key="submit" type="primary" loading={loading} onClick={confirmAllotment} className="rounded-xl h-11 px-12 font-bold shadow-lg shadow-blue-100">Confirm & Save</Button>
           ]}
           width={600}
           className="rounded-[32px]"

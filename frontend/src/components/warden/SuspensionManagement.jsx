@@ -1,10 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Card, Table, Tag, Button, Input, Select,
-  Typography, Row, Col, Statistic, Space, Skeleton,
-  Modal, Badge, Divider, Empty, ConfigProvider, theme, Form, App as AntdApp
-} from 'antd';
+import { Card, Table, Tag, Input, Select, Typography, Row, Col, Statistic, Space, Skeleton, Modal, Badge, Divider, Empty, ConfigProvider, theme, Form, App as AntdApp } from 'antd';
 import { 
   UserX, Plus, User, Calendar, CheckCircle2, AlertCircle, 
   Clock, XCircle, Search, RefreshCw, ShieldAlert,
@@ -178,7 +175,7 @@ const SuspensionManagement = () => {
               <Text type="secondary">Manage student disciplinary actions and suspension periods</Text>
             </div>
           </div>
-          <Button type="primary" icon={<Plus size={18}/>} onClick={() => setShowCreateModal(true)} className="h-12 rounded-xl px-6 font-bold bg-rose-600 border-none shadow-lg">Add Suspension</Button>
+          <Button permissionAction="create" type="primary" icon={<Plus size={18}/>} onClick={() => setShowCreateModal(true)} className="h-12 rounded-xl px-6 font-bold bg-rose-600 border-none shadow-lg">Add Suspension</Button>
         </div>
 
         {loading ? (
@@ -302,7 +299,7 @@ const SuspensionManagement = () => {
               }}>
                 Cancel
               </Button>
-              <Button type="primary" htmlType="submit" loading={createLoading} className="bg-rose-600">
+              <Button permissionAction="create" type="primary" htmlType="submit" loading={createLoading} className="bg-rose-600">
                 Save Suspension
               </Button>
             </div>

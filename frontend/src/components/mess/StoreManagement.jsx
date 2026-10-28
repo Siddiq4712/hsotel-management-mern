@@ -1,20 +1,7 @@
+import { PermissionButton as AntButton, PermissionPopconfirm as AntPopconfirm } from '../common/PermissionControls';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { message } from 'antd';
-import { 
-  ConfigProvider as AntConfig, 
-  Table as AntTable, 
-  Button as AntButton, 
-  Modal as AntModal, 
-  Form as AntForm, 
-  Input as AntInput, 
-  Switch as AntSwitch,
-  Typography as AntTypography,
-  Tag as AntTag,
-  Popconfirm as AntPopconfirm,
-  Tooltip as AntTooltip,
-  Space as AntSpace,
-  Divider as AntDivider
-} from 'antd';
+import { ConfigProvider as AntConfig, Table as AntTable, Modal as AntModal, Form as AntForm, Input as AntInput, Switch as AntSwitch, Typography as AntTypography, Tag as AntTag, Tooltip as AntTooltip, Space as AntSpace, Divider as AntDivider } from 'antd';
 import {
   Store, Plus, MapPin, Phone, Edit3, Trash2, 
   RefreshCw, Search, Link, ChevronRight, Info, Building2, UploadCloud, Download
@@ -238,13 +225,13 @@ const StoreManagement = () => {
             />
           </AntTooltip>
           */}
-          <AntButton 
+          <AntButton permissionAction="edit" 
             type="text"
             className="hover:bg-slate-100 text-slate-500 rounded-lg"
             icon={<Edit3 size={16}/>}
             onClick={() => handleEdit(record)}
           />
-          <AntPopconfirm 
+          <AntPopconfirm permissionAction="delete" 
             title="Remove store?" 
             description="Linked inventory data may be affected."
             onConfirm={() => messAPI.deleteStore(record.id).then(fetchStores)}
@@ -274,7 +261,7 @@ const StoreManagement = () => {
             </div>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleStoreImportChange} />
-              <AntButton
+              <AntButton permissionAction="create"
                 type="default"
                 icon={<UploadCloud size={18} />}
                 onClick={triggerStoreImport}
@@ -291,7 +278,7 @@ const StoreManagement = () => {
               >
                 Download Template
               </AntButton>
-              <AntButton 
+              <AntButton permissionAction="create" 
                 type="primary" 
                 icon={<Plus size={18}/>} 
                 onClick={() => { setEditingStore(null); form.resetFields(); setModalVisible(true); }}

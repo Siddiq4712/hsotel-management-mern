@@ -1,11 +1,8 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { exportWorkbook } from '../../utils/reportExport';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import {
-  Card, Table, Button, Space, Typography,
-  ConfigProvider, theme, Skeleton, Row, Col, Statistic,
-  message, Divider, Tooltip
-} from 'antd';
+import { Card, Table, Space, Typography, ConfigProvider, theme, Skeleton, Row, Col, Statistic, message, Divider, Tooltip } from 'antd';
 import { 
   FileText, Download, BarChart3, Calendar, 
   RefreshCw, FileDown, PieChart, TrendingUp 
@@ -222,7 +219,7 @@ const ConsumptionReport = () => {
             <Text type="secondary" italic>Select an export method to generate detailed Excel workbooks for auditing.</Text>
             <Space>
               <Tooltip title="Exports S.no, Particulars, and Amount only">
-                <Button 
+                <Button permissionAction="export" 
                     icon={<FileDown size={18} />} 
                     onClick={() => message.info('Exporting Particulars...')} 
                     className="rounded-xl h-10"
@@ -231,7 +228,7 @@ const ConsumptionReport = () => {
                 </Button>
               </Tooltip>
               <Tooltip title="Exports pivoted daily costs across all categories">
-                <Button 
+                <Button permissionAction="export" 
                     type="primary" 
                     danger 
                     ghost 

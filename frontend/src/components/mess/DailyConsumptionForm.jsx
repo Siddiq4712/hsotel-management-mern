@@ -1,6 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Button, Select, InputNumber, message, Row, Col, Space, Typography, Divider, Tag } from 'antd';
+import { Card, Form, Select, InputNumber, message, Row, Col, Space, Typography, Divider, Tag } from 'antd';
 import { PlusOutlined, MinusCircleOutlined, SaveOutlined } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
@@ -304,7 +305,7 @@ const DailyConsumptionForm = ({ onSuccess }) => {
         </Form.List>
 
         <Form.Item>
-          <Button 
+          <Button permissionAction="create" 
             type="primary" 
             htmlType="submit" 
             loading={loading} 

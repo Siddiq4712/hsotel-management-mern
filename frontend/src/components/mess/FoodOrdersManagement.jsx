@@ -1,10 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import {
-  Card, Table, Badge, Tag, Space, Button, message,
-  Drawer, Descriptions, Tabs, List, Avatar, Typography,
-  Select, Form, Radio, Divider
-} from 'antd';
+import { Card, Table, Badge, Tag, Space, message, Drawer, Descriptions, Tabs, List, Avatar, Typography, Select, Form, Radio, Divider } from 'antd';
 import {
   CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined,
   EditOutlined, EyeOutlined, SearchOutlined, DollarOutlined
@@ -220,7 +217,7 @@ const FoodOrdersManagement = () => {
             size="small"
           />
           {record.status !== 'cancelled' && record.status !== 'delivered' && (
-            <Button 
+            <Button permissionAction="delete" 
               danger 
               size="small"
               onClick={() => handleCancelOrder(record.id)}
@@ -315,7 +312,7 @@ const FoodOrdersManagement = () => {
         visible={drawerVisible}
         extra={
           currentOrder && currentOrder.status !== 'cancelled' && currentOrder.status !== 'delivered' ? (
-            <Button danger onClick={() => handleCancelOrder(currentOrder.id)}>
+            <Button permissionAction="delete" danger onClick={() => handleCancelOrder(currentOrder.id)}>
               Cancel Order
             </Button>
           ) : null

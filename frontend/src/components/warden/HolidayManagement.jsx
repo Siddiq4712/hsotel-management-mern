@@ -1,10 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Card, Table, Tag, Button, Input, Select,
-  Typography, Row, Col, Statistic, Space, Skeleton,
-  Modal, Badge, Divider, Empty, message, ConfigProvider, theme, Form
-} from 'antd';
+import { Card, Table, Tag, Input, Select, Typography, Row, Col, Statistic, Space, Skeleton, Modal, Badge, Divider, Empty, message, ConfigProvider, theme, Form } from 'antd';
 import { 
   CalendarDays, Plus, Calendar, CheckCircle2, AlertCircle, 
   Edit3, Trash2, Search, RefreshCw, Filter, 
@@ -12,6 +9,7 @@ import {
 } from 'lucide-react';
 import { wardenAPI } from '../../services/api';
 import moment from 'moment';
+import { useScopeForm, useWorkspaceScope } from '../common/WorkspaceScope';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -67,6 +65,8 @@ const HolidayManagement = () => {
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [modalLoading, setModalLoading] = useState(false);
+  const scope = useWorkspaceScope();
+  useScopeForm(form, showModal, modalLoading);
 
   const fetchHolidays = useCallback(async () => {
     setLoading(true);
@@ -111,6 +111,7 @@ const HolidayManagement = () => {
   /* ---------- Handlers ---------- */
 
   const handleOpenModal = (holiday = null) => {
+    if (!holiday && scope?.allHostels) { message.info('Choose a hostel above before adding a holiday.'); return; }
     if (holiday) {
       setEditingId(holiday.id);
       form.setFieldsValue({ ...holiday, date: moment(holiday.date) });
@@ -213,13 +214,13 @@ const HolidayManagement = () => {
       align: 'right',
       render: (_, r) => (
         <Space>
-          <Button 
+          <Button permissionAction="edit" 
             icon={<Edit3 size={14}/>} 
             type="text" 
             className="text-blue-600 hover:bg-blue-50 rounded-lg" 
             onClick={() => handleOpenModal(r)} 
           />
-          <Button 
+          <Button permissionAction="delete" 
             icon={<Trash2 size={14}/>} 
             type="text" 
             danger 
@@ -246,8 +247,10 @@ const HolidayManagement = () => {
               <Text type="secondary">Manage hostel holidays, festivals, and event dates</Text>
             </div>
           </div>
-          <Button 
+          <Button permissionAction="create" 
             type="primary" 
+            disabled={scope?.allHostels}
+            title={scope?.allHostels ? 'Choose a hostel above before adding a holiday' : undefined}
             icon={<Plus size={18}/>} 
             onClick={() => handleOpenModal()}
             className="h-12 rounded-xl px-6 font-bold shadow-lg shadow-emerald-100 bg-emerald-600 border-none"
@@ -349,7 +352,7 @@ const HolidayManagement = () => {
           onCancel={() => setShowModal(false)}
           footer={[
             <Button key="back" onClick={() => setShowModal(false)} className="rounded-xl h-11 px-8">Cancel</Button>,
-            <Button 
+            <Button permissionAction={editingId ? 'edit' : 'create'} 
               key="submit" 
               type="primary" 
               loading={modalLoading} 

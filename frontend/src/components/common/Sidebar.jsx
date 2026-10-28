@@ -1,3 +1,5 @@
+import { usePermissions } from '../../context/PermissionContext';
+import { screenForView } from '../../../../shared/permissions.js';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Button, Drawer, Empty, Input, Menu } from 'antd';
 import { useNavigate } from 'react-router-dom';
@@ -12,6 +14,7 @@ import {
 
 const MENU_STRUCTURE = {
   admin: [
+    { title: 'Settings', items: [{ id: 'screen-permissions', label: 'Screen Permissions', icon: Settings }] },
     { title: 'Main', items: [{ id: 'dashboard', label: 'Dashboard', icon: Home }, { id: 'activity-logs', label: 'Activity Logs', icon: Activity }] },
     {
       title: 'Hostel Management',
@@ -31,24 +34,25 @@ const MENU_STRUCTURE = {
         { id: 'staff-access', label: 'Staff Access Settings', icon: UserPlus },
         { id: 'sessions', label: 'Manage Batches', icon: Calendar },
         { id: 'monthly-attendance-import', label: 'Monthly Attendance Import', icon: ClipboardCheck },
-        { id: 'outpass-logs', label: 'Outpass Logs', icon: FileText },
+       // { id: 'outpass-logs', label: 'Outpass Logs', icon: FileText },
       ]
-    },
-    {
-      title: 'Facilities & Maintenance',
+    }
+    //{
+     /* title: 'Facilities & Maintenance',
       items: [
         { id: 'facility-types', label: 'Facility Types', icon: Wifi },
         { id: 'facilities', label: 'Manage Facilities', icon: Wifi },
         { id: 'maintenance', label: 'Maintenance', icon: Wrench },
       ]
-    },
+    }*/
+      ,
     {
       title: 'Financial Setup',
       items: [
         { id: 'income-types', label: 'Income Types', icon: DollarSign },
         { id: 'expense-types', label: 'Expense Types', icon: CreditCard },
-        { id: 'consumption', label: 'Record Additional Consumption', icon: ClipboardCheck },
-        { id: 'manage-inventories', label: 'Manage Inventories', icon: Database },
+       // { id: 'consumption', label: 'Record Additional Consumption', icon: ClipboardCheck },
+        //{ id: 'manage-inventories', label: 'Manage Inventories', icon: Database },
       ]
     },
     {
@@ -61,11 +65,11 @@ const MENU_STRUCTURE = {
 
   warden: [
     { title: 'Main', items: [{ id: 'dashboard', label: 'Dashboard', icon: Home }] },
-    { title: 'Menu Management', items: [
+  /*  { title: 'Menu Management', items: [
       { id: 'menus', label: "Today's Menu", icon: ChefHat },
       { id: 'weekly-menu', label: 'Weekly Plan', icon: Calendar },
       { id: 'menu-settings', label: 'Menu Settings', icon: Settings },
-    ] },
+    ] }*/
     {
       title: 'Student Management',
       items: [
@@ -73,7 +77,7 @@ const MENU_STRUCTURE = {
         { id: 'enroll-student', label: 'Enroll Student', icon: UserPlus },
         { id: 'attendance', label: 'Attendance', icon: ClipboardCheck },
         { id: 'leave-requests', label: 'Leave Requests', icon: Calendar },
-        { id: 'outpass-approval', label: 'Outpass Approval', icon: Clipboard },
+       // { id: 'outpass-approval', label: 'Outpass Approval', icon: Clipboard },
         { id: 'suspensions', label: 'Suspensions', icon: UserX },
       ]
     },
@@ -81,8 +85,8 @@ const MENU_STRUCTURE = {
       title: 'Rooms',
       items: [
         { id: 'room-allotment', label: 'Room Allotment', icon: Bed },
-        { id: 'create-room', label: 'Create Room', icon: Bed },
-        { id: 'view-layout', label: 'View Layout', icon: Building },
+        { id: 'create-room', label: 'Manage Rooms', icon: Bed },
+      //  { id: 'view-layout', label: 'View Layout', icon: Building },
         { id: 'approve-room-requests', label: 'Room Requests', icon: Building },
       ]
     },
@@ -105,7 +109,7 @@ const MENU_STRUCTURE = {
         { id: 'my-leaves', label: 'My Leaves', icon: FileText },
         { id: 'my-complaints', label: 'My Complaints', icon: AlertCircle },
         { id: 'day-reduction', label: 'Mess Reductions', icon: FileText },
-        { id: 'outpass', label: 'Gate Outpass', icon: Clipboard },
+       // { id: 'outpass', label: 'Gate Outpass', icon: Clipboard },
       ]
     },
     {
@@ -195,6 +199,7 @@ const MENU_STRUCTURE = {
 
 const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen, isCollapsed, workspace }) => {
   const { user, logout } = useAuth();
+  const { can } = usePermissions();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const role = user?.role === 'admin' ? workspace || 'admin' : user?.role;
@@ -211,9 +216,9 @@ const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen, isCollapsed, 
     const query = searchQuery.trim().toLowerCase();
     return (MENU_STRUCTURE[role] || []).map(section => ({
       ...section,
-      items: section.items.filter(item => (!item.adminOnly || user?.role === 'admin') && (!query || item.label.toLowerCase().includes(query))),
+      items: section.items.filter(item => (!item.adminOnly || user?.role === 'admin') && can(screenForView(item.id, role)) && (!query || item.label.toLowerCase().includes(query))),
     })).filter(section => section.items.length);
-  }, [role, searchQuery, user?.role]);
+  }, [role, searchQuery, user?.role, can]);
 
   const items = filteredMenu.map(section => ({
     key: section.title, type: 'group', label: section.title,

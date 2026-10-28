@@ -1,14 +1,13 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Form, Input, Button, Table, InputNumber, message, Row, Col, Typography, Space, Select, ConfigProvider,
-  theme, Tag, Tabs
-} from 'antd';
+import { Form, Input, Table, InputNumber, message, Row, Col, Typography, Space, Select, ConfigProvider, theme, Tag, Tabs } from 'antd';
 import {
   Save, Search, Calendar, ClipboardList,
   Filter, PackageMinus, ChevronRight, Info, PackageOpen, Undo2
 } from 'lucide-react';
 import { messAPI } from '../../services/api';
+import { useScopeDraft, useScopeForm } from '../common/WorkspaceScope';
 import moment from 'moment';
 
 const { Option } = Select;
@@ -32,6 +31,8 @@ const ConsumptionTab = ({ items, categories, onSuccess, refetch }) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchText, setSearchText] = useState('');
   const [consumptionQuantities, setConsumptionQuantities] = useState({});
+  useScopeForm(form, true, submitting);
+  useScopeDraft(Object.values(consumptionQuantities).some(value => Number(value) > 0), submitting);
 
   const filteredItems = useMemo(() => items.filter(item => {
     const matchesCat = selectedCategory === 'all' || item.category_id === parseInt(selectedCategory);
@@ -137,7 +138,7 @@ const ConsumptionTab = ({ items, categories, onSuccess, refetch }) => {
               <Info size={15} className="adhoc-info-icon" />
               <p>Stock levels update immediately. Admin receives a system alert.</p>
             </div>
-            <Button type="primary" htmlType="submit" loading={submitting} icon={<Save size={16} />} className="adhoc-save-btn w-full mt-4">
+            <Button permissionAction="create" type="primary" htmlType="submit" loading={submitting} icon={<Save size={16} />} className="adhoc-save-btn w-full mt-4">
               Post Consumption
             </Button>
           </div>
@@ -182,6 +183,8 @@ const ReturnTab = ({ items, categories, refetch }) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchText, setSearchText] = useState('');
   const [returnQuantities, setReturnQuantities] = useState({});
+  useScopeForm(form, true, submitting);
+  useScopeDraft(Object.values(returnQuantities).some(value => Number(value) > 0), submitting);
 
   const filteredItems = useMemo(() => items.filter(item => {
     const matchesCat = selectedCategory === 'all' || item.category_id === parseInt(selectedCategory);
@@ -279,7 +282,7 @@ const ReturnTab = ({ items, categories, refetch }) => {
               <Info size={15} className="adhoc-info-icon-return" />
               <p>Returned quantities will be credited back to the most recent batch for that item. Stock levels update immediately.</p>
             </div>
-            <Button
+            <Button permissionAction="create"
               type="primary" htmlType="submit" loading={submitting}
               icon={<Undo2 size={16} />}
               className="adhoc-return-btn w-full mt-4"

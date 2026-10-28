@@ -389,7 +389,7 @@ const ManageHostelsSection = () => {
                       </div>
                     </div>
 
-                    <div className="mb-3"><Text type="secondary">Batches: </Text>{hostel.batches?.length ? hostel.batches.map(batch => <Tag color="blue" key={batch.id}>{batch.name} ({batch.gender || 'Gender needs setup'})</Tag>) : <Text type="secondary">None assigned</Text>}</div>
+                    <div className="mb-3"><Text type="secondary">Batches: </Text>{hostel.batches?.length ? hostel.batches.map(batch => <Tag color="blue" key={batch.id}>{(batch.college ?? 'nec').toUpperCase()} — {batch.name} ({batch.gender || 'Gender needs setup'})</Tag>) : <Text type="secondary">None assigned</Text>}</div>
                     <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
                       <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
                         <span>Resource Load</span>

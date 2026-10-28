@@ -1,8 +1,6 @@
+import { PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Card, Table, Tag, Button, Space, Input, Modal, message, 
-  Typography, ConfigProvider, theme, Tabs, List, Avatar
-} from 'antd';
+import { Card, Table, Tag, Space, Input, message, Typography, ConfigProvider, theme, Tabs, List, Avatar } from 'antd';
 import { 
   CheckCircle, XCircle, Clock, ExternalLink, MessageSquare, 
   AlertTriangle, RefreshCw, Eye, Search
@@ -133,7 +131,7 @@ const OutpassApproval = () => {
       key: 'action',
       render: (_, record) => (
         <Space>
-          <Button 
+          <Button permissionAction="approve" 
             type="primary" 
             size="small" 
             className="bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-1"
@@ -141,7 +139,7 @@ const OutpassApproval = () => {
           >
             Approve
           </Button>
-          <Button 
+          <Button permissionAction="approve" 
             danger 
             size="small" 
             className="rounded-lg flex items-center gap-1"
@@ -310,7 +308,7 @@ const OutpassApproval = () => {
         </Card>
 
         {/* Action Remarks Modal */}
-        <Modal
+        <Modal permissionAction="approve"
           title={
             <div className="flex items-center gap-2 mb-3">
               {actionType === 'approve' ? (

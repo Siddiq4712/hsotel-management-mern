@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Upload, message, Modal, Tag } from 'antd';
+import { Button, Upload, message, Modal, Tag, Input } from 'antd';
 import { FileSpreadsheet, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { wardenAPI } from '../../services/api';
@@ -7,9 +7,14 @@ import { downloadStudentBulkImportTemplate, getRequiredImportColumns, mapExcelRo
 
 const BulkImportButton = ({ sessionId, onComplete }) => {
   const [loading, setLoading] = useState(false);
+  const [defaultPassword, setDefaultPassword] = useState('');
   const requiredImportColumns = getRequiredImportColumns();
 
   const handleFileUpload = (file) => {
+    if (defaultPassword.trim().length < 6 || new TextEncoder().encode(defaultPassword).length > 72) {
+      message.error('Enter a default password of at least 6 characters (at most 72 bytes).');
+      return false;
+    }
     if (!sessionId) {
       message.error("Please select an Academic Session first!");
       return false;
@@ -42,6 +47,8 @@ const BulkImportButton = ({ sessionId, onComplete }) => {
       setLoading(true);
       try {
         const response = await wardenAPI.bulkEnrollStudents({
+          import_source: 'excel',
+          default_password: defaultPassword,
           students: formattedData.map(s => ({
             ...s,
             session_id: sessionId
@@ -51,6 +58,7 @@ const BulkImportButton = ({ sessionId, onComplete }) => {
         });
         
         const { successful, skipped, errors = [] } = response.data.data;
+        setDefaultPassword('');
         Modal.success({
           title: 'Import Completed',
           content: (
@@ -74,6 +82,7 @@ const BulkImportButton = ({ sessionId, onComplete }) => {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <Input.Password aria-label="Excel Default Password" value={defaultPassword} onChange={event => setDefaultPassword(event.target.value)} disabled={loading} maxLength={72} autoComplete="new-password" placeholder="Default password for new students" style={{ maxWidth: 320 }} />
       <Upload beforeUpload={handleFileUpload} showUploadList={false} accept=".xlsx, .xls">
         <Button 
           icon={<FileSpreadsheet size={18} />} 

@@ -1,8 +1,7 @@
+import { PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import {
-  Card, Form, Select, Input, InputNumber, Button, message, Spin, Table, Row, Col, Typography, Modal, Switch, Popconfirm, Space
-} from 'antd';
+import { Card, Form, Select, Input, InputNumber, Button, message, Spin, Table, Row, Col, Typography, Modal, Switch, Space } from 'antd';
 import { PlusOutlined, SyncOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
@@ -130,7 +129,7 @@ const CreditTokenManager = () => {
     { title: 'Actions', key: 'actions', align: 'center', render: (_, record) => (
         <Space>
             <Button icon={<EditOutlined />} onClick={() => openEntryModal(record)} size="small" />
-            <Popconfirm title="Are you sure you want to delete this entry?" onConfirm={() => handleDeleteEntry(record.id)} okText="Yes" cancelText="No">
+            <Popconfirm permissionAction="delete" title="Are you sure you want to delete this entry?" onConfirm={() => handleDeleteEntry(record.id)} okText="Yes" cancelText="No">
                 <Button icon={<DeleteOutlined />} danger size="small" />
             </Popconfirm>
         </Space>

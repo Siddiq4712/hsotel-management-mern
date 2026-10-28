@@ -1,3 +1,4 @@
+import { PermissionNativeButton } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Table, Button, Space, message, Modal, Form, Input,
@@ -217,7 +218,7 @@ const UOMManagement = () => {
               <div className="module-subtitle">Standardize units for raw materials and inventory</div>
             </div>
           </div>
-          <button
+          <PermissionNativeButton permissionAction="create"
             onClick={() => { setEditingUOM(null); form.resetFields(); setModalVisible(true); }}
             style={{
               display: 'flex', alignItems: 'center', gap: 8, background: T.accent, color: '#fff',
@@ -226,7 +227,7 @@ const UOMManagement = () => {
             }}
           >
             <Plus size={16} /> Add New Unit
-          </button>
+          </PermissionNativeButton>
         </div>
 
         <div className="space-y-6">

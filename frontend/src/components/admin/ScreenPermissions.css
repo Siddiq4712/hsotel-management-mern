@@ -1,0 +1,8 @@
+.permission-page { padding: 24px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.permission-page > *, .permission-page :is(.ant-tabs, .ant-tabs-content-holder, .ant-tabs-content, .ant-tabs-tabpane, .ant-card, .ant-card-body) { min-width: 0; max-width: 100%; }
+.permission-toolbar { margin-bottom: 16px; }
+.permission-user-count { display: block; color: #64748b; font-size: 12px; font-weight: 400; margin-top: 4px; }
+.permission-na { color: #64748b; font-size: 12px; }
+.permission-actions { padding: 12px; background: #f8fafc; }
+.permission-save-bar { display: flex; gap: 16px; justify-content: space-between; align-items: center; margin-top: 20px; flex-wrap: wrap; }
+@media (max-width: 640px) { .permission-page { padding: 12px; } }

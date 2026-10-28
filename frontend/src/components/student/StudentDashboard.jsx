@@ -1,3 +1,5 @@
+import { usePermissions } from '../../context/PermissionContext';
+import { screenForView } from '../../../../shared/permissions.js';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Card, Typography, Row, Col, Statistic, Button, Space, 
@@ -42,6 +44,7 @@ const DashboardSkeleton = () => (
 );
 
 const StudentDashboard = ({ setCurrentView }) => {
+  const { can } = usePermissions();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chartLoading, setChartLoading] = useState(true);
@@ -205,7 +208,7 @@ const StudentDashboard = ({ setCurrentView }) => {
                 { label: 'Complaints', icon: FileText, color: 'text-blue-600', bg: 'bg-blue-50', view: 'submit-complaint' },
                 { label: 'Reduction', icon: Clock, color: 'text-purple-600', bg: 'bg-purple-50', view: 'day-reduction' },
                 { label: 'Food Order', icon: Utensils, color: 'text-orange-600', bg: 'bg-orange-50', view: 'food-order' },
-              ].map((act, i) => (
+              ].filter(action => can(screenForView(action.view, 'student'))).map((act, i) => (
                 <button key={i} onClick={() => setCurrentView(act.view)} className={`p-6 rounded-[32px] border-none shadow-sm bg-white flex flex-col items-center gap-3 hover:scale-105 transition-transform group`}>
                    <div className={`p-3 rounded-2xl ${act.bg} ${act.color} group-hover:scale-110 transition-transform`}><act.icon size={24} /></div>
                    <Text strong className="text-slate-600">{act.label}</Text>

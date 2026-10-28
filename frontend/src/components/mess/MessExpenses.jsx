@@ -1,15 +1,15 @@
+import { PermissionButton as Button, PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import {
-  Alert, Button, Card, Col, Form, Input, InputNumber, List, Modal,
-  Popconfirm, Row, Select, Space, Table, Tag, Typography, message,
-} from 'antd';
-import { CreditCard, Edit3, Filter, LayoutGrid, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { Alert, Card, Col, Form, Input, InputNumber, List, Modal, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { ChevronDown, CreditCard, Download, Edit3, LayoutGrid, Plus, Printer, RefreshCw, RotateCcw, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import moment from 'moment';
 import { DatePicker } from '../common/MomentPickers';
 import { messAPI } from '../../services/api';
+import { ScopeAnchor, useScopeForm, useWorkspaceScope } from '../common/WorkspaceScope';
 import * as XLSX from 'xlsx';
 import { exportWorkbook, printTables } from '../../utils/reportExport';
 import { reportViewDescription } from '../../utils/reportView';
+import '../common/ReportPreview.css';
 import './MessExpenses.css';
 
 const { Title, Text } = Typography;
@@ -35,6 +35,9 @@ export default function MessExpenses() {
   const [pageSize, setPageSize] = useState(10);
   const request = useRef(0);
   const formSection = useRef(null);
+  const scope = useWorkspaceScope();
+  useScopeForm(form, true, submitting || Boolean(deletingId));
+  useScopeForm(typeForm, showTypeModal, typeSubmitting);
 
   const fetchData = useCallback(async () => {
     const sequence = ++request.current;
@@ -118,6 +121,7 @@ export default function MessExpenses() {
     return true;
   }), [dailyExpenses, filters]);
   const total = filteredExpenses.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const activeFilterCount = [filters.category, filters.hostel, filters.recordedBy, filters.min, filters.max, filters.range?.[0]].filter(value => value !== undefined && value !== null && value !== '').length;
   const updateFilter = (key, value) => { setFilters(current => ({ ...current, [key]: value })); setPage(1); };
   const clearFilters = () => { setFilters(emptyFilters()); setSort({ field: 'expense_date', order: 'descend' }); setPage(1); };
   const sorted = key => sort.field === key ? sort.order : null;
@@ -136,9 +140,9 @@ export default function MessExpenses() {
     { title: 'Recorded by', key: 'recorded_by', width: 150, render: (_, row) => row.RecordedBy?.userName || '—',
       sorter: (a, b) => (a.RecordedBy?.userName || '').localeCompare(b.RecordedBy?.userName || ''), sortOrder: sorted('recorded_by') },
     { title: 'Actions', key: 'actions', width: 110, align: 'right', render: (_, row) => <Space size={4}>
-      <Button type="text" aria-label={`Edit expense ${row.id}`} title="Edit expense" icon={<Edit3 size={16} />}
+      <Button permissionAction="edit" type="text" aria-label={`Edit expense ${row.id}`} title="Edit expense" icon={<Edit3 size={16} />}
         disabled={submitting || Boolean(deletingId)} onClick={() => handleEditExpense(row)} />
-      <Popconfirm title="Delete this expense?" description="This entry will be removed from daily expenses." okText="Delete" okButtonProps={{ danger: true }} onConfirm={() => deleteExpense(row)}>
+      <Popconfirm permissionAction="delete" title="Delete this expense?" description="This entry will be removed from daily expenses." okText="Delete" okButtonProps={{ danger: true }} onConfirm={() => deleteExpense(row)}>
         <Button type="text" danger aria-label={`Delete expense ${row.id}`} title="Delete expense" icon={<Trash2 size={16} />} loading={deletingId === row.id} disabled={submitting || Boolean(deletingId)} />
       </Popconfirm>
     </Space> },
@@ -172,10 +176,11 @@ export default function MessExpenses() {
       <Space wrap><Button icon={<RefreshCw size={16} />} onClick={fetchData} loading={loading}>Refresh</Button>
         <Button icon={<LayoutGrid size={16} />} onClick={() => setShowTypeModal(true)}>Manage categories</Button></Space>
     </div>
+    <ScopeAnchor />
     {loadError && <Alert type="error" showIcon title={loadError} className="expense-load-error" />}
 
     <section ref={formSection} className="expense-entry-section" aria-label="Expense entry">
-      <Card title={editingId ? 'Edit expense' : 'New expense'} extra={editingId ? <Tag color="gold">Editing entry #{editingId}</Tag> : <Text type="secondary">Daily entry</Text>}>
+      <Card title={editingId ? 'Edit expense' : 'New expense'} extra={editingId ? <Tag color="gold">Editing entry #{editingId}</Tag> : <Text type="secondary" className="scope-entry-context">{scope?.name ? `Recording for ${scope.name}` : 'Daily entry'}</Text>}>
         <Form name="daily-expense-entry" form={form} layout="vertical" onFinish={handleDailySubmit} initialValues={{ expense_date: moment() }} disabled={submitting}>
           <Row gutter={[20, 0]}>
             <Col xs={24} md={8}><Form.Item name="expense_type_id" label="Category" rules={[{ required: true, message: 'Select an expense category.' }]}>
@@ -191,28 +196,44 @@ export default function MessExpenses() {
           </Row>
           <div className="expense-form-actions">
             <Space wrap><Button onClick={resetEntry} disabled={submitting} icon={editingId ? <X size={15} /> : undefined}>{editingId ? 'Cancel edit' : 'Clear form'}</Button>
-              <Button type="primary" htmlType="submit" loading={submitting} icon={<Plus size={16} />}>{editingId ? 'Save changes' : 'Record expense'}</Button></Space>
+              <Button permissionAction={editingId ? 'edit' : 'create'} type="primary" htmlType="submit" loading={submitting} icon={<Plus size={16} />}>{editingId ? 'Save changes' : 'Record expense'}</Button></Space>
           </div>
         </Form>
       </Card>
     </section>
 
-    <Card className="expense-history-card" title="Expense history" extra={<Space wrap>
-      <Button disabled={loading || Boolean(loadError) || !visibleExpenses.length} onClick={() => printTables(reportTables(), 'Daily Expenses')}>Print</Button>
-      <Button disabled={loading || Boolean(loadError) || !visibleExpenses.length} onClick={exportExpenses}>Export</Button>
-    </Space>}>
-      <div className="expense-report-search"><Input id="expense-search" aria-label="Search expenses" prefix={<Search size={16} />} placeholder="Search expenses" allowClear value={filters.search} onChange={event => updateFilter('search', event.target.value)} /></div>
-      <details className="expense-filter-panel"><summary>Filters</summary><div className="expense-filters" aria-label="Expense filters">
+    <Card className="expense-history-card report-preview" title="Expense history">
+      <div className="report-preview-toolbar">
+        <div className="report-preview-search"><Input id="expense-search" aria-label="Search expenses" prefix={<Search size={16} aria-hidden="true" />} placeholder="Search expenses" allowClear value={filters.search} onChange={event => updateFilter('search', event.target.value)} /></div>
+        <div className="report-preview-actions">
+          <Button permissionAction="export" icon={<Printer size={15} />} disabled={loading || Boolean(loadError) || !visibleExpenses.length} onClick={() => printTables(reportTables(), 'Daily Expenses')}>Print</Button>
+          <Button permissionAction="export" type="primary" icon={<Download size={15} />} disabled={loading || Boolean(loadError) || !visibleExpenses.length} onClick={exportExpenses}>Export</Button>
+        </div>
+      </div>
+      <details className="expense-filter-panel report-filter-panel"><summary>
+        <span className="report-filter-heading"><SlidersHorizontal size={15} aria-hidden="true" /></span>Filters
+        {activeFilterCount > 0 && <span className="report-active-count">{activeFilterCount} active</span>}
+        <ChevronDown size={16} className="report-filter-chevron" aria-hidden="true" />
+      </summary>
+      <div className="report-sort-controls">
+        <div className="report-sort-field"><span>Sort by</span><Select aria-label="Sort expenses by" allowClear placeholder="Original order" value={sort.field}
+          options={columns.filter(column => column.sorter).map(column => ({ value: column.key, label: column.title }))}
+          onChange={field => { setSort({ field, order: sort.order || 'ascend' }); setPage(1); }} /></div>
+        <div className="report-sort-field report-sort-direction"><span>Order</span><Select aria-label="Expense sort direction" value={sort.order || 'ascend'}
+          options={[{ value: 'ascend', label: 'Ascending' }, { value: 'descend', label: 'Descending' }]}
+          onChange={order => { setSort(current => ({ ...current, order })); setPage(1); }} /></div>
+        <Button className="report-reset expense-clear-filters" icon={<RotateCcw size={14} />} onClick={clearFilters}>Clear filters</Button>
+      </div>
+      <div className="expense-filters" aria-label="Expense filters">
         <div className="expense-filter"><label htmlFor="expense-category-filter">Category</label><Select id="expense-category-filter" aria-label="Filter by category" allowClear showSearch optionFilterProp="label" placeholder="All categories" options={categoryOptions} value={filters.category} onChange={value => updateFilter('category', value)} /></div>
         <div className="expense-filter expense-date-filter"><label>Date range</label><DatePicker.RangePicker aria-label="Filter by date range" placeholder={['From date', 'To date']} format="DD MMM YYYY" value={filters.range} onChange={value => updateFilter('range', value)} /></div>
         {hostelOptions.length > 1 && <div className="expense-filter"><label htmlFor="expense-hostel-filter">Hostel</label><Select id="expense-hostel-filter" aria-label="Filter by hostel" placeholder="All hostels" allowClear options={hostelOptions} value={filters.hostel} onChange={value => updateFilter('hostel', value)} /></div>}
         <div className="expense-filter"><label htmlFor="expense-recorder-filter">Recorded by</label><Select id="expense-recorder-filter" aria-label="Filter by recorded by" placeholder="All people" allowClear showSearch optionFilterProp="label" options={recorderOptions} value={filters.recordedBy} onChange={value => updateFilter('recordedBy', value)} /></div>
         <div className="expense-filter"><label htmlFor="expense-min">Minimum amount (₹)</label><InputNumber id="expense-min" min={0} value={filters.min} onChange={value => updateFilter('min', value)} /></div>
         <div className="expense-filter"><label htmlFor="expense-max">Maximum amount (₹)</label><InputNumber id="expense-max" min={0} value={filters.max} onChange={value => updateFilter('max', value)} /></div>
-        <Button className="expense-clear-filters" icon={<Filter size={15} />} onClick={clearFilters}>Clear filters</Button>
       </div></details>
       <div className="expense-results-summary" aria-live="polite"><Text type="secondary">{filteredExpenses.length} of {dailyExpenses.length} expenses</Text><span>Filtered total <strong>{money(total)}</strong></span></div>
-      <Table rowKey="id" dataSource={visibleExpenses} columns={columns} loading={loading} scroll={{ x: hostelOptions.length ? 1120 : 950 }}
+      <Table size="middle" rowKey="id" dataSource={visibleExpenses} columns={columns} loading={loading} scroll={{ x: hostelOptions.length ? 1120 : 950 }}
         pagination={{ current: page, pageSize, showSizeChanger: true, pageSizeOptions: [10, 20, 50], showTotal: count => `${count} expenses` }}
         onChange={(pagination, _columnFilters, sorter) => { setPage(pagination.current); setPageSize(pagination.pageSize); setSort({ field: sorter.columnKey, order: sorter.order }); }}
         locale={{ emptyText: dailyExpenses.length ? 'No expenses match your filters.' : 'No daily expenses recorded yet.' }} />
@@ -222,12 +243,12 @@ export default function MessExpenses() {
       <Form name="expense-category" form={typeForm} layout="vertical" onFinish={handleTypeSubmit} disabled={typeSubmitting} className="expense-category-form">
         <Row gutter={16}><Col xs={24} sm={14}><Form.Item name="name" label="Category name" rules={[{ required: true, whitespace: true, message: 'Enter a category name.' }]}><Input placeholder="e.g. Gas or Labour" /></Form.Item></Col>
           <Col xs={24} sm={10}><Form.Item name="description" label="Description (optional)"><Input placeholder="Category details" /></Form.Item></Col></Row>
-        <Space><Button type="primary" htmlType="submit" loading={typeSubmitting}>{editingType ? 'Save category' : 'Add category'}</Button>
+        <Space><Button permissionAction={editingType ? 'edit' : 'create'} type="primary" htmlType="submit" loading={typeSubmitting}>{editingType ? 'Save category' : 'Add category'}</Button>
           {editingType && <Button onClick={() => { setEditingType(null); typeForm.resetFields(); }}>Cancel category edit</Button>}</Space>
       </Form>
       <List dataSource={expenseTypes} renderItem={type => <List.Item><div><Text strong>{type.name}</Text>{type.description && <div><Text type="secondary">{type.description}</Text></div>}</div>
         <Space><Button type="text" aria-label={`Edit category ${type.name}`} icon={<Edit3 size={16} />} disabled={typeSubmitting} onClick={() => { setEditingType(type); typeForm.setFieldsValue(type); }} />
-          <Popconfirm title="Delete this category?" okText="Delete" onConfirm={() => deleteType(type.id)}><Button type="text" danger aria-label={`Delete category ${type.name}`} icon={<Trash2 size={16} />} disabled={typeSubmitting} /></Popconfirm></Space>
+          <Popconfirm permissionAction="delete" title="Delete this category?" okText="Delete" onConfirm={() => deleteType(type.id)}><Button type="text" danger aria-label={`Delete category ${type.name}`} icon={<Trash2 size={16} />} disabled={typeSubmitting} /></Popconfirm></Space>
       </List.Item>} />
     </Modal>
   </div>;

@@ -1,10 +1,7 @@
+import { PermissionPopconfirm as Popconfirm, PermissionButton as Button } from '../common/PermissionControls';
 import { exportWorkbook } from '../../utils/reportExport';
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Card, Table, Button, Space, Select, InputNumber, message, Modal,
-  Form, Switch, Popconfirm, Tag, Tabs, Typography, Input, Row, Col,
-  ConfigProvider, theme, Skeleton, Divider, Tooltip
-} from 'antd';
+import { Card, Table, Space, Select, InputNumber, message, Modal, Form, Switch, Tag, Tabs, Typography, Input, Row, Col, ConfigProvider, theme, Skeleton, Divider, Tooltip } from 'antd';
 import {
   Plus, FileSpreadsheet, Trash2, Search, Link, Store, 
   Package, LayoutGrid, CheckCircle2, Info, ChevronRight, X, Filter
@@ -160,7 +157,7 @@ const ItemStoreMapping = () => {
       title: 'Actions',
       align: 'right',
       render: (_, record) => (
-        <Popconfirm title="Remove mapping?" onConfirm={() => messAPI.removeItemStoreMapping(record.id).then(fetchInitialData)}>
+        <Popconfirm permissionAction="delete" title="Remove mapping?" onConfirm={() => messAPI.removeItemStoreMapping(record.id).then(fetchInitialData)}>
           <Button type="text" danger icon={<Trash2 size={16} />} className="flex items-center justify-center hover:bg-rose-50 rounded-lg" />
         </Popconfirm>
       )
@@ -183,7 +180,7 @@ const ItemStoreMapping = () => {
             </div>
           </div>
           <Space>
-            <Button icon={<FileSpreadsheet size={18}/>} onClick={handleExportExcel} className="rounded-xl h-12">Export Results</Button>
+            <Button permissionAction="export" icon={<FileSpreadsheet size={18}/>} onClick={handleExportExcel} className="rounded-xl h-12">Export Results</Button>
             <Button type="primary" icon={<Plus size={18}/>} onClick={() => setModalVisible(true)} className="rounded-xl h-12 shadow-lg shadow-blue-100 font-semibold">Add New Mapping</Button>
           </Space>
         </div>

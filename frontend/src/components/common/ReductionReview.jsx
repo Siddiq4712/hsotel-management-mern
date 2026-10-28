@@ -1,5 +1,6 @@
+import { PermissionButton as Button, PermissionModal } from './PermissionControls';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, App, Button, Card, Input, Modal, Select, Space, Table, Tag, Typography } from 'antd';
+import { Alert, App, Card, Input, Modal, Select, Space, Table, Tag, Typography } from 'antd';
 import { adminAPI, reductionAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { approvedReduction, categoryInfo, reductionCategories, reductionStatus } from '../../utils/reductionOptions';
@@ -68,19 +69,19 @@ export default function ReductionReview({ role: screenRole }) {
         {(selected.Decisions || []).slice().sort((a, b) => a.id - b.id).map(d => <div key={d.id}><strong>{d.action}</strong> · {d.Actor?.userName || d.actor_role} · {new Date(d.createdAt).toLocaleString()}<div>{d.remarks}</div></div>)}
         <Space wrap>
           {['pending_admin', 'needs_correction'].includes(selected.status) && <>
-            <Button type="primary" disabled={selected.legacy || !selected.document} onClick={() => choose(selected, 'approve')}>Approve date range</Button>
-            <Button danger onClick={() => choose(selected, 'reject')}>Reject</Button>
-            <Button onClick={() => choose(selected, 'return')}>Return for correction</Button>
+            <Button permissionAction="approve" type="primary" disabled={selected.legacy || !selected.document} onClick={() => choose(selected, 'approve')}>Approve date range</Button>
+            <Button permissionAction="approve" danger onClick={() => choose(selected, 'reject')}>Reject</Button>
+            <Button permissionAction="approve" onClick={() => choose(selected, 'return')}>Return for correction</Button>
           </>}
-          {approvedReduction(selected) && !selected.legacy && <Button danger onClick={() => choose(selected, 'cancel')}>Cancel approval</Button>}
+          {approvedReduction(selected) && !selected.legacy && <Button permissionAction="approve" danger onClick={() => choose(selected, 'cancel')}>Cancel approval</Button>}
         </Space>
       </Space>}
     </Modal>
-    <Modal open={Boolean(decision)} title={decision ? `${decision.action === 'return' ? 'Return' : decision.action.charAt(0).toUpperCase() + decision.action.slice(1)} reduction` : ''}
+    <PermissionModal permissionAction="approve" open={Boolean(decision)} title={decision ? `${decision.action === 'return' ? 'Return' : decision.action.charAt(0).toUpperCase() + decision.action.slice(1)} reduction` : ''}
       onCancel={() => !saving && setDecision(null)} onOk={save} confirmLoading={saving} okText="Confirm decision" closable={!saving} maskClosable={!saving}>
       {decision?.action === 'approve' && <p>Approve {decision.row.from_date} through {decision.row.to_date}, inclusive. Attendance will become {categoryInfo(decision.row.category)?.attendance}. Only eligible operational days reduce food charges.</p>}
       {decision?.action === 'cancel' && <p>This restores attendance saved before approval and removes the reduction. Recorded billing periods are protected.</p>}
       <label>Remarks {decision?.action !== 'approve' ? '(required)' : '(optional)'}<Input.TextArea aria-label="Decision remarks" rows={4} maxLength={2000} value={remarks} onChange={e => setRemarks(e.target.value)} /></label>
-    </Modal>
+    </PermissionModal>
   </div>;
 }

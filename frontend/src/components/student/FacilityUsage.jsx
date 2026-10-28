@@ -1,3 +1,4 @@
+import { PermissionNativeButton } from '../common/PermissionControls';
 import React, { useState, useEffect } from 'react';
 import { studentAPI } from '../../services/api';
 import { Wifi, Plus, Clock, DollarSign, CheckCircle, AlertCircle } from 'lucide-react';
@@ -155,13 +156,13 @@ const FacilityUsage = () => {
               </div>
 
               {facility.status === 'active' ? (
-                <button
+                <PermissionNativeButton permissionAction="create"
                   onClick={() => handleUseFacility(facility)}
                   className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
                 >
                                     <Plus size={16} className="mr-2" />
                   Use Facility
-                </button>
+                </PermissionNativeButton>
               ) : (
                 <div className="w-full bg-gray-300 text-gray-600 py-2 px-4 rounded-lg text-center">
                   {facility.status === 'maintenance' ? 'Under Maintenance' : 'Not Available'}

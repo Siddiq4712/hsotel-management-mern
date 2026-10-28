@@ -13,7 +13,7 @@ const local = [
   { id: 10, userName: 'Existing Student', roll_number: '24100000', erp_batch_year: 2024, session_id: 2, hostel_id: 2 },
   { id: 11, userName: 'Needs Update', roll_number: '23999000', erp_batch_year: null, hostel_id: 2, tbl_Enrollment: [{ requires_bed: true }] }
 ];
-const ready = Array.from({ length: 7 }, (_, index) => ({ studentId: index + 100, studentName: `ERP Student ${index}`, registerNumber: `2399990${index}`, batch: 2024, gender: 'male', student_type: 'Hosteller', personal_email: `student${index}@example.invalid` }));
+const ready = Array.from({ length: 7 }, (_, index) => ({ studentId: index + 100, studentName: `ERP Student ${index}`, registerNumber: `2399990${index}`, batch: 2024, gender: 'male', student_type: 'Hosteller', personal_email: `student${index}@example.invalid`, dateOfBirth: '2006-08-15' }));
 const source = [...ready,
   { studentId: 200, studentName: 'Needs Update', registerNumber: '23999000', batch: 2024, gender: 'male', student_type: 'Hosteller' },
   { studentId: 201, studentName: 'Existing Student', registerNumber: '24100000', batch: 2024, gender: 'male', student_type: 'Hosteller' },
@@ -53,8 +53,10 @@ it('imports all matching eligible students across pages and refreshes the saved 
   fireEvent.click(within(dialog).getByRole('button', { name: 'Import Selected Students (8)' }));
   await waitFor(() => expect(wardenAPI.bulkEnrollStudents).toHaveBeenCalled());
   const payload = wardenAPI.bulkEnrollStudents.mock.calls[0][0];
+  expect(payload.import_source).toBe('api');
   expect(payload.students).toHaveLength(8);
   expect(payload.students.every(student => student.erp_batch_year === 2024 && student.gender === 'male')).toBe(true);
+  expect(payload.students[0].date_of_birth).toBe('2006-08-15');
   expect(payload.students[0]).toEqual(expect.objectContaining({ userName: 'ERP Student 0', roll_number: ready[0].registerNumber, email: ready[0].personal_email, requires_bed: false }));
   expect(payload.students.find(student => student.roll_number === '23999000').requires_bed).toBe(true);
   expect(payload.students.some(student => ['24100000', '25100000', '24123456', '24111111'].includes(student.roll_number))).toBe(false);

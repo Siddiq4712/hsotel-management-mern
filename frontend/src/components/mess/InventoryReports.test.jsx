@@ -65,3 +65,12 @@ it('ignores an older response after changing hostel', async () => {
   finishOld({ data: { data: { ...data(), rows: [{ Item: 'Stale result' }] } } });
   await waitFor(() => expect(screen.getByLabelText('Report preview')).not.toHaveTextContent('Stale result'));
 });
+
+it('shows the API error message and clears the previous preview after refresh fails', async () => {
+  render(<InventoryReports initialKind="rate" />);
+  await screen.findByLabelText('Report preview');
+  inventoryAPI.report.mockRejectedValueOnce(new Error('API Error: Historical statement is unavailable.'));
+  fireEvent.click(screen.getByText('Refresh preview'));
+  await screen.findByText('API Error: Historical statement is unavailable.');
+  expect(screen.queryByLabelText('Report preview')).not.toBeInTheDocument();
+});

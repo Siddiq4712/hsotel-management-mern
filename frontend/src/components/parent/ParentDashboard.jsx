@@ -93,12 +93,13 @@ const ParentDashboard = () => {
     try {
       await authAPI.changePassword({
         oldPassword: values.oldPassword,
-        newPassword: values.newPassword
+        newPassword: values.newPassword,
+        confirmPassword: values.confirmPassword
       });
       message.success('Password changed successfully.');
       passwordForm.resetFields();
     } catch (err) {
-      message.error(err.response?.data?.message || 'Password update failed');
+      message.error(err.response?.data?.message || err.message || 'Password update failed');
     } finally {
       setPasswordLoading(false);
     }
@@ -407,8 +408,11 @@ const ParentDashboard = () => {
                       <Form.Item name="oldPassword" label="Current Password" rules={[{ required: true }]}>
                         <Input.Password className="h-10 rounded-xl" />
                       </Form.Item>
-                      <Form.Item name="newPassword" label="New Password" rules={[{ required: true, min: 6 }]}>
+                      <Form.Item name="newPassword" label="New Password" rules={[{ required: true, min: 8 }]}>
                         <Input.Password className="h-10 rounded-xl" />
+                      </Form.Item>
+                      <Form.Item name="confirmPassword" label="Confirm New Password" dependencies={['newPassword']} rules={[{ required: true }, ({ getFieldValue }) => ({ validator: (_, value) => !value || value === getFieldValue('newPassword') ? Promise.resolve() : Promise.reject(new Error('Passwords do not match.')) })]}>
+                        <Input.Password autoComplete="new-password" className="h-10 rounded-xl" />
                       </Form.Item>
                       <Button type="primary" htmlType="submit" loading={passwordLoading} className="w-full h-10 rounded-xl font-semibold">
                         Change Password

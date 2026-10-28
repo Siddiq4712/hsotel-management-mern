@@ -23,9 +23,9 @@ const Header = ({ onMenuClick, onCollapse, isCollapsed, sidebarOpen, workspace, 
         </div>
       </div>
       <div className="workspace-header-actions">
-        {user?.role === 'admin' && <WorkspaceSwitcher workspace={workspace} onChange={onWorkspaceChange} />}
+        {user?.role === 'admin' && <WorkspaceSwitcher workspace={workspace} onChange={onWorkspaceChange} onLogout={logout} />}
         <NotificationBell key={user?.userId || user?.id} />
-        <Dropdown trigger={['click']} placement="bottomRight" menu={{ items: [
+        {user?.role !== 'admin' && <Dropdown trigger={['click']} placement="bottomRight" menu={{ items: [
           { key: 'identity', disabled: true, label: `${name} · ${user?.role || 'Account'}` },
           { type: 'divider' },
           { key: 'logout', label: 'Sign out', icon: <LogOut size={16} />, onClick: logout },
@@ -35,7 +35,7 @@ const Header = ({ onMenuClick, onCollapse, isCollapsed, sidebarOpen, workspace, 
             <span className="workspace-profile-copy"><strong>{name}</strong><span>{user?.role}</span></span>
             <ChevronDown size={14} className="workspace-profile-chevron" />
           </button>
-        </Dropdown>
+        </Dropdown>}
       </div>
     </header>
   );

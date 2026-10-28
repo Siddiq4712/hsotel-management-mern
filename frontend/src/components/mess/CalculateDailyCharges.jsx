@@ -1,6 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState } from 'react';
-import { Card, Button, message, Spin, Alert, Typography, Statistic, Descriptions, Divider } from 'antd';
+import { Card, message, Spin, Alert, Typography, Statistic, Descriptions, Divider } from 'antd';
 import moment from 'moment';
 import { CalculatorOutlined } from '@ant-design/icons';
 import { messAPI } from '../../services/api';
@@ -53,7 +54,7 @@ const CalculateDailyCharges = () => {
           disabledDate={(current) => current && current > moment().endOf('day')}
           style={{ marginRight: 16 }}
         />
-        <Button
+        <Button permissionAction="generate"
           type="primary"
           icon={<CalculatorOutlined />}
           onClick={handleCalculate}

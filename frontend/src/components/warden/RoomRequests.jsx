@@ -1,8 +1,6 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useEffect, useMemo, useState } from "react";
-import { 
-  Card, Table, Tag, Button, Select, Space, Typography, 
-  Modal, Input, Badge, Descriptions, Empty, ConfigProvider, theme, Tooltip, Skeleton, Row, Col, Statistic, App as AntdApp 
-} from "antd";
+import { Card, Table, Tag, Select, Space, Typography, Modal, Input, Badge, Descriptions, Empty, ConfigProvider, theme, Tooltip, Skeleton, Row, Col, Statistic, App as AntdApp } from 'antd';
 import { 
   Home, User, Clock, CheckCircle2, XCircle, 
   RefreshCw, ClipboardList, Filter, Search, MessageSquare, Inbox, Info
@@ -298,7 +296,7 @@ const RoomRequests = () => {
           onCancel={() => setDialogOpen(false)}
           footer={[
             <Button key="back" onClick={() => setDialogOpen(false)} className="rounded-xl h-11 px-6">Cancel</Button>,
-            <Button 
+            <Button permissionAction="approve" 
               key="submit" 
               type="primary" 
               loading={processing} 

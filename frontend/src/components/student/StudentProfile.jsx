@@ -62,13 +62,14 @@ const StudentProfile = () => {
     try {
       await authAPI.changePassword({
         oldPassword: values.currentPassword,
-        newPassword: values.newPassword
+        newPassword: values.newPassword,
+        confirmPassword: values.confirmNewPassword
       });
       message.success('Security credentials updated successfully');
       setIsChangingPassword(false);
       passwordForm.resetFields();
     } catch (error) {
-      message.error(error.response?.data?.message || 'Password update failed');
+      message.error(error.response?.data?.message || error.message || 'Password update failed');
     } finally {
       setSubmittingPassword(false);
     }

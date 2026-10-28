@@ -1,9 +1,6 @@
+import { PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Table, Button, Space, Tag, DatePicker, Select,
-  message, Popconfirm, Modal, List, Typography, Row, Col, Alert,
-  ConfigProvider, theme, Skeleton, Divider, Empty
-} from 'antd';
+import { Table, Button, Space, Tag, DatePicker, Select, message, Modal, List, Typography, Row, Col, Alert, ConfigProvider, theme, Skeleton, Divider, Empty } from 'antd';
 import dayjs from 'dayjs';
 import { 
   Search, Eye, CheckCircle2, Calendar, 
@@ -228,7 +225,7 @@ const MenuScheduleManagement = () => {
         <Space>
           <ActionBtn icon={<Eye size={13}/>} onClick={() => { setSelectedSchedule(record); setDetailsModalVisible(true); }} />
           {record.status === 'scheduled' && (
-            <Popconfirm title="Mark as served?" onConfirm={() => handleMarkAsServed(record.id)}>
+            <Popconfirm permissionAction="delete" title="Mark as served?" onConfirm={() => handleMarkAsServed(record.id)}>
               <ActionBtn icon={<CheckCircle2 size={13}/>} variant="success">Serve</ActionBtn>
             </Popconfirm>
           )}

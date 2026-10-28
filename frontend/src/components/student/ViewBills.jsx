@@ -1,8 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import {
-  Card, Table, Tag, Spin, Empty, Typography, Statistic, Row, Col, Button, message, Tooltip
-} from 'antd';
+import { Card, Table, Tag, Spin, Empty, Typography, Statistic, Row, Col, message, Tooltip } from 'antd';
 import { 
   DollarSign, AlertTriangle, CheckCircle, Calendar, 
   FileText, Download, CreditCard, Clock, XCircle
@@ -199,7 +198,7 @@ const ViewBills = () => {
           )}
           {record.status === 'paid' && (
             <Tooltip title="Download Receipt">
-              <Button
+              <Button permissionAction="export"
                 type="default"
                 size="small"
                 icon={<Download size={14} />}

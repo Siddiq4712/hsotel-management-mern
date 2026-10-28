@@ -1,10 +1,7 @@
+import { PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import {
-  Table, Button, Select, message, Space, Typography, Tag,
-  Switch, Modal, Form, InputNumber, ConfigProvider,
-  theme, Input, Badge, Tooltip, Row, Col
-} from 'antd';
+import { Table, Select, message, Space, Typography, Tag, Switch, Form, InputNumber, ConfigProvider, theme, Input, Badge, Tooltip, Row, Col } from 'antd';
 import { 
   Warehouse, Plus, Download, RefreshCw, 
   Search, FileBarChart, Filter, Box, AlertCircle, UploadCloud
@@ -261,13 +258,13 @@ const StockManagement = () => {
             <input ref={stockImportRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleStockImportChange} />
             <Button icon={<RefreshCw size={16} />} onClick={fetchStocks} className="rounded-xl h-10">Refresh</Button>
             <Button icon={<Download size={16} />} onClick={() => setIsUnitRateModalVisible(true)} className="rounded-xl h-10">Reports</Button>
-            <Button icon={<UploadCloud size={16} />} onClick={triggerStockImport} loading={importingStock} className="rounded-xl h-10">
+            <Button permissionAction="create" icon={<UploadCloud size={16} />} onClick={triggerStockImport} loading={importingStock} className="rounded-xl h-10">
               {importingStock ? 'Importing...' : 'Import Excel'}
             </Button>
             <Button icon={<Download size={16} />} onClick={() => downloadStockBulkImportTemplate()} className="rounded-xl h-10">
               Download Template
             </Button>
-            <Button 
+            <Button permissionAction="create" 
               type="primary" 
               icon={<Plus size={18} />} 
               onClick={() => setIsAddStockModalVisible(true)}
@@ -306,7 +303,7 @@ const StockManagement = () => {
         />
 
         {/* Modal: Add Stock */}
-        <Modal
+        <Modal permissionAction="create"
           title={<div className="flex items-center gap-2"><Plus size={18}/> Record Stock Purchase</div>}
           open={isAddStockModalVisible}
           onOk={() => addStockForm.submit()}
@@ -335,7 +332,7 @@ const StockManagement = () => {
         </Modal>
 
         {/* Modal: Monthly Report */}
-        <Modal
+        <Modal permissionAction="export"
           title="Export Stock Report"
           open={isUnitRateModalVisible}
           onCancel={() => setIsUnitRateModalVisible(false)}

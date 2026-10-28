@@ -3,6 +3,7 @@ import { Alert, Button, Card, DatePicker, Select, Space, Typography } from 'antd
 import dayjs from 'dayjs';
 import { inventoryAPI } from '../../services/api';
 import { useInventoryWorkspace } from './InventoryWorkspace';
+import { ScopeAnchor, ScopeControls } from '../common/WorkspaceScope';
 import ReportPreview from '../common/ReportPreview';
 import { reportText } from '../../utils/reportView';
 import './InventoryReports.css';
@@ -34,7 +35,7 @@ export default function InventoryReports({ initialKind = 'consumption' }) {
     setPolicy(null); setReport(null); setHostel(undefined); setError('');
     if (inventory) inventoryAPI.policy(inventory.id, month.startOf('month').format('YYYY-MM-DD')).then(response => {
       if (active) { setPolicy({ ...response.data.data, period: month.format('YYYY-MM'), inventoryId: inventory.id }); setHostel(response.data.data.hostels[0]?.id); }
-    }).catch(failure => active && setError(failure.response?.data?.message || 'Unable to load reporting scope.'));
+    }).catch(failure => active && setError(failure.response?.data?.message || failure.message || 'Unable to load reporting scope.'));
     return () => { active = false; };
   }, [inventory?.id, month]);
   const physical = ['stock', 'purchases'].includes(kind);
@@ -46,7 +47,7 @@ export default function InventoryReports({ initialKind = 'consumption' }) {
     setBusy(true); setError('');
     inventoryAPI.report(inventory.id, { kind, month: month.month() + 1, year: month.year(), format: 'preview', ...(!shared ? { hostel_id: hostel } : {}) })
       .then(response => { if (sequence === request.current) setReport(response.data.data); })
-      .catch(failure => { if (sequence === request.current) setError(failure.response?.data?.message || 'Unable to load this report.'); })
+      .catch(failure => { if (sequence === request.current) { setReport(null); setError(failure.response?.data?.message || failure.message || 'Unable to load this report.'); } })
       .finally(() => { if (sequence === request.current) setBusy(false); });
     return () => { request.current += 1; };
   }, [inventory?.id, policy, shared, hostel, kind, month, refresh]);
@@ -66,13 +67,14 @@ export default function InventoryReports({ initialKind = 'consumption' }) {
   }[kind] || []) : [];
   return <section className="module-page report-page">
     <Typography.Title level={2}>{titles[kind]}</Typography.Title>
-    <Card style={{ marginBottom: 20 }}><Space wrap align="end">
+    <ScopeAnchor />
+    <ScopeControls>
       <div><label htmlFor="report-month">Billing month</label><br /><DatePicker id="report-month" picker="month" value={month} allowClear={false} disabled={busy} onChange={value => { setMonth(value); setReport(null); }} /></div>
       {initialKind !== 'rate' && <div><label htmlFor="report-kind">Report</label><br /><Select id="report-kind" style={{ minWidth: 240 }} value={kind} options={kinds} disabled={busy} onChange={value => { setKind(value); setReport(null); }} /></div>}
       {!shared && <div><label htmlFor="report-hostel">Hostel</label><br /><Select id="report-hostel" placeholder="Choose hostel" style={{ minWidth: 220 }} value={hostel} disabled={busy || !policy}
         options={(policy?.hostels || []).map(row => ({ value: row.id, label: row.name }))} onChange={value => { setHostel(value); setReport(null); }} /></div>}
       <Button type="primary" loading={busy} disabled={!policy || !shared && !hostel} onClick={() => setRefresh(value => value + 1)}>Refresh preview</Button>
-    </Space></Card>
+    </ScopeControls>
     {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 20 }} />}
     {busy && <Alert type="info" title="Loading report preview..." style={{ marginBottom: 20 }} />}
     {report && <>

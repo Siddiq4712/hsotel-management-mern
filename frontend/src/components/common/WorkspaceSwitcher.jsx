@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Dropdown } from 'antd';
-import { Check, ChefHat, ChevronDown, ShieldCheck, Users } from 'lucide-react';
+import { Check, ChefHat, ChevronDown, LogOut, ShieldCheck, Users } from 'lucide-react';
 
 const workspaces = [
   { key: 'admin', label: 'Admin', description: 'Manage the system', icon: ShieldCheck, color: 'bg-blue-50 text-blue-600' },
@@ -8,7 +8,7 @@ const workspaces = [
   { key: 'mess', label: 'Mess', description: 'Meals, stock & billing', icon: ChefHat, color: 'bg-emerald-50 text-emerald-600' },
 ];
 
-export default function WorkspaceSwitcher({ workspace = 'admin', onChange }) {
+export default function WorkspaceSwitcher({ workspace = 'admin', onChange, onLogout }) {
   const [open, setOpen] = useState(false);
   const active = workspaces.find(item => item.key === workspace) || workspaces[0];
   const ActiveIcon = active.icon;
@@ -17,8 +17,8 @@ export default function WorkspaceSwitcher({ workspace = 'admin', onChange }) {
     styles={{ root: { paddingTop: 10 } }}
     menu={{ selectable: true, selectedKeys: [active.key],
       style: { boxShadow: 'none', borderRadius: 12, padding: 6 },
-      onClick: ({ key }) => { setOpen(false); if (key !== active.key) onChange(key); },
-      items: workspaces.map(({ key, label, description, icon: Icon, color }) => ({ key,
+      onClick: ({ key }) => { setOpen(false); if (key === 'logout') { onLogout?.(); return; } if (key !== active.key) onChange?.(key); },
+      items: [...workspaces.map(({ key, label, description, icon: Icon, color }) => ({ key,
         style: { borderRadius: 10, marginBottom: 3, padding: '10px 12px' },
         label: <div className="flex items-center gap-3">
           <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${color}`}><Icon size={18} /></span>
@@ -26,7 +26,8 @@ export default function WorkspaceSwitcher({ workspace = 'admin', onChange }) {
             <span className="block text-xs text-slate-500 mt-0.5">{description}</span></span>
           {key === active.key && <Check size={17} className="text-blue-600 ml-2" aria-label="Active workspace" />}
         </div>,
-      })) }}
+      })), { type: 'divider' }, { key: 'logout', label: 'Logout', icon: <LogOut size={18} />, danger: true,
+        style: { borderRadius: 10, padding: '10px 12px' } }] }}
     popupRender={menu => <div className="w-72 max-w-[calc(100vw-24px)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10">
       <div className="px-5 pt-4 pb-3 border-b border-slate-100"><p className="m-0 text-xs font-semibold uppercase tracking-wider text-slate-400">Switch workspace</p></div>
       {menu}

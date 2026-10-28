@@ -1,9 +1,6 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  Table, Button, Space, Tag, Modal, Form,
-  Input, Select, Row, Col,
-  ConfigProvider, message, Segmented
-} from 'antd';
+import { Table, Space, Tag, Modal, Form, Input, Select, Row, Col, ConfigProvider, message, Segmented } from 'antd';
 import { Package, Tags, Plus, Search, Edit2, RefreshCw, UploadCloud, Download } from 'lucide-react';
 import { messAPI } from '../../services/api';
 import InventoryPageHeader, { inventoryTheme } from './InventoryPageHeader';
@@ -226,7 +223,7 @@ const ItemManagement = () => {
       align: 'right',
       render: (_, record) => (
         <Space>
-          <Button icon={<Edit2 size={13}/>} onClick={() => { setEditingItem(record); form.setFieldsValue(record); setModalVisible(true); }}>Edit</Button>
+          <Button permissionAction="edit" icon={<Edit2 size={13}/>} onClick={() => { setEditingItem(record); form.setFieldsValue(record); setModalVisible(true); }}>Edit</Button>
         </Space>
       ),
     },
@@ -240,7 +237,7 @@ const ItemManagement = () => {
         align: 'right',
         render: (_, record) => (
           <Space>
-            <Button icon={<Edit2 size={13}/>} onClick={() => { setEditingCategory(record); categoryForm.setFieldsValue(record); setCategoryModalVisible(true); }}>Edit</Button>
+            <Button permissionAction="edit" icon={<Edit2 size={13}/>} onClick={() => { setEditingCategory(record); categoryForm.setFieldsValue(record); setCategoryModalVisible(true); }}>Edit</Button>
           </Space>
         ),
       },
@@ -253,14 +250,14 @@ const ItemManagement = () => {
         {/* Page Header */}
         <InventoryPageHeader title="Items" description="Manage shared item names, categories, and units.">
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleItemImportChange} />
-            <Button icon={<UploadCloud size={16}/>} onClick={triggerItemImport} loading={importingItems}>
+            <Button permissionAction="create" icon={<UploadCloud size={16}/>} onClick={triggerItemImport} loading={importingItems}>
               {importingItems ? 'Importing...' : 'Import Excel'}
             </Button>
             <Button icon={<Download size={16}/>} onClick={() => downloadItemBulkImportTemplate()}>
               Download Template
             </Button>
             <Button icon={<RefreshCw size={16}/>} onClick={fetchData}>Refresh</Button>
-            <Button type="primary" icon={<Plus size={16} />}
+            <Button permissionAction="create" type="primary" icon={<Plus size={16} />}
               onClick={() => activeTab === 'items' ? (() => { setEditingItem(null); form.resetFields(); setModalVisible(true); })() : (() => { setEditingCategory(null); categoryForm.resetFields(); setCategoryModalVisible(true); })()}
             >
               {activeTab === 'items' ? 'Add Item' : 'New Category'}

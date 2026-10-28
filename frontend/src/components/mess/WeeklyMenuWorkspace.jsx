@@ -1,5 +1,6 @@
+import { PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Card, Checkbox, Empty, Input, InputNumber, Modal, Select, Space, Spin, Table, Tabs, Tag, Typography, message } from 'antd';
+import { Alert, Card, Checkbox, Empty, Input, InputNumber, Select, Space, Spin, Table, Tabs, Tag, Typography, message } from 'antd';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { menuPlanningAPI } from '../../services/api';
@@ -113,7 +114,7 @@ export default function WeeklyMenuWorkspace({ initialTab = 'today' }) {
     <div className="weekly-toolbar"><Field label="Menu date"><Input aria-label="Menu date" type="date" value={date} disabled={busy} onChange={event => event.target.value && setDate(event.target.value)} /></Field>
       <Button disabled={busy} onClick={() => setDate(localToday())}>Today</Button><Button disabled={busy} onClick={load}>Refresh</Button></div>
     <Alert type="info" showIcon title="Your weekly plan repeats automatically" description="Change a meal or student count for this date only. Record the ingredients actually used after preparation." />
-    {!metadata?.plans.length && <Empty description="Start by creating your regular weekly plan."><Button type="primary" disabled={!permissions.plan} onClick={() => startPlan()}>Create weekly plan</Button></Empty>}
+    {!metadata?.plans.length && <Empty description="Start by creating your regular weekly plan."><Button permissionAction="generate" type="primary" disabled={!permissions.plan} onClick={() => startPlan()}>Create weekly plan</Button></Empty>}
     <div className="weekly-meal-grid">{meals.map(meal => <Card key={meal.slot_key} title={<Space>{meal.slot.label}<Text type="secondary">{meal.slot.time}</Text></Space>}
       extra={<Tag color={meal.status === 'served' ? 'green' : meal.status === 'skipped' ? 'default' : 'blue'}>{meal.status === 'served' ? 'Consumption recorded' : meal.status}</Tag>}>
       <Title level={4}>{meal.dishes || 'No meal planned'}</Title>
@@ -122,19 +123,19 @@ export default function WeeklyMenuWorkspace({ initialTab = 'today' }) {
       {meal.status === 'served' && <><p>Actual ingredient cost: <Text strong>{money(meal.total_cost)}</Text></p>
         {meal.actual_consumption.map(row => <div key={row.item_id}>{itemName(row.item_id)?.name || `Ingredient ${row.item_id}`}: {row.quantity} {itemName(row.item_id)?.unit}</div>)}</>}
       <Space wrap style={{ marginTop: 12 }}>
-        <Button disabled={!permissions.override || busy || meal.status === 'served' || date < localToday()} onClick={() => setOverride({ meal, dishes: meal.dishes,
+        <Button permissionAction="edit" disabled={!permissions.override || busy || meal.status === 'served' || date < localToday()} onClick={() => setOverride({ meal, dishes: meal.dishes,
           expected_count: meal.expected_count, status: meal.status, clear_ingredients: false, reason: '' })}>Change menu / count</Button>
-        <Button type="primary" disabled={!permissions.consume || busy || !meal.configured || meal.status !== 'planned' || date !== localToday()}
+        <Button permissionAction="create" type="primary" disabled={!permissions.consume || busy || !meal.configured || meal.status !== 'planned' || date !== localToday()}
           onClick={() => openConsumption(meal)}>Record consumption</Button>
       </Space>
     </Card>)}</div>
   </>;
   const planPanel = <>
-    <div className="weekly-toolbar"><Button type="primary" disabled={!permissions.plan} onClick={() => startPlan(metadata?.plans.find(plan => plan.kind === 'regular'))}>Create / revise weekly plan</Button>
+    <div className="weekly-toolbar"><Button permissionAction="generate" type="primary" disabled={!permissions.plan} onClick={() => startPlan(metadata?.plans.find(plan => plan.kind === 'regular'))}>Create / revise weekly plan</Button>
       <Text type="secondary">Publish a new version with an effective date. Temporary plans automatically expire.</Text></div>
     {!metadata?.plans.length && <Empty description="No weekly plans yet" />}
     {metadata?.plans.map(plan => <Card key={plan.id} className="weekly-plan-card" title={<Space wrap>{plan.name}<Tag>{plan.kind}</Tag></Space>}
-      extra={<Button disabled={!permissions.plan} onClick={() => startPlan(plan)}>Copy into new version</Button>}>
+      extra={<Button permissionAction="generate" disabled={!permissions.plan} onClick={() => startPlan(plan)}>Copy into new version</Button>}>
       <p>From {plan.effective_from}{plan.effective_to ? ` through ${plan.effective_to}` : ' onwards'} · Default {plan.default_count} students</p>
       <Table size="small" pagination={false} rowKey="day" scroll={{ x: Math.max(650, plan.slots.length * 180) }} dataSource={DAY_ORDER.map(day => ({ day }))}
         columns={[{ title: 'Day', dataIndex: 'day', width: 110, render: day => DAYS[day] }, ...plan.slots.map(slot => ({ title: `${slot.label} · ${slot.time}`, key: slot.key,
@@ -152,9 +153,9 @@ export default function WeeklyMenuWorkspace({ initialTab = 'today' }) {
           options={CATEGORIES.map(value => ({ label: value, value }))} onChange={value => setConfiguration(previous => ({ ...previous, slots: previous.slots.map((s, i) => i === index ? { ...s, category: value } : s) }))} />
           : <Input aria-label={`${field} ${index + 1}`} type={field === 'time' ? 'time' : 'text'} value={slot[field]} disabled={!permissions.settings}
             onChange={event => setConfiguration(previous => ({ ...previous, slots: previous.slots.map((s, i) => i === index ? { ...s, [field]: event.target.value } : s) }))} />}</td>)}
-        <td><Button danger disabled={!permissions.settings || configuration.slots.length === 1} onClick={() => setConfiguration({ ...configuration, slots: configuration.slots.filter((_, i) => i !== index) })}>Remove</Button></td>
+        <td><Button permissionAction="edit" danger disabled={!permissions.settings || configuration.slots.length === 1} onClick={() => setConfiguration({ ...configuration, slots: configuration.slots.filter((_, i) => i !== index) })}>Remove</Button></td>
       </tr>)}</tbody></table></div>
-    <Button disabled={!permissions.settings || configuration.slots.length >= 12} onClick={() => setConfiguration({ ...configuration,
+    <Button permissionAction="edit" disabled={!permissions.settings || configuration.slots.length >= 12} onClick={() => setConfiguration({ ...configuration,
       slots: [...configuration.slots, { key: `meal_${Date.now()}`, label: 'New meal', time: '17:00', category: 'snacks' }] })}>Add meal slot</Button>
     <Title level={4}>Permissions</Title>
     <Text type="secondary">Administrators always retain access. Wardens can view menus in their workspace; enable editing here when needed.</Text>
@@ -163,7 +164,7 @@ export default function WeeklyMenuWorkspace({ initialTab = 'today' }) {
         options={[{ label: 'Mess staff', value: 'mess' }, { label: 'Warden', value: 'warden' }]} value={configuration.permissions[action]}
         onChange={roles => setConfiguration({ ...configuration, permissions: { ...configuration.permissions, [action]: roles } })} /></div>)}
     <Field label="Reason for settings change"><Input value={settingsReason} onChange={event => setSettingsReason(event.target.value)} disabled={!permissions.settings} maxLength={500} /></Field>
-    <Button type="primary" loading={busy} disabled={!permissions.settings || !settingsReason.trim()} onClick={() => run(() => menuPlanningAPI.settings(hostel,
+    <Button permissionAction="edit" type="primary" loading={busy} disabled={!permissions.settings || !settingsReason.trim()} onClick={() => run(() => menuPlanningAPI.settings(hostel,
       { configuration, revision: metadata.settings_revision, reason: settingsReason }), 'Menu settings saved')}>Save settings</Button>
   </>;
   return <section className="module-page weekly-workspace">
@@ -184,7 +185,7 @@ export default function WeeklyMenuWorkspace({ initialTab = 'today' }) {
       <Link to={`/create-menu${user?.role === 'admin' ? '?workspace=mess' : ''}`}>Create ingredient template</Link>
       <Link to={`/menu-schedule${user?.role === 'admin' ? '?workspace=mess' : ''}`}>Previous schedules</Link>
     </Space></details>}
-    <Modal title="Publish weekly menu" open={!!planDraft} onCancel={() => !busy && setPlanDraft(null)} width={1200} confirmLoading={busy}
+    <Modal permissionAction="generate" title="Publish weekly menu" open={!!planDraft} onCancel={() => !busy && setPlanDraft(null)} width={1200} confirmLoading={busy}
       okText="Publish plan" okButtonProps={{ disabled: !planDraft?.reason.trim() }} onOk={() => run(() => menuPlanningAPI.publish(hostel,
         { ...planDraft, meals: planDraft.meals.filter(meal => meal.dishes.trim()) }), 'Weekly plan published', () => setPlanDraft(null))}>
       {planDraft && <><Alert type="info" showIcon title="This creates a new plan version" description="Blank cells mean no meal planned. You can enter dishes freely; an ingredient template is optional. Existing daily changes and recorded meals keep their saved details." />
@@ -210,7 +211,7 @@ export default function WeeklyMenuWorkspace({ initialTab = 'today' }) {
         <Field label="Reason for publishing"><Input aria-label="Reason for publishing" value={planDraft.reason} maxLength={500} onChange={e => setPlanDraft({ ...planDraft, reason: e.target.value })} /></Field>
       </>}
     </Modal>
-    <Modal title={`Change ${override?.meal.slot.label || 'meal'} · ${date}`} open={!!override} confirmLoading={busy} onCancel={() => !busy && setOverride(null)}
+    <Modal permissionAction="edit" title={`Change ${override?.meal.slot.label || 'meal'} · ${date}`} open={!!override} confirmLoading={busy} onCancel={() => !busy && setOverride(null)}
       okText="Save for this date only" okButtonProps={{ disabled: !override?.reason.trim() }} onOk={() => run(() => menuPlanningAPI.override(hostel, date, override.meal.slot_key,
         { ...override, meal: undefined, source_key: override.meal.source_key }), 'Date-specific change saved', () => setOverride(null))}>
       {override && <><Alert type="info" title="The regular weekly plan continues after this date." />
@@ -222,7 +223,7 @@ export default function WeeklyMenuWorkspace({ initialTab = 'today' }) {
         <Field label="Reason"><Input aria-label="Override reason" value={override.reason} maxLength={500} onChange={e => setOverride({ ...override, reason: e.target.value })} /></Field>
       </>}
     </Modal>
-    <Modal title={`Record consumption · ${consumption?.meal.slot.label || ''}`} open={!!consumption} width={850} onCancel={() => !busy && setConsumption(null)}
+    <Modal permissionAction="create" title={`Record consumption · ${consumption?.meal.slot.label || ''}`} open={!!consumption} width={850} onCancel={() => !busy && setConsumption(null)}
       confirmLoading={busy} okText="Review and confirm" onOk={submitConsumption} okButtonProps={{ disabled: !consumption?.reason.trim() || !consumption?.items.length }}>
       {consumption && <><Alert type="info" showIcon title="Enter actual ingredient quantities" description="Suggestions use the expected student count. Adjust them to what the kitchen actually used. This records inventory consumption; student attendance and billing eligibility are managed separately." />
         <p>{consumption.meal.dishes} · {consumption.meal.expected_count} expected students · {date}</p>

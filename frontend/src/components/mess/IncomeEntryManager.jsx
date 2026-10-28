@@ -1,9 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Card, Form, Select, Input, InputNumber, Button, message, Table,
-  Row, Col, Typography, ConfigProvider, theme, Skeleton, Space, Divider, Tag, Tooltip
-} from 'antd';
+import { Card, Form, Select, Input, InputNumber, message, Table, Row, Col, Typography, ConfigProvider, theme, Skeleton, Space, Divider, Tag, Tooltip } from 'antd';
 import { 
   Wallet, Plus, RefreshCw, ChevronLeft, ChevronRight, 
   History, Receipt, Calendar, User, Save, Landmark, ArrowDownCircle
@@ -201,7 +199,7 @@ const IncomeEntryManager = () => {
 
                 <Divider className="my-6 border-slate-100" />
 
-                <Button 
+                <Button permissionAction="create" 
                   type="primary" 
                   htmlType="submit" 
                   block 

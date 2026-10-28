@@ -1,9 +1,6 @@
+import { PermissionPopconfirm as Popconfirm, PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Card, Table, Button, Modal, Form, Input, Select, message, Popconfirm, 
-  Space, Typography, Checkbox, Row, Col, ConfigProvider, 
-  theme, Skeleton, Divider, Tag, InputNumber
-} from 'antd';
+import { Card, Table, Form, Input, Select, message, Space, Typography, Checkbox, Row, Col, ConfigProvider, theme, Skeleton, Divider, Tag, InputNumber } from 'antd';
 import { 
   Bed, Plus, Trash2, ChevronLeft, ChevronRight, LayoutGrid, 
   RefreshCw, FilePlus, ClipboardCheck, Info, Search, Download 
@@ -245,7 +242,7 @@ const BedFeeManagement = () => {
       title: 'Action',
       align: 'right',
       render: (_, r) => (
-        <Popconfirm title="Remove this record?" onConfirm={() => messAPI.deleteStudentFee(r.id).then(fetchInitialData)}>
+        <Popconfirm permissionAction="delete" title="Remove this record?" onConfirm={() => messAPI.deleteStudentFee(r.id).then(fetchInitialData)}>
           <Button type="text" danger icon={<Trash2 size={16} />} />
         </Popconfirm>
       )
@@ -273,10 +270,10 @@ const BedFeeManagement = () => {
               <Button type="text" icon={<ChevronRight size={16} />} onClick={() => setSelectedDate(prev => prev.clone().add(1, 'month'))} />
             </div>
             <Space>
-              <Button icon={<Plus size={18}/>} onClick={openAddStudent}>Add Student</Button>
-              <Button icon={<LayoutGrid size={18}/>} onClick={() => setIsBulkModalVisible(true)}>Batch Bulk</Button>
+              <Button permissionAction="create" icon={<Plus size={18}/>} onClick={openAddStudent}>Add Student</Button>
+              <Button permissionAction="create" icon={<LayoutGrid size={18}/>} onClick={() => setIsBulkModalVisible(true)}>Batch Bulk</Button>
               <Button icon={<Download size={18} />} onClick={() => downloadStudentBulkImportTemplate()}>Excel Template</Button>
-              <Button type="primary" icon={<FilePlus size={18}/>} onClick={() => setIsGenerateFeeModalVisible(true)}>Generate New Fees</Button>
+              <Button permissionAction="create" type="primary" icon={<FilePlus size={18}/>} onClick={() => setIsGenerateFeeModalVisible(true)}>Generate New Fees</Button>
             </Space>
           </div>
         </div>
@@ -327,7 +324,7 @@ const BedFeeManagement = () => {
           </Card>
         )}
 
-        <Modal
+        <Modal permissionAction="create"
           title={`Add Student to Bed Fees — ${selectedDate.format('MMMM YYYY')}`}
           open={isAddStudentVisible}
           width={850}
@@ -408,7 +405,7 @@ const BedFeeManagement = () => {
         </Modal>
 
         {/* Modal: Selective Generation */}
-        <Modal
+        <Modal permissionAction="create"
           title={<div className="flex items-center gap-2"><ClipboardCheck size={18}/> Selective Bed Fee Generation</div>}
           open={isGenerateFeeModalVisible}
           onCancel={() => { setIsGenerateFeeModalVisible(false); generateFeeForm.resetFields(); setStudentsForSelection([]); }}
@@ -472,7 +469,7 @@ const BedFeeManagement = () => {
         </Modal>
 
         {/* Modal: Bulk Session Create */}
-        <Modal
+        <Modal permissionAction="create"
           title={<div className="flex items-center gap-2 text-blue-600"><LayoutGrid size={18}/> Batch Bulk Creation</div>}
           open={isBulkModalVisible}
           onCancel={() => setIsBulkModalVisible(false)}

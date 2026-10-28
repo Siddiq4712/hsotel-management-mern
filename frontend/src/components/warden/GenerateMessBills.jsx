@@ -1,9 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import {
-  Card, Form, InputNumber, Button, message, Table, Tag, Space,
-  Statistic, Row, Col, Typography, Divider
-} from 'antd';
+import { Card, Form, InputNumber, message, Table, Tag, Space, Statistic, Row, Col, Typography, Divider } from 'antd';
 import { wardenAPI } from '../../services/api';
 import moment from 'moment';
 
@@ -127,7 +125,7 @@ const GenerateMessBills = () => {
       render: (_, record) => (
         <Space>
           {record.status !== 'paid' && (
-            <Button 
+            <Button permissionAction="edit" 
               type="primary" 
               size="small" 
               onClick={() => handleStatusChange(record.id, 'paid')}
@@ -178,7 +176,7 @@ const GenerateMessBills = () => {
               </Form.Item>
               
               <Form.Item>
-                <Button type="primary" htmlType="submit" loading={loading} block>
+                <Button permissionAction="generate" type="primary" htmlType="submit" loading={loading} block>
                   Generate Bills for Month
                 </Button>
               </Form.Item>

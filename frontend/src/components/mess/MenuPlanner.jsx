@@ -1,10 +1,7 @@
+import { PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
 import { Calendar, DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import {
-  Card, Badge, Button, Modal, Form, Select,
-  InputNumber, Typography, Space, List, Tag, Popconfirm, Row, Col,
-  Tooltip, Spin, Divider, ConfigProvider, theme, Skeleton, App as AntdApp
-} from 'antd';
+import { Card, Badge, Button, Modal, Form, Select, InputNumber, Typography, Space, List, Tag, Row, Col, Tooltip, Spin, Divider, ConfigProvider, theme, Skeleton, App as AntdApp } from 'antd';
 // Lucide icons for consistency
 import {
   CalendarDays, Plus, Eye, Trash2, CheckCircle2, 
@@ -253,7 +250,7 @@ const MenuPlanner = () => {
                 className="bg-slate-50 mb-3 p-4 rounded-xl border border-slate-100 flex flex-col items-start gap-3"
                 actions={[
                   <Button icon={<Eye size={14}/>} onClick={() => { setSelectedSchedule(s); setMenuScheduleDetailsVisible(true); }}>Details</Button>,
-                  <Popconfirm title="Remove schedule?" onConfirm={() => messAPI.deleteMenuSchedule(s.id).then(fetchInitialData)}>
+                  <Popconfirm permissionAction="delete" title="Remove schedule?" onConfirm={() => messAPI.deleteMenuSchedule(s.id).then(fetchInitialData)}>
                     <Button danger icon={<Trash2 size={14}/>} ghost />
                   </Popconfirm>
                 ]}

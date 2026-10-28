@@ -1,9 +1,6 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  Card, Typography, Row, Col, Button, Space, 
-  Select, Divider, ConfigProvider, theme, Skeleton, Badge, 
-  Tag, Modal, Input, Empty, message, Tooltip 
-} from 'antd';
+import { Card, Typography, Row, Col, Space, Select, Divider, ConfigProvider, theme, Skeleton, Badge, Tag, Modal, Input, Empty, message, Tooltip } from 'antd';
 import { 
   MessageCircle, User, Calendar, AlertTriangle, CheckCircle2, 
   Clock, XCircle, Filter, Search, RefreshCw, ClipboardList, 
@@ -232,13 +229,13 @@ const ComplaintManagement = () => {
 
                     <div className="md:w-52 flex flex-col gap-2 justify-center border-l border-slate-50 pl-6">
                        {c.status === 'submitted' && (
-                         <Button type="primary" block className="h-12 rounded-xl font-bold shadow-lg shadow-blue-100" onClick={() => { setSelectedComplaint(c); setNewStatus('in_progress'); setShowModal(true); }}>START WORK</Button>
+                         <Button permissionAction="edit" type="primary" block className="h-12 rounded-xl font-bold shadow-lg shadow-blue-100" onClick={() => { setSelectedComplaint(c); setNewStatus('in_progress'); setShowModal(true); }}>START WORK</Button>
                        )}
                        {['submitted', 'in_progress'].includes(c.status) && (
-                         <Button className="h-12 rounded-xl font-bold border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors" onClick={() => { setSelectedComplaint(c); setNewStatus('resolved'); setShowModal(true); }}>MARK AS SOLVED</Button>
+                         <Button permissionAction="edit" className="h-12 rounded-xl font-bold border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 transition-colors" onClick={() => { setSelectedComplaint(c); setNewStatus('resolved'); setShowModal(true); }}>MARK AS SOLVED</Button>
                        )}
                        {!['resolved', 'closed'].includes(c.status) && (
-                         <Button type="text" danger className="h-10 rounded-xl font-bold mt-2" onClick={() => { setSelectedComplaint(c); setNewStatus('closed'); setShowModal(true); }}>CLOSE COMPLAINT</Button>
+                         <Button permissionAction="edit" type="text" danger className="h-10 rounded-xl font-bold mt-2" onClick={() => { setSelectedComplaint(c); setNewStatus('closed'); setShowModal(true); }}>CLOSE COMPLAINT</Button>
                        )}
                     </div>
                   </div>
@@ -259,7 +256,7 @@ const ComplaintManagement = () => {
           onCancel={() => setShowModal(false)}
           footer={[
             <Button key="back" onClick={() => setShowModal(false)} className="rounded-xl h-11 px-8">Cancel</Button>,
-            <Button key="submit" type="primary" loading={actionLoading} onClick={confirmStatusUpdate} className="rounded-xl h-11 px-10 font-bold shadow-lg shadow-blue-100">Save Changes</Button>
+            <Button permissionAction="edit" key="submit" type="primary" loading={actionLoading} onClick={confirmStatusUpdate} className="rounded-xl h-11 px-10 font-bold shadow-lg shadow-blue-100">Save Changes</Button>
           ]}
           className="rounded-[32px]"
           width={550}

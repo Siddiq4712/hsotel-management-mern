@@ -1,11 +1,8 @@
+import { PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import { exportWorkbook } from '../../utils/reportExport';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Card, Table, Button, Space, message, Modal, Form, Select, InputNumber,
-  Tabs, Typography, Tag, Input, Row, Col, Statistic, Alert,
-  ConfigProvider, theme, Skeleton, Divider
-} from 'antd';
+import { Card, Table, Space, message, Form, Select, InputNumber, Tabs, Typography, Tag, Input, Row, Col, Statistic, Alert, ConfigProvider, theme, Skeleton, Divider } from 'antd';
 import {
   Package, Search, RefreshCw, FileDown, AlertTriangle, 
   Store, History, Edit3, Filter, LayoutGrid, FileSpreadsheet,Plus,
@@ -285,7 +282,7 @@ const InventoryManagement = () => {
       title: 'Action',
       align: 'right',
       render: (_, r) => r.transaction_type === 'purchase' && (
-        <Button icon={<Edit3 size={14}/>} onClick={() => { setCorrectionRecord(r); correctionForm.setFieldsValue(r); setCorrectionModalVisible(true); }} className="rounded-lg h-8 flex items-center">Correct</Button>
+        <Button permissionAction="edit" icon={<Edit3 size={14}/>} onClick={() => { setCorrectionRecord(r); correctionForm.setFieldsValue(r); setCorrectionModalVisible(true); }} className="rounded-lg h-8 flex items-center">Correct</Button>
       )
     }
   ];
@@ -297,7 +294,7 @@ const InventoryManagement = () => {
         {/* Header Section */}
         <InventoryPageHeader title="Purchase History" description="Review purchases, correct entries, and export supplier reports.">
              <Button icon={<RefreshCw size={16}/>} onClick={fetchInitialData} className="rounded-xl h-12">Refresh</Button>
-             <Button type="primary" icon={<FileSpreadsheet size={18}/>} onClick={() => handleExportLastPurchase()} className="rounded-xl h-12 shadow-lg shadow-blue-100 flex items-center gap-2 font-semibold">Generate Report</Button>
+             <Button permissionAction="export" type="primary" icon={<FileSpreadsheet size={18}/>} onClick={() => handleExportLastPurchase()} className="rounded-xl h-12 shadow-lg shadow-blue-100 flex items-center gap-2 font-semibold">Generate Report</Button>
         </InventoryPageHeader>
 
         {/* Stats Summary */}
@@ -361,7 +358,7 @@ const InventoryManagement = () => {
                         <RangePicker value={dateRange} onChange={setDateRange} className="rounded-xl h-11" />
                         <Button type="primary" ghost icon={<RefreshCw size={16}/>} onClick={fetchTransactions} className="rounded-xl">Update History</Button>
                       </Space>
-                      <Button type="primary" danger ghost icon={<FileDown size={18}/>} onClick={exportTransactions} className="rounded-xl h-11 border-dashed">Export transactions</Button>
+                      <Button permissionAction="export" type="primary" danger ghost icon={<FileDown size={18}/>} onClick={exportTransactions} className="rounded-xl h-11 border-dashed">Export transactions</Button>
                     </div>
                   </Card>
 
@@ -379,7 +376,7 @@ const InventoryManagement = () => {
         />
 
         {/* Modal: FIFO Purchase Correction */}
-        <Modal 
+        <Modal permissionAction="edit" 
           title={<div className="flex items-center gap-2 text-blue-600"><Edit3 size={18}/> Purchase Correction</div>}
           open={correctionModalVisible}
           onCancel={() => setCorrectionModalVisible(false)}

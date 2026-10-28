@@ -5,7 +5,19 @@ import api from './api';
 
 describe('entry hostel request handling',()=>{
   const originalAdapter=api.defaults.adapter;
-  afterEach(()=>{api.defaults.adapter=originalAdapter;vi.clearAllMocks();sessionStorage.clear();});
+  afterEach(()=>{api.defaults.adapter=originalAdapter;vi.clearAllMocks();sessionStorage.clear();localStorage.removeItem('adminWorkspace');});
+  it('pins the visible warden hostel to its requests without applying it to mess requests', async () => {
+    localStorage.setItem('adminWorkspace', 'warden');
+    sessionStorage.setItem('selectedWardenHostelId', '2');
+    const calls = [];
+    api.defaults.adapter = async config => { calls.push(config); return { config, status: 200, data: {}, headers: {} }; };
+    await api.get('/warden/students');
+    await api.post('/warden/holidays', { name: 'Holiday' });
+    await api.get('/mess/daily-expenses');
+    expect(calls[0].headers.get('X-Workspace-Hostel-Id')).toBe('2');
+    expect(calls[1].headers.get('X-Workspace-Hostel-Id')).toBe('2');
+    expect(calls[2].headers.get('X-Workspace-Hostel-Id')).toBeUndefined();
+  });
   it('retries only that entry with the chosen hostel',async()=>{
     requestEntryHostel.mockResolvedValue(2);
     const calls=[];

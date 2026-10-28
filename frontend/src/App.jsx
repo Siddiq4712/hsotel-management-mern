@@ -1,3 +1,6 @@
+import ScreenPermissions from './components/admin/ScreenPermissions';
+import { PermissionProvider, ScreenPermission } from './context/PermissionContext';
+import { screenForView } from '../../shared/permissions.js';
 import React, { useState, Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { resolveWorkspace } from './utils/adminWorkspace';
@@ -9,6 +12,7 @@ import WeeklyMenuWorkspace from './components/mess/WeeklyMenuWorkspace';
 import EntryHostelDialog from './components/common/EntryHostelDialog';
 import ManageInventories from './components/admin/ManageInventories';
 import InventoryWorkspace from './components/mess/InventoryWorkspace';
+import WardenWorkspace from './components/warden/WardenWorkspace';
 import ReportFormatDialog from './components/common/ReportFormatDialog';
 import InventoryReports from './components/mess/InventoryReports';
 import { ChatbotProvider } from './providers/ChatbotProvider';
@@ -175,6 +179,8 @@ const DashboardRouter = () => {
 
           case 'create-user':
             return <CreateUser />;
+          case 'screen-permissions':
+            return <ScreenPermissions />;
           case 'staff-access':
             return <StaffAccessSettings />;
           case 'sessions':
@@ -222,7 +228,7 @@ const DashboardRouter = () => {
             return <EnrollStudent />;
           case 'create-room':
             return (
-              <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading Create Room...</div>}>
+              <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading Manage Rooms...</div>}>
                 <LazyCreateRoom hostelId={user?.hostel_id} />
               </Suspense>
             );
@@ -390,9 +396,14 @@ const DashboardRouter = () => {
 
   return (
     <Layout currentView={currentView} setCurrentView={setCurrentView} workspace={workspace} onWorkspaceChange={changeWorkspace}>
+      <ScreenPermission screen={screenForView(currentView, workspace)}>
       {workspace === 'mess' && ['stock', 'inventory', 'inventory-transactions', 'items', 'purchase-by-store', 'purchase-orders', 'inventory-reports', 'consumption-report', 'daily-rate-report', 'Daily-expenses',
         'single-page-daily-entry', 'record-consumption', 'daily-consumption'].includes(currentView)
-        ? <InventoryWorkspace allowUnassigned={['inventory-reports', 'consumption-report', 'daily-rate-report'].includes(currentView)}>{renderComponent()}</InventoryWorkspace> : renderComponent()}
+        ? <InventoryWorkspace pageName={currentView === 'Daily-expenses' ? 'daily expenses' : currentView.includes('report') ? 'this report' : 'inventory records'} allowUnassigned={['inventory-reports', 'consumption-report', 'daily-rate-report'].includes(currentView)}>{renderComponent()}</InventoryWorkspace>
+        : workspace === 'warden' && user?.role === 'admin' && !['menus', 'weekly-menu', 'menu-settings'].includes(currentView)
+          ? <WardenWorkspace requireHostel={['create-room', 'view-layout'].includes(currentView)} batchRouted={currentView === 'enroll-student'}>{renderComponent()}</WardenWorkspace>
+          : renderComponent()}
+      </ScreenPermission>
     </Layout>
   );
 };
@@ -400,6 +411,7 @@ const DashboardRouter = () => {
 function App() {
   return (
     <AuthProvider>
+      <PermissionProvider>
       <StockProvider>
         <AntdApp>
           <Router>
@@ -425,6 +437,7 @@ function App() {
           </Router>
         </AntdApp>
       </StockProvider>
+    </PermissionProvider>
     </AuthProvider>
   );
 }

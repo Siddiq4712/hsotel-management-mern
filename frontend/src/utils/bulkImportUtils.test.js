@@ -18,7 +18,8 @@ describe('bulk import helpers', () => {
   it('returns the required bulk import columns for the enrollment template', () => {
     const columns = getRequiredImportColumns();
 
-    expect(columns.map(column => column.key)).toEqual(['name', 'roll_number', 'email', 'erp_batch_year', 'gender']);
+    expect(columns.map(column => column.key)).toEqual(['name', 'roll_number', 'email', 'erp_batch_year', 'gender', 'room_number']);
+    expect(columns.filter(column => !column.optional).map(column => column.key)).toEqual(['name', 'roll_number', 'erp_batch_year', 'gender']);
     expect(columns.find(column => column.key === 'erp_batch_year').aliases).toContain('batch');
   });
 
@@ -29,8 +30,22 @@ describe('bulk import helpers', () => {
   });
 
   it('requires an explicit Batch column in student import sheets', () => {
-    expect(validateExcelImportHeaders(['Name', 'Roll Number', 'Email'])).toEqual({ isValid: false, missingColumns: ['Batch', 'Gender'] });
+    expect(validateExcelImportHeaders(['Name', 'Roll Number', 'Email'])).toEqual({ isValid: false, missingColumns: ['Admission Year', 'Gender'] });
     expect(validateExcelImportHeaders(['Name', 'Roll Number', 'Email', 'Batch', 'Gender']).isValid).toBe(true);
+  });
+
+  it('accepts a sheet without Email or Room Number while preserving legacy headers', () => {
+    expect(validateExcelImportHeaders(['Student Name', 'Reg.No', 'Admission Year', 'Gender'])).toEqual({ isValid: true, missingColumns: [] });
+    expect(validateExcelImportHeaders(['Name', 'Roll Number', 'Batch', 'Gender']).isValid).toBe(true);
+    const student = mapExcelRowToStudent({ 'Student Name': 'Arun', 'Reg.No': '24104085', 'Admission Year': 2024, Gender: 'Male', 'Room No': '01' });
+    expect(student).toEqual(expect.objectContaining({ email: '', room_number: '01', requires_bed: true, erp_batch_year: 2024 }));
+  });
+
+  it('does not require or derive a password from Excel DOB cells', () => {
+    const row = { Name: 'Example', 'Roll Number': '24100001' };
+    expect(mapExcelRowToStudent(row)).not.toHaveProperty('date_of_birth');
+    expect(mapExcelRowToStudent({ ...row, DOB: '31/02/2006' })).not.toHaveProperty('date_of_birth');
+    expect(mapExcelRowToStudent(row)).not.toHaveProperty('password');
   });
 
   it('returns the item import template columns', () => {

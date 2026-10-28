@@ -1,9 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  App as AntdApp, Card, Form, Button, Select, InputNumber,
-  Row, Col, Typography, Input, ConfigProvider, theme
-} from 'antd';
+import { App as AntdApp, Card, Form, Select, InputNumber, Row, Col, Typography, Input, ConfigProvider, theme } from 'antd';
 import { Plus, Trash2, Save, Utensils, User, Calendar, ClipboardList, CreditCard, Info, ChevronDown } from 'lucide-react';
 import { messAPI, adminAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -164,7 +162,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
                   <p className="module-subtitle ssm-subheading">Record off-menu orders · Automate billing</p>
                 </div>
               </div>
-              <Button
+              <Button permissionAction="create"
                 type="primary"
                 htmlType="submit"
                 loading={submitting}
@@ -304,7 +302,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
                 <span className="ssm-total-note">Total additional meal charges</span></div>
               <span className="ssm-total-value">₹{(amountPerStudent * selectedIds.length).toFixed(2)}</span>
             </div>
-            <Button type="primary" htmlType="submit" loading={submitting} disabled={!selectedIds.length || studentsLoading}
+            <Button permissionAction="create" type="primary" htmlType="submit" loading={submitting} disabled={!selectedIds.length || studentsLoading}
               style={{ marginTop: 20 }} icon={<Save size={16} />}>Confirm & Save for {selectedIds.length} Students</Button>
           </Form>
         </div>

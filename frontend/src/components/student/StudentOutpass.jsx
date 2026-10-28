@@ -1,10 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  Card, Table, Tag, Input, Button, Form,
-  message, Tabs, Space, Typography, ConfigProvider, theme,
-  Empty, Descriptions, QRCode
-} from 'antd';
+import { Card, Table, Tag, Input, Form, message, Tabs, Space, Typography, ConfigProvider, theme, Empty, Descriptions, QRCode } from 'antd';
 import { 
   Send, Clock, CheckCircle, XCircle, AlertTriangle, 
   QrCode, ClipboardList, MapPin, Calendar, RefreshCw
@@ -176,7 +173,7 @@ const StudentOutpass = () => {
                         </div>
 
                         {currentOutpass.status === 'pending' && (
-                          <Button danger type="primary" onClick={handleCancel} loading={cancelLoading} className="h-12 w-full rounded-xl font-bold flex items-center justify-center gap-2">
+                          <Button permissionAction="delete" danger type="primary" onClick={handleCancel} loading={cancelLoading} className="h-12 w-full rounded-xl font-bold flex items-center justify-center gap-2">
                             <XCircle size={16} /> Cancel Outpass Request
                           </Button>
                         )}
@@ -211,7 +208,7 @@ const StudentOutpass = () => {
                     <Empty description={
                       <div className="text-center space-y-2">
                         <Text type="secondary">No active outpass permits found.</Text>
-                        <Button type="primary" onClick={() => setActiveTab('request')} className="bg-blue-600 hover:bg-blue-700 h-10 rounded-xl block mx-auto mt-4">
+                        <Button permissionAction="create" type="primary" onClick={() => setActiveTab('request')} className="bg-blue-600 hover:bg-blue-700 h-10 rounded-xl block mx-auto mt-4">
                           Create Outpass Request
                         </Button>
                       </div>
@@ -250,7 +247,7 @@ const StudentOutpass = () => {
                         <DatePicker.RangePicker showTime format="YYYY-MM-DD HH:mm" className="h-11 w-full rounded-xl" />
                       </Form.Item>
 
-                      <Button type="primary" htmlType="submit" loading={submitLoading} className="bg-blue-600 hover:bg-blue-700 h-12 w-full rounded-xl font-bold mt-4">
+                      <Button permissionAction="create" type="primary" htmlType="submit" loading={submitLoading} className="bg-blue-600 hover:bg-blue-700 h-12 w-full rounded-xl font-bold mt-4">
                         Submit Permit Request
                       </Button>
                     </Form>

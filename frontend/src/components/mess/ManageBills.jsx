@@ -1,7 +1,8 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { requestReportFormat } from '../../services/reportFormat';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Select, Space, Tag, Modal, Form, message, Tabs } from 'antd';
+import { Card, Table, Select, Space, Tag, Modal, Form, message, Tabs } from 'antd';
 import { ExportOutlined, DollarOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '../../services/api';
 import moment from 'moment';
@@ -254,7 +255,7 @@ const ManageBills = () => {
                 <Option value="paid">Paid</Option>
                 <Option value="overdue">Overdue</Option>
               </Select>
-              <Button 
+              <Button permissionAction="generate" 
                 type="primary" 
                 onClick={handleGenerateBills}
                 loading={submitting}
@@ -263,7 +264,7 @@ const ManageBills = () => {
               >
                 Generate Bills
               </Button>
-              <Button 
+              <Button permissionAction="export" 
                 icon={<ExportOutlined />}
                 onClick={handleExportBills}
                 style={{ marginRight: 16 }}

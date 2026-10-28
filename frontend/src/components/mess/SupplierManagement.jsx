@@ -1,5 +1,6 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Space, Input, Select, Form, Modal, message, Tag } from 'antd';
+import { Card, Table, Space, Input, Select, Form, Modal, message, Tag } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import api from '../../services/api';
 
@@ -169,13 +170,13 @@ const SupplierManagement = () => {
       key: 'actions',
       render: (_, record) => (
         <Space>
-          <Button 
+          <Button permissionAction="edit" 
             type="primary" 
             icon={<EditOutlined />} 
             size="small"
             onClick={() => handleEdit(record)}
           />
-          <Button 
+          <Button permissionAction="delete" 
             type="danger" 
             icon={<DeleteOutlined />} 
             size="small"

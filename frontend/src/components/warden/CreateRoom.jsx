@@ -1,3 +1,4 @@
+import { PermissionNativeButton } from '../common/PermissionControls';
 import React, { useCallback, useMemo, useState, useEffect } from "react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
@@ -6,6 +7,10 @@ import {
   MapPin, Square, X, Laptop, Save, Home, MoveRight, Loader2
 } from "lucide-react";
 import { wardenAPI } from "../../services/api"; 
+import BulkRoomCreator from '../common/BulkRoomCreator';
+import { useAuth } from '../../context/AuthContext';
+import WardenRoomTemplates from './WardenRoomTemplates';
+import { ScopeAnchor, useScopeDraft } from '../common/WorkspaceScope';
 
 /* ---------- ARCHITECTURAL CONSTANTS ---------- */
 
@@ -45,6 +50,7 @@ const generateArchitecturalGrid = (config) => {
 /* ---------- MAIN DESIGNER COMPONENT ---------- */
 
 export default function HostelBlueprintDesigner() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [config, setConfig] = useState({
     building_type: 'u',
@@ -60,6 +66,9 @@ export default function HostelBlueprintDesigner() {
 
   const [cellData, setCellData] = useState({});
   const [activeModal, setActiveModal] = useState(null);
+  const [layoutDirty, setLayoutDirty] = useState(false);
+  useScopeDraft(layoutDirty, loading);
+  const changeConfig = next => { setLayoutDirty(true); setConfig(next); };
 
   // 1. DEBUG: Load Existing Data on Mount
   useEffect(() => {
@@ -123,6 +132,7 @@ export default function HostelBlueprintDesigner() {
       console.log("DEBUG: API Response Data:", response.data);
 
       if (response.data?.success || response.success) {
+        setLayoutDirty(false);
         alert("Success: Layout synchronized with database.");
       } else {
         console.warn("DEBUG: Server responded but Success was false:", response.data);
@@ -150,6 +160,7 @@ export default function HostelBlueprintDesigner() {
   };
 
   const handleDrop = (slot, item) => {
+    setLayoutDirty(true);
     const type = ROOM_TYPES[item.typeKey];
     setCellData(prev => ({
       ...prev,
@@ -169,20 +180,24 @@ export default function HostelBlueprintDesigner() {
           <div className="flex items-center gap-4">
             <div className="p-2 bg-blue-900 text-white rounded-sm shadow-xl"><Layers size={24} /></div>
             <div>
-              <h1 className="text-2xl font-black uppercase tracking-tighter text-blue-900 italic">Hostel Layout Designer</h1>
-              <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Warden Control Panel | Hostel Block Plan</p>
+              <h1 className="text-2xl font-black uppercase tracking-tighter text-blue-900 italic">Manage Rooms</h1>
+              <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Rooms &amp; Hostel Layout</p>
             </div>
           </div>
-          <button 
+          <PermissionNativeButton permissionAction="edit" 
             onClick={handleCommit}
             disabled={loading}
             className="bg-blue-900 text-white px-10 py-3 rounded-sm font-bold text-[10px] uppercase shadow-2xl flex items-center gap-2 hover:bg-black disabled:opacity-50 transition-all"
           >
             {loading ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
             {loading ? "Saving..." : "Save Layout"}
-          </button>
+          </PermissionNativeButton>
         </header>
 
+        <ScopeAnchor />
+        <section className="max-w-[1500px] mx-auto mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white font-sans shadow-sm">
+          <BulkRoomCreator isAdmin={user?.role === 'admin'} showRooms templateAction={user?.role !== 'admin' ? <WardenRoomTemplates /> : null} />
+        </section>
         <div className="max-w-[1500px] mx-auto grid grid-cols-12 gap-10">
           
           {/* Sidebar Controls */}
@@ -195,7 +210,7 @@ export default function HostelBlueprintDesigner() {
               <div className="space-y-4">
                 <div>
                   <label className="text-[8px] font-black text-slate-400 uppercase">Building Shape</label>
-                  <select className="w-full border-2 border-slate-50 p-2 text-xs font-bold uppercase outline-none focus:border-blue-900" value={config.building_type} onChange={e => setConfig({...config, building_type: e.target.value})}>
+                  <select className="w-full border-2 border-slate-50 p-2 text-xs font-bold uppercase outline-none focus:border-blue-900" value={config.building_type} onChange={e => changeConfig({...config, building_type: e.target.value})}>
                     <option value="single">Single (Linear)</option>
                     <option value="l">L-Shaped</option>
                     <option value="u">U-Shaped</option>
@@ -207,7 +222,7 @@ export default function HostelBlueprintDesigner() {
                   {['top', 'bottom', 'left', 'right'].map(side => (
                     <div key={side}>
                       <label className="text-[8px] font-black text-slate-400 uppercase">{side} Room Count</label>
-                      <input type="number" value={config[`${side}_rooms`]} onChange={e => setConfig({...config, [`${side}_rooms`]: Number(e.target.value)})} className="w-full border-2 border-slate-50 p-2 text-xs font-bold outline-none focus:border-blue-900" />
+                      <input type="number" value={config[`${side}_rooms`]} onChange={e => changeConfig({...config, [`${side}_rooms`]: Number(e.target.value)})} className="w-full border-2 border-slate-50 p-2 text-xs font-bold outline-none focus:border-blue-900" />
                     </div>
                   ))}
                 </div>
@@ -231,13 +246,13 @@ export default function HostelBlueprintDesigner() {
               </h3>
               <div className="grid grid-cols-3 gap-1">
                 <div />
-                <button onClick={() => setConfig({...config, entrance_side: 't'})} className={`p-2 border text-[9px] font-bold ${config.entrance_side === 't' ? 'bg-orange-600 text-white' : 'bg-slate-50'}`}>T</button>
+                <button onClick={() => changeConfig({...config, entrance_side: 't'})} className={`p-2 border text-[9px] font-bold ${config.entrance_side === 't' ? 'bg-orange-600 text-white' : 'bg-slate-50'}`}>T</button>
                 <div />
-                <button onClick={() => setConfig({...config, entrance_side: 'l'})} className={`p-2 border text-[9px] font-bold ${config.entrance_side === 'l' ? 'bg-orange-600 text-white' : 'bg-slate-50'}`}>L</button>
+                <button onClick={() => changeConfig({...config, entrance_side: 'l'})} className={`p-2 border text-[9px] font-bold ${config.entrance_side === 'l' ? 'bg-orange-600 text-white' : 'bg-slate-50'}`}>L</button>
                 <div className="flex items-center justify-center opacity-10"><Square size={12}/></div>
-                <button onClick={() => setConfig({...config, entrance_side: 'r'})} className={`p-2 border text-[9px] font-bold ${config.entrance_side === 'r' ? 'bg-orange-600 text-white' : 'bg-slate-50'}`}>R</button>
+                <button onClick={() => changeConfig({...config, entrance_side: 'r'})} className={`p-2 border text-[9px] font-bold ${config.entrance_side === 'r' ? 'bg-orange-600 text-white' : 'bg-slate-50'}`}>R</button>
                 <div />
-                <button onClick={() => setConfig({...config, entrance_side: 'b'})} className={`p-2 border text-[9px] font-bold ${config.entrance_side === 'b' ? 'bg-orange-600 text-white' : 'bg-slate-50'}`}>B</button>
+                <button onClick={() => changeConfig({...config, entrance_side: 'b'})} className={`p-2 border text-[9px] font-bold ${config.entrance_side === 'b' ? 'bg-orange-600 text-white' : 'bg-slate-50'}`}>B</button>
                 <div />
               </div>
             </section>
@@ -265,7 +280,7 @@ export default function HostelBlueprintDesigner() {
                               data={cellData[`${rIdx}-${cIdx}`]}
                               entranceSide={config.entrance_side}
                               onDrop={handleDrop}
-                              onSetEntrance={(s) => setConfig({...config, entrance_side: s})}
+                              onSetEntrance={(s) => changeConfig({...config, entrance_side: s})}
                               onEdit={(s, d) => setActiveModal({s, d})}
                             />
                           </div>
@@ -289,7 +304,7 @@ export default function HostelBlueprintDesigner() {
           <div className="bg-white w-72 border-[3px] border-blue-900 p-8 shadow-2xl">
             <h2 className="text-[10px] font-black uppercase border-b border-slate-100 pb-3 mb-6 tracking-widest text-blue-900">Room: {activeModal.d.room_number}</h2>
             <button 
-              onClick={() => { setCellData(prev => (({ [activeModal.s]: _, ...rest }) => rest)(prev)); setActiveModal(null); }}
+              onClick={() => { setLayoutDirty(true); setCellData(prev => (({ [activeModal.s]: _, ...rest }) => rest)(prev)); setActiveModal(null); }}
               className="w-full bg-red-600 text-white py-3 text-[10px] font-black uppercase shadow-lg flex items-center justify-center gap-2 hover:bg-red-700"
             >
               <Trash2 size={14} /> Delete Room

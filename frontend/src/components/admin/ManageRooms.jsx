@@ -4,6 +4,7 @@ import {
 } from 'antd';
 import { Bed, Plus, Edit3, Trash2, Building, DoorOpen, Info } from 'lucide-react';
 import { adminAPI } from '../../services/api';
+import BulkRoomCreator from '../common/BulkRoomCreator';
 
 const { Text, Title } = Typography;
 
@@ -69,6 +70,7 @@ const ManageRooms = ({ isTabbed }) => {
 
   return (
     <div className={isTabbed ? "p-4" : "p-8 bg-slate-50 min-h-screen"}>
+      <div className="mb-4"><BulkRoomCreator isAdmin onCreated={fetchData} /></div>
       {/* 1. Header Add Button (Tabbed Mode) */}
       {isTabbed && (
         <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">

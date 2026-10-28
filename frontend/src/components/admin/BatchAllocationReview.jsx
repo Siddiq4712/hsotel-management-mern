@@ -24,7 +24,7 @@ export default function BatchAllocationReview({ open, onClose, onApplied }) {
     finally { setSaving(false); }
   };
   const query = search.trim().toLowerCase();
-  const data = preview.rows.filter(row => (status === 'all' || (status === 'changes' ? row.status !== 'unchanged' : row.status === status)) && [row.name, row.roll_number, row.batch, row.hostel].some(value => String(value || '').toLowerCase().includes(query)));
+  const data = preview.rows.filter(row => (status === 'all' || (status === 'changes' ? row.status !== 'unchanged' : row.status === status)) && [row.name, row.roll_number, row.college, row.batch, row.hostel].some(value => String(value || '').toLowerCase().includes(query)));
   const eligibleIds = data.filter(row => row.status === 'ready').map(row => row.student_id);
   const selectedCount = eligibleIds.filter(id => selected.includes(id)).length;
   const selectionDisabled = loading || saving || Boolean(error) || !eligibleIds.length;
@@ -47,6 +47,7 @@ export default function BatchAllocationReview({ open, onClose, onApplied }) {
       getCheckboxProps: row => ({ disabled: loading || saving || Boolean(error) || row.status !== 'ready' })
     }} columns={[
       { title: 'Student', dataIndex: 'name', width: 160 }, { title: 'Roll Number', dataIndex: 'roll_number', width: 120 },
+      { title: 'College', dataIndex: 'college', width: 100, render: value => value?.toUpperCase() },
       { title: 'ERP Batch Year', dataIndex: 'erp_batch_year', width: 130 },
       { title: 'Current Batch', dataIndex: 'current_batch', width: 140 }, { title: 'Proposed Batch', dataIndex: 'batch', width: 140 },
       { title: 'Current Hostel', dataIndex: 'current_hostel', width: 160 }, { title: 'Proposed Hostel', dataIndex: 'hostel', width: 160 },

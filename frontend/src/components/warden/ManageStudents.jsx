@@ -12,6 +12,7 @@ import axios from 'axios';
 import { wardenAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { studentBatch } from '../../utils/batchMatching';
+import { normalizeStudentDob, readStudentDob } from '../../../../shared/studentDob.js';
 import moment from 'moment';
 
 const { Title, Text } = Typography;
@@ -120,6 +121,7 @@ const ManageStudents = () => {
         username: String(student.studentName || student.username || student.userName || student.name || '').trim(),
         email: String(student.email || student.userMail || student.personal_email || '').trim(),
         gender: student.gender || student.Gender || student.sex || student.student_gender,
+        date_of_birth: readStudentDob(student),
         erp_batch_year: student.batch ?? student.erp_batch_year ?? null
       })));
       setAcademicsFetchedAt(new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Calcutta' }));
@@ -134,17 +136,23 @@ const ManageStudents = () => {
     const localByRoll = new Map(students.map(student => [String(student.roll_number || student.registerNumber || '').trim(), student]));
     const scoped = academicsStudents.filter(student => {
       if (user?.role === 'admin') return true;
-      const batch = studentBatch(student.erp_batch_year, academicsBatches, student.gender);
+      const batch = studentBatch(student.erp_batch_year, academicsBatches, student.gender, student.college);
       // The backend returns batches for the warden's current DB assignment.
       return Boolean(batch);
     });
     return scoped.map(student => {
-      const batch = studentBatch(student.erp_batch_year, academicsBatches, student.gender);
+      const batch = studentBatch(student.erp_batch_year, academicsBatches, student.gender, student.college);
       const existing = localByRoll.get(student.registerNumber);
       let blocked = '';
-      if (!student.registerNumber || !student.username) blocked = 'Name or roll number missing';
+      if (String(student.college ?? 'nec').trim().toLowerCase() === 'lapc') blocked = 'LAPC students must be imported through Excel';
+      else if (String(existing?.college ?? 'nec').trim().toLowerCase() === 'lapc') blocked = 'Existing LAPC enrollment must be maintained through Excel';
+      else if (!student.registerNumber || !student.username) blocked = 'Name or roll number missing';
       else if (!batch) blocked = 'Missing or unconfigured batch year and gender';
       else if (existing && Number(existing.erp_batch_year) === Number(student.erp_batch_year) && Number(existing.hostel_id) === Number(batch.hostel_id) && Number(existing.session_id ?? existing.tbl_Enrollment?.[0]?.session_id) === Number(batch.id)) blocked = 'Already enrolled';
+      if (!blocked && !existing) {
+        try { normalizeStudentDob(student.date_of_birth); }
+        catch { blocked = 'Missing or invalid Date of Birth'; }
+      }
       return { ...student, matchedBatch: batch, existing, blocked };
     });
   }, [academicsStudents, academicsBatches, students, user]);
@@ -155,9 +163,10 @@ const ManageStudents = () => {
     if (!selected.length) return message.warning('Select students with a configured batch and hostel.');
     setAcademicsImporting(true); setAcademicsError(''); setAcademicsImportResult(null);
     try {
-      const response = await wardenAPI.bulkEnrollStudents({ students: selected.map(student => ({
+      const response = await wardenAPI.bulkEnrollStudents({ import_source: 'api', students: selected.map(student => ({
         userName: student.username,
         roll_number: student.registerNumber,
+        date_of_birth: student.date_of_birth,
         email: student.email || undefined,
         erp_batch_year: Number(student.erp_batch_year),
         gender: student.gender,

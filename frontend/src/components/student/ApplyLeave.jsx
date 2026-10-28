@@ -1,10 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState } from 'react';
-import {
-  Card, Form, Input, Select, Button,
-  Typography, Row, Col, Space, Divider, message,
-  ConfigProvider, theme, Alert
-} from 'antd';
+import { Card, Form, Input, Select, Typography, Row, Col, Space, Divider, message, ConfigProvider, theme, Alert } from 'antd';
 import { 
   Calendar, FileText, Send, RefreshCw, 
   Info, ClipboardList, Clock, ShieldCheck 
@@ -109,7 +106,7 @@ const ApplyLeave = () => {
                 <Divider className="my-6 border-slate-100" />
 
                 <div className="flex gap-4">
-                  <Button 
+                  <Button permissionAction="create" 
                     type="primary" 
                     htmlType="submit" 
                     size="large" 

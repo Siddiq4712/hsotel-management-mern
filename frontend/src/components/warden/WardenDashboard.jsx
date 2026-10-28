@@ -1,3 +1,6 @@
+import { usePermissions } from '../../context/PermissionContext';
+import { screenForView } from '../../../../shared/permissions.js';
+import { PermissionButton as Button, PermissionNativeButton } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Users, BedDouble, Calendar, MessageSquare, 
@@ -7,11 +10,7 @@ import {
   Info, ArrowRight
 } from 'lucide-react';
 import { Bar, Doughnut, Line } from 'react-chartjs-2';
-import {
-  Card, Typography, Row, Col, Statistic, Button,
-  ConfigProvider, Skeleton, Modal, Table, Tag, Badge,
-  message, Tabs, Tooltip, Alert
-} from 'antd';
+import { Card, Typography, Row, Col, Statistic, ConfigProvider, Skeleton, Modal, Table, Tag, Badge, message, Tabs, Tooltip, Alert } from 'antd';
 
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement,
@@ -47,6 +46,7 @@ const SHARED_CHART_OPTIONS = {
 };
 
 const WardenDashboard = ({ setCurrentView }) => {
+  const { can } = usePermissions();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
@@ -252,7 +252,7 @@ const WardenDashboard = ({ setCurrentView }) => {
                 >
                   Review Differences
                 </Button>
-                <Button 
+                <Button permissionScreen="students" permissionAction="edit" 
                   type="primary"
                   icon={<RefreshCcw size={16} className={syncing ? "animate-spin" : ""} />}
                   loading={syncing}
@@ -311,8 +311,8 @@ const WardenDashboard = ({ setCurrentView }) => {
                 { label: 'Rooms', icon: Home, bg: 'bg-emerald-50', color: 'text-emerald-600', view: 'warden-room-mgmt' },
                 { label: 'Attendance', icon: CheckSquare, bg: 'bg-purple-50', color: 'text-purple-600', view: 'attendance' },
                 { label: 'Leaves', icon: Calendar, bg: 'bg-orange-50', color: 'text-orange-600', view: 'leave-requests' },
-              ].map((act, i) => (
-                <button key={i}
+              ].filter(action => can(screenForView(action.view, 'warden'))).map((act, i) => (
+                <PermissionNativeButton permissionAction="view" permissionScreen={screenForView(act.view, 'warden')} key={i}
                   onClick={() => handleAction(act.view)}
                   className="bg-white p-6 rounded-[32px] shadow-sm flex flex-col items-center gap-3 hover:scale-105 transition-transform border-none cursor-pointer"
                 >
@@ -320,7 +320,7 @@ const WardenDashboard = ({ setCurrentView }) => {
                     <act.icon size={24} />
                   </div>
                   <Text strong className="text-slate-600 text-[11px] uppercase">{act.label}</Text>
-                </button>
+                </PermissionNativeButton>
               ))}
             </div>
 
@@ -471,7 +471,7 @@ const WardenDashboard = ({ setCurrentView }) => {
             <Button key="cancel" onClick={() => setSyncModalOpen(false)} className="rounded-xl font-semibold">
               Cancel
             </Button>,
-            <Button
+            <Button permissionScreen="students" permissionAction="edit"
               key="sync"
               type="primary"
               loading={syncing}

@@ -1,9 +1,7 @@
+import { PermissionButton as Button } from '../common/PermissionControls';
 import { exportWorkbook } from '../../utils/reportExport';
 import React, { useEffect, useState, useMemo } from 'react';
-import {
-  Card, DatePicker, Table, Button, message, Typography,
-  ConfigProvider, theme, Skeleton, Space, Tag, Tooltip
-} from 'antd';
+import { Card, DatePicker, Table, message, Typography, ConfigProvider, theme, Skeleton, Space, Tag, Tooltip } from 'antd';
 import {
   FileSpreadsheet, Calendar, Search, RefreshCw,
   ShoppingBag, ClipboardList, Info, PackageSearch
@@ -168,7 +166,7 @@ const PurchaseSuggestions = ({ onReceiveItem }) => {
             >
                 Refresh
             </Button>
-            <Button
+            <Button permissionAction="export"
                 type="primary"
                 icon={<FileSpreadsheet size={18}/>}
                 onClick={handleExport}

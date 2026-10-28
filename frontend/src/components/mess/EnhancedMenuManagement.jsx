@@ -1,3 +1,4 @@
+import { PermissionNativeButton } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Card, Table, Button, Tag, Space, message, Modal,
@@ -367,7 +368,7 @@ const EnhancedMenuManagement = () => {
             </div>
           </div>
 
-          <button
+          <PermissionNativeButton permissionAction="create"
             onClick={() => { setEditingMenu(null); form.resetFields(); setModalVisible(true); }}
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
@@ -383,7 +384,7 @@ const EnhancedMenuManagement = () => {
           >
             <Plus size={16} />
             New Menu
-          </button>
+          </PermissionNativeButton>
         </div>
 
         <div className="space-y-6">
@@ -524,7 +525,7 @@ const EnhancedMenuManagement = () => {
                   cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                 }}
               >Cancel</button>
-              <button
+              <PermissionNativeButton permissionAction={editingMenu ? 'edit' : 'create'}
                 type="submit"
                 disabled={confirmLoading}
                 style={{
@@ -537,7 +538,7 @@ const EnhancedMenuManagement = () => {
               >
                 <Save size={14} />
                 {editingMenu ? 'Save Changes' : 'Create Menu'}
-              </button>
+              </PermissionNativeButton>
             </div>
           </Form>
         </Modal>
@@ -598,7 +599,7 @@ const EnhancedMenuManagement = () => {
                           {item.quantity} {item.unit}
                         </div>
                       </div>
-                      <button
+                      <PermissionNativeButton permissionAction="delete"
                         onClick={async () => {
                           try {
                             // ✅ CORRECT: Pass the menu ID and the specific ITEM ID
@@ -619,7 +620,7 @@ const EnhancedMenuManagement = () => {
                         onMouseLeave={e => e.currentTarget.style.color = T.inkSoft}
                       >
                         <Trash2 size={14} />
-                      </button>
+                      </PermissionNativeButton>
                     </div>
                   ))}
                 </div>
@@ -674,7 +675,7 @@ const EnhancedMenuManagement = () => {
                     </Form.Item>
                   </Col>
                 </Row>
-                <button
+                <PermissionNativeButton permissionAction={editingMenu ? 'edit' : 'create'}
                   type="submit"
                   style={{
                     width: '100%', padding: '9px 0', borderRadius: 8, border: 'none',
@@ -687,7 +688,7 @@ const EnhancedMenuManagement = () => {
                   onMouseLeave={e => e.currentTarget.style.background = T.accentBg}
                 >
                   <Plus size={15} /> Add to Menu
-                </button>
+                </PermissionNativeButton>
               </Form>
             </div>
           )}
@@ -754,7 +755,7 @@ const EnhancedMenuManagement = () => {
                   cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                 }}
               >Cancel</button>
-              <button
+              <PermissionNativeButton permissionAction={editingMenu ? 'edit' : 'create'}
                 type="submit"
                 disabled={applyLoading}
                 style={{
@@ -767,7 +768,7 @@ const EnhancedMenuManagement = () => {
               >
                 <Calendar size={14} />
                 Apply Menu
-              </button>
+              </PermissionNativeButton>
             </div>
           </Form>
         </Modal>

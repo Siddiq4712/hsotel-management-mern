@@ -1,5 +1,6 @@
+import { PermissionButton as Button, PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
 import React, { useEffect, useState } from 'react';
-import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
 import { Plus, Edit3, Trash2 } from 'lucide-react';
 import { messAPI } from '../../services/api';
 import AdditionalFoodStudentReport from './AdditionalFoodStudentReport';
@@ -60,7 +61,7 @@ export default function SpecialFoodItemsManagement() {
     { title: 'Max per student', dataIndex: 'max_quantity_per_student', render: value => value ?? 1 },
     { title: 'Schedule', dataIndex: 'weekly_day', render: day => day == null ? <Tag>Choose a weekly day</Tag> : `Every ${days[day]}` },
     { title: 'Order deadline (IST)', dataIndex: 'order_deadline_time', render: time => <span>{time || '19:00'} on serving day</span> },
-    { title: 'Availability', key: 'availability', render: (_, item) => <Button
+    { title: 'Availability', key: 'availability', render: (_, item) => <Button permissionAction="edit"
       type={item.is_available ? 'primary' : 'default'}
       style={{ width: 160, height: 32, flexShrink: 0 }}
       aria-label={`Mark ${item.name} as ${item.is_available ? 'not available' : 'available'}`}
@@ -70,14 +71,14 @@ export default function SpecialFoodItemsManagement() {
       onClick={() => changeAvailability(item)}
     >{item.is_available ? 'Available' : 'Not Available'}</Button> },
     { title: 'Actions', key: 'actions', render: (_, item) => <Space>
-      <Button aria-label={`Edit ${item.name}`} disabled={availabilityUpdating === item.id} icon={<Edit3 size={14} />} onClick={() => edit(item)} />
-      <Popconfirm title="Remove this additional food?" onConfirm={() => remove(item.id)}><Button danger aria-label={`Remove ${item.name}`} icon={<Trash2 size={14} />} /></Popconfirm>
+      <Button permissionAction="edit" aria-label={`Edit ${item.name}`} disabled={availabilityUpdating === item.id} icon={<Edit3 size={14} />} onClick={() => edit(item)} />
+      <Popconfirm permissionAction="delete" title="Remove this additional food?" onConfirm={() => remove(item.id)}><Button danger aria-label={`Remove ${item.name}`} icon={<Trash2 size={14} />} /></Popconfirm>
     </Space> },
   ];
   return <div className="module-page p-8 bg-slate-50 min-h-screen">
     <div className="module-page-header flex justify-between items-center mb-8">
       <div><Title level={2}>Additional Food</Title><Text type="secondary">Create food available on a recurring weekly day.</Text></div>
-      <Space wrap><AdditionalFoodStudentReport /><Button type="primary" icon={<Plus size={18} />} onClick={() => edit()}>Create Additional Food</Button></Space>
+      <Space wrap><AdditionalFoodStudentReport /><Button permissionAction="create" type="primary" icon={<Plus size={18} />} onClick={() => edit()}>Create Additional Food</Button></Space>
     </div>
     <Card><Table rowKey="id" dataSource={items} columns={columns} loading={loading} scroll={{ x: 650 }} /></Card>
     <Modal title={editing ? 'Edit Additional Food' : 'Create Additional Food'} open={open} onCancel={() => !saving && setOpen(false)} footer={null} destroyOnHidden>
@@ -90,7 +91,7 @@ export default function SpecialFoodItemsManagement() {
         <Form.Item label="Repeat" htmlFor="additional-food-repeat"><Input id="additional-food-repeat" value="Weekly" readOnly /></Form.Item>
         <Form.Item label="Day" name="weekly_day" rules={[{ required: true, message: 'Select a weekly day.' }]}><Select placeholder="Select day" options={days.map((label, value) => ({ label, value }))} /></Form.Item>
         <Form.Item label="Order deadline (IST)" name="order_deadline_time" extra="Students must confirm before this time on the serving day. Latest allowed: 7:00 PM." rules={[{ required: true, message: 'Select an ordering deadline.' }, { validator: (_, value) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value || '') && value <= '19:00' ? Promise.resolve() : Promise.reject(new Error('The deadline cannot be later than 7:00 PM.')) }]}><Input type="time" max="19:00" step={60} /></Form.Item>
-        <Space><Button onClick={() => setOpen(false)} disabled={saving}>Cancel</Button><Button type="primary" htmlType="submit" loading={saving}>Save Additional Food</Button></Space>
+        <Space><Button onClick={() => setOpen(false)} disabled={saving}>Cancel</Button><Button permissionAction={editing ? 'edit' : 'create'} type="primary" htmlType="submit" loading={saving}>Save Additional Food</Button></Space>
       </Form>
     </Modal>
   </div>;

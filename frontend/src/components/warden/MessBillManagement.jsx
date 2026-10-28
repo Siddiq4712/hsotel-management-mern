@@ -1,9 +1,7 @@
+import { PermissionNativeButton, PermissionPopconfirm as Popconfirm, PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import {
-  Card, Button, message, Table, Row, Col,
-  Typography, Tooltip, Popconfirm, Spin, Collapse, Badge, Empty, Alert
-} from 'antd';
+import { Card, message, Table, Row, Col, Typography, Tooltip, Spin, Collapse, Badge, Empty, Alert } from 'antd';
 import {
   DollarSign, Calendar, CheckCircle, XCircle, AlertTriangle,
   RefreshCw, FileText, Coffee, Calculator, Clock, ChevronDown
@@ -266,27 +264,27 @@ const MessBillManagement = () => {
         <div className="flex space-x-2">
           {record.status !== 'paid' && (
             <Tooltip title="Mark as Paid">
-              <button
+              <PermissionNativeButton permissionAction="edit"
                 className="p-2 bg-green-500 text-white rounded hover:bg-green-600 transition"
                 onClick={() => handleStatusChange(record.id, 'paid')}
               >
                 <CheckCircle size={16} />
-              </button>
+              </PermissionNativeButton>
             </Tooltip>
           )}
           {record.status === 'pending' && (
             <Tooltip title="Mark as Lapsed">
-              <button
+              <PermissionNativeButton permissionAction="edit"
                 className="p-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
                 onClick={() => handleStatusChange(record.id, 'overdue')}
               >
                 <XCircle size={16} />
-              </button>
+              </PermissionNativeButton>
             </Tooltip>
           )}
           {record.status !== 'pending' && (
             <Tooltip title="Reset to Unpaid">
-              <Popconfirm
+              <Popconfirm permissionAction="edit"
                 title="Reset bill status?"
                 description="Are you sure you want to reset this bill to unpaid status?"
                 onConfirm={() => handleStatusChange(record.id, 'pending')}
@@ -441,7 +439,7 @@ const MessBillManagement = () => {
               </ul>
             </div>
            
-            <Button
+            <Button permissionAction="generate"
               type="primary"
               onClick={handleGenerate}
               loading={loading}
