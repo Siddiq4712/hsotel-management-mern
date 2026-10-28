@@ -34,14 +34,15 @@ test('Admin scope is inferred or requested before writing; ordinary staff scope 
     const router=Object.fromEntries(['get','post','put','patch','delete'].map(method=>[method,(path,...handlers)=>{routes[`${method} ${path}`]=handlers.at(-1);} ]));
     installAdminWorkspace(router,'warden');
     let writes=0,actor;
-    router.post('/students',async(req,res)=>{writes++;actor=req.user;res.json({success:true});});
+    // Student enrollment has its own batch routing; holidays exercise the generic entry gate.
+    router.post('/holidays',async(req,res)=>{writes++;actor=req.user;res.json({success:true});});
     router.post('/attendance',async(req,res)=>{writes++;actor=req.user;res.json({success:true});});
     router.get('/students',async(req,res)=>res.json({success:true,data:[{id:req.user.hostel_id}]}));
     const request=(extra={})=>({user:{role:'admin',userId:1,hostel_id:null},body:{},query:{},params:{},get:()=>undefined,...extra});
     const response=()=>({statusCode:200,status(value){this.statusCode=value;return this;},json(value){this.body=value;return this;}});
-    const res=response();await routes['post /students'](request(),res);
+    const res=response();await routes['post /holidays'](request(),res);
     assert.equal(res.statusCode,409);assert.equal(res.body.code,'HOSTEL_REQUIRED');assert.equal(writes,0);
-    await routes['post /students'](request({get:()=> '1'}),response());
+    await routes['post /holidays'](request({get:()=> '1'}),response());
     assert.deepEqual(actor,{role:'admin',userId:1,hostel_id:1,hostelId:1});
     await routes['post /attendance'](request({body:{student_id:20}}),response());
     assert.equal(actor.hostel_id,2);
@@ -50,7 +51,7 @@ test('Admin scope is inferred or requested before writing; ordinary staff scope 
     assert.equal(conflict.statusCode,400);assert.equal(writes,before);
     const list=response();await routes['get /students'](request(),list);
     assert.deepEqual(list.body.data.map(row=>row.hostel_id),[1,2]);
-    await routes['post /students'](request({user:{role:'warden',userId:7,hostel_id:2}}),response());
+    await routes['post /holidays'](request({user:{role:'warden',userId:7,hostel_id:2}}),response());
     assert.deepEqual(actor,{role:'warden',userId:7,hostel_id:2});
   } finally {Hostel.findAll=original.all;Hostel.findByPk=original.hostel;User.findByPk=original.user;}
 });

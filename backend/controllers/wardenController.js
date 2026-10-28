@@ -10,6 +10,12 @@ import {
   Outpass
 } from '../models/index.js';
 import { fetchStudentsFromERP } from '../services/erpStudentService.js';
+import { importStudentRoom } from '../services/importStudentRoom.js';
+import { archiveRoomTemplate } from '../services/roomTemplates.js';
+import { passwordFromDob, readStudentDob } from '../../shared/studentDob.js';
+import { importedStudentPassword, studentImportSettings } from '../services/studentImportPassword.js';
+import { normalizeCollege, assertAdmissionSource } from '../../shared/colleges.js';
+import { withBatchInventory } from '../services/batchInventory.js';
 
 const getHostelId = (user) => {
   const hId = user?.hostelId || user?.hostel_id;
@@ -52,6 +58,7 @@ export const enrollStudent = async (req, res) => {
          type
       } = req.body;
       const userName = userNameRaw || username;
+      const studentCollege = assertAdmissionSource(college, 'manual');
 
       const rawType = String(student_type || studentType || type || 'hosteller').trim().toLowerCase();
       if (rawType && rawType !== 'hosteller') {
@@ -68,7 +75,7 @@ export const enrollStudent = async (req, res) => {
       if (!normalizedRollNumber) throw new Error("Roll number is required.");
 
       // ERP admission year is authoritative; roll numbers never determine the batch.
-      const matchedBatch = await resolveStudentBatch(req.body.erp_batch_year ?? req.body.batch, req.user, transaction, req.body.gender);
+      const matchedBatch = await resolveStudentBatch(req.body.erp_batch_year ?? req.body.batch, req.user, transaction, req.body.gender, studentCollege);
       const studentGender = matchedBatch.gender;
       const resolvedSessionId = matchedBatch.id;
       const hostel_id = matchedBatch.hostel_id;
@@ -135,17 +142,18 @@ export const enrollStudent = async (req, res) => {
             session_id: resolvedSessionId,
             erp_batch_year: matchedBatch.erp_batch_year,
             requires_bed: !!requires_bed,
-            college: college || 'nec',
+            college: studentCollege,
             roll_number: normalizedRollNumber,
             status: 'active'
          }, { transaction });
       } else {
+         if (normalizeCollege(existingEnrollment.college) !== studentCollege) throw new Error('The existing enrollment belongs to another college. Review it before importing or admitting this roll number.');
          await existingEnrollment.update({
             hostel_id,
             session_id: resolvedSessionId,
             erp_batch_year: matchedBatch.erp_batch_year,
             requires_bed: !!requires_bed,
-            college: college || 'nec',
+            college: studentCollege,
             roll_number: normalizedRollNumber,
             status: 'active'
          }, { transaction });
@@ -271,6 +279,7 @@ export const bulkEnrollStudents = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const { students = [], college: defaultCollege } = req.body;
+    const importSettings = studentImportSettings(req.body);
 
     if (!Array.isArray(students) || students.length === 0) {
       throw new Error("No student records provided for bulk enrollment.");
@@ -287,30 +296,28 @@ export const bulkEnrollStudents = async (req, res) => {
     if (studentRoleIds.length === 0) throw new Error("Student/LAPC roles not defined in roles table.");
 
     const results = { successful: 0, skipped: 0, errors: [] };
-    const salt = await bcrypt.genSalt(10);
-    const defaultPassword = await bcrypt.hash('12345678', salt);
-
     for (const studentData of students) {
       try {
-        await sequelize.transaction({ transaction }, async transaction => {
+        const imported = await sequelize.transaction({ transaction }, async transaction => {
           const rawType = String(studentData.student_type || studentData.studentType || studentData.type || 'hosteller').trim().toLowerCase();
           if (rawType && rawType !== 'hosteller') {
             results.skipped++;
-            return;
+            return false;
           }
 
           const rawName = studentData.userName || studentData.name || '';
           const studentName = rawName.trim().toUpperCase();
           const normalizedRollNumber = String(studentData.roll_number || studentData.roll || '').trim();
-          const studentCollege = String(studentData.college || defaultCollege || 'nec').trim().toLowerCase();
+          const studentCollege = assertAdmissionSource(studentData.college ?? defaultCollege, importSettings.source);
           const defaultDomain = studentCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in';
           const generatedEmail = normalizedRollNumber ? `${normalizedRollNumber}@${defaultDomain}`.toLowerCase() : '';
           const normalizedEmail = String(studentData.email || studentData.userMail || generatedEmail).trim().toLowerCase();
-          const matchedBatch = await resolveStudentBatch(studentData.erp_batch_year ?? studentData.batch, req.user, transaction, studentData.gender);
+          const matchedBatch = await resolveStudentBatch(studentData.erp_batch_year ?? studentData.batch, req.user, transaction, studentData.gender, studentCollege);
           const studentGender = matchedBatch.gender;
           const resolvedSessionId = matchedBatch.id;
           const hostel_id = matchedBatch.hostel_id;
-          const requiresBed = Boolean(studentData.requires_bed);
+          const roomNumber = String(studentData.room_number ?? '').trim();
+          const requiresBed = Boolean(studentData.requires_bed) || Boolean(roomNumber);
 
           if (!studentName) {
             throw new Error(`Student name is required for roll ${normalizedRollNumber || 'unknown'}`);
@@ -326,7 +333,7 @@ export const bulkEnrollStudents = async (req, res) => {
           });
 
           if (!user) {
-            const studentPass = studentData.password ? await bcrypt.hash(studentData.password, salt) : defaultPassword;
+            const studentPass = await bcrypt.hash(importedStudentPassword(studentData, importSettings), 10);
             user = await User.create({
               gender: studentGender,
               userName: studentName,
@@ -367,8 +374,8 @@ export const bulkEnrollStudents = async (req, res) => {
               requires_bed: requiresBed,
               status: 'active'
             }, { transaction });
-            results.successful++;
           } else {
+            if (normalizeCollege(existingEnrollment.college) !== studentCollege) throw new Error('The existing enrollment belongs to another college. Review it before importing this roll number.');
             await existingEnrollment.update({
               hostel_id,
               session_id: resolvedSessionId,
@@ -378,9 +385,14 @@ export const bulkEnrollStudents = async (req, res) => {
               roll_number: normalizedRollNumber,
               status: 'active'
             }, { transaction });
-            results.successful++;
           }
+          await importStudentRoom({
+            studentId: user.userId, hostelId: hostel_id, roomNumber, transaction,
+            HostelRoom, RoomType, RoomAllotment
+          });
+          return true;
         });
+        if (imported) results.successful++;
       } catch (err) {
         results.errors.push({ name: studentData.userName || studentData.name || studentData.roll_number, error: err.message });
       }
@@ -390,7 +402,7 @@ export const bulkEnrollStudents = async (req, res) => {
     res.status(200).json({ success: true, data: results });
   } catch (error) {
     if (transaction) await transaction.rollback();
-    res.status(500).json({ success: false, message: error.message });
+    res.status(error.status || 500).json({ success: false, message: error.message });
   }
 };
 
@@ -603,21 +615,23 @@ export const fetchAvailableRooms = async () => {
 // ==========================================
 export const createRoomTypeWarden = async (req, res) => {
   try {
-    const { name, capacity, description } = req.body;
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    const capacity = Number(req.body.capacity);
+    const description = typeof req.body.description === 'string' ? req.body.description.trim() : '';
     const hostel_id = getHostelId(req.user);
 
     if (!hostel_id) {
       return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
     }
 
-    if (!name || !capacity) {
+    if (!name || name.length > 100 || !Number.isInteger(capacity) || capacity < 1 || capacity > 1000 || typeof req.body.capacity === 'boolean' || description.length > 2000) {
       return res.status(400).json({
         success: false,
-        message: 'Name and capacity are required'
+        message: 'Enter a template name (up to 100 characters), a whole-number capacity from 1 to 1000, and a description of at most 2000 characters.'
       });
     }
 
-    const exists = await RoomType.findOne({ where: { name, hostel_id } });
+    const exists = await RoomType.findOne({ where: { name, hostel_id, is_active: true } });
     if (exists) {
       return res.json({ success: true, data: exists });
     }
@@ -694,7 +708,7 @@ export const getRoomTypesWarden = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
     }
 
-    let whereClause = { hostel_id };
+    let whereClause = { hostel_id, is_active: true };
 
     if (search) {
       whereClause.name = { [Op.like]: `%${search}%` };
@@ -715,25 +729,34 @@ export const getRoomTypesWarden = async (req, res) => {
 export const updateRoomTypeWarden = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, capacity, description } = req.body;
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    const capacity = Number(req.body.capacity);
+    const description = typeof req.body.description === 'string' ? req.body.description.trim() : '';
     const hostel_id = getHostelId(req.user);
 
     if (!hostel_id) {
       return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
     }
 
-    const roomType = await RoomType.findOne({ where: { id, hostel_id } });
-    if (!roomType) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room type not found'
-      });
+    if (!name || name.length > 100 || !Number.isInteger(capacity) || capacity < 1 || capacity > 1000 || typeof req.body.capacity === 'boolean' || description.length > 2000) {
+      return res.status(400).json({ success: false, message: 'Enter a template name (up to 100 characters), a whole-number capacity from 1 to 1000, and a description of at most 2000 characters.' });
     }
 
-    await roomType.update({
-      name,
-      capacity,
-      description
+    const roomType = await sequelize.transaction(async transaction => {
+      // Serialize template changes with bulk room creation in this hostel.
+      await Hostel.findByPk(hostel_id, { transaction, lock: transaction.LOCK.UPDATE });
+      const template = await RoomType.findOne({ where: { id, hostel_id, is_active: true }, transaction, lock: transaction.LOCK.UPDATE });
+      if (!template) throw Object.assign(new Error('Room type not found'), { status: 404 });
+      const duplicate = await RoomType.findOne({ where: { hostel_id, name, is_active: true, id: { [Op.ne]: id } }, transaction });
+      if (duplicate) throw Object.assign(new Error('A room template with this name already exists in your hostel.'), { status: 400 });
+      const rooms = await HostelRoom.findAll({ where: { room_type_id: id, hostel_id }, transaction, lock: transaction.LOCK.UPDATE });
+      for (const room of rooms) {
+        const occupants = await RoomAllotment.count({ where: { room_id: room.id, is_active: true }, transaction });
+        const occupied = Math.max(occupants, Number(room.occupancy_count) || 0);
+        if (capacity < occupied) throw Object.assign(new Error(`Capacity cannot be below ${occupied}: room ${room.room_number} already has that many occupied beds.`), { status: 400 });
+      }
+      await template.update({ name, capacity, description }, { transaction });
+      return template;
     });
 
     res.json({
@@ -743,7 +766,7 @@ export const updateRoomTypeWarden = async (req, res) => {
     });
   } catch (error) {
     console.error('Warden room type update error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Server error' });
   }
 };
 
@@ -756,36 +779,7 @@ export const deleteRoomTypeWarden = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Hostel binding missing.' });
     }
 
-    const roomType = await RoomType.findOne({ where: { id, hostel_id } });
-    if (!roomType) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room type not found'
-      });
-    }
-
-    const roomsCount = await HostelRoom.count({
-      where: { room_type_id: id, hostel_id, is_active: true }
-    });
-
-    if (roomsCount > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete room type. It is being used by existing rooms.'
-      });
-    }
-
-    try {
-      await roomType.destroy();
-    } catch (error) {
-      if (error.name === "SequelizeForeignKeyConstraintError") {
-        return res.status(400).json({
-          success: false,
-          message: "Cannot delete this room type because rooms still reference it. Remove or reassign those rooms first.",
-        });
-      }
-      throw error;
-    }
+    await archiveRoomTemplate(id, hostel_id, { sequelize, Hostel, RoomType, HostelRoom });
     
     res.json({
       success: true,
@@ -793,7 +787,7 @@ export const deleteRoomTypeWarden = async (req, res) => {
     });
   } catch (error) {
     console.error('Warden room type deletion error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Server error' });
   }
 };
 
@@ -839,7 +833,7 @@ export const createRoomWarden = async (req, res) => {
       });
     }
 
-    const roomType = await RoomType.findOne({ where: { id: room_type_id, hostel_id } });
+    const roomType = await RoomType.findOne({ where: { id: room_type_id, hostel_id, is_active: true } });
     if (!roomType) {
       return res.status(404).json({
         success: false,
@@ -930,7 +924,7 @@ export const updateRoomWarden = async (req, res) => {
     }
 
     if (room_type_id) {
-      const roomType = await RoomType.findOne({ where: { id: room_type_id, hostel_id } });
+      const roomType = await RoomType.findOne({ where: { id: room_type_id, hostel_id, is_active: true } });
       if (!roomType) {
         return res.status(404).json({
           success: false,
@@ -1343,7 +1337,7 @@ export const getMonthlyComplaints = async (req, res) => {
 // SESSIONS
 // ==========================================
 export const getSessions = async (req, res) => {
-  try { res.json({ success: true, data: (await listBatches()).filter(batch => batch.is_active && (req.user.role === 'admin' || Number(batch.hostel_id) === Number(getHostelId(req.user)))) }); }
+  try { res.json({ success: true, data: await withBatchInventory((await listBatches()).filter(batch => batch.is_active && (req.user.role === 'admin' || Number(batch.hostel_id) === Number(getHostelId(req.user))))) }); }
   catch (error) { res.status(500).json({ success: false, message: error.message }); }
 };
 
@@ -2747,19 +2741,17 @@ export const syncErpRecords = async (req, res) => {
     });
     if (!studentRole) throw new Error("Role 'student' not found in roles table.");
 
-    const salt = await bcrypt.genSalt(10);
-    const defaultPassword = await bcrypt.hash('12345678', salt);
-
     const studentRoleIds = await getStudentRoleIds(transaction);
     const configuredBatches = await listBatches(transaction);
     let addedCount = 0;
     let updatedCount = 0;
+    const errors = [];
 
     for (const erp of erpStudents) {
       const rawName = erp.userName || erp.username || erp.name || '';
       const studentName = rawName.trim().toUpperCase();
       const normalizedRollNumber = String(erp.roll_number || erp.registerNumber || '').trim();
-      const studentCollege = String(erp.college || 'nec').trim().toLowerCase();
+      const studentCollege = assertAdmissionSource(erp.college, 'api');
       const defaultDomain = studentCollege === 'lapc' ? 'lapc.edu.in' : 'nec.edu.in';
       const generatedEmail = normalizedRollNumber ? `${normalizedRollNumber}@${defaultDomain}`.toLowerCase() : '';
       const normalizedEmail = String(erp.email || erp.userMail || generatedEmail).trim().toLowerCase();
@@ -2786,11 +2778,14 @@ export const syncErpRecords = async (req, res) => {
       });
 
       if (!user) {
+        let initialPassword;
+        try { initialPassword = passwordFromDob(readStudentDob(erp)); }
+        catch (error) { errors.push({ roll_number: normalizedRollNumber, error: error.message }); continue; }
         user = await User.create({
           gender: studentGender,
           userName: studentName,
           userMail: normalizedEmail,
-          password: defaultPassword,
+          password: await bcrypt.hash(initialPassword, 10),
           roleId: studentRole.roleId,
           hostel_id: assignedHostel,
           roll_number: normalizedRollNumber,
@@ -2830,6 +2825,7 @@ export const syncErpRecords = async (req, res) => {
           status: 'active'
         }, { transaction });
       } else {
+        if (normalizeCollege(existingEnrollment.college) !== studentCollege) throw new Error('This enrollment belongs to LAPC. Maintain LAPC students through Excel.');
         await existingEnrollment.update({
           hostel_id: assignedHostel,
           session_id: resolvedSessionId,
@@ -2850,7 +2846,8 @@ export const syncErpRecords = async (req, res) => {
       data: {
         added: addedCount,
         updated: updatedCount,
-        totalSynced: erpStudents.length
+        totalSynced: erpStudents.length - errors.length,
+        errors
       }
     });
 

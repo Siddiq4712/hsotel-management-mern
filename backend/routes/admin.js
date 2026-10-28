@@ -1,5 +1,6 @@
 import { uploadReductionDocument, reductionDocument, reviseReduction, decideReduction } from '../controllers/reductionController.js';
 import express from 'express';
+import { previewAdminRooms, createAdminRooms, deleteAdminRooms } from '../controllers/bulkRoomsController.js';
 import { getStaffAccess, updateStaffAccess } from '../controllers/staffAccessController.js';
 import { getBatches, saveBatch, archiveBatch, previewAllocation, applyAllocation, assignHostelBatches } from '../controllers/batchController.js';
 import { listActivities, getActivity, previewActivityReversal, applyActivityReversal, correctActivityRecord, deleteActivityRecord } from '../controllers/activityController.js';
@@ -93,6 +94,9 @@ router.delete('/room-types/:id', deleteRoomType);
 
 // Room Management
 router.post('/rooms', createRoom);
+router.post('/rooms/bulk-preview', previewAdminRooms);
+router.post('/rooms/bulk', createAdminRooms);
+router.post('/rooms/bulk-delete', deleteAdminRooms);
 router.get('/rooms', getRooms);
 router.put('/rooms/:id', updateRoom);
 router.delete('/rooms/:id', deleteRoom);

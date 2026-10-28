@@ -1,5 +1,7 @@
 import { matchBatch } from './batchAllocation.js';
 import { RoomAllotment, HostelRoom, Session } from '../models/index.js';
+import { readStudentDob } from '../../shared/studentDob.js';
+import { normalizeCollege } from '../../shared/colleges.js';
 
 const ERP_API_URL = process.env.ERP_STUDENTS_API_URL || 'https://erp.nec.edu.in/institute_management_system/students';
 
@@ -37,9 +39,12 @@ export const fetchStudentsFromERP = async ({
     const rawStudents = Array.isArray(json) ? json : (json.data || []);
 
     // 1. Filter hosteller students if requested
-    let filtered = rawStudents;
+    // LAPC admissions are maintained through Excel, never through the NEC ERP.
+    let filtered = rawStudents.filter(student => {
+      try { return normalizeCollege(student.college) === 'nec'; } catch { return false; }
+    });
     if (hostellersOnly) {
-      filtered = rawStudents.filter((s) => {
+      filtered = filtered.filter((s) => {
         const type = s.student_type || s.studentType || '';
         return type.trim().toLowerCase() === 'hosteller';
       });
@@ -113,8 +118,9 @@ export const fetchStudentsFromERP = async ({
         erp_user_id: s.Userid || null,
         enrollment_year: course,
         gender: gender,
+        date_of_birth: readStudentDob(s),
         session_id: s.session_id || null,
-        college: s.college || 'NEC',
+        college: 'NEC',
         student_type: s.student_type || s.studentType || 'Hosteller',
         studentType: s.student_type || s.studentType || 'Hosteller',
         room_number: activeRoom ? activeRoom.room_number : null,

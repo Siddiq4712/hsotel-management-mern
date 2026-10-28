@@ -7,7 +7,8 @@ const originals = { fetch: global.fetch, sessions: Session.findAll, hostels: Hos
 const batches = [
   { id: 1, name: '2024-2028', erp_batch_year: 2024, gender: 'male', hostel_id: 2, is_active: true },
   { id: 2, name: '2024-2028', erp_batch_year: 2024, gender: 'female', hostel_id: 3, is_active: true },
-  { id: 3, name: '2025-2029', erp_batch_year: 2025, gender: 'male', hostel_id: 4, is_active: true }
+  { id: 3, name: '2025-2029', erp_batch_year: 2025, gender: 'male', hostel_id: 4, is_active: true },
+  { id: 4, name: '2024-2027', erp_batch_year: 2024, college: 'lapc', gender: 'male', hostel_id: 5, is_active: true }
 ];
 const response = () => ({ status(code) { this.code = code; return this; }, json(body) { this.body = body; return this; } });
 try {
@@ -16,6 +17,7 @@ try {
   Enrollment.findAll = async () => [];
   RoomAllotment.findAll = async () => [];
   global.fetch = async () => ({ ok: true, json: async () => [
+    { id: 'lapc', studentName: 'LAPC EXCEL ONLY', registerNumber: 'LAPC001', college: 'lapc', gender: 'male', batch: 2024, student_type: 'Hosteller' },
     { id: 'male', studentName: 'MALE MATCH', registerNumber: '239999001', gender: 'M', batch: 2024, student_type: 'Hosteller' },
     { id: 'female', studentName: 'FEMALE MATCH', registerNumber: '239999002', gender: 'Female', batch: 2024, student_type: 'Hosteller' },
     { id: 'other-year', studentName: 'OTHER YEAR', registerNumber: '239999003', gender: 'male', batch: 2025, student_type: 'Hosteller' },
@@ -23,15 +25,15 @@ try {
     { id: 'missing-gender', studentName: 'NO GENDER', registerNumber: '239999005', batch: 2024, student_type: 'Hosteller' },
     { id: 'day', studentName: 'DAY SCHOLAR', registerNumber: '239999006', gender: 'male', batch: 2024, student_type: 'Day Scholar' }
   ] });
-  for (const [hostelId, expected] of [[2, 'male'], [3, 'female'], [4, 'other-year']]) {
+  for (const [hostelId, expected] of [[2, 'male'], [3, 'female'], [4, 'other-year'], [5, null]]) {
     const candidates = response();
     await getStudents({ user: { role: 'warden', hostel_id: hostelId }, query: { source: 'erp' }, headers: {} }, candidates);
     assert.equal(candidates.body.success, true, candidates.body.message);
-    assert.deepEqual(candidates.body.data.map(row => row.id), [expected]);
+    assert.deepEqual(candidates.body.data.map(row => row.id), expected ? [expected] : []);
     const preview = response();
     await getErpSyncStatus({ user: { role: 'warden', hostel_id: hostelId }, headers: {} }, preview);
     assert.equal(preview.body.success, true, preview.body.message);
-    assert.deepEqual(preview.body.data.newStudents.map(row => row.id), [expected]);
+    assert.deepEqual(preview.body.data.newStudents.map(row => row.id), expected ? [expected] : []);
   }
   const unassigned = response();
   await getStudents({ user: { role: 'warden' }, query: { source: 'erp' }, headers: {} }, unassigned);

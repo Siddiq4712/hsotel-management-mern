@@ -1,28 +1,11 @@
+import { normalizeRole } from '../../shared/roles.js';
+import { enforceScreenPermissions } from './screenPermissions.js';
 import jwt from 'jsonwebtoken';
 import { User, Role } from '../models/index.js'; // Ensure the .js extension
 import { canAccessRole } from '../utils/workspacePermissions.js';
 import { withActivityRequest } from '../services/activityContext.js';
 import { withNotificationRequest } from '../services/notificationContext.js';
 
-const normalizeRole = (role) => {
-  if (role === null || role === undefined) return null;
-
-  const normalized = String(role).trim().toLowerCase();
-  const roleMap = {
-    admin: 'admin',
-    administrator: 'admin',
-    warden: 'warden',
-    student: 'student',
-    lapc: 'lapc',
-    mess: 'mess',
-    messstaff: 'mess',
-    'mess staff': 'mess',
-    parent: 'parent',
-    security: 'security'
-  };
-
-  return roleMap[normalized] || normalized;
-};
 
 export const auth = async (req, res, next) => {
   try {
@@ -64,7 +47,7 @@ export const auth = async (req, res, next) => {
       hostel_id: user.hostel_id ?? null
     };
 
-    return withNotificationRequest(req, () => withActivityRequest(req, res, next));
+    return withNotificationRequest(req, () => withActivityRequest(req, res, () => enforceScreenPermissions(req, res, next)));
   } catch (error) {
     console.error('Auth middleware error:', error.message);
     res.status(401).json({ message: 'Token is not valid' });

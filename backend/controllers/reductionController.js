@@ -1,3 +1,4 @@
+import { normalizeRole } from '../../shared/roles.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,7 +29,7 @@ async function storeDocument(file) {
 }
 
 function readAllowed(user, request) {
-  return canReviewReduction(user, request) || (['student', 'lapc'].includes(user.role) && Number(user.userId) === Number(request.student_id));
+  return canReviewReduction(user, request) || (normalizeRole(user.role) === 'student' && Number(user.userId) === Number(request.student_id));
 }
 function publicRequest(record) {
   const row = JSON.parse(JSON.stringify(record.get ? record.get({ plain: true }) : record));
@@ -95,7 +96,7 @@ export async function submitReduction(req, res) {
 export async function listReductions(req, res) {
   try {
     const where = {};
-    if (['student', 'lapc'].includes(req.user.role)) where.student_id = req.user.userId;
+    if (normalizeRole(req.user.role) === 'student') where.student_id = req.user.userId;
     else if (req.user.role === 'warden') {
       if (!req.user.hostel_id) throw errorWithStatus('No hostel assigned.', 403);
       where.hostel_id = req.user.hostel_id;
@@ -172,7 +173,7 @@ export async function decideReduction(req, res) {
       let request = await DayReductionRequest.findByPk(req.params.id, { transaction });
       if (!request) throw errorWithStatus('Request not found.', 404);
       const reviewer = canReviewReduction(req.user, request);
-      const owner = ['student', 'lapc'].includes(req.user.role) && Number(req.user.userId) === Number(request.student_id);
+      const owner = normalizeRole(req.user.role) === 'student' && Number(req.user.userId) === Number(request.student_id);
       if (!reviewer && !(owner && action === 'cancel' && ['pending_admin', 'needs_correction'].includes(request.status))) throw errorWithStatus('You cannot process this request.', 403);
       await studentLock(request.student_id, transaction);
       request = await DayReductionRequest.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });

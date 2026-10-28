@@ -169,7 +169,7 @@ try {
   const session = await Session.create({ name: `Billing ${tag}`, start_date: `${period.start}T00:00:00Z`, end_date: `${period.year}-${String(period.month).padStart(2,'0')}-${new Date(Date.UTC(period.year, period.month, 0)).getUTCDate()}T23:59:59Z` }, { transaction });
   for (let index = 0; index < 2; index++) {
     const student = await User.create({ userName: `Billing student ${index}`, userMail: `${tag}-${index}@invalid.test`, password: 'test-only', roleId: role.roleId }, { transaction });
-    await Enrollment.create({ student_id: student.userId, hostel_id: sharedHosts[index].id, session_id: session.id, college: 'nec' }, { transaction });
+    await Enrollment.create({ student_id: student.userId, hostel_id: sharedHosts[index].id, session_id: session.id, college: index === 1 ? 'lapc' : 'nec' }, { transaction });
   }
   await purchase(sharedHosts[0], 100, 10);
   await purchase(sharedHosts[1], 100, 20);
@@ -192,7 +192,7 @@ try {
   assert.equal(excessiveReturn.statusCode, 400);
   const calcs = [];
   for (const hostel of sharedHosts) calcs.push(await getMessCalculation(hostel.id, period.month, period.year, transaction));
-  assert.equal(calcs[0].dailyRate, calcs[1].dailyRate);
+  assert.equal(calcs[0].dailyRate, calcs[1].dailyRate, 'NEC and LAPC hostels in one shared policy use the same daily rate');
   assert.equal(calcs[0].foodExpenses, 155, 'shared consumption and additional expense are counted once');
   assert.equal(calcs[0].sharedSummary.totalManDays, 2 * new Date(Date.UTC(period.year, period.month, 0)).getUTCDate());
   const reportReq = (hostel, kind, extra = {}) => ({ ...request(hostel), params: { id: sharedPool.id }, query: { month: period.month, year: period.year, kind, format: 'preview', ...extra } });

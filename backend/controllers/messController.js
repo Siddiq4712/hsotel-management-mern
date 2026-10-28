@@ -1,4 +1,5 @@
 import { assertAdditionalFoodMonthOpen, syncAdditionalFoodFee } from '../services/additionalFoodBilling.js';
+import { paginationOptions, paginationMeta } from '../utils/pagination.js';
 import { assertAdditionalFoodQuantity } from '../services/additionalFoodQuantity.js';
 import { normalizeAdditionalFood, validateAdditionalFoodOrder } from '../utils/additionalFood.js';
 import { freezeSharedBilling } from '../services/freezeSharedBilling.js';
@@ -27,6 +28,7 @@ import { getMonthDateRange } from '../utils/dateUtils.js'; // Added .js extensio
 import { sendConsumptionNotificationToAdmin } from '../utils/emailUtils.js'; // Added .js extension
 import { fetchStudentsFromERP } from '../services/erpStudentService.js';
 import { getHistoricalBilling, monthlyHistoricalReport, sendHistoricalDailyReport } from '../utils/historicalBilling.js';
+import { historicalDailyReport } from '../services/historicalDailyReport.js';
 
 async function studentRoleId() {
   const role = await Role.findOne({ where: { roleName: 'Student' } });
@@ -3492,7 +3494,8 @@ export const getFoodOrders = async (req, res) => {
       };
     }
 
-    const orders = await FoodOrder.findAll({
+    const paging = paginationOptions(req.query);
+    const options = {
       where: whereClause,
       include: [{
         model: FoodOrderItem,
@@ -3505,16 +3508,23 @@ export const getFoodOrders = async (req, res) => {
         as: 'Student',
         attributes: ['userId', 'userName', 'userMail']
       }],
-      order: [['order_date', 'DESC']]
-    });
+      order: [['order_date', 'DESC'], ['id', 'DESC']],
+      ...(paging ? { limit: paging.limit, offset: paging.offset } : {}),
+    };
+    // Count parents separately: an order with multiple items is still one order.
+    const [orders, count] = await Promise.all([
+      FoodOrder.findAll(options),
+      paging ? FoodOrder.count({ where: whereClause }) : Promise.resolve(null),
+    ]);
 
     res.json({
       success: true,
-      data: orders
+      data: orders,
+      ...(paging ? { pagination: paginationMeta(paging, count) } : {}),
     });
   } catch (error) {
     console.error('Food orders fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Server error' });
   }
 };
 
@@ -5019,7 +5029,7 @@ export const getMessFeeSummary = async (req, res) => {
 export const getStudentFeeBreakdown = async (req, res) => {
   try {
     const { month, year } = req.query;
-    const historical = await getHistoricalBilling(req.user.hostel_id, month, year);
+    const historical = await historicalDailyReport(req.user.hostel_id, month, year);
     const report = historical ? monthlyHistoricalReport(historical) : await buildMonthlyMessReport(req.user.hostel_id, month, year);
     res.json({ success: true, data: report.data.map(row => ({
       userId: row.studentId, userName: row.name, roll_number: row.regNo,
@@ -5377,7 +5387,7 @@ export const generateMonthlyMessReport = async (req, res) => {
   try {
     const { month, year, college } = req.query;
     const hostelId = req.user.hostel_id;
-    const historical = await getHistoricalBilling(hostelId, month, year);
+    const historical = await historicalDailyReport(hostelId, month, year);
     if (historical) return res.json(monthlyHistoricalReport(historical, college));
     const { calculation, ...report } = await buildMonthlyMessReport(hostelId, month, year, college);
     res.json(report);
@@ -5525,7 +5535,7 @@ export const deleteStudentFee = async (req, res) => {
   }
 };
 export const bulkDeleteStudentFees = async (req, res) => {
-  const transaction = await sequelize.transaction();
+  let transaction;
   try {
     const { ids } = req.body; 
     const { hostel_id } = req.user;
@@ -5533,6 +5543,8 @@ export const bulkDeleteStudentFees = async (req, res) => {
     if (!ids || !Array.isArray(ids)) {
       return res.status(400).json({ success: false, message: 'Invalid IDs provided.' });
     }
+
+    transaction = await sequelize.transaction();
 
     // 1. Fetch all fees being deleted to identify bed charges
     const feesToDelete = await StudentFee.findAll({
@@ -5573,7 +5585,7 @@ export const bulkDeleteStudentFees = async (req, res) => {
       message: `Successfully reverted ${result} records and restored any applicable dues.` 
     });
   } catch (error) {
-    await transaction.rollback();
+    if (transaction && !transaction.finished) await transaction.rollback();
     console.error('Bulk delete error:', error);
     res.status(500).json({ success: false, message: 'Server error: ' + error.message });
   }
@@ -6279,7 +6291,7 @@ export const generateDailyRateReport = async (req, res) => {
   try {
     const { month, year, export: exportToExcel } = req.query;
     const { hostel_id } = req.user;
-    const historical = await getHistoricalBilling(hostel_id, month, year);
+    const historical = await historicalDailyReport(hostel_id, month, year);
     if (historical) return await sendHistoricalDailyReport(res, historical, exportToExcel);
 
     if (!month || !year) {
@@ -6373,7 +6385,7 @@ export const generateDailyRateReport = async (req, res) => {
 
   } catch (error) {
     console.error('Error generating daily rate report:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    res.status(error.status || 500).json({ success: false, message: error.message });
   }
 };
 export { recordStaffRecordedSpecialFoodConsumption } from './specialMealController.js';
@@ -7021,6 +7033,5 @@ export const deleteRecipe = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
 
 

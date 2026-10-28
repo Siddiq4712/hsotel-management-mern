@@ -1,6 +1,8 @@
 import bcrypt from 'bcryptjs';
+import { normalizeRole } from '../../shared/roles.js';
 import { Op, fn, col, literal } from 'sequelize';
 import sequelize from '../config/database.js';
+import { archiveRoomTemplate } from '../services/roomTemplates.js';
 import {
   User, Role, Hostel, RoomType, HostelRoom, Session, Attendance,
   HostelFacilityType, HostelFacility, HostelFacilityRegister, HostelMaintenance,
@@ -16,31 +18,22 @@ import moment from 'moment';
 
 const resolveRoleRecord = async ({ roleId, role }) => {
   if (roleId) {
-    return Role.findByPk(roleId);
+    const record = await Role.findByPk(roleId);
+    if (String(record?.roleName).trim().toLowerCase() !== 'lapc') return record;
+    // New assignments use the canonical Student record; legacy IDs remain readable.
+    return Role.findOne({ where: sequelize.where(fn('LOWER', col('roleName')), 'student') });
   }
 
   if (!role) return null;
 
-  const normalizedRole = String(role).trim().toLowerCase();
-  const roleAlias = {
-    admin: 'admin',
-    administrator: 'admin',
-    warden: 'warden',
-    student: 'student',
-    mess: 'mess',
-    'mess staff': 'mess',
-    messstaff: 'mess',
-    lapc: 'student'
-  };
-
-  const roleKey = roleAlias[normalizedRole] || normalizedRole;
+  const roleKey = normalizeRole(role);
 
   return Role.findOne({
     where: sequelize.where(fn('LOWER', col('roleName')), roleKey)
   });
 };
 
-const normalizeRoleName = (name) => String(name || '').trim();
+const normalizeRoleName = (name) => normalizeRole(name) === 'student' ? 'Student' : String(name || '').trim();
 
 // HOSTEL MANAGEMENT
 const hostelFields = (body, partial = false) => {
@@ -91,7 +84,7 @@ export const getHostels = async (req, res) => {
     const where = req.query.include_inactive === 'true' ? {} : { is_active: true };
     if (search) where[Op.or] = [{ name: { [Op.like]: `%${search}%` } }, { address: { [Op.like]: `%${search}%` } }];
     const hostels = await Hostel.findAll({ where, include: [{ model: HostelRoom, include: [{ model: RoomType }] }], order: [['createdAt', 'DESC'], ['id', 'DESC']] });
-    const batches = await Session.findAll({ where: { is_active: true }, attributes: ['id', 'name', 'hostel_id', 'erp_batch_year'] });
+    const batches = await Session.findAll({ where: { is_active: true }, attributes: ['id', 'name', 'hostel_id', 'erp_batch_year', 'gender', 'college'] });
     return res.json({ success: true, data: hostels.map(hostel => ({ ...hostel.toJSON(), batches: batches.filter(batch => batch.hostel_id === hostel.id) })) });
   } catch (error) { return hostelFailure(res, error); }
 };
@@ -151,7 +144,7 @@ export const getRoles = async (req, res) => {
       order: [['roleName', 'ASC']]
     });
 
-    res.json({ success: true, data: roles });
+    res.json({ success: true, data: roles.filter(role => String(role.roleName).trim().toLowerCase() !== 'lapc') });
   } catch (error) {
     console.error('Roles fetch error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -245,8 +238,8 @@ export const createUser = async (req, res) => {
       });
     }
 
-    const roleNameLower = roleData.roleName?.toLowerCase() || '';
-    if (['student', 'lapc'].includes(roleNameLower)) return res.status(400).json({ success: false, message: 'Use Student Admission to create students with automatic batch and hostel allocation.' });
+    const roleNameLower = normalizeRole(roleData.roleName) || '';
+    if (roleNameLower === 'student') return res.status(400).json({ success: false, message: 'Use Student Admission to create students with automatic batch and hostel allocation.' });
     const isHostelRequired = ['warden', 'student', 'mess'].includes(roleNameLower);
     if (isHostelRequired && !hostel_id) {
       return res.status(400).json({
@@ -315,7 +308,8 @@ export const getUsers = async (req, res) => {
 
     let roleInclude = { model: Role, as: 'role' };
     if (role && role !== 'all') {
-      roleInclude.where = sequelize.where(fn('LOWER', col('role.roleName')), String(role).trim().toLowerCase());
+      const roleKey = normalizeRole(role);
+      roleInclude.where = sequelize.where(fn('LOWER', col('role.roleName')), roleKey === 'student' ? { [Op.in]: ['student', 'lapc'] } : roleKey);
     }
 
     const users = await User.findAll({
@@ -338,7 +332,11 @@ export const getUsers = async (req, res) => {
       order: [['createdAt', 'DESC']]
     });
 
-    res.json({ success: true, data: users });
+    res.json({ success: true, data: users.map(user => {
+      const value = user.toJSON();
+      if (normalizeRole(value.role?.roleName) === 'student') value.role = { ...value.role, roleName: 'Student' };
+      return value;
+    }) });
   } catch (error) {
     console.error('Users fetch error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -367,13 +365,13 @@ export const updateUser = async (req, res) => {
       });
     }
 
-    const roleNameLower = roleData.roleName?.toLowerCase() || '';
+    const roleNameLower = normalizeRole(roleData.roleName) || '';
     const currentRole = await Role.findByPk(user.roleId);
-    const currentIsStudent = ['student', 'lapc'].includes(currentRole?.roleName?.toLowerCase());
-    const targetIsStudent = ['student', 'lapc'].includes(roleNameLower);
+    const currentIsStudent = normalizeRole(currentRole?.roleName) === 'student';
+    const targetIsStudent = roleNameLower === 'student';
     if (currentIsStudent !== targetIsStudent) return res.status(400).json({ success: false, message: 'Use Student Admission to change student enrollment. Student roles cannot be changed in user management.' });
     if (targetIsStudent && Number(hostel_id) !== Number(user.hostel_id)) return res.status(400).json({ success: false, message: 'Student hostel follows their batch. Change it in Manage Batches and review allocation.' });
-    const isHostelRequired = ['warden', 'student', 'lapc', 'mess'].includes(roleNameLower);
+    const isHostelRequired = ['warden', 'student', 'mess'].includes(roleNameLower);
     if (isHostelRequired && !hostel_id) {
       return res.status(400).json({
         success: false,
@@ -476,7 +474,7 @@ export const createRoomType = async (req, res) => {
 export const getRoomTypes = async (req, res) => {
   try {
     const { search } = req.query;
-    let whereClause = {};
+    let whereClause = { is_active: true };
     if (search) {
       whereClause.name = { [Op.iLike]: `%${search}%` };
     }
@@ -497,7 +495,7 @@ export const updateRoomType = async (req, res) => {
     const { name, capacity, description, hostel_id } = req.body;
 
     const roomType = await RoomType.findByPk(id);
-    if (!roomType) {
+    if (!roomType || !roomType.is_active) {
       return res.status(404).json({ success: false, message: 'Room type not found' });
     }
 
@@ -514,23 +512,15 @@ export const deleteRoomType = async (req, res) => {
   try {
     const { id } = req.params;
     const roomType = await RoomType.findByPk(id);
-    if (!roomType) {
+    if (!roomType || !roomType.is_active) {
       return res.status(404).json({ success: false, message: 'Room type not found' });
     }
 
-    const roomsCount = await HostelRoom.count({ where: { room_type_id: id } });
-    if (roomsCount > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete room type. It is being used by existing rooms.'
-      });
-    }
-
-    await roomType.destroy();
+    await archiveRoomTemplate(id, roomType.hostel_id, { sequelize, Hostel, RoomType, HostelRoom });
     res.json({ success: true, message: 'Room type deleted successfully' });
   } catch (error) {
     console.error('Room type deletion error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Server error' });
   }
 };
 
@@ -548,6 +538,8 @@ export const createRoom = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Room number already exists in this hostel' });
     }
 
+    const template = await RoomType.findOne({ where: { id: room_type_id, hostel_id, is_active: true } });
+    if (!template) return res.status(400).json({ success: false, message: 'Choose an active room template belonging to this hostel.' });
     const room = await HostelRoom.create({ hostel_id, room_type_id, room_number, floor });
 
     const roomWithDetails = await HostelRoom.findByPk(room.id, {
@@ -597,6 +589,9 @@ export const updateRoom = async (req, res) => {
 
     const room = await HostelRoom.findByPk(id);
     if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
+
+    const template = await RoomType.findOne({ where: { id: room_type_id ?? room.room_type_id, hostel_id: hostel_id ?? room.hostel_id, is_active: true } });
+    if (!template) return res.status(400).json({ success: false, message: 'Choose an active room template belonging to this hostel.' });
 
     await room.update({ hostel_id, room_type_id, room_number, floor });
 
@@ -1192,15 +1187,14 @@ export const getAdminChartData = async (req, res) => {
       raw: true
     });
 
-    const labels = [];
-    const counts = [];
+    const groupedRoles = new Map();
     userRoleCounts.forEach(item => {
-      const roleName = String(roleNames.get(String(item.roleId)) || `Unknown role (${item.roleId})`).trim();
-      labels.push(roleName ? roleName.charAt(0).toUpperCase() + roleName.slice(1).toLowerCase() : 'Unknown');
-      counts.push(parseInt(item.count, 10));
+      const rawName = String(roleNames.get(String(item.roleId)) || `Unknown role (${item.roleId})`).trim();
+      const roleName = normalizeRole(rawName) === 'student' ? 'Student' : rawName ? rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase() : 'Unknown';
+      groupedRoles.set(roleName, (groupedRoles.get(roleName) || 0) + parseInt(item.count, 10));
     });
 
-    chartData.userRoles = { labels, counts };
+    chartData.userRoles = { labels: [...groupedRoles.keys()], counts: [...groupedRoles.values()] };
 
     const monthsToFetch = 6;
     const financialMonths = [];

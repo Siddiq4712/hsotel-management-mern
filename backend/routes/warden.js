@@ -1,5 +1,6 @@
 import { uploadReductionDocument, reductionDocument, reviseReduction, decideReduction } from '../controllers/reductionController.js';
 import express from 'express';
+import { previewWardenRooms, createWardenRooms, deleteWardenRooms } from '../controllers/bulkRoomsController.js';
 import { getAttendanceRoster } from '../controllers/attendanceController.js';
 import { installAdminWorkspace } from '../middleware/adminWorkspace.js';
 import {
@@ -104,6 +105,9 @@ router.put('/room-types/:id', updateRoomTypeWarden);
 router.delete('/room-types/:id', deleteRoomTypeWarden);
 
 router.post('/rooms', createRoomWarden);
+router.post('/rooms/bulk-preview', previewWardenRooms);
+router.post('/rooms/bulk', createWardenRooms);
+router.post('/rooms/bulk-delete', deleteWardenRooms);
 router.get('/rooms', getRoomsWarden);
 router.put('/rooms/:id', updateRoomWarden);
 router.delete('/rooms/:id', deleteRoomWarden);

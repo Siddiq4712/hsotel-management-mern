@@ -1,3 +1,4 @@
+import { normalizeRole } from '../../shared/roles.js';
 import { inventoryScope } from '../services/inventoryScope.js';
 import express from 'express';
 import { Op } from 'sequelize';
@@ -15,7 +16,7 @@ router.use(auth);
 
 const dateOnly = (date = new Date()) => date.toISOString().slice(0, 10);
 const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-const roleOf = (user) => user.role === 'lapc' ? 'student' : user.role;
+const roleOf = (user) => normalizeRole(user.role);
 const CHAT_OPTIONS = {
   student: ['Apply outpass', 'Apply leave', 'My room', 'My fees', 'Raise complaint', 'Food order'],
   parent: ['Student details', 'Room details', 'Leave status', 'Fee status', 'Notices'],

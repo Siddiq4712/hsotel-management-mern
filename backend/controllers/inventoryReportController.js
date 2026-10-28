@@ -5,6 +5,8 @@ import { Hostel, Item, UOM, ItemCategory, DailyConsumption, MessDailyExpense, Ex
 import { inventoryPolicy, policyError } from '../services/inventoryBilling.js';
 import { billingMonth } from '../services/billingDays.js';
 import { buildMonthlyMessReport } from '../services/monthlyMessReport.js';
+import { getMessCalculation } from '../services/messCalculation.js';
+import { historicalDailyReport } from '../services/historicalDailyReport.js';
 
 async function authorizedInventory(req, transaction) {
   const id = Number(req.params.id);
@@ -58,8 +60,17 @@ export async function inventoryReport(req, res) {
       summary.additionalExpenses = rows.reduce((sum, row) => sum + row.Amount, 0);
     } else if (kind === 'rate' || kind === 'billing') {
       const reports = [];
-      for (const id of ids) reports.push({ id, report: await buildMonthlyMessReport(id, period.month, period.year, null, transaction) });
-      const c = reports[0]?.report.calculation;
+      let c;
+      if (kind === 'rate' && ids.length) {
+        // A rate belongs to the inventory, not to a fresh calculation of each student's bill.
+        const historical = await historicalDailyReport(ids[0], period.month, period.year, transaction);
+        c = historical ? { ...historical.daily, historicalImport: true, finalized: true,
+          foodExpenses: historical.daily.totalExpenses, billing: { totalManDays: historical.daily.totalManDays } }
+          : await getMessCalculation(ids[0], period.month, period.year, transaction);
+      } else if (kind === 'billing') {
+        for (const id of ids) reports.push({ id, report: await buildMonthlyMessReport(id, period.month, period.year, null, transaction) });
+        c = reports[0]?.report.calculation;
+      }
       summary = c ? { billingMode: policy.mode, dailyRate: c.dailyRate, totalManDays: shared ? c.sharedSummary?.totalManDays ?? c.totalManDays : c.billing.totalManDays,
         grossExpenses: c.subTotal, deductions: c.totalDeductions, foodExpenses: c.foodExpenses, finalized: Boolean(c.finalized || c.legacyFinalized), waterIsSeparate: !c.historicalImport, historicalImport: Boolean(c.historicalImport) } : {};
       if (kind === 'rate') rows = c?.expenses.map(row => ({ Particulars: row.name, Amount: row.amount })) || [];

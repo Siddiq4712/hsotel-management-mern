@@ -7,11 +7,19 @@ import { getHistoricalBilling } from '../utils/historicalBilling.js';
 export async function studentMessCharges(user, month, year) {
   const historical = await getHistoricalBilling(user.hostel_id, month, year);
   if (historical) {
-    const row = historical.rows.find(r => String(r.studentId) === String(user.userId) || String(r.regNo) === String(user.roll_number));
+    const row = historical.rows.find(r => String(r.studentId) === String(user.userId))
+      || (user.roll_number && historical.rows.find(r => String(r.regNo) === String(user.roll_number)));
+    const flatFees = row ? [
+      { fee_type: 'additional', amount: Number(row.additionalAmount || 0) },
+      { fee_type: 'bed_charge', amount: Number(row.bedCharges || 0) },
+      { fee_type: 'newspaper', amount: Number(row.hinduIndianExpress || 0) },
+      { fee_type: 'bill_rounding_adjustment', amount: Number(row.roundingUp || 0) }
+    ].filter(fee => fee.amount !== 0) : [];
     return { historical: true, dailyCharges: [], monthlySummary: {
       monthlyCalculatedDailyRate: historical.daily.dailyRate, studentTotalManDaysForMonth: row?.messDays || 0,
       baseDays: null, approvedReductionDays: null, historicalMessAmount: row?.messAmount || 0,
-      historicalFinalAmount: row?.finalAmount || 0, flatFees: [], message: 'Historical monthly statement; daily attendance is not available.' } };
+      historicalFinalAmount: row?.finalAmount || 0, totalMonthlySpecialFoodCost: 0, flatFees,
+      message: 'Historical monthly statement; daily attendance is not available.' } };
   }
   const bill = await MessBill.findOne({ where: { student_id: user.userId, hostel_id: user.hostel_id, month, year } });
   if (bill && !bill.billing_breakdown) return { legacyFinalized:true, dailyCharges:[], monthlySummary:{

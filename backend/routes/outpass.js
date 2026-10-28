@@ -24,10 +24,10 @@ installAdminWorkspace(router, 'outpass');
 router.use(auth);
 
 // Student outpass routes
-router.post('/', authorize(['student', 'lapc']), createOutpass);
-router.get('/my', authorize(['student', 'lapc']), getMyOutpasses);
-router.get('/current', authorize(['student', 'lapc']), getCurrentOutpass);
-router.delete('/cancel/:id', authorize(['student', 'lapc']), cancelOutpass);
+router.post('/', authorize(['student']), createOutpass);
+router.get('/my', authorize(['student']), getMyOutpasses);
+router.get('/current', authorize(['student']), getCurrentOutpass);
+router.delete('/cancel/:id', authorize(['student']), cancelOutpass);
 
 // Warden outpass routes
 router.get('/warden', authorize(['warden']), getWardenOutpasses);

@@ -47,6 +47,7 @@ export async function sendHistoricalDailyReport(res, payload, exportToExcel) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('August 2026 Daily Rate');
   sheet.addRow(['August 2026 historical calculation', 'Amount']);
+  if (payload.daily.scopeLabel) sheet.addRow(['Hostels covered', payload.daily.scopeLabel]);
   for (const row of payload.daily.expenses) sheet.addRow([row.name, row.amount]);
   sheet.addRow(['Gross expenses', payload.daily.subTotal]);
   for (const [name, value] of Object.entries(payload.daily.deductions)) sheet.addRow([name, -value.amount]);

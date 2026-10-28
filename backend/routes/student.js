@@ -68,7 +68,7 @@ const createOrderLimiter = rateLimit({
 
 // Apply global auth for all student routes
 router.use(auth);
-router.use(authorize(['student', 'lapc']));
+router.use(authorize(['student']));
 
 /* ---------- DASHBOARD & CHARTS ---------- */
 router.get('/dashboard-stats', getDashboardStats);

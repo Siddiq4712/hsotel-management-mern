@@ -1,4 +1,6 @@
+import { normalizeRole as resolveUserRole } from '../../shared/roles.js';
 import bcrypt from 'bcryptjs';
+import { passwordError } from '../services/passwordSecurity.js';
 import jwt from 'jsonwebtoken';
 import passport from 'passport';
 import { User, Hostel, Role } from '../models/index.js'; // Ensure the .js extension
@@ -6,23 +8,6 @@ import { User, Hostel, Role } from '../models/index.js'; // Ensure the .js exten
 import { Op, fn, col, where } from 'sequelize'; // Ensure these are imported
 import sequelize from '../config/database.js'; // Ensure your sequelize instance is imported
 
-// Helper to normalize roles for the frontend
-const resolveUserRole = (roleValue) => {
-  if (!roleValue) return null;
-  const raw = String(roleValue).trim().toLowerCase();
-  const roleMap = {
-    admin: 'admin',
-    administrator: 'admin',
-    warden: 'warden',
-    student: 'student',
-    lapc: 'student', // Mapping lapc to student role for dashboard logic
-    mess: 'mess',
-    messstaff: 'mess',
-    parent: 'parent',
-    security: 'security'
-  };
-  return roleMap[raw] || raw;
-};
 
 const getResolvedRoleForUser = async (user) => {
   const fromRelation = resolveUserRole(user?.role?.roleName);
@@ -193,7 +178,12 @@ export const googleCallback = (req, res, next) => {
 
 export const changePassword = async (req, res) => {
   try {
-    const { oldPassword, newPassword } = req.body;
+    const { oldPassword, newPassword, confirmPassword } = req.body;
+    const validationError = passwordError(newPassword, confirmPassword);
+    if (validationError || typeof oldPassword !== 'string' || !oldPassword) {
+      return res.status(400).json({ message: validationError || 'Current password is required.' });
+    }
+    if (oldPassword === newPassword) return res.status(400).json({ message: 'Choose a password different from your current password.' });
     const userId = req.user.userId;
 
     // Get the user with their current password
@@ -205,7 +195,7 @@ export const changePassword = async (req, res) => {
     // Verify the old password
     const isMatch = await bcrypt.compare(oldPassword, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Current password is incorrect' });
+      return res.status(400).json({ message: 'Current password is incorrect' });
     }
 
     // Hash the new password
@@ -213,7 +203,8 @@ export const changePassword = async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
     // Update the user's password
-    await user.update({ password: hashedPassword });
+    const [updated] = await User.update({ password: hashedPassword }, { where: { userId, password: user.password } });
+    if (!updated) return res.status(409).json({ message: 'Password changed during this request. Please try again.' });
 
     res.json({ message: 'Password updated successfully' });
   } catch (error) {

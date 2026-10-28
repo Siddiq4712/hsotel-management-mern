@@ -136,6 +136,7 @@ export const Hostel = sequelize.define('Hostel', {
 }, { tableName: 'tbl_Hostel', timestamps: true });
 
 export const Session = sequelize.define('Session', {
+  college: { type: DataTypes.STRING(16), allowNull: false, defaultValue: 'nec' },
   gender: { type: DataTypes.STRING(16), allowNull: true },
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   name: { type: DataTypes.STRING, allowNull: false },
@@ -173,7 +174,8 @@ export const RoomType = sequelize.define('RoomType', {
   name: { type: DataTypes.STRING, allowNull: false },
   capacity: { type: DataTypes.INTEGER, allowNull: false },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
-  description: { type: DataTypes.TEXT, allowNull: true }
+  description: { type: DataTypes.TEXT, allowNull: true },
+  is_active: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true }
 }, { tableName: 'tbl_RoomType', timestamps: true });
 
 export const HostelRoom = sequelize.define('HostelRoom', {

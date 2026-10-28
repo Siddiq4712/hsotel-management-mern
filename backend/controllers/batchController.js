@@ -1,9 +1,11 @@
 import sequelize from '../config/database.js';
 import { Session, Hostel, Enrollment } from '../models/index.js';
 import { listBatches, validateBatch, lockBatchConfiguration, allocationPreview, applyAllocations } from '../services/batchAllocation.js';
+import { normalizeCollege } from '../../shared/colleges.js';
+import { withBatchInventory } from '../services/batchInventory.js';
 
 export async function getBatches(req, res) {
-  try { res.json({ success: true, data: await listBatches() }); }
+  try { res.json({ success: true, data: await withBatchInventory(await listBatches()) }); }
   catch (error) { res.status(500).json({ success: false, message: error.message }); }
 }
 
@@ -13,7 +15,8 @@ export async function saveBatch(req, res) {
       const hostels = await lockBatchConfiguration(transaction);
       const existing = req.params.id ? await Session.findByPk(req.params.id, { transaction }) : null;
       if (req.params.id && !existing) throw new Error('Batch not found.');
-      const payload = validateBatch(req.body, await Session.findAll({ transaction }), existing?.id);
+      const payload = validateBatch({ ...req.body, college: req.body.college ?? existing?.college }, await Session.findAll({ transaction }), existing?.id);
+      if (existing && payload.college !== normalizeCollege(existing.college) && await Enrollment.count({ where: { session_id: existing.id, status: 'active' }, transaction })) throw new Error('This batch has active students. Create a separate batch for the other college and review allocation instead of changing its college.');
       if (existing && !payload.is_active && await Enrollment.count({ where: { session_id: existing.id, status: 'active' }, transaction })) throw new Error('This batch has active students and cannot be archived.');
       if (!hostels.some(hostel => hostel.id === payload.hostel_id && hostel.is_active)) throw new Error('Select an active hostel.');
       return existing ? existing.update(payload, { transaction }) : Session.create(payload, { transaction });

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { matchBatch, validateBatch, normalizeBatchYear } from '../services/batchAllocation.js';
+import { assertAdmissionSource, normalizeCollege } from '../../shared/colleges.js';
 const batches = [{ id: 1, name: '2024-2028', erp_batch_year: 2024, gender: 'male', hostel_id: 2, is_active: true }];
 test('ERP batch 2024 resolves to 2024-2028 and its hostel', () => {
   assert.equal(matchBatch(2024, batches, 'male').name, '2024-2028');
@@ -41,4 +42,23 @@ test('missing and unknown genders never match or create a batch', () => {
     assert.throws(() => validateBatch({ start_year: 2024, end_year: 2028, gender }, []), /gender/);
   }
   assert.throws(() => matchBatch(2024, [{ ...batches[0], gender: null }], 'male'), /No batch configured/);
+});
+
+test('NEC and LAPC with the same year and gender resolve to their own hostels', () => {
+  const lapc = { ...validateBatch({ start_year: 2024, end_year: 2027, college: 'LAPC', gender: 'male', hostel_id: 8 }, batches), id: 3 };
+  const configured = [...batches, lapc];
+  assert.equal(matchBatch(2024, configured, 'male', 'lapc').hostel_id, 8);
+  assert.equal(matchBatch(2024, configured, 'male', 'NEC').hostel_id, 2);
+  assert.throws(() => matchBatch(2024, batches, 'male', 'lapc'), /No batch configured for LAPC/);
+  assert.throws(() => validateBatch({ start_year: 2024, end_year: 2027, college: 'lapc', gender: 'male', hostel_id: 8 }, configured), /already configured/);
+  assert.throws(() => matchBatch(2024, configured, 'male', 'unknown'), /valid college/);
+  assert.throws(() => validateBatch({ start_year: 2024, end_year: 2028, college: 'unknown', gender: 'male' }, []), /valid college/);
+});
+
+test('LAPC is Excel-only, while NEC and legacy empty college records keep working', () => {
+  assert.equal(assertAdmissionSource(' LAPC ', 'excel'), 'lapc');
+  for (const source of ['api', 'manual', undefined]) assert.throws(() => assertAdmissionSource('lapc', source), /Excel/);
+  assert.equal(assertAdmissionSource('nec', 'api'), 'nec');
+  assert.equal(normalizeCollege(null), 'nec');
+  assert.throws(() => normalizeCollege(''), /valid college/);
 });

@@ -1,4 +1,5 @@
 import { studentMessCharges } from '../services/studentMessCharges.js';
+import { paginationOptions, paginationMeta } from '../utils/pagination.js';
 ﻿import { 
   User, HostelRoom, RoomType, MessBill, DailyMessCharge, MenuSchedule, MessDailyExpense, ExpenseType,
   Leave, Complaint, Transaction, Attendance, Token, Rebate,
@@ -171,6 +172,21 @@ export const getMessBills = async (req, res) => {
     if (month) whereClause.month = parseInt(month);
     if (year) whereClause.year = parseInt(year);
 
+    const paging = paginationOptions(req.query);
+    if (paging) {
+      const [result, totals] = await Promise.all([
+        MessBill.findAndCountAll({ where: whereClause, limit: paging.limit, offset: paging.offset,
+          order: [['year', 'DESC'], ['month', 'DESC'], ['id', 'DESC']],
+          include: [{ model: User, as: 'MessBillStudent', attributes: ['userId', 'userName'] }] }),
+        MessBill.findAll({ where: whereClause, raw: true, attributes: [
+          [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount'],
+          ...['paid', 'pending', 'overdue'].map(status => [sequelize.literal(`SUM(CASE WHEN status = '${status}' THEN amount ELSE 0 END)`), `${status}Amount`]),
+        ] }),
+      ]);
+      return res.json({ success: true, data: result.rows, pagination: paginationMeta(paging, result.count),
+        summary: Object.fromEntries(Object.entries(totals[0] || {}).map(([key, value]) => [key, Number(value || 0)])) });
+    }
+
     const bills = await MessBill.findAll({
       where: whereClause,
       order: [['year', 'DESC'], ['month', 'DESC']],
@@ -186,7 +202,7 @@ export const getMessBills = async (req, res) => {
     res.json({ success: true, data: bills });
   } catch (error) {
     console.error('Mess bills fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Server error: ' + error.message });
   }
 };
 
@@ -454,6 +470,21 @@ export const getTransactions = async (req, res) => {
     if (status && status !== 'all') whereClause.status = status;
     if (from_date && to_date) whereClause.createdAt = { [Op.between]: [from_date, to_date] };
 
+    const paging = paginationOptions(req.query);
+    if (paging) {
+      const [result, totals] = await Promise.all([
+        Transaction.findAndCountAll({ where: whereClause, limit: paging.limit, offset: paging.offset,
+          include: [{ model: User, as: 'ProcessedBy', attributes: ['userId', 'userName'], required: false }],
+          order: [['createdAt', 'DESC'], ['id', 'DESC']] }),
+        Transaction.findAll({ where: whereClause, raw: true, attributes: [
+          [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount'],
+          ...['completed', 'pending'].map(status => [sequelize.literal(`SUM(CASE WHEN status = '${status}' THEN 1 ELSE 0 END)`), status]),
+        ] }),
+      ]);
+      return res.json({ success: true, data: result.rows, pagination: paginationMeta(paging, result.count),
+        summary: { totalTransactions: Number(result.count), ...Object.fromEntries(Object.entries(totals[0] || {}).map(([key, value]) => [key, Number(value || 0)])) } });
+    }
+
     const transactions = await Transaction.findAll({
       where: whereClause,
       include: [{ model: User, as: 'ProcessedBy', attributes: ['userId', 'userName'], required: false }],
@@ -462,7 +493,7 @@ export const getTransactions = async (req, res) => {
     res.json({ success: true, data: transactions });
   } catch (error) {
     console.error('Transactions fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    res.status(error.status || 500).json({ success: false, message: error.status ? error.message : 'Server error: ' + error.message });
   }
 };
 
@@ -821,7 +852,7 @@ export const getStudentRooms = async (req, res) => {
 export const getStudentRoomTypes = async (req, res) => {
   try {
     const hostel_id = ensureStudentHostel(req);
-    const types = await RoomType.findAll({ where: { hostel_id }, order: [["name", "ASC"]] });
+    const types = await RoomType.findAll({ where: { hostel_id, is_active: true }, order: [["name", "ASC"]] });
     res.json({ success: true, data: types });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });

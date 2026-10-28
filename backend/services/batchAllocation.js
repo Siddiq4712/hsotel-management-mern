@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { Op } from 'sequelize';
 import sequelize from '../config/database.js';
 import { Session, Hostel, Enrollment, User, Role, RoomAllotment, HostelRoom } from '../models/index.js';
+import { normalizeCollege } from '../../shared/colleges.js';
 
 export function normalizeBatchYear(value) {
   const raw = String(value ?? '').trim();
@@ -16,11 +17,13 @@ export function normalizeGender(value) {
   throw new Error('A valid student gender (Male or Female) is required.');
 }
 
-export function matchBatch(batchYear, batches, gender) {
+export function matchBatch(batchYear, batches, gender, college = 'nec') {
   const year = normalizeBatchYear(batchYear);
   const normalizedGender = normalizeGender(gender);
-  const matches = batches.filter(batch => batch.is_active && Number(batch.erp_batch_year) === year && batch.gender === normalizedGender);
-  if (matches.length !== 1) throw new Error(matches.length ? `Ambiguous batch configuration for admission year ${year} and gender ${normalizedGender}` : `No batch configured for admission year ${year} and gender ${normalizedGender}. Configure it in Manage Batches.`);
+  const normalizedCollege = normalizeCollege(college);
+  const matches = batches.filter(batch => batch.is_active && Number(batch.erp_batch_year) === year && batch.gender === normalizedGender && normalizeCollege(batch.college) === normalizedCollege);
+  const description = `${normalizedCollege.toUpperCase()} admission year ${year} and gender ${normalizedGender}`;
+  if (matches.length !== 1) throw new Error(matches.length ? `Ambiguous batch configuration for ${description}` : `No batch configured for ${description}. Configure it in Manage Batches.`);
   if (!matches[0].hostel_id) throw new Error(`Assign a hostel to batch ${matches[0].name} first.`);
   return matches[0];
 }
@@ -30,10 +33,11 @@ export function validateBatch(input, batches, editingId = null) {
   const end = Number(input.end_year);
   const year = normalizeBatchYear(input.erp_batch_year ?? input.start_year);
   const gender = normalizeGender(input.gender);
+  const college = normalizeCollege(input.college);
   if (!Number.isInteger(start) || !Number.isInteger(end) || start < 2000 || end > 2100 || end <= start) throw new Error('Enter valid start and end years. End year must be later than start year.');
   if (year !== start) throw new Error('ERP batch admission year must match the batch start year.');
-  if (batches.some(batch => String(batch.id) !== String(editingId) && Number(batch.erp_batch_year) === year && batch.gender === gender)) throw new Error('This admission year and gender are already configured. Edit its existing batch.');
-  return { name: `${start}-${end}`, start_date: `${start}-06-01`, end_date: `${end}-05-31`, erp_batch_year: year, gender, hostel_id: Number(input.hostel_id), is_active: input.is_active !== false };
+  if (batches.some(batch => String(batch.id) !== String(editingId) && Number(batch.erp_batch_year) === year && batch.gender === gender && normalizeCollege(batch.college) === college)) throw new Error('This college, admission year and gender are already configured. Edit its existing batch.');
+  return { name: `${start}-${end}`, start_date: `${start}-06-01`, end_date: `${end}-05-31`, erp_batch_year: year, gender, college, hostel_id: Number(input.hostel_id), is_active: input.is_active !== false };
 }
 
 // Lock hostel rows in a consistent order to serialize configuration changes.
@@ -45,15 +49,21 @@ export async function listBatches(transaction) {
   const [batches, hostels, enrollments] = await Promise.all([
     Session.findAll({ order: [['start_date', 'DESC']], transaction }),
     Hostel.findAll({ attributes: ['id', 'name', 'is_active'], transaction }),
-    Enrollment.findAll({ where: { status: 'active' }, attributes: ['student_id', 'session_id'], raw: true, transaction })
+    Enrollment.findAll({
+      where: { status: 'active' },
+      attributes: ['student_id', 'session_id'],
+      include: [{ model: User, as: 'Student', attributes: [], required: true, where: { status: true } }],
+      raw: true,
+      transaction
+    })
   ]);
   return batches.map(batch => ({ ...batch.toJSON(), hostel_name: hostels.find(hostel => hostel.id === batch.hostel_id)?.name || '',
     student_count: new Set(enrollments.filter(entry => entry.session_id === batch.id).map(entry => entry.student_id)).size }));
 }
 
-export async function resolveStudentBatch(batchYear, actor, transaction, gender) {
+export async function resolveStudentBatch(batchYear, actor, transaction, gender, college = 'nec') {
   if (transaction) await lockBatchConfiguration(transaction);
-  const batch = matchBatch(batchYear, await Session.findAll({ transaction, lock: transaction?.LOCK.SHARE }), gender);
+  const batch = matchBatch(batchYear, await Session.findAll({ transaction, lock: transaction?.LOCK.SHARE }), gender, college);
   const hostel = await Hostel.findByPk(batch.hostel_id, { transaction });
   if (!hostel?.is_active) throw new Error(`Hostel assigned to batch ${batch.name} is inactive.`);
   const actorHostel = actor.hostel_id || actor.hostelId;
@@ -86,7 +96,8 @@ export async function allocationPreview(transaction) {
     try {
       if (own.length !== 1) throw new Error('Multiple active enrollments need administrator review.');
       row.erp_batch_year = own[0].erp_batch_year;
-      const batch = matchBatch(row.erp_batch_year, batches, student.gender);
+      row.college = normalizeCollege(own[0].college);
+      const batch = matchBatch(row.erp_batch_year, batches, student.gender, row.college);
       row.batch_id = batch.id; row.batch = batch.name; row.hostel_id = batch.hostel_id;
       row.hostel = hostels.find(hostel => hostel.id === batch.hostel_id)?.name || '';
       if (!hostels.some(hostel => hostel.id === batch.hostel_id && hostel.is_active)) throw new Error('Assigned hostel is inactive.');

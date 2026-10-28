@@ -1,3 +1,5 @@
+import permissionRoutes from './routes/permissions.js';
+import { ensurePermissionPolicy } from './services/permissions.js';
 import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
@@ -16,6 +18,7 @@ import { ensureMenuPlanningSchema } from './services/menuPlanningSchema.js';
 import { ensureInventorySchema } from './services/inventorySchema.js';
 import { ensureAdditionalFoodSchema } from './services/additionalFoodSchema.js';
 import { ensureBatchSchema } from './services/batchSchema.js';
+import { ensureRoomTemplateSchema } from './services/roomTemplateSchema.js';
 
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
@@ -62,6 +65,7 @@ app.use(passport.session());
    ROUTES
 ======================= */
 app.use('/api/auth', authRoutes);
+app.use('/api/permissions', permissionRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/warden', wardenRoutes);
 app.use('/api/student', studentRoutes);
@@ -128,6 +132,8 @@ installActivityRecorder(models);
 ensureReductionSchema(sequelize)
   .then(() => ensureMenuPlanningSchema())
   .then(() => sequelize.sync())
+  .then(() => ensurePermissionPolicy())
+  .then(() => ensureRoomTemplateSchema(sequelize))
   .then(() => ensureBatchSchema())
   .then(() => ensureAdditionalFoodSchema())
   .then(() => ensureInventorySchema())
