@@ -7,12 +7,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
       "supportsTablet": true
     },
@@ -21,19 +15,19 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "API_BASE_URL": "http://192.168.29.1:5001/api",
+      "API_BASE_URL": "http://192.168.1.5:5001/api",
       "GEOFENCE_LAT": "9.1474619",
       "GEOFENCE_LNG": "77.8276993",
       "GEOFENCE_RADIUS_M": "200"
     },
     "plugins": [
+      "./plugins/withApiNetworkSecurity",
       "expo-web-browser",
       "expo-font"
     ]
