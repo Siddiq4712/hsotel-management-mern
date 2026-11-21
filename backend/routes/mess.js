@@ -143,7 +143,6 @@ import {
   getItemStockChartData, 
   getSessions,
 
-  generateDailyRateReport,
   getStudents,
   recordStaffRecordedSpecialFoodConsumption,
   generateMessBills,
@@ -168,10 +167,10 @@ import {
   recordItemReturn
 } from '../controllers/messController.js'; // Added .js extension
 
+import { generateDailyRateReport } from '../controllers/dailyRateReportController.js';
 import { auth, authorize } from '../middleware/auth.js'; // Added .js extension
 
 const router = express.Router();
-installAdminWorkspace(router, 'mess');
 
 // Rate limiting for sensitive endpoints
 const createOrderLimiter = rateLimit({
@@ -229,6 +228,9 @@ const validateMenuSchedule = [
 
 // Apply authentication middleware to all routes
 router.use(auth);
+// This report resolves workspace scope itself, so register it before the legacy wrapper.
+router.get('/reports/daily-rate-calculation', authorize(['mess', 'admin']), generateDailyRateReport);
+installAdminWorkspace(router, 'mess');
 
 /* ---------- DASHBOARD & CHARTS ---------- */
 router.get('/dashboard-stats', authorize(['mess', 'warden', 'admin']), getMessDashboardStats);
@@ -336,7 +338,6 @@ router.get('/reports/mess-fee-summary', authorize(['mess', 'admin']), getMessFee
 router.get('/reports/student-fee-breakdown', authorize(['mess', 'admin']), getStudentFeeBreakdown);
 router.get('/reports/monthly-mess-bill', authorize(['mess', 'admin']), generateMonthlyMessReport);
 router.get('/reports/daily-consumption-details', authorize(['mess', 'admin']), getDailyConsumptionDetails);
-router.get('/reports/daily-rate-calculation', authorize(['mess', 'admin']), generateDailyRateReport);
 router.get('/stock/export-unit-rate', authorize(['mess', 'admin']), exportUnitRateCalculation);
 
 /* ---------- DAILY EXPENSES ---------- */

@@ -108,7 +108,7 @@ const StudentProfileScreen = () => {
           <Text className="text-2xl font-bold text-indigo-900">{profile.username}</Text>
           <Text className="text-base text-gray-600 mt-1">{profile.email}</Text>
           <Text className="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full mt-2">
-            {profile.role?.toUpperCase()}
+            {(profile.resident_type || user?.resident_type) === 'staff' ? 'STAFF RESIDENT' : profile.role?.toUpperCase()}
           </Text>
         </Card>
 

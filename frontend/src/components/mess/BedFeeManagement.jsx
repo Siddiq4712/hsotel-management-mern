@@ -1,6 +1,7 @@
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
 import { PermissionPopconfirm as Popconfirm, PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, Table, Form, Input, Select, message, Space, Typography, Checkbox, Row, Col, ConfigProvider, theme, Skeleton, Divider, Tag, InputNumber } from 'antd';
+import { Card, Table, Form, Input, Select, message, Space, Typography, Checkbox, Row, Col, ConfigProvider, Skeleton, Divider, Tag, InputNumber } from 'antd';
 import { 
   Bed, Plus, Trash2, ChevronLeft, ChevronRight, LayoutGrid, 
   RefreshCw, FilePlus, ClipboardCheck, Info, Search, Download 
@@ -14,7 +15,7 @@ const { Option } = Select;
 
 // --- Specialized Skeleton for Loading State ---
 const BedFeeSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+  <Card className="border-none shadow-sm rounded-surface p-6 bg-white overflow-hidden">
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <Skeleton.Input active style={{ width: 250 }} />
@@ -250,21 +251,13 @@ const BedFeeManagement = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header */}
-        <div className="module-page-header flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100"><Bed className="text-white" size={24} /></div>
-            <div>
-              <Title level={2} style={{ margin: 0 }}>Bed Fee Management</Title>
-              <Text type="secondary">Managing housing charges for eligible residents</Text>
-            </div>
-          </div>
-
+        <WorkspacePageHeader title="Bed Fee Management" icon={Bed} description="Manage housing charges by billing month.">
           <div className="flex items-center gap-3">
-            <div className="bg-white p-1 rounded-xl shadow-sm border flex items-center">
+            <div className="bg-white p-1 rounded-control shadow-sm border flex items-center">
               <Button type="text" icon={<ChevronLeft size={16} />} onClick={() => setSelectedDate(prev => prev.clone().subtract(1, 'month'))} />
               <div className="px-4 text-center min-w-[140px]"><Text strong className="text-blue-600 uppercase">{selectedDate.format('MMMM YYYY')}</Text></div>
               <Button type="text" icon={<ChevronRight size={16} />} onClick={() => setSelectedDate(prev => prev.clone().add(1, 'month'))} />
@@ -276,10 +269,10 @@ const BedFeeManagement = () => {
               <Button permissionAction="create" type="primary" icon={<FilePlus size={18}/>} onClick={() => setIsGenerateFeeModalVisible(true)}>Generate New Fees</Button>
             </Space>
           </div>
-        </div>
+        </WorkspacePageHeader>
 
         {/* Filters */}
-        <Card className="border-none shadow-sm rounded-xl mb-6">
+        <Card className="border-none shadow-sm rounded-surface mb-6">
           <div className="flex flex-wrap items-center gap-4">
             <Select
               placeholder="Filter List by Batch"
@@ -292,7 +285,7 @@ const BedFeeManagement = () => {
             </Select>
             <Button icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''} />} onClick={fetchInitialData}>Refresh</Button>
           </div>
-          <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3">
+          <div className="mt-4 rounded-control border border-blue-100 bg-blue-50 p-3">
             <Text className="text-xs text-blue-700">Excel reference for student bulk sheets: {requiredImportColumns.map((column) => column.label).join(', ')}</Text>
             <div className="flex flex-wrap gap-2 mt-2">
               {requiredImportColumns.map((column) => (
@@ -304,7 +297,7 @@ const BedFeeManagement = () => {
 
         {/* Table */}
         {loading ? <BedFeeSkeleton /> : (
-          <Card className="border-none shadow-sm rounded-2xl overflow-hidden" bodyStyle={{ padding: 0 }}>
+          <Card className="border-none shadow-sm rounded-surface overflow-hidden" bodyStyle={{ padding: 0 }}>
             <Table 
               columns={columns} 
               dataSource={bedFees} 
@@ -432,7 +425,7 @@ const BedFeeManagement = () => {
 
             <Divider orientation="left"><Text className="text-[10px] font-bold uppercase text-slate-400">Eligible Students (requires_bed = 1)</Text></Divider>
             
-            <div className="bg-slate-50 p-4 rounded-xl border">
+            <div className="bg-slate-50 p-4 rounded-surface border">
                {modalLoading ? <Skeleton active paragraph={{ rows: 2 }} /> : (
                  <>
                   <Checkbox
@@ -478,7 +471,7 @@ const BedFeeManagement = () => {
           okText="Generate All"
         >
            <Form form={bulkForm} layout="vertical" onFinish={handleBulkSessionGenerate}>
-              <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex gap-3 mb-6">
+              <div className="p-4 bg-amber-50 rounded-surface border border-amber-100 flex gap-3 mb-6">
                   <Info size={18} className="text-amber-500 shrink-0" />
                   <Text className="text-[11px] text-amber-700">
                     This action will generate bed fees for <b>every active student</b> in the selected batch

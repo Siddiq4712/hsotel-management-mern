@@ -1,7 +1,8 @@
 import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState } from 'react';
-import { Card, Form, Input, Select, Typography, Row, Col, Space, Divider, message, ConfigProvider, theme, Alert } from 'antd';
+import { Card, Form, Input, Select, Typography, Row, Col, Space, Divider, message, ConfigProvider } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import { 
   Calendar, FileText, Send, RefreshCw, 
   Info, ClipboardList, Clock, ShieldCheck 
@@ -50,13 +51,13 @@ const ApplyLeave = () => {
   };
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header Section */}
         <div className="module-page-header flex justify-between items-center mb-8">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100">
               <Calendar className="text-white" size={24} />
             </div>
             <div>
@@ -69,7 +70,7 @@ const ApplyLeave = () => {
         <Row gutter={24}>
           {/* Left Column: Form Details */}
           <Col lg={14} xs={24}>
-            <Card className="border-none shadow-sm rounded-[32px] p-2">
+            <Card className="border-none shadow-sm rounded-surface p-2">
               <Form 
                 form={form} 
                 layout="vertical" 
@@ -92,7 +93,7 @@ const ApplyLeave = () => {
                   <Col span={12}>
                     <Form.Item name="dates" label={<Text strong>Duration</Text>} rules={[{ required: true }]}>
                       <DatePicker.RangePicker 
-                        className="w-full h-11 rounded-xl" 
+                        className="w-full h-11 rounded-control"
                         disabledDate={(current) => current && current < moment().startOf('day')}
                       />
                     </Form.Item>
@@ -100,7 +101,7 @@ const ApplyLeave = () => {
                 </Row>
 
                 <Form.Item name="reason" label={<Text strong>Detailed Reason</Text>} rules={[{ required: true, min: 10 }]}>
-                  <TextArea rows={5} placeholder="Provide a clear explanation for your leave request..." className="rounded-xl" />
+                  <TextArea rows={5} placeholder="Provide a clear explanation for your leave request..." className="rounded-control" />
                 </Form.Item>
 
                 <Divider className="my-6 border-slate-100" />
@@ -112,7 +113,7 @@ const ApplyLeave = () => {
                     size="large" 
                     loading={loading} 
                     icon={<Send size={18} />}
-                    className="h-14 rounded-2xl shadow-lg shadow-blue-100 font-bold flex-1"
+                    className="h-14 rounded-control shadow-lg shadow-blue-100 font-bold flex-1"
                   >
                     Submit Application
                   </Button>
@@ -120,7 +121,7 @@ const ApplyLeave = () => {
                     size="large" 
                     icon={<RefreshCw size={18} />} 
                     onClick={() => { form.resetFields(); setPreviewData({ days: 0 }); }}
-                    className="h-14 rounded-2xl px-8"
+                    className="h-14 rounded-control px-8"
                   >
                     Reset
                   </Button>
@@ -133,7 +134,7 @@ const ApplyLeave = () => {
           <Col lg={10} xs={24}>
             <div className="space-y-6">
               {/* Request Summary Card */}
-              <Card className="border-none shadow-sm rounded-[32px] bg-blue-600 text-white relative overflow-hidden">
+              <Card className="border-none shadow-sm rounded-surface bg-blue-600 text-white relative overflow-hidden">
                 <div className="relative z-10">
                   <Title level={4} className="text-white mb-6 flex items-center gap-2">
                     <ClipboardList size={20} /> Application Summary
@@ -152,7 +153,7 @@ const ApplyLeave = () => {
                     </div>
                   </div>
 
-                  <div className="mt-8 flex items-center gap-3 bg-blue-500/30 p-4 rounded-2xl border border-blue-400/50">
+                  <div className="mt-8 flex items-center gap-3 bg-blue-500/30 p-4 rounded-surface border border-blue-400/50">
                     <Info size={20} className="shrink-0" />
                     <Text className="text-[11px] text-blue-50 leading-relaxed">
                       Mess reduction is automatically calculated based on your approved leave dates. Ensure your return is marked on time.
@@ -176,7 +177,7 @@ const ApplyLeave = () => {
                 type="info"
                 showIcon
                 icon={<ShieldCheck className="text-blue-500" size={20} />}
-                className="rounded-3xl border-blue-100 bg-white shadow-sm"
+                className="rounded-surface border-blue-100 bg-white shadow-sm"
               />
             </div>
           </Col>

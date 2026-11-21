@@ -49,6 +49,7 @@ export const User = sequelize.define('User', {
     references: { model: 'roles', key: 'roleId' }
   },
   gender: { type: DataTypes.STRING(16), allowNull: true },
+  resident_type: { type: DataTypes.ENUM('student', 'staff'), allowNull: false, defaultValue: 'student' },
   roll_number: { type: DataTypes.STRING(50), allowNull: true, unique: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Hostel', key: 'id' } },
   google_id: { type: DataTypes.STRING(255), allowNull: true, unique: true },
@@ -156,7 +157,7 @@ export const Enrollment = sequelize.define('Enrollment', {
   },
   roll_number: { type: DataTypes.STRING, allowNull: true, unique: true },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
-  session_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Session', key: 'id' } },
+  session_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'tbl_Session', key: 'id' } },
   erp_batch_year: { type: DataTypes.INTEGER, allowNull: true },
   enrollment_date: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
   requires_bed: { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -164,6 +165,16 @@ export const Enrollment = sequelize.define('Enrollment', {
   remaining_dues: { type: DataTypes.INTEGER, defaultValue: 0 },
   status: { type: DataTypes.ENUM('active', 'inactive', 'suspended'), defaultValue: 'active' }
 }, { tableName: 'tbl_Enrollment', timestamps: true });
+
+// Staff residents use the resident portal without an academic batch. Student admissions still require one.
+Enrollment.addHook('beforeValidate', async (enrollment, options) => {
+  if (!enrollment.isNewRecord && !options.fields?.includes('session_id')) return;
+  if (enrollment.session_id != null) return;
+  const resident = enrollment.student_id && await User.findByPk(enrollment.student_id, {
+    attributes: ['resident_type'], transaction: options.transaction
+  });
+  if (resident?.resident_type !== 'staff') throw new Error('An academic batch is required for a student enrollment.');
+});
 
 // ==========================================
 // 3. ROOM MANAGEMENT
@@ -499,8 +510,8 @@ export const InventoryBatch = sequelize.define('InventoryBatch', {
   item_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Item', key: 'id' } },
   hostel_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_Hostel', key: 'id' } },
   quantity_purchased: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
-  quantity_remaining: { type: DataTypes.DECIMAL(10, 2), allowNull: false, defaultValue: 0.00 },
-  unit_price: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+  quantity_remaining: { type: DataTypes.DECIMAL(18, 8), allowNull: false, defaultValue: 0.00 },
+  unit_price: { type: DataTypes.DECIMAL(18, 8), allowNull: false },
   purchase_date: { type: DataTypes.DATEONLY, allowNull: false },
   expiry_date: { type: DataTypes.DATEONLY, allowNull: true },
   status: { type: DataTypes.ENUM('active', 'depleted', 'expired'), allowNull: false, defaultValue: 'active' }
@@ -540,7 +551,7 @@ export const InventoryTransaction = sequelize.define('InventoryTransaction', {
   quantity: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   unit: { type: DataTypes.STRING, allowNull: false },
   unit_price: { type: DataTypes.DECIMAL(10, 2), allowNull: true },
-  transaction_type: { type: DataTypes.ENUM('purchase', 'consumption'), allowNull: false },
+  transaction_type: { type: DataTypes.ENUM('purchase', 'consumption', 'opening_balance'), allowNull: false },
   notes: { type: DataTypes.TEXT, allowNull: true },
   recorded_by: { 
     type: DataTypes.INTEGER, 
@@ -638,7 +649,7 @@ export const ConsumptionLog = sequelize.define('ConsumptionLog', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   daily_consumption_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_DailyConsumption', key: 'id' } },
   batch_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'tbl_InventoryBatch', key: 'id' } },
-  quantity_consumed: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+  quantity_consumed: { type: DataTypes.DECIMAL(18, 8), allowNull: false },
   cost: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
   meal_type: { type: DataTypes.ENUM('breakfast', 'lunch', 'dinner', 'snacks'), allowNull: false }
 }, {

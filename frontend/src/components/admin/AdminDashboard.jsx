@@ -1,56 +1,34 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-
-import { 
-  Card, Typography, Row, Col, Statistic, Button, Input, 
-  Divider, ConfigProvider, theme, Skeleton, Space, 
-  Switch, message, Tooltip, Badge, Modal, notification, Tag
-} from 'antd';
-
-import { 
-  Building, Users, UserCheck, Bed, Receipt,
-  Save, LayoutDashboard, TrendingUp, ArrowUpRight, 
-  IndianRupee, RefreshCw, Activity, Monitor
-} from 'lucide-react';
-
-import { 
-  Chart as ChartJS, 
-  ArcElement, 
-  Tooltip as ChartTooltip, 
-  Legend, 
-  CategoryScale, 
-  LinearScale, 
-  BarElement, 
-  Title as ChartTitle, 
-  PointElement, 
-  LineElement 
+import { Card, Typography, Button, Skeleton, Modal, notification, Tag } from 'antd';
+import { Monitor } from 'lucide-react';
+import {
+  Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend,
+  CategoryScale, LinearScale, BarElement,
 } from 'chart.js';
-
-import { Pie, Bar, Doughnut } from 'react-chartjs-2';
-
+import { Bar, Doughnut } from 'react-chartjs-2';
 import { adminAPI } from '../../services/api';
-
 import DailyRateReport from '../mess/DailyRateReport';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
+import './AdminWorkspace.css';
 
-ChartJS.register(ArcElement, ChartTooltip, Legend, CategoryScale, LinearScale, BarElement, ChartTitle, PointElement, LineElement);
+ChartJS.register(ArcElement, ChartTooltip, Legend, CategoryScale, LinearScale, BarElement);
 
-const { Title, Text, Paragraph } = Typography;
-
-const GOOGLE_VIVID = {
-  BLUE: '#1A73E8', 
-  RED: '#D93025', 
-  YELLOW: '#F9AB00', 
-  GREEN: '#1E8E3E', 
-  BORDER: '#FFFFFF'
+const { Text } = Typography;
+const BLUE = '#2454ed';
+const GOLD = '#f4b544';
+const roleColors = { Student: BLUE, Warden: '#7652c6', Mess: '#147d71', Admin: '#c88013', Parent: '#7587a3' };
+const occupancyOptions = {
+  cutout: '76%',
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
 };
 
 const AdminDashboard = () => {
   // --- STATE ---
   const [stats, setStats] = useState(null);
   const [chartData, setChartData] = useState(null);
-  const [feeSettings, setFeeSettings] = useState({ amount: 0, isActive: false, hostelId: 1 });
   const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  
+
   // New States for Screen Sharing
   const [activeShare, setActiveShare] = useState(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -67,15 +45,6 @@ const AdminDashboard = () => {
       const chartRes = await adminAPI.getAdminChartData().catch(() => ({ data: { data: {} } }));
       setChartData(chartRes.data.data);
 
-      // Fetch hostel (Optional)
-      const hostelRes = await adminAPI.getHostelById(1).catch(() => null);
-      if (hostelRes?.data?.success) {
-        setFeeSettings({
-          amount: hostelRes.data.data.annual_fee_amount || 0,
-          isActive: hostelRes.data.data.show_fee_reminder || false,
-          hostelId: 1
-        });
-      }
     } catch (err) {
       console.error('Dashboard partially failed to load', err);
     } finally {
@@ -128,41 +97,25 @@ const AdminDashboard = () => {
     notification.destroy(share.id);
   };
 
-  const handleUpdateFeeSettings = async () => {
-    setUpdating(true);
-    try {
-      await adminAPI.updateHostel(feeSettings.hostelId, {
-        annual_fee_amount: feeSettings.amount,
-        show_fee_reminder: feeSettings.isActive
-      });
-      message.success('Fee protocols updated.');
-    } catch (err) {
-      message.error('Action failed.');
-    } finally {
-      setUpdating(false);
-    }
+  const hasBedCounts = stats?.totalBeds != null;
+  const capacity = hasBedCounts ? stats.totalBeds : stats?.totalRooms;
+  const unit = hasBedCounts ? 'beds' : 'rooms';
+  const occupancy = [
+    { label: `Occupied ${unit}`, count: hasBedCounts ? stats.occupiedBeds : stats?.occupiedRooms, color: BLUE },
+    { label: `Empty ${unit}`, count: hasBedCounts ? stats.availableBeds : stats?.availableRooms, color: GOLD },
+  ];
+  const occupancyData = {
+    labels: occupancy.map(item => item.label),
+    datasets: [{
+      data: occupancy.map(item => item.count ?? 0),
+      backgroundColor: occupancy.map(item => item.color),
+      borderWidth: 0,
+    }],
   };
-
-  // --- CHARTS CONFIG ---
-  const hostelOccupancyData = useMemo(() => ({
-    labels: ['Occupied Beds', 'Empty Beds'],
-    datasets: [{
-      data: [stats?.occupiedRooms || 0, stats?.availableRooms || 0],
-      backgroundColor: [GOOGLE_VIVID.BLUE, GOOGLE_VIVID.YELLOW],
-      borderColor: GOOGLE_VIVID.BORDER,
-      borderWidth: 3,
-    }],
-  }), [stats]);
-
-  const userRolesData = useMemo(() => ({
-    labels: chartData?.userRoles?.labels || [],
-    datasets: [{
-      data: chartData?.userRoles?.counts || [],
-      backgroundColor: [GOOGLE_VIVID.BLUE, GOOGLE_VIVID.GREEN, GOOGLE_VIVID.RED, GOOGLE_VIVID.YELLOW],
-      borderColor: GOOGLE_VIVID.BORDER,
-      borderWidth: 2,
-    }],
-  }), [chartData]);
+  const roles = (chartData?.userRoles?.labels ?? []).map((label, index) => ({
+    label,
+    count: chartData.userRoles.counts[index],
+  })).sort((first, second) => second.count - first.count);
 
   const monthlyFinancialsData = useMemo(() => ({
     labels: chartData?.monthlyFinancials?.labels || [],
@@ -170,13 +123,13 @@ const AdminDashboard = () => {
       {
         label: 'Revenue',
         data: chartData?.monthlyFinancials?.income || [],
-        backgroundColor: GOOGLE_VIVID.BLUE,
+        backgroundColor: BLUE,
         borderRadius: 5,
       },
       {
         label: 'Expenses',
         data: chartData?.monthlyFinancials?.expenses || [],
-        backgroundColor: GOOGLE_VIVID.RED,
+        backgroundColor: '#D93025',
         borderRadius: 5,
       },
     ],
@@ -185,107 +138,75 @@ const AdminDashboard = () => {
   if (loading || !stats) return <Skeleton active className="p-8" />;
 
   return (
-    <ConfigProvider>
-      <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6 animate-in fade-in duration-700">
-        
-        {/* Header */}
-        <div className="module-page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100">
-              <LayoutDashboard className="text-blue-500" size={26} />
-            </div>
-            <div>
-              <Title level={2} style={{ margin: 0, fontWeight: 800 }}>Hostel Administration</Title>
-              <Text type="secondary" className="font-medium">Live System Management Overview</Text>
-            </div>
+    <section className="module-page admin-overview" aria-labelledby="admin-overview-title">
+      <WorkspacePageHeader id="admin-overview-title" title="Hostel Administration" description="A clear view of your hostel operations.">
+        <Button onClick={fetchDashboardData}>Refresh</Button>
+      </WorkspacePageHeader>
+
+      <dl className="admin-metrics admin-overview-metrics">
+        {[
+          ['Active hostels', stats.totalHostels],
+          ['Campus wardens', stats.totalWardens],
+          ['Students', stats.totalStudents],
+          [hasBedCounts ? 'Bed capacity' : 'Rooms', capacity],
+        ].map(([label, value]) => (
+          <div className="admin-surface admin-metric" key={label}>
+            <dt>{label}</dt>
+            <dd>{value ?? '—'}</dd>
           </div>
-          <Button icon={<RefreshCw size={16}/>} onClick={fetchDashboardData} className="rounded-xl h-11 px-6 font-bold flex items-center gap-2 bg-white border-slate-200">
-            Refresh Data
-          </Button>
+        ))}
+      </dl>
+
+      <div className="admin-overview-panels">
+        <section className="admin-surface admin-overview-panel" aria-labelledby="bed-occupancy-title">
+          <div className="admin-panel-heading">
+            <h3 id="bed-occupancy-title">{hasBedCounts ? 'Bed occupancy' : 'Room occupancy'}</h3>
+            <span className="admin-current-label">Current</span>
+          </div>
+          <p>Occupied and empty {unit} across your hostels</p>
+          <div className="admin-occupancy">
+            <div className="admin-occupancy-chart">
+              {capacity > 0 && <Doughnut data={occupancyData} options={occupancyOptions}
+                aria-label={occupancy.map(({ label, count }) => `${label}: ${count ?? 'unavailable'}`).join(', ')} role="img" />}
+              <div className="admin-occupancy-total">
+                <strong>{capacity ?? '—'}</strong>
+                <span>{hasBedCounts ? 'bed capacity' : 'total rooms'}</span>
+              </div>
+            </div>
+            <ul className="admin-legend">
+              {occupancy.map(({ label, color, count }) => (
+                <li key={label} title={`${label}: ${count ?? 'unavailable'}`}>
+                  <span className="admin-legend-dot" style={{ backgroundColor: color }} />
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <p className="admin-occupancy-note">Monitor available capacity before assigning rooms.</p>
+        </section>
+
+        <section className="admin-surface admin-overview-panel" aria-labelledby="user-distribution-title">
+          <h3 id="user-distribution-title">User distribution</h3>
+          <p>Accounts by role</p>
+          {roles.length ? (
+            <ul className="admin-legend admin-role-list">
+              {roles.map(({ label, count }) => (
+                <li key={label}>
+                  <span className="admin-legend-dot" style={{ backgroundColor: roleColors[label] ?? '#7587a3' }} />
+                  <span>{label}</span>
+                  <strong>{count}</strong>
+                </li>
+              ))}
+            </ul>
+          ) : <p>No account counts available.</p>}
+        </section>
+      </div>
+
+      <Card className="admin-surface admin-financial-panel" title="Monthly Financial Analysis">
+        <div className="h-96">
+          <Bar data={monthlyFinancialsData} options={{ responsive: true, maintainAspectRatio: false }} />
         </div>
-
-        {/* Fee Protocol Panel */}
-        {/* <Card className="border-none shadow-sm rounded-[36px] overflow-hidden bg-white p-1">
-          <div className="bg-gradient-to-r from-blue-50/80 via-indigo-50/40 to-white rounded-[32px] p-8 flex flex-col xl:flex-row items-center justify-between gap-8 relative border border-blue-50/50">
-            <div className="relative z-10 flex items-center gap-6">
-              <div className="p-5 bg-blue-600 rounded-[24px] shadow-lg shadow-blue-200">
-                <Receipt className="text-white" size={32} />
-              </div>
-              <div className="max-w-md">
-                <div className="flex items-center gap-2 mb-1">
-                   <Title level={3} style={{ margin: 0, fontWeight: 700, color: '#1e293b' }}>Fee Protocol</Title>
-                   <Tag color="blue" variant="filled" className="rounded-full px-3 font-bold">Active</Tag>
-
-                </div>
-                <Paragraph className="text-slate-500 m-0 font-medium">Manage student billing cycles and annual fee reminders.</Paragraph>
-              </div>
-            </div>
-
-            <div className="relative z-10 flex flex-wrap items-center gap-5 bg-white p-3 rounded-[28px] shadow-xl border border-white">
-               <div className="flex items-center gap-3 px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100">
-                  <IndianRupee size={18} className="text-blue-600" />
-                  <Input type="number" variant="borderless" className="w-32 text-lg font-black" value={feeSettings.amount} onChange={e => setFeeSettings({...feeSettings, amount: e.target.value})} />
-               </div>
-               <div className="flex items-center gap-4 px-2">
-                  <div className="flex flex-col">
-                    <Text className="text-[10px] uppercase font-black text-slate-400">Automated</Text>
-                    <Text className="text-xs font-bold text-slate-700">Reminders</Text>
-                  </div>
-                  <Switch checked={feeSettings.isActive} onChange={val => setFeeSettings({...feeSettings, isActive: val})} />
-               </div>
-               <Button type="primary" size="large" loading={updating} onClick={handleUpdateFeeSettings} className="h-14 px-8 rounded-2xl font-bold shadow-lg flex items-center gap-2" icon={<Save size={18}/>}>
-                 Update Settings
-               </Button>
-            </div>
-          </div>
-        </Card> */}
-
-        {/* Statistics Grid */}
-        <Row gutter={[24, 24]}>
-          {[
-            { title: 'Active Hostels', value: stats.totalHostels, icon: Building, color: 'text-blue-600', bg: 'bg-blue-50' },
-            { title: 'Campus Wardens', value: stats.totalWardens, icon: UserCheck, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-            { title: 'Students', value: stats.totalStudents, icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-            { title: 'Bed Capacity', value: stats.totalRooms, icon: Bed, color: 'text-orange-600', bg: 'bg-orange-50' },
-          ].map((card, index) => (
-            <Col xs={24} sm={12} lg={6} key={index}>
-              <Card className="border-none shadow-sm rounded-[32px] hover:shadow-md transition-all group bg-white">
-                <div className="flex justify-between items-start mb-4">
-                  <div className={`p-3 rounded-2xl ${card.bg} ${card.color} group-hover:scale-110 transition-transform`}><card.icon size={22} /></div>
-                  <Tag color="success" variant="filled" className="rounded-full font-bold m-0 flex items-center gap-1">
-                    <TrendingUp size={12} /> Live
-                  </Tag>
-                </div>
-                <Statistic title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{card.title}</span>} value={card.value} styles={{ content: { fontWeight: 900, fontSize: '1.8rem', color: '#1e293b' } }}  />
-              </Card>
-            </Col>
-          ))}
-        </Row>
-
-        {/* Charts */}
-        <Row gutter={[24, 24]}>
-          <Col lg={12} xs={24}>
-            <Card className="border-none shadow-sm rounded-[36px] p-6 h-full bg-white" title={<div className="font-bold text-slate-800 flex items-center gap-2"><Activity size={18} className="text-blue-500"/> Bed Occupancy</div>}>
-              <div className="h-80 flex items-center justify-center">
-                <Pie data={hostelOccupancyData} options={{ maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }} />
-              </div>
-            </Card>
-          </Col>
-          <Col lg={12} xs={24}>
-            <Card className="border-none shadow-sm rounded-[36px] p-6 h-full bg-white" title={<div className="font-bold text-slate-800">User Distribution</div>}>
-              <div className="h-80 flex items-center justify-center">
-                <Doughnut data={userRolesData} options={{ maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }} />
-              </div>
-            </Card>
-          </Col>
-        </Row>
-
-        {/* Financial Bar Chart */}
-        <Card className="border-none shadow-sm rounded-[36px] p-8 bg-white" title={<div className="flex items-center justify-between font-bold text-slate-800">Monthly Financial Analysis <ArrowUpRight size={18} className="text-slate-300" /></div>}>
-          <div className="h-96">
-            <Bar data={monthlyFinancialsData} options={{ responsive: true, maintainAspectRatio: false }} />
-          </div>
-        </Card>
+      </Card>
 
         {/* --- LIVE SHARE MODAL --- */}
         <Modal
@@ -314,8 +235,7 @@ const AdminDashboard = () => {
           )}
         </Modal>
 
-      </div>
-    </ConfigProvider>
+    </section>
   );
 };
 

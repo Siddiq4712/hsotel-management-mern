@@ -22,7 +22,7 @@ const MetricCard = ({ metric, value, onNavigate }) => {
     <div
       onClick={() => onNavigate(metric.path)}
       style={{ backgroundColor: metric.bg, borderColor: metric.color + '30' }}
-      className="flex flex-col items-start gap-1 p-3 rounded-2xl border cursor-pointer transition-all duration-200 hover:scale-[1.03] hover:shadow-md relative overflow-hidden"
+      className="flex flex-col items-start gap-1 p-3 rounded-surface border cursor-pointer transition-all duration-200 hover:scale-[1.03] hover:shadow-md relative overflow-hidden"
     >
       {isAlert && value > 0 && (
         <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -49,7 +49,7 @@ const TodayHighlightsCard = ({ data }) => {
   });
 
   return (
-    <div className="mt-3 rounded-2xl overflow-hidden border border-indigo-100 shadow-sm">
+    <div className="mt-3 rounded-surface overflow-hidden border border-indigo-100 shadow-sm">
       {/* Header */}
       <div className="bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-3 flex items-center gap-2">
         <span className="text-lg">📅</span>

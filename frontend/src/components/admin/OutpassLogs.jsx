@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Card, Table, Tag, Input, Select, Button, Space, Typography, 
-  Switch, message, ConfigProvider, theme, Row, Col, Statistic, Tooltip
+  Switch, message, ConfigProvider, Row, Col, Statistic, Tooltip
 } from 'antd';
 import { 
   Search, Shield, CheckCircle, XCircle, Clock, AlertTriangle, 
@@ -159,13 +159,13 @@ const OutpassLogs = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#3b82f6', borderRadius: 12 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header */}
         <div className="module-page-header flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100 text-white">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100 text-white">
               <Shield size={24} />
             </div>
             <div>
@@ -177,7 +177,7 @@ const OutpassLogs = () => {
             icon={<RefreshCw size={16} />} 
             onClick={fetchLogs} 
             loading={loading}
-            className="h-11 rounded-xl flex items-center gap-2 border-slate-200"
+            className="h-11 rounded-control flex items-center gap-2 border-slate-200"
           >
             Refresh Log
           </Button>
@@ -186,22 +186,22 @@ const OutpassLogs = () => {
         {/* Stats */}
         <Row gutter={[24, 24]} className="mb-8">
           <Col lg={6} md={12} xs={24}>
-            <Card className="border-none shadow-sm rounded-3xl p-2 bg-white">
+            <Card className="border-none shadow-sm rounded-surface p-2 bg-white">
               <Statistic title={<Text className="text-slate-500 text-sm">Total Applications</Text>} value={stats.total} prefix={<Users size={20} className="text-slate-400 mr-2" />} />
             </Card>
           </Col>
           <Col lg={6} md={12} xs={24}>
-            <Card className="border-none shadow-sm rounded-3xl p-2 bg-white">
+            <Card className="border-none shadow-sm rounded-surface p-2 bg-white">
               <Statistic title={<Text className="text-slate-500 text-sm">Pending Review</Text>} value={stats.pending} valueStyle={{ color: '#d97706' }} prefix={<Clock size={20} className="text-amber-500 mr-2" />} />
             </Card>
           </Col>
           <Col lg={6} md={12} xs={24}>
-            <Card className="border-none shadow-sm rounded-3xl p-2 bg-white">
+            <Card className="border-none shadow-sm rounded-surface p-2 bg-white">
               <Statistic title={<Text className="text-slate-500 text-sm">Currently Outside</Text>} value={stats.outside} valueStyle={{ color: '#7c3aed' }} prefix={<ExternalLink size={20} className="text-violet-500 mr-2" />} />
             </Card>
           </Col>
           <Col lg={6} md={12} xs={24}>
-            <Card className="border-none shadow-sm rounded-3xl p-2 bg-white">
+            <Card className="border-none shadow-sm rounded-surface p-2 bg-white">
               <Statistic title={<Text className="text-slate-500 text-sm">Late Returns</Text>} value={stats.late} valueStyle={{ color: '#dc2626' }} prefix={<AlertTriangle size={20} className="text-red-500 mr-2" />} />
             </Card>
           </Col>
@@ -210,7 +210,7 @@ const OutpassLogs = () => {
         <Row gutter={24}>
           {/* Main Logs Table */}
           <Col lg={17} xs={24}>
-            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden p-6 bg-white">
+            <Card className="border-none shadow-sm rounded-surface overflow-hidden p-6 bg-white">
               <Title level={4} className="mb-6 flex items-center gap-2">
                 <ListFilter size={20} className="text-blue-600" />
                 Filter Logs
@@ -223,7 +223,7 @@ const OutpassLogs = () => {
                     prefix={<Search size={16} className="text-slate-400 mr-2" />}
                     value={filters.search}
                     onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                    className="h-11 rounded-xl"
+                    className="h-11 rounded-control"
                   />
                 </Col>
                 <Col span={8}>
@@ -272,7 +272,7 @@ const OutpassLogs = () => {
 
           {/* Settings Sidebar */}
           <Col lg={7} xs={24}>
-            <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white">
+            <Card className="border-none shadow-sm rounded-surface p-6 bg-white">
               <Title level={4} className="mb-6 flex items-center gap-2">
                 <Settings size={20} className="text-blue-600" />
                 Workflow Protocol
@@ -283,7 +283,7 @@ const OutpassLogs = () => {
 
               <div className="space-y-4">
                 {hostels.map(h => (
-                  <div key={h.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div key={h.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-surface border border-slate-100">
                     <div className="flex flex-col">
                       <Text strong className="text-sm text-slate-800">{h.name}</Text>
                       <Text type="secondary" className="text-[11px]">Require parent approval first</Text>

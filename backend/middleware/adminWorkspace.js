@@ -1,58 +1,13 @@
 import { Writable } from 'node:stream';
 import ExcelJS from 'exceljs';
-import { Op } from 'sequelize';
 import * as models from '../models/index.js';
 import { inventoryPolicy } from '../services/inventoryBilling.js';
+import { identifyHostel, inventoryEntryScope, distinctBillingHostels, staffEntryScope } from './workspaceScope.js';
 
 const inventoryPath = /^\/(stock|inventory-purchase|inventory-transactions|inventory\/correct-last-purchase|purchase-orders|daily-expenses)(\/|$)|^\/items\/[^/]+\/(fifo-price|batches)$|^\/chart-data\/item-stock$|^\/reports\/latest-purchase$/;
 const consumptionWrite = /^\/consumption\/(bulk|single-page|return)$/;
 
 const sharedMess = /^\/(item-categories|uoms|stores|item-stores|special-food-items|concerns|expenses-types)(\/|$)/;
-const modelForPath = {
-  students:'User',rooms:'HostelRoom','room-types':'RoomType','leave-requests':'Leave',complaints:'Complaint',
-  suspensions:'Suspension',holidays:'Holiday','mess-bills':'MessBill','room-requests':'RoomRequest',
-  'day-reduction-requests':'DayReductionRequest',rebates:'Rebate',menus:'Menu','menu-schedule':'MenuSchedule',
-  'food-orders':'FoodOrder','daily-expenses':'MessDailyExpense','student-fees':'StudentFee',recipes:'Recipe',
-  'special-consumption':'SpecialConsumption','credit-token':'CreditToken','additional-collections':'AdditionalCollection',
-  attendance:'Attendance','bed-fees':'StudentFee'
-};
-const bodyResources = { student_id:'User',room_id:'HostelRoom',room_type_id:'RoomType',menu_id:'Menu',daily_consumption_id:'DailyConsumption',food_order_id:'FoodOrder' };
-
-async function recordHostel(modelName, id) {
-  if (!modelName || !id) return null;
-  const record = await models[modelName]?.findByPk(id);
-  if (!record) throw new Error('The selected record no longer exists. Refresh and try again.');
-  return record.get('hostel_id') || (record.get('student_id') ? recordHostel('User',record.get('student_id')) : null);
-}
-async function identifyHostel(req, path, portal) {
-  const explicit = req.get('X-Entry-Hostel-Id') || req.body?.hostel_id || req.body?.hostelId || req.query.hostel_id;
-  const owners = new Set();
-  for (const [key, model] of Object.entries(bodyResources)) {
-    const id = await recordHostel(model, req.body?.[key] || req.query?.[key]);
-    if (id) owners.add(Number(id));
-  }
-  if (Array.isArray(req.body?.student_ids) && req.body.student_ids.length) {
-    const students = await models.User.findAll({where:{userId:{[Op.in]:req.body.student_ids}},attributes:['hostel_id']});
-    students.forEach(student => { if (student.hostel_id) owners.add(Number(student.hostel_id)); });
-  }
-  for (const row of req.body?.attendanceData || []) {
-    const owner=await recordHostel('User',row.student_id);
-    if(owner)owners.add(Number(owner));
-  }
-  const segment = path.split('/')[1];
-  const resourceId = req.params.student_id || req.params.menu_id || req.params.id;
-  const inferred = await recordHostel(portal === 'outpass' ? 'Outpass' : modelForPath[segment], resourceId);
-  if (inferred) owners.add(Number(inferred));
-  if (explicit && explicit !== 'all') {
-    const id = Number(explicit);
-    if (!Number.isInteger(id) || id <= 0) throw new Error('Choose a valid hostel for this entry.');
-    if ([...owners].some(owner => owner !== id)) throw new Error('The selected records do not belong to the hostel chosen for this entry.');
-    return id;
-  }
-  if (owners.size > 1) throw new Error('Select records from one hostel for this operation.');
-  return owners.size ? [...owners][0] : null;
-}
-
 export function mergeWorkspaceValues(values, key = '') {
   const present = values.filter(value => value !== undefined && value !== null);
   if (!present.length) return null;
@@ -117,23 +72,21 @@ export function installAdminWorkspace(router, portal) {
       const handler=handlers.pop();
       return register(path,...handlers,async(req,res,next)=>{
         if(req.user?.role!=='admin' || (portal==='outpass' && !/^\/(warden|approve|reject)(\/|$)/.test(path)))return handler(req,res,next);
+        const staff = req.staffWorkspace;
         const shared=portal==='mess' && (sharedMess.test(path) || /^\/items(?:\/[^/]+)?$/.test(path) || /^\/items\/(bulk|:item_id\/stores)$/.test(path));
         const inventoryId = req.get('X-Inventory-Id') || req.body?.inventory_id || req.query.inventory_id;
-        const dailyReport = portal === 'mess' && method === 'get' && path === '/reports/daily-rate-calculation'
-          && Number(req.query.month) === 8 && Number(req.query.year) === 2026;
-        const poolRequest = portal === 'mess' && (inventoryPath.test(path) || consumptionWrite.test(path) || path === '/chart-data/monthly-expenses' || (dailyReport && inventoryId) || (method === 'get' && path === '/items' && inventoryId));
+        const poolRequest = portal === 'mess' && (inventoryPath.test(path) || consumptionWrite.test(path) || path === '/chart-data/monthly-expenses' || (method === 'get' && path === '/items' && (inventoryId || staff?.inventory)));
         if((shared && !poolRequest) || path==='/sessions' || (portal==='warden' && method==='post' && (path==='/students' || path==='/students/bulk-import')))return handler(req,res,next);
         try {
+          if (staff) {
+            const scope = await staffEntryScope(req, { path, portal, method, poolRequest, inventoryId });
+            if (scope.status) return res.status(scope.status).json({ message: scope.message });
+            const scoped = scopedRequest(req, scope.hostel);
+            if (scope.inventory) scoped.inventory_id = scope.inventory.id;
+            return handler(scoped, res, next);
+          }
           if (poolRequest && inventoryId) {
-            if (!Number.isInteger(Number(inventoryId)) || Number(inventoryId) <= 0) throw new Error('Choose a valid inventory.');
-            const inventory = await models.Inventory.findByPk(inventoryId);
-            if (!inventory) throw new Error('Inventory not found.');
-            const members = await models.InventoryHostel.findAll({ where: { inventory_id: inventory.id }, raw: true });
-            const memberIds = members.map(member => member.hostel_id);
-            const explicit = req.get('X-Entry-Hostel-Id') || req.body?.hostel_id || req.body?.hostelId || req.query.hostel_id;
-            if (explicit && !memberIds.includes(Number(explicit))) throw new Error('The selected hostel does not use this inventory. Reload and choose its assigned inventory.');
-            const hostels = await models.Hostel.findAll({ where: { id: { [Op.in]: memberIds } }, order: [['id', 'ASC']] });
-            if (!hostels.length) throw new Error('Assign at least one hostel to this inventory first.');
+            const { inventory, hostels, explicit } = await inventoryEntryScope(req, inventoryId);
             const policy = await inventoryPolicy(inventory.id, req.body?.consumption_date || req.body?.expense_date || req.query?.from_date);
             if ((consumptionWrite.test(path) || path.startsWith('/daily-expenses') && method !== 'get') && policy.mode !== 'shared' && !explicit) return res.status(409).json({ code: 'HOSTEL_REQUIRED', message: 'Choose the hostel for this consumption or expense.',
               hostels: hostels.map(hostel => ({ id: hostel.id, name: hostel.name })) });
@@ -155,18 +108,8 @@ export function installAdminWorkspace(router, portal) {
           let hostels=await models.Hostel.findAll({order:[['id','ASC']]});
           if(method!=='get' || path==='/daily-charges/calculate' || path==='/layout')return res.status(409).json({code:'HOSTEL_REQUIRED',message:'Choose the hostel for this entry.',
             hostels:hostels.map(hostel=>({id:hostel.id,name:hostel.name}))});
-          // Stock pools shared by multiple hostels must appear once in totals.
-          if (path === '/chart-data/monthly-expenses' || dailyReport) {
-            const members = await models.InventoryHostel.findAll({ raw: true });
-            const seen = new Set(), unique = [];
-            const date = req.query.month && req.query.year ? `${req.query.year}-${String(req.query.month).padStart(2, '0')}-01` : undefined;
-            for (const hostel of hostels) {
-              const pool = members.find(row => row.hostel_id === hostel.id)?.inventory_id;
-              const policy = pool ? await inventoryPolicy(pool, date) : null;
-              if (policy?.mode === 'shared') { if (seen.has(pool)) continue; seen.add(pool); }
-              unique.push(hostel);
-            }
-            hostels = unique;
+          if (path === '/chart-data/monthly-expenses') {
+            hostels = await distinctBillingHostels(hostels, req.query.month, req.query.year);
           }
           if (poolRequest && inventoryPath.test(path)) {
             const assignments = await models.InventoryHostel.findAll({ raw: true });
@@ -196,13 +139,6 @@ export function installAdminWorkspace(router, portal) {
             await workbook.xlsx.write(res);return res.end();
           }
           const combined=mergeWorkspaceValues(results.map(result=>addHostel(result.body,result.hostel)));
-          // A saved rounded rate must not be recalculated when the other scopes are empty.
-          if (dailyReport) {
-            const nonempty = results.filter(result => Number(result.body?.data?.totalManDays) || Number(result.body?.data?.subTotal));
-            if (nonempty.length === 1 && nonempty[0].body?.historicalImport) {
-              combined.data = nonempty[0].body.data;
-            }
-          }
           return res.json({...combined,success:true,allHostels:true,
             hostelSummaries:results.map(result=>({hostel_id:result.hostel.id,dailyRate:result.body?.data?.dailyRate,
               totalExpenses:result.body?.data?.totalExpenses,totalManDays:result.body?.data?.totalManDays}))});

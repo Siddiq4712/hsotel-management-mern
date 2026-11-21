@@ -1,7 +1,7 @@
 import { uploadReductionDocument, reductionDocument, reviseReduction, decideReduction } from '../controllers/reductionController.js';
 import express from 'express';
 import { previewWardenRooms, createWardenRooms, deleteWardenRooms } from '../controllers/bulkRoomsController.js';
-import { getAttendanceRoster } from '../controllers/attendanceController.js';
+import { getAttendanceRoster, getStudentMonthlyAttendance } from '../controllers/attendanceController.js';
 import { installAdminWorkspace } from '../middleware/adminWorkspace.js';
 import {
   enrollStudent, getStudents, getAvailableRooms, allotRoom, getDashboardStats, getSessions,
@@ -28,7 +28,7 @@ import {
   // Reductions & Rebates
   getDayReductionRequestsForWarden, updateDayReductionRequestStatusByWarden,
   getRoomRequestsWarden, decideRoomRequest, getRebates, updateRebateStatus, bulkEnrollStudents,
-  getStudentSummaryForWarden, getErpSyncStatus, syncErpRecords
+  getStudentSummaryForWarden, getStudentProfileRecords, getErpSyncStatus, syncErpRecords
 } from '../controllers/wardenController.js'; // Added .js extension
 
 import { auth, authorize } from '../middleware/auth.js'; // Added .js extension
@@ -50,6 +50,8 @@ router.get('/sessions', authorize(['warden', 'mess']), getSessions);
 router.post('/students', authorize(['warden', 'mess']), enrollStudent);
 router.get('/students', authorize(['warden', 'mess']), getStudents);
 router.get('/students/:student_id/summary', authorize(['warden', 'admin']), getStudentSummaryForWarden);
+router.get('/students/:student_id/profile-records', getStudentProfileRecords);
+router.get('/students/:student_id/monthly-attendance', getStudentMonthlyAttendance);
 router.post('/students/bulk-import', bulkEnrollStudents);
 
 /* ---------- ROOM MANAGEMENT ---------- */

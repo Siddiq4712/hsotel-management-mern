@@ -1,14 +1,24 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, App, Button, Card, DatePicker, Descriptions, Drawer, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from 'antd';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { App, Button, Card, DatePicker, Descriptions, Drawer, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography } from 'antd';
+import Alert from '../common/WorkspaceAlert';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
+import WorkspaceToolbar from '../common/WorkspaceToolbar';
 import { Activity, ArrowLeftRight, Download, Eye, Pencil, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { adminAPI } from '../../services/api';
+import './AdminWorkspace.css';
 
 const { Title, Text } = Typography;
 const statuses = {completed:'green',pending:'gold',partial:'orange',failed:'red',reverted:'default'};
 const labels = value => String(value).replace(/_/g,' ').replace(/([a-z])([A-Z])/g,'$1 $2');
 const shown = value => value === undefined || value === null ? '—' : typeof value === 'object' ? JSON.stringify(value,null,2) : String(value);
 const time = value => new Date(value).toLocaleString('en-IN',{timeZone:'Asia/Kolkata'});
+const detailDate = new Intl.DateTimeFormat('en-IN', {
+  timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric',
+});
+const detailClock = new Intl.DateTimeFormat('en-IN', {
+  timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true,
+});
 const managementRoutes={Attendance:'/attendance?workspace=warden',MonthlyAttendanceImport:'/monthly-attendance-import?workspace=admin',
   StudentFee:'/mess-fee?workspace=mess',FoodOrder:'/food-orders-dashboard?workspace=mess',
   RoomAllotment:'/room-allotment?workspace=warden',HostelRoom:'/rooms?workspace=warden',
@@ -29,14 +39,30 @@ export default function ActivityLogs() {
   const { message }=App.useApp();
   const [rows,setRows]=useState([]),[total,setTotal]=useState(0),[page,setPage]=useState(1);
   const [filters,setFilters]=useState({}),[search,setSearch]=useState(''),[loading,setLoading]=useState(false);
+  const [loadError, setLoadError] = useState('');
+  const listRevision = useRef(0);
   const [detail,setDetail]=useState(null),[detailLoading,setDetailLoading]=useState(false);
   const [preview,setPreview]=useState(null),[working,setWorking]=useState(false),[reason,setReason]=useState('');
   const [editing,setEditing]=useState(null),[editForm]=Form.useForm();
   const load=useCallback(async()=>{
+    const revision = ++listRevision.current;
     setLoading(true);
-    try {const result=await adminAPI.getActivities({...filters,page,pageSize:20});setRows(result.data.data);setTotal(result.data.total);}
-    catch(error){message.error(error.message);}finally{setLoading(false);}
-  },[filters,page,message]);
+    setLoadError('');
+    try {
+      const result = await adminAPI.getActivities({ ...filters, page, pageSize: 20 });
+      if (revision !== listRevision.current) return;
+      setRows(result.data.data);
+      setTotal(result.data.total);
+    } catch (error) {
+      if (revision === listRevision.current) {
+        setRows([]);
+        setTotal(0);
+        setLoadError(error.message || 'Unable to load activity logs.');
+      }
+    } finally {
+      if (revision === listRevision.current) setLoading(false);
+    }
+  }, [filters, page]);
   useEffect(()=>{load();},[load]);
   const filter=(name,value)=>{setPage(1);setFilters(current=>({...current,[name]:value}));};
   const openDetail=async(id,after)=>{
@@ -90,45 +116,68 @@ export default function ActivityLogs() {
     {title:'Activity',dataIndex:'path',render:(value,row)=><div><Tag>{row.method}</Tag><Text>{labels(value.split('/').filter(Boolean).slice(2).join(' / '))}</Text>
       {row.kind!=='activity'&&<Tag color="blue">{labels(row.kind)}</Tag>}<div className="text-xs text-slate-500 mt-1">{row.change_count} record changes</div></div>},
     {title:'Status',dataIndex:'status',render:(value,row)=><Tag color={row.reverted?'default':statuses[value]}>{row.reverted?'Reverted':labels(value)}</Tag>},
-    {title:'Actions',key:'actions',width:190,render:(_,row)=><Space>
+    {title:'Actions',key:'actions',align:'center',width:190,render:(_,row)=><Space>
       <Button size="small" icon={<Eye size={14}/>} onClick={()=>openDetail(row.id)}>View</Button>
       <Button size="small" icon={<RotateCcw size={14}/>} loading={working} disabled={row.reverted||row.status!=='completed'||row.kind!=='activity'} onClick={()=>openPreview(row.id)}>Revert</Button>
     </Space>},
   ];
-  return <div className="space-y-6">
-    <div className="module-page-header flex flex-wrap justify-between items-center gap-4"><div className="flex items-center gap-3">
-      <span className="p-3 rounded-2xl bg-blue-50 text-blue-600"><Activity size={25}/></span>
-      <div><Title level={2} style={{margin:0}}>Activity Logs</Title><Text type="secondary">Admin, Warden and Mess history across all hostels</Text></div>
-    </div><Space><Button disabled={!rows.length} icon={<Download size={16}/>} onClick={exportPage}>Export current page</Button><Button icon={<RefreshCw size={16}/>} onClick={load}>Refresh</Button></Space></div>
-    <Alert type="info" showIcon title="Original activity history is retained" description="Logs start when activity tracking is enabled. Corrections and reversals create linked entries. Revert previews check current records and dependencies before allowing changes." />
-    <Card className="rounded-2xl shadow-sm">
-      <Space wrap style={{marginBottom:20}}>
-        <Input.Search aria-label="Search activity" allowClear placeholder="Name, roll no., activity or record" value={search} onChange={event=>setSearch(event.target.value)} onSearch={value=>filter('search',value)} style={{width:290}} />
-        <Select aria-label="Filter workspace" allowClear placeholder="All workspaces" style={{width:155}} onChange={value=>filter('workspace',value)} options={['admin','warden','mess'].map(value=>({value,label:labels(value)}))}/>
-        <Select aria-label="Filter actor role" allowClear placeholder="All actor roles" style={{width:150}} onChange={value=>filter('actor_role',value)} options={['admin','warden','mess'].map(value=>({value,label:labels(value)}))}/>
-        <Select aria-label="Filter status" allowClear placeholder="All statuses" style={{width:145}} onChange={value=>filter('status',value)} options={Object.keys(statuses).map(value=>({value,label:labels(value)}))}/>
-        <Select aria-label="Filter activity type" allowClear placeholder="All activity types" style={{width:165}} onChange={value=>filter('kind',value)} options={['activity','correct','delete','revert'].map(value=>({value,label:labels(value)}))}/>
-        <DatePicker.RangePicker onChange={dates=>{setPage(1);setFilters(current=>({...current,from:dates?.[0].startOf('day').toISOString(),to:dates?.[1].endOf('day').toISOString()}));}}/>
-      </Space>
+  const hasFilters = Object.values(filters).some(Boolean);
+  const detailStatus = detail?.reversal ? 'reverted' : detail?.operation.status;
+  const detailTimestamp = detail ? new Date(detail.operation.createdAt) : null;
+  return <section className="module-page" aria-labelledby="activity-logs-title">
+    <WorkspacePageHeader id="activity-logs-title" title="Activity Logs" icon={Activity}
+      description="Review Admin, Warden and Mess activity across hostels." />
+    <Alert className="mb-4" type="info" showIcon title="Original activity history is retained"
+      description="Logs start when activity tracking is enabled. Corrections and reversals create linked entries. Revert previews check current records and dependencies before allowing changes." />
+    <Card>
+      <WorkspaceToolbar className="activity-log-toolbar mb-4">
+        <Input.Search className="workspace-search" aria-label="Search activity" allowClear placeholder="Name, roll no., activity or record" value={search} onChange={event=>setSearch(event.target.value)} onSearch={value=>filter('search',value.trim())} />
+        <Select className="workspace-toolbar-filter" aria-label="Filter workspace" allowClear placeholder="All workspaces" onChange={value=>filter('workspace',value)} options={['admin','warden','mess'].map(value=>({value,label:labels(value)}))}/>
+        <Select className="workspace-toolbar-filter" aria-label="Filter actor role" allowClear placeholder="All actor roles" onChange={value=>filter('actor_role',value)} options={['admin','warden','mess'].map(value=>({value,label:labels(value)}))}/>
+        <Select className="workspace-toolbar-filter" aria-label="Filter status" allowClear placeholder="All statuses" onChange={value=>filter('status',value)} options={Object.keys(statuses).map(value=>({value,label:labels(value)}))}/>
+        <Select className="workspace-toolbar-filter" aria-label="Filter activity type" allowClear placeholder="All activity types" onChange={value=>filter('kind',value)} options={['activity','correct','delete','revert'].map(value=>({value,label:labels(value)}))}/>
+        <DatePicker.RangePicker className="activity-log-date-range" placeholder={['From date', 'To date']} onChange={dates=>{setPage(1);setFilters(current=>({...current,from:dates?.[0]?.startOf('day').toISOString(),to:dates?.[1]?.endOf('day').toISOString()}));}}/>
+        <div className="workspace-toolbar-actions">
+          <Button loading={loading} icon={<RefreshCw size={16}/>} onClick={load}>Refresh</Button>
+          <Button disabled={loading || !rows.length} icon={<Download size={16}/>} onClick={exportPage}>Export current page</Button>
+        </div>
+      </WorkspaceToolbar>
+      {loadError && <Alert type="error" showIcon title={loadError} className="mb-4" />}
       <Table rowKey="id" loading={loading} columns={columns} dataSource={rows} scroll={{x:1000}}
         pagination={{current:page,pageSize:20,total,showSizeChanger:false,onChange:setPage,showTotal:value=>`${value} activities`}}
-        locale={{emptyText:'No activities yet. New changes will appear here as staff use the system.'}} />
+        locale={{emptyText:loadError ? 'Activities could not be loaded' : hasFilters ? 'No activities match your filters' : 'No activities yet'}} />
     </Card>
-    <Drawer title="Activity details" size="min(1050px, 96vw)" open={Boolean(detail)} onClose={()=>setDetail(null)} loading={detailLoading}>
-      {detail&&<Space orientation="vertical" size={20} style={{width:'100%'}}>
-        <Descriptions column={2} bordered size="small" items={[
+    <Drawer title={<div className="activity-detail-heading">
+      <h2>Activity details</h2>
+      <p>Review operation metadata and recorded changes.</p>
+    </div>} size="min(100%, 920px)" rootClassName="admin-activity-detail" closable={{ placement: 'end' }}
+      open={Boolean(detail)} onClose={()=>setDetail(null)} loading={detailLoading}>
+      {detail&&<div className="activity-detail-content">
+        <div className="activity-detail-summary">
+          <Tag color={statuses[detailStatus]}>{labels(detailStatus)}</Tag>
+          <time dateTime={detail.operation.createdAt}>{detailDate.format(detailTimestamp)} · {detailClock.format(detailTimestamp)} IST</time>
+        </div>
+        <Descriptions className="activity-detail-metadata" column={1} colon={false} size="small" items={[
           {key:'actor',label:'Performed by',children:`${detail.operation.actor_name} (${detail.operation.actor_role})`},
           {key:'workspace',label:'Workspace',children:labels(detail.operation.workspace)},
           {key:'time',label:'Time (IST)',children:time(detail.operation.createdAt)},
-          {key:'status',label:'Status',children:detail.reversal?'Reverted':detail.operation.status},
-          {key:'operation',label:'Operation ID',children:detail.operation.id,span:2},
-          {key:'path',label:'Action',children:`${detail.operation.method} ${detail.operation.path}`,span:2},
-          ...(detail.operation.reason?[{key:'reason',label:'Reason',children:detail.operation.reason,span:2}]:[]),
+          {key:'status',label:'Status',children:detailStatus},
+          {key:'operation',label:'Operation ID',children:detail.operation.id},
+          {key:'path',label:'Action',children:`${detail.operation.method} ${detail.operation.path}`},
+          ...(detail.operation.reason?[{key:'reason',label:'Reason',children:detail.operation.reason}]:[]),
         ]}/>
         {detail.operation.related_operation_id&&<Button onClick={()=>openDetail(detail.operation.related_operation_id)}>View original activity</Button>}
-        <div><Text strong>{detail.total} recorded changes</Text><Text type="secondary"> — expand a row to compare before and after</Text></div>
-        <Table size="small" rowKey="id" dataSource={detail.changes} scroll={{x:600}} pagination={{pageSize:10}}
-          expandable={{expandedRowRender:row=><FieldDiff row={row}/>}} columns={[
+        <div className="activity-detail-changes">
+          <h3>{detail.total} recorded {detail.total === 1 ? 'change' : 'changes'}</h3>
+          {detail.changes.length > 0 && <p>Expand a row to compare before and after.</p>}
+        </div>
+        <Table className="activity-detail-table" size="small" rowKey="id" dataSource={detail.changes}
+          scroll={detail.changes.length ? {x:600} : undefined} pagination={detail.changes.length > 10 ? {pageSize:10} : false}
+          locale={{ emptyText: <div className="activity-detail-empty">
+            <strong>No recorded changes</strong>
+            <p>This operation did not capture any record-level changes.</p>
+          </div> }}
+          expandable={detail.changes.length ? {expandedRowRender:row=><FieldDiff row={row}/>} : undefined} columns={[
             {title:'Record',dataIndex:'model_name',render:(value,row)=><div><Text strong>{labels(value)}</Text><div className="text-xs text-slate-500">{row.record_key}{row.hostel_id?` · Hostel ${row.hostel_id}`:''}</div></div>},
             {title:'Change',dataIndex:'action',render:value=><Tag>{labels(value)}</Tag>},
             {title:'Fields',dataIndex:'changed_fields',render:fields=><span className="text-xs">{fields.filter(field=>!['createdAt','updatedAt'].includes(field)).map(labels).join(', ')}</span>},
@@ -139,10 +188,13 @@ export default function ActivityLogs() {
             </Space>},
           ]}/>
         {detail.nextAfter&&<Button onClick={()=>openDetail(detail.operation.id,detail.nextAfter)}>Load more changes</Button>}
-        <Text type="secondary">Corrections here support catalog fields and editable income/expenses. Other records use their existing management screens. Finalized periods and dependent records are checked by the server.</Text>
+        <aside className="activity-detail-corrections">
+          <h3>About corrections</h3>
+          <p>Corrections here support catalog fields and editable income/expenses. Other records use their existing management screens. Finalized periods and dependent records are checked by the server.</p>
+        </aside>
         {detail.deliveries.length>0&&<div><Title level={5}>Notifications</Title>{detail.deliveries.map(item=><p key={item.id}><Tag>{item.status}</Tag>{item.recipient} — {item.subject}</p>)}</div>}
         {detail.related.length>0&&<div><Title level={5}>Related activity</Title>{detail.related.map(item=><p key={item.id}><Button type="link" onClick={()=>openDetail(item.id)}>{labels(item.kind)} by {item.actor_name}</Button>{item.reason} <Tag>{item.status}</Tag></p>)}</div>}
-      </Space>}
+      </div>}
     </Drawer>
     <Modal title={<Space><ArrowLeftRight size={20}/>Reversal preview</Space>} open={Boolean(preview)} onCancel={()=>setPreview(null)} onOk={applyRevert}
       okText="Confirm reversal" confirmLoading={working} okButtonProps={{danger:true,disabled:!preview?.allowed||reason.trim().length<5}} width={760}>
@@ -163,5 +215,5 @@ export default function ActivityLogs() {
         <Form.Item name="reason" label="Reason" rules={[{required:true,min:5,max:500,message:'Enter a reason between 5 and 500 characters.'}]}><Input.TextArea rows={3} maxLength={500} showCount/></Form.Item>
       </Form>
     </Modal>
-  </div>;
+  </section>;
 }

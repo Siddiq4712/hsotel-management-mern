@@ -87,14 +87,14 @@ const BulkImportButton = ({ sessionId, onComplete }) => {
         <Button 
           icon={<FileSpreadsheet size={18} />} 
           loading={loading}
-          className="h-11 rounded-xl bg-green-600 text-white hover:bg-green-700 border-none"
+          className="h-11 rounded-control bg-green-600 text-white hover:bg-green-700 border-none"
         >
           Import from Excel
         </Button>
       </Upload>
       <Button
         icon={<Download size={18} />}
-        className="h-11 rounded-xl border-blue-200 text-blue-700 hover:border-blue-400"
+        className="h-11 rounded-control border-blue-200 text-blue-700 hover:border-blue-400"
         onClick={() => downloadStudentBulkImportTemplate()}
       >
         Download Template

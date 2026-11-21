@@ -77,7 +77,7 @@ export const ChatBubble = ({ message }) => {
     >
       {/* Bot Avatar */}
       {isBot && (
-        <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-50 to-blue-50 border border-indigo-100/50 shadow-sm text-sm shrink-0">
+        <div className="flex items-center justify-center w-8 h-8 rounded-control bg-gradient-to-tr from-indigo-50 to-blue-50 border border-indigo-100/50 shadow-sm text-sm shrink-0">
           🤖
         </div>
       )}
@@ -85,7 +85,7 @@ export const ChatBubble = ({ message }) => {
       {/* Bubble Content */}
       <div className="flex flex-col w-full">
         <div
-          className={`px-4 py-3 rounded-2xl shadow-sm text-sm border w-full
+          className={`px-4 py-3 rounded-surface shadow-sm text-sm border w-full
             ${isBot
               ? 'bg-white text-slate-800 border-slate-100 rounded-tl-none'
               : 'bg-gradient-to-tr from-indigo-600 to-blue-600 text-white border-transparent rounded-tr-none'
@@ -104,7 +104,7 @@ export const ChatBubble = ({ message }) => {
           {isBot && message.actionData?.navigationPath && message.cardType !== 'today_highlights' && (
             <button
               onClick={handleActionClick}
-              className="flex items-center justify-center gap-1.5 mt-3.5 w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow hover:shadow-md cursor-pointer border border-white/5 active:scale-[0.98]"
+              className="flex items-center justify-center gap-1.5 mt-3.5 w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-control text-xs font-bold transition-all shadow hover:shadow-md cursor-pointer border border-white/5 active:scale-[0.98]"
             >
               <span>{message.navLabel || 'View Details'}</span>
               <ArrowRight size={13} />

@@ -1,3 +1,5 @@
+import { cornerRadius } from '../../theme/cornerRadius';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
 import { usePermissions } from '../../context/PermissionContext';
 import { screenForView } from '../../../../shared/permissions.js';
 import React, { useState, useEffect, useMemo } from 'react';
@@ -121,7 +123,7 @@ const MessDashboard = ({ setCurrentView }) => {
   const cardStyle = {
     backgroundColor: '#ffffff',
     border: '1px solid #e2e8f0', // slate-200
-    borderRadius: '16px',
+    borderRadius: cornerRadius.surface,
     boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)'
   };
 
@@ -129,21 +131,8 @@ const MessDashboard = ({ setCurrentView }) => {
     <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen">
         {/* Header Section */}
-        <div className="module-page-header flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-200">
-              <LayoutDashboard className="text-white" size={24} />
-            </div>
-            <div>
-              <Title level={2} style={{ margin: 0 }}>Mess Overview</Title>
-              <Text type="secondary">Manage your daily operations and logistics</Text>
-            </div>
-          </div>
-          <Text strong className="bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm">
-            {moment().format('dddd, Do MMMM YYYY')}
-          </Text>
-        </div>
-        
+        <WorkspacePageHeader title="Mess Overview" description={moment().format('dddd, D MMMM YYYY')} icon={LayoutDashboard} />
+
         {/* Stats Section */}
         <Row gutter={[24, 24]}>
           {[
@@ -161,7 +150,7 @@ const MessDashboard = ({ setCurrentView }) => {
                         <Title level={3} style={{ margin: 0 }}>{loading ? <Spin size="small"/> : stat.value}</Title>
                       </div>
                     </div>
-                    <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
+                    <div className={`p-3 rounded-control ${stat.bg} ${stat.color}`}>
                         {stat.icon}
                     </div>
                 </div>
@@ -191,10 +180,10 @@ const MessDashboard = ({ setCurrentView }) => {
                   dataSource={todayMenus}
                   locale={{ emptyText: <Empty description="No meals scheduled for today" /> }}
                   renderItem={item => (
-                    <List.Item className="border-slate-100 px-2 hover:bg-slate-50 transition-colors rounded-xl mb-1">
+                    <List.Item className="border-slate-100 px-2 hover:bg-slate-50 transition-colors rounded-control mb-1">
                       <List.Item.Meta
                         avatar={
-                          <div className="w-24 h-10 rounded-lg flex items-center justify-center font-bold text-xs" style={{ background: `${getMealColor(item.meal_time)}15`, color: getMealColor(item.meal_time) }}>
+                          <div className="w-24 h-10 rounded-control flex items-center justify-center font-bold text-xs" style={{ background: `${getMealColor(item.meal_time)}15`, color: getMealColor(item.meal_time) }}>
                             {(item.meal_label || item.meal_time).toUpperCase()}
                           </div>
                         }
@@ -230,7 +219,7 @@ const MessDashboard = ({ setCurrentView }) => {
                   
                   <Title level={3} style={{ margin: '8px 0' }}>{upcomingMenu.Menu?.name}</Title>
                   
-                  <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 space-y-3">
+                  <div className="bg-blue-50/50 p-4 rounded-surface border border-blue-100 space-y-3">
                     <div className="flex justify-between text-sm">
                         <span className="text-slate-500">Scheduled Servings</span>
                         <Text strong>{upcomingMenu.estimated_servings}</Text>
@@ -285,10 +274,10 @@ const MessDashboard = ({ setCurrentView }) => {
               ].filter(action => can(screenForView(action.id, 'mess'))).map(action => (
                 <button 
                     key={action.id}
-                    className="bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/30 transition-all p-4 rounded-2xl flex flex-col items-center gap-3 shadow-sm group"
+                    className="bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/30 transition-all p-4 rounded-surface flex flex-col items-center gap-3 shadow-sm group"
                     onClick={() => setCurrentView(action.id)}
                 >
-                    <div className="p-2 rounded-lg bg-slate-50 group-hover:bg-white transition-colors">
+                    <div className="p-2 rounded-control bg-slate-50 group-hover:bg-white transition-colors">
                       {action.icon}
                     </div>
                     <span className="text-sm font-semibold">{action.label}</span>

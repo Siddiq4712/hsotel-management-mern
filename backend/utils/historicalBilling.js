@@ -1,6 +1,5 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/database.js';
-import ExcelJS from 'exceljs';
 
 // A source-backed monthly snapshot preserves approved historical rates and rounding.
 // It does not create fictional daily attendance or inventory movements.
@@ -40,23 +39,4 @@ export function monthlyHistoricalReport(payload, college) {
     summary[key] = Math.round(summary[key] * 100) / 100;
   }
   return { success: true, data, summary, historicalImport: true };
-}
-
-export async function sendHistoricalDailyReport(res, payload, exportToExcel) {
-  if (exportToExcel !== 'true') return res.json({ success: true, data: payload.daily, historicalImport: true });
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('August 2026 Daily Rate');
-  sheet.addRow(['August 2026 historical calculation', 'Amount']);
-  if (payload.daily.scopeLabel) sheet.addRow(['Hostels covered', payload.daily.scopeLabel]);
-  for (const row of payload.daily.expenses) sheet.addRow([row.name, row.amount]);
-  sheet.addRow(['Gross expenses', payload.daily.subTotal]);
-  for (const [name, value] of Object.entries(payload.daily.deductions)) sheet.addRow([name, -value.amount]);
-  sheet.addRow(['Net expenses', payload.daily.totalExpenses]);
-  sheet.addRow(['Man-days', payload.daily.totalManDays]);
-  sheet.addRow(['Approved daily rate', payload.daily.dailyRate]);
-  sheet.columns = [{ width: 45 }, { width: 22 }];
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', 'attachment; filename=August-2026-daily-rate.xlsx');
-  await workbook.xlsx.write(res);
-  return res.end();
 }

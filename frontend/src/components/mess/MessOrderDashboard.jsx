@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, Button, message, Typography, Card, Space, ConfigProvider, theme, Select, Statistic, Row, Col } from 'antd';
+import { Table, Button, message, Typography, Card, Space, ConfigProvider, Select, Statistic, Row, Col } from 'antd';
 import { RefreshCw, ChefHat } from 'lucide-react';
 import { messAPI } from '../../services/api';
 import moment from 'moment';
@@ -38,11 +38,11 @@ export default function MessOrderDashboard() {
     return () => clearInterval(interval);
   }, [fetchOrders]);
   const summary = useMemo(() => additionalFoodSummary(orders, { date: date?.format('YYYY-MM-DD'), meal }), [orders, date, meal]);
-  return <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+  return <ConfigProvider>
     <div className="module-page p-8 bg-slate-50 min-h-screen">
       <div className="module-page-header flex justify-between items-center mb-8 flex-wrap gap-4">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100"><ChefHat className="text-white" size={24} /></div>
+          <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100"><ChefHat className="text-white" size={24} /></div>
           <div><Title level={2} style={{ margin: 0 }}>Additional Food Order Summary</Title>
             <Text type="secondary">Student orders and extras recorded by mess staff, updated every 30 seconds.</Text></div>
         </div>

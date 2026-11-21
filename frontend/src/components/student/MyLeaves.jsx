@@ -1,7 +1,7 @@
 import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, Form, Select, Typography, Row, Col, Space, Divider, Table, Tag, Modal, Input, ConfigProvider, theme, Skeleton, Badge, Tooltip, Empty, message } from 'antd';
+import { Card, Form, Select, Typography, Row, Col, Space, Divider, Table, Tag, Modal, Input, ConfigProvider, Skeleton, Badge, Tooltip, Empty, message } from 'antd';
 import { 
   Calendar, FileText, Send, RefreshCw, Filter, 
   Eye, Info, ClipboardList, Clock, ShieldCheck, 
@@ -16,7 +16,7 @@ const { TextArea } = Input;
 
 // --- Specialized Skeleton for Leave History ---
 const LeaveSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+  <Card className="border-none shadow-sm rounded-surface p-6 bg-white overflow-hidden">
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <Skeleton.Input active style={{ width: 200 }} />
@@ -141,9 +141,9 @@ const LeaveManagement = () => {
       align: 'right',
       render: (_, r) => (
         <Button 
-          icon={<Eye size={14}/>} 
+          icon={<Eye size={14}/>} aria-label="View leave details"
           onClick={() => setSelectedLeave(r)}
-          className="rounded-lg hover:bg-blue-50 border-none shadow-sm"
+          className="rounded-control hover:bg-blue-50 border-none shadow-sm"
         />
       )
     }
@@ -151,7 +151,7 @@ const LeaveManagement = () => {
 
   // --- No Data Render Logic ---
   const renderEmptyState = () => (
-    <div className="py-20 flex flex-col items-center justify-center bg-white rounded-[32px]">
+    <div className="py-20 flex flex-col items-center justify-center bg-white rounded-surface">
       <Empty
         image={Empty.PRESENTED_IMAGE_SIMPLE}
         description={
@@ -179,13 +179,13 @@ const LeaveManagement = () => {
   );
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Header */}
         <div className="module-page-header flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100">
               <Calendar className="text-white" size={24} />
             </div>
             <div>
@@ -198,14 +198,14 @@ const LeaveManagement = () => {
         <Row gutter={24}>
           {/* Form Section */}
           <Col lg={9} xs={24}>
-            <Card className="border-none shadow-sm rounded-[32px] p-2 sticky top-8">
+            <Card className="border-none shadow-sm rounded-surface p-2 sticky top-8">
               <Title level={4} className="mb-6 flex items-center gap-2">
                 <FileText size={20} className="text-blue-600" /> New Application
               </Title>
               
               <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ leave_type: 'casual' }}>
                 <Form.Item name="leave_type" label="Category" rules={[{ required: true }]}>
-                  <Select className="h-11 rounded-xl">
+                  <Select className="h-11 rounded-control">
                     <Option value="casual">Casual Leave</Option>
                     <Option value="sick">Sick/Medical</Option>
                     <Option value="emergency">Emergency</Option>
@@ -214,11 +214,11 @@ const LeaveManagement = () => {
                 </Form.Item>
 
                 <Form.Item name="dates" label="Duration Range" rules={[{ required: true }]}>
-                  <DatePicker.RangePicker className="w-full h-11 rounded-xl" disabledDate={c => c && c < moment().startOf('day')} />
+                  <DatePicker.RangePicker className="w-full h-11 rounded-control" disabledDate={c => c && c < moment().startOf('day')} />
                 </Form.Item>
 
                 <Form.Item name="reason" label="Detailed Reason" rules={[{ required: true, min: 10 }]}>
-                  <TextArea rows={4} placeholder="Where are you going and why?" className="rounded-xl" />
+                  <TextArea rows={4} placeholder="Where are you going and why?" className="rounded-control" />
                 </Form.Item>
 
                 <Divider className="my-6" />
@@ -230,7 +230,7 @@ const LeaveManagement = () => {
                   size="large" 
                   loading={submitting} 
                   icon={<Send size={18} />}
-                  className="h-14 rounded-2xl shadow-lg shadow-blue-100 font-bold"
+                  className="h-14 rounded-control shadow-lg shadow-blue-100 font-bold"
                 >
                   Submit Application
                 </Button>
@@ -240,9 +240,9 @@ const LeaveManagement = () => {
 
           {/* List Section */}
           <Col lg={15} xs={24} className="space-y-6">
-            <Card className="border-none shadow-sm rounded-2xl">
+            <Card className="border-none shadow-sm rounded-surface">
               <div className="flex flex-wrap gap-4 items-center">
-                <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 focus-within:border-blue-300 transition-all">
+                <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-control border border-slate-100 flex-1 focus-within:border-blue-300 transition-all">
                   <Search size={18} className="text-slate-300" />
                   <Input 
                     placeholder="Live search by reason..." 
@@ -251,13 +251,13 @@ const LeaveManagement = () => {
                     onChange={e => setSearchText(e.target.value)} 
                   />
                 </div>
-                <Select value={statusFilter} onChange={setStatusFilter} className="w-40 h-10">
+                <Select aria-label="Leave status" value={statusFilter} onChange={setStatusFilter} className="w-40 h-10">
                   <Option value="all">All Status</Option>
                   <Option value="pending">Pending</Option>
                   <Option value="approved">Approved</Option>
                   <Option value="rejected">Rejected</Option>
                 </Select>
-                <Button icon={<RefreshCw size={16}/>} onClick={fetchLeaves} className="rounded-xl h-10" />
+                <Button icon={<RefreshCw size={16}/>} onClick={fetchLeaves} className="rounded-control h-10" />
               </div>
             </Card>
 
@@ -266,7 +266,7 @@ const LeaveManagement = () => {
             ) : filteredLeaves.length === 0 ? (
               renderEmptyState()
             ) : (
-              <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+              <Card className="border-none shadow-sm rounded-surface overflow-hidden" bodyStyle={{ padding: 0 }}>
                 <Table 
                   columns={columns} 
                   dataSource={filteredLeaves} 
@@ -283,17 +283,17 @@ const LeaveManagement = () => {
           title={<div className="flex items-center gap-2 text-blue-600"><ClipboardList size={20}/> Leave Dossier</div>}
           open={!!selectedLeave}
           onCancel={() => setSelectedLeave(null)}
-          footer={<Button type="primary" onClick={() => setSelectedLeave(null)} className="rounded-xl h-10 px-8">Close</Button>}
-          className="rounded-3xl"
+          footer={<Button type="primary" onClick={() => setSelectedLeave(null)} className="rounded-control h-10 px-8">Close</Button>}
+          className="rounded-surface"
         >
           {selectedLeave && (
             <div className="space-y-6 mt-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <div className="bg-slate-50 p-4 rounded-surface border border-slate-100">
                   <Text className="text-[10px] uppercase font-bold text-slate-400 block">From</Text>
                   <Text strong>{moment(selectedLeave.from_date).format('LL')}</Text>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <div className="bg-slate-50 p-4 rounded-surface border border-slate-100">
                   <Text className="text-[10px] uppercase font-bold text-slate-400 block">To</Text>
                   <Text strong>{moment(selectedLeave.to_date).format('LL')}</Text>
                 </div>
@@ -301,16 +301,16 @@ const LeaveManagement = () => {
               
               <div>
                 <Text className="text-[10px] uppercase font-bold text-slate-400 block mb-2 px-1">Applicant's Reason</Text>
-                <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 italic text-slate-700">
+                <div className="bg-blue-50/50 p-4 rounded-surface border border-blue-100 italic text-slate-700">
                   "{selectedLeave.reason}"
                 </div>
               </div>
 
-              {selectedLeave.comment && (
+              {(selectedLeave.remarks || selectedLeave.comment) && (
                 <div>
                   <Text className="text-[10px] uppercase font-bold text-rose-400 block mb-2 px-1">Administrative Remarks</Text>
-                  <div className="bg-rose-50 p-4 rounded-2xl border border-rose-100 text-rose-700">
-                    {selectedLeave.comment}
+                  <div className="bg-rose-50 p-4 rounded-surface border border-rose-100 text-rose-700">
+                    {selectedLeave.remarks || selectedLeave.comment}
                   </div>
                 </div>
               )}

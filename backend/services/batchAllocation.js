@@ -88,6 +88,7 @@ export async function allocationPreview(transaction) {
   ]);
   const rows = [];
   for (const student of students) {
+    if (student.resident_type === 'staff') continue;
     const own = enrollments.filter(entry => entry.student_id === student.userId);
     if (!own.length) continue; // Allocation corrects existing residents; it never admits former students.
     const row = { student_id: student.userId, name: student.userName, roll_number: student.roll_number,

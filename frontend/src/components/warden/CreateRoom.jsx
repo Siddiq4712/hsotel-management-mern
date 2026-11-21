@@ -1,16 +1,20 @@
-import { PermissionNativeButton } from '../common/PermissionControls';
+import { PermissionButton } from '../common/PermissionControls';
+import WorkspaceContextHeader from '../common/WorkspaceContextHeader';
+import { useWardenHostelName } from './WardenWorkspace';
 import React, { useCallback, useMemo, useState, useEffect } from "react";
+import { Link, useSearchParams } from 'react-router-dom';
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { 
-  Bed, ShieldCheck, ShowerHead, Layers, Trash2, 
-  MapPin, Square, X, Laptop, Save, Home, MoveRight, Loader2
+  Bed, ShieldCheck, ShowerHead, Trash2,
+  MapPin, Square, X, Laptop, Save, Home, MoveRight
 } from "lucide-react";
 import { wardenAPI } from "../../services/api"; 
 import BulkRoomCreator from '../common/BulkRoomCreator';
 import { useAuth } from '../../context/AuthContext';
 import WardenRoomTemplates from './WardenRoomTemplates';
-import { ScopeAnchor, useScopeDraft } from '../common/WorkspaceScope';
+import { useScopeDraft } from '../common/WorkspaceScope';
+import './CreateRoom.css';
 
 /* ---------- ARCHITECTURAL CONSTANTS ---------- */
 
@@ -51,6 +55,14 @@ const generateArchitecturalGrid = (config) => {
 
 export default function HostelBlueprintDesigner() {
   const { user } = useAuth();
+  const hostelName = useWardenHostelName();
+  const [params] = useSearchParams();
+  const editingLayout = params.get('tab') === 'layout';
+  const directoryParams = new URLSearchParams(params);
+  directoryParams.delete('tab');
+  const editorParams = new URLSearchParams(directoryParams);
+  editorParams.set('tab', 'layout');
+  const directoryUrl = { pathname: '/create-room', search: directoryParams.toString() };
   const [loading, setLoading] = useState(false);
   const [config, setConfig] = useState({
     building_type: 'u',
@@ -69,6 +81,8 @@ export default function HostelBlueprintDesigner() {
   const [layoutDirty, setLayoutDirty] = useState(false);
   useScopeDraft(layoutDirty, loading);
   const changeConfig = next => { setLayoutDirty(true); setConfig(next); };
+
+  useEffect(() => { window.scrollTo(0, 0); }, [editingLayout]);
 
   // 1. DEBUG: Load Existing Data on Mount
   useEffect(() => {
@@ -171,39 +185,29 @@ export default function HostelBlueprintDesigner() {
     }));
   };
 
+  if (!editingLayout) return <div className="module-page manage-rooms-page">
+    <WorkspaceContextHeader title="Manage Rooms" headingAs="h1" scope={hostelName}
+      description={hostelName ? `Create, organize, and manage rooms in ${hostelName}.` : 'Create, organize, and manage hostel rooms.'} />
+    <BulkRoomCreator isAdmin={user?.role === 'admin'} showRooms />
+    <Link className="manage-rooms-editor-link" to={{ pathname: '/create-room', search: editorParams.toString() }}>Room Layout Editor</Link>
+  </div>;
+
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className="module-page min-h-screen bg-[#fcfdff] p-8 font-serif text-slate-900 select-none">
-        
-        {/* Header Section */}
-        <header className="max-w-[1500px] mx-auto flex justify-between items-center border-b-2 border-blue-900 pb-6 mb-8">
-          <div className="flex items-center gap-4">
-            <div className="p-2 bg-blue-900 text-white rounded-sm shadow-xl"><Layers size={24} /></div>
-            <div>
-              <h1 className="text-2xl font-black uppercase tracking-tighter text-blue-900 italic">Manage Rooms</h1>
-              <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Rooms &amp; Hostel Layout</p>
-            </div>
-          </div>
-          <PermissionNativeButton permissionAction="edit" 
-            onClick={handleCommit}
-            disabled={loading}
-            className="bg-blue-900 text-white px-10 py-3 rounded-sm font-bold text-[10px] uppercase shadow-2xl flex items-center gap-2 hover:bg-black disabled:opacity-50 transition-all"
-          >
-            {loading ? <Loader2 className="animate-spin" size={14} /> : <Save size={14} />}
-            {loading ? "Saving..." : "Save Layout"}
-          </PermissionNativeButton>
-        </header>
-
-        <ScopeAnchor />
-        <section className="max-w-[1500px] mx-auto mb-8 overflow-hidden rounded-2xl border border-slate-200 bg-white font-sans shadow-sm">
-          <BulkRoomCreator isAdmin={user?.role === 'admin'} showRooms templateAction={user?.role !== 'admin' ? <WardenRoomTemplates /> : null} />
-        </section>
-        <div className="max-w-[1500px] mx-auto grid grid-cols-12 gap-10">
+      <div className="module-page manage-rooms-page">
+        <WorkspaceContextHeader title="Room Layout Editor" headingAs="h1" scope={hostelName}
+          description="Arrange rooms and set the building entrance." backTo={directoryUrl} backLabel="Back to Manage Rooms"
+          actions={<>
+            {user?.role !== 'admin' && <WardenRoomTemplates />}
+            <PermissionButton permissionAction="edit" type="primary" icon={<Save size={16} />} loading={loading}
+              disabled={loading} onClick={handleCommit}>Save Layout</PermissionButton>
+          </>} />
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
           
           {/* Sidebar Controls */}
-          <aside className="col-span-3 space-y-6">
+          <aside className="min-w-0 space-y-6 xl:col-span-3">
             
-            <section className="bg-white p-5 border border-blue-100 shadow-sm rounded-lg">
+            <section className="bg-white p-5 border border-blue-100 shadow-sm rounded-surface">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-900 mb-5 border-b pb-2 flex items-center gap-2">
                 <Home size={14} /> Block Structure
               </h3>
@@ -229,7 +233,7 @@ export default function HostelBlueprintDesigner() {
               </div>
             </section>
 
-            <section className="bg-slate-900 p-6 shadow-2xl rounded-lg">
+            <section className="bg-slate-900 p-6 shadow-2xl rounded-surface">
               <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-300 mb-5 flex items-center gap-2">
                 <MoveRight size={14} /> Room Types
               </h3>
@@ -240,7 +244,7 @@ export default function HostelBlueprintDesigner() {
               </div>
             </section>
 
-            <section className="bg-white p-5 border border-blue-100 shadow-sm rounded-lg">
+            <section className="bg-white p-5 border border-blue-100 shadow-sm rounded-surface">
                <h3 className="text-[10px] font-black uppercase tracking-widest text-orange-600 mb-4 flex items-center gap-2">
                 <MapPin size={14} /> Entrance (Side)
               </h3>
@@ -259,11 +263,12 @@ export default function HostelBlueprintDesigner() {
           </aside>
 
           {/* Canvas Floor Plan */}
-          <main className="col-span-9 bg-white p-12 border-2 border-blue-100 shadow-2xl relative overflow-auto min-h-[850px]">
+          <section aria-label="Room layout editor" tabIndex={0}
+            className="min-w-0 bg-white p-4 md:p-8 border border-slate-200 rounded-surface relative overflow-auto min-h-[420px] xl:col-span-9">
              {/* Blueprint Technical Grid */}
              <div className="absolute inset-0 opacity-[0.04] pointer-events-none" style={{ backgroundImage: 'linear-gradient(#1e3a8a 1px, transparent 1px), linear-gradient(90deg, #1e3a8a 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
             
-             <div className="relative z-10 flex flex-col items-center">
+             <div className="relative z-10 flex w-max min-w-full flex-col items-center">
                 {config.entrance_side === 't' && <EntranceLabel side="t" />}
 
                 <div className="flex items-center">
@@ -294,7 +299,7 @@ export default function HostelBlueprintDesigner() {
 
                 {config.entrance_side === 'b' && <EntranceLabel side="b" />}
              </div>
-          </main>
+          </section>
         </div>
       </div>
 
@@ -327,7 +332,7 @@ function DraggableRoom({ typeKey, config }) {
   }));
 
   return (
-    <div ref={drag} className={`p-4 border-2 rounded-sm flex items-center gap-4 cursor-grab transition-all bg-white border-blue-100 hover:border-blue-900 shadow-sm ${isDragging ? 'opacity-30 scale-95' : ''}`}>
+    <div ref={drag} className={`p-4 border-2 rounded-control flex items-center gap-4 cursor-grab transition-all bg-white border-blue-100 hover:border-blue-900 shadow-sm ${isDragging ? 'opacity-30 scale-95' : ''}`}>
       <div className="text-blue-900"><config.icon size={18} /></div>
       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600">{config.name}</span>
     </div>
@@ -389,8 +394,8 @@ function GridCell({ type, slotId, data, entranceSide, onDrop, onSetEntrance, onE
 
 function EntranceLabel({ side }) {
   const styles = {
-    t: "mb-4 bg-orange-600 text-white px-8 py-1.5 text-[10px] font-black uppercase tracking-[0.3em] rounded-t shadow-lg animate-pulse",
-    b: "mt-4 bg-orange-600 text-white px-8 py-1.5 text-[10px] font-black uppercase tracking-[0.3em] rounded-b shadow-lg animate-pulse",
+    t: "mb-4 bg-orange-600 text-white px-8 py-1.5 text-[10px] font-black uppercase tracking-[0.3em] rounded-t-compact shadow-lg animate-pulse",
+    b: "mt-4 bg-orange-600 text-white px-8 py-1.5 text-[10px] font-black uppercase tracking-[0.3em] rounded-b-compact shadow-lg animate-pulse",
     l: "mr-8 bg-orange-600 text-white px-1.5 py-8 text-[10px] font-black uppercase tracking-[0.3em] [writing-mode:vertical-lr] rotate-180 shadow-lg animate-pulse",
     r: "ml-8 bg-orange-600 text-white px-1.5 py-8 text-[10px] font-black uppercase tracking-[0.3em] [writing-mode:vertical-lr] shadow-lg animate-pulse"
   };

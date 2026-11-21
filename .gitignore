@@ -1,8 +1,11 @@
 .env
 config.json
+*.md
+/docs/
 /backend/backups/batch-*-allocation-*.json
 /backend/private/
 /mobile-app/.reduction-build-check/
+/mobile-app/.expo-performance-check/
 .expo
 .expo/
 mobile-app/.expo

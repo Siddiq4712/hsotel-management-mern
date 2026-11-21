@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useId, useRef, useState } 
 import { createPortal } from 'react-dom';
 import { Form, Modal, Select, message } from 'antd';
 import { Building2, Warehouse } from 'lucide-react';
+import { StaffWorkspaceGuardContext } from '../../context/StaffWorkspaceContext';
 import './WorkspaceScope.css';
 
 const ScopeContext = createContext(null);
@@ -32,7 +33,7 @@ export function ScopeAnchor() {
   return scope ? <div className="workspace-scope-anchor" ref={scope.setAnchorTarget} /> : null;
 }
 
-export default function WorkspaceScope({ scope, value, options, onChange, label, selectLabel, description, loading, disabled, actions, children }) {
+export default function WorkspaceScope({ scope, value, options, onChange, label, selectLabel, description, loading, disabled, actions, children, showBar = true }) {
   const drafts = useRef(new Map());
   const forms = useRef({});
   const [controlsTarget, setControlsTarget] = useState(null);
@@ -41,19 +42,26 @@ export default function WorkspaceScope({ scope, value, options, onChange, label,
     drafts.current.set(id, getter);
     return () => drafts.current.delete(id);
   });
-  const change = next => {
-    if (next === value) return;
+  const workspaceGuard = useContext(StaffWorkspaceGuardContext);
+  const confirmChange = (apply, target) => {
     const states = [...drafts.current.values()].map(getter => getter());
     if (states.some(state => state.busy)) { message.info('Wait for the current action to finish before changing scope.'); return; }
-    const apply = () => { forms.current = {}; onChange(next); };
     const dirty = states.some(state => state.dirty) || Object.values(forms.current).some(form => form.isFieldsTouched());
-    if (dirty) Modal.confirm({ title: `Change ${label.toLowerCase()}?`,
+    if (dirty) Modal.confirm({ title: `Change ${target}?`,
       content: 'You have unsaved changes. Switching will discard this draft.',
       okText: 'Discard and switch', cancelText: 'Keep editing', onOk: apply });
     else apply();
   };
+  useEffect(() => {
+    if (!workspaceGuard) return;
+    workspaceGuard.current = apply => confirmChange(apply, 'workspace');
+    return () => { workspaceGuard.current = null; };
+  }, [workspaceGuard]);
+  const change = next => {
+    if (next !== value) confirmChange(() => { forms.current = {}; onChange(next); }, label.toLowerCase());
+  };
   const Icon = scope.kind === 'inventory' ? Warehouse : Building2;
-  const bar = <section className="workspace-scope-bar" aria-label={`${label} scope`}>
+  const bar = showBar && <section className="workspace-scope-bar" aria-label={`${label} scope`}>
         <div className="workspace-scope-main">
           <span className="workspace-scope-icon"><Icon size={19} aria-hidden="true" /></span>
           <div className="workspace-scope-choice"><span className="workspace-scope-label">{label}</span>

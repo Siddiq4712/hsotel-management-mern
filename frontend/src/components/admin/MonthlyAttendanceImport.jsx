@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Alert, Button, Card, Input, Select, Space, Table, Typography, Upload, message } from 'antd';
+import { Button, Card, Input, Select, Space, Table, Typography, Upload, message } from 'antd';
+import Alert from '../common/WorkspaceAlert';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
+import WorkspaceToolbar from '../common/WorkspaceToolbar';
 import { Download, FileSpreadsheet, Upload as UploadIcon } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { adminAPI } from '../../services/api';
 import { initialBillingDate } from '../../utils/billingDate';
 import { makeAttendanceTemplate, parseAttendanceWorkbook } from '../../utils/monthlyAttendanceExcel';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 export default function MonthlyAttendanceImport() {
   const [hostels, setHostels] = useState([]);
@@ -15,6 +18,7 @@ export default function MonthlyAttendanceImport() {
   const [busy, setBusy] = useState(false);
   const [rows, setRows] = useState([]);
   const [fileName, setFileName] = useState('');
+  const [showInvalidOnly, setShowInvalidOnly] = useState(false);
   const [preview, setPreview] = useState(null);
   const [history, setHistory] = useState([]);
   const [saved, setSaved] = useState(null);
@@ -31,7 +35,7 @@ export default function MonthlyAttendanceImport() {
     return () => { active = false; };
   }, [hostelId, saved]);
 
-  const reset = () => { setRows([]); setFileName(''); setPreview(null); setSaved(null); };
+  const reset = () => { setShowInvalidOnly(false); setRows([]); setFileName(''); setPreview(null); setSaved(null); };
   const payload = (data = rows, name = fileName) => ({ hostel_id: hostelId,
     month: Number(month.slice(5, 7)), year: Number(month.slice(0, 4)), rows: data, file_name: name });
 
@@ -77,44 +81,54 @@ export default function MonthlyAttendanceImport() {
     } finally { setBusy(false); }
   };
 
-  return <div className="module-page p-4 md:p-8 bg-slate-50 min-h-screen">
-    <Title level={2}><FileSpreadsheet size={28} className="inline mr-2" />Monthly Attendance Import</Title>
-    <Text type="secondary">Import student-wise billable mess days for one hostel and month.</Text>
-    <Card className="mt-6 mb-6">
-      <Space wrap align="end">
-        <div><label htmlFor="attendance-hostel">Hostel</label><br />
+  return <section className="module-page" aria-labelledby="attendance-import-title">
+    <WorkspacePageHeader id="attendance-import-title" title="Monthly Attendance Import" icon={FileSpreadsheet}
+      description="Import monthly mess attendance totals for one hostel and month." />
+    <Card className="mb-6">
+      <WorkspaceToolbar className="workspace-toolbar-labeled">
+        <div className="flex flex-col gap-1"><label htmlFor="attendance-hostel">Hostel</label>
           <Select id="attendance-hostel" aria-label="Hostel" placeholder="Select hostel" value={hostelId} disabled={busy}
-            style={{ width: 240 }} onChange={id => { setHostelId(id); reset(); }}
+            className="workspace-toolbar-filter" onChange={id => { setHostelId(id); reset(); }}
             options={hostels.map(h => ({ label: h.name, value: h.id }))} /></div>
-        <div><label htmlFor="attendance-month">Month</label><br />
+        <div className="flex flex-col gap-1"><label htmlFor="attendance-month">Month</label>
           <Input id="attendance-month" type="month" value={month} disabled={busy} min="2000-01" max="2100-12"
             onChange={e => { setMonth(e.target.value); reset(); }} /></div>
-        <Button icon={<Download size={16} />} disabled={!hostelId || !month || busy} onClick={download}>Download Template</Button>
-        <Upload beforeUpload={upload} accept=".xlsx" showUploadList={false} disabled={!hostelId || !month || busy}>
-          <Button loading={busy} icon={<UploadIcon size={16} />} disabled={!hostelId || !month || busy}>Upload & Preview</Button>
-        </Upload>
-      </Space>
+        <div className="workspace-toolbar-actions">
+          <Button icon={<Download size={16} />} disabled={!hostelId || !month || busy} onClick={download}>Download Template</Button>
+          <Upload beforeUpload={upload} accept=".xlsx" showUploadList={false} disabled={!hostelId || !month || busy}>
+            <Button type="primary" loading={busy} icon={<UploadIcon size={16} />} disabled={!hostelId || !month || busy}>Upload & Preview</Button>
+          </Upload>
+        </div>
+      </WorkspaceToolbar>
       <Alert className="mt-5" type="info" showIcon message="Fixed format: Roll Number | Student Name | Mess Days"
         description="The legacy Mess Days column stores monthly attendance totals only. It does not grant reductions or change billing. Use 0 explicitly for zero recorded days, keep roll numbers as text, and remove rows you are not importing. Maximum 1000 rows. Individual attendance dates are not inferred." />
     </Card>
     {saved && <Alert className="mb-6" type="success" showIcon message={`Imported ${saved.totalRows} students · ${saved.totalManDays} man-days · Import #${saved.importId}`}
       description="Records are now available under Warden → Attendance → Monthly attendance → Legacy monthly totals. No reductions, bills, or emails were generated." />}
     {preview && <Card title={`Preview: ${fileName}`} className="mb-6">
-      <Space wrap className="mb-4"><Text strong>{preview.summary.totalRows} rows</Text>
+      <Space wrap className="mb-4"><Text strong>{hostels.find(hostel => hostel.id === hostelId)?.name} · {month}</Text><Text>{preview.summary.totalRows} rows</Text>
         <Text>{preview.summary.invalidRows} invalid rows</Text><Text>{preview.summary.totalManDays} valid man-days</Text></Space>
       {preview.blockers.map(text => <Alert className="mb-3" key={text} type="error" showIcon message={text} />)}
       {!preview.valid && <Alert className="mb-3" type="warning" message="Nothing will be saved until all row errors and month conflicts are resolved." />}
-      <Table rowKey="row" dataSource={preview.rows} scroll={{ x: 800 }} pagination={{ pageSize: 10 }} columns={[
+      <WorkspaceToolbar className="mb-4">
+        {!!preview.summary.invalidRows && <label className="flex items-center gap-2">
+          <input type="checkbox" checked={showInvalidOnly} onChange={event => setShowInvalidOnly(event.target.checked)} />
+          Show rows that need correction
+        </label>}
+        <div className="workspace-toolbar-actions">
+          <Button type="primary" loading={busy} disabled={!preview.valid || busy} onClick={save}>Confirm Import for {month}</Button>
+        </div>
+      </WorkspaceToolbar>
+      <Table rowKey="row" dataSource={showInvalidOnly ? preview.rows.filter(row => row.errors.length) : preview.rows} scroll={{ x: 800 }} pagination={{ pageSize: 10 }} columns={[
         { title: 'Excel Row', dataIndex: 'row', width: 100 }, { title: 'Roll Number', dataIndex: 'roll_number' },
         { title: 'Student Name', dataIndex: 'student_name' }, { title: 'Mess Days', dataIndex: 'mess_days', width: 110 },
         { title: 'Validation', key: 'validation', render: (_, row) => row.errors.length ? <Text type="danger">{row.errors.join(' ')}</Text> : <Text type="success">Valid</Text> }
       ]} />
-      <Button type="primary" loading={busy} disabled={!preview.valid || busy} onClick={save}>Confirm Import for {month}</Button>
     </Card>}
-    {hostelId && <Card title="Recent attendance imports"><Table size="small" rowKey="id" dataSource={history} pagination={{ pageSize: 5 }} columns={[
+    {hostelId && <Card title="Recent attendance imports"><Table size="small" rowKey="id" dataSource={history} scroll={{ x: 720 }} pagination={{ pageSize: 5 }} columns={[
       { title: 'Import ID', dataIndex: 'id' }, { title: 'Month', render: (_, r) => `${r.year}-${String(r.month).padStart(2, '0')}` },
       { title: 'File', dataIndex: 'file_name' }, { title: 'Students', dataIndex: 'row_count' },
       { title: 'Man-Days', dataIndex: 'total_man_days' }, { title: 'Imported At', dataIndex: 'createdAt', render: value => new Date(value).toLocaleString() }
     ]} /></Card>}
-  </div>;
+  </section>;
 }

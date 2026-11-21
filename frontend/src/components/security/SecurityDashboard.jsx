@@ -1,6 +1,7 @@
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  Card, Typography, Row, Col, List, Table, Tag, 
+  Alert, Card, Typography, Row, Col, List, Table, Tag,
   Button, Input, Form, message, ConfigProvider, theme, Space, Statistic, Avatar
 } from 'antd';
 import { 
@@ -8,12 +9,18 @@ import {
 } from 'lucide-react';
 import { outpassAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
+import { usePermissions } from '../../context/PermissionContext';
 import moment from 'moment';
 
 const { Title, Text } = Typography;
 
 const SecurityDashboard = () => {
   const { logout } = useAuth();
+  const { can } = usePermissions();
+  const canViewActivity = can('gate-activity');
+  const canViewScanner = can('gate-scan');
+  const canScan = can('gate-scan', 'create');
+  const [loadError, setLoadError] = useState('');
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({ exits: 0, returns: 0, outside: 0 });
   const [recentScans, setRecentScans] = useState([]);
@@ -25,7 +32,9 @@ const SecurityDashboard = () => {
   const [verifyLoading, setVerifyLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
+    if (!canViewActivity) return;
     setLoading(true);
+    setLoadError('');
     try {
       const [activityRes, outsideRes, scansRes] = await Promise.all([
         outpassAPI.getTodayGateActivity(),
@@ -37,8 +46,9 @@ const SecurityDashboard = () => {
       const outsideList = outsideRes.data?.data || [];
       const scansList = scansRes.data?.data || [];
 
-      const exitsToday = activities.filter(a => a.exit_time).length;
-      const returnsToday = activities.filter(a => a.return_time).length;
+      const today = moment();
+      const exitsToday = activities.filter(a => a.exit_time && moment(a.exit_time).isSame(today, 'day')).length;
+      const returnsToday = activities.filter(a => a.return_time && moment(a.return_time).isSame(today, 'day')).length;
 
       setStats({
         exits: exitsToday,
@@ -49,12 +59,11 @@ const SecurityDashboard = () => {
       setOutsideStudents(outsideList);
       setRecentScans(scansList.slice(0, 10));
     } catch (error) {
-      console.error('Error fetching security dashboard stats:', error);
-      message.error('Failed to sync gate data');
+      setLoadError(error.message || 'Could not load gate activity.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canViewActivity]);
 
   useEffect(() => {
     fetchData();
@@ -62,6 +71,7 @@ const SecurityDashboard = () => {
 
   const handleVerify = async (e) => {
     if (e) e.preventDefault();
+    if (!canScan || verifyLoading) return;
     if (!qrToken.trim()) {
       message.warning('Please enter a valid QR Token / Outpass ID');
       return;
@@ -82,7 +92,7 @@ const SecurityDashboard = () => {
         fetchData(); // Refresh list and stats
       }
     } catch (error) {
-      const errMsg = error.response?.data?.message || 'Invalid QR Token or verification error';
+      const errMsg = error.response?.data?.message || error.message || 'Could not verify the outpass.';
       message.error(errMsg);
       setScanResult({
         success: false,
@@ -160,89 +170,74 @@ const SecurityDashboard = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#4f46e5', borderRadius: 16 } }}>
-      <div className="p-8 bg-slate-50 min-h-screen">
+    <ConfigProvider>
+      <div className="module-page">
         
-        {/* Header Block */}
-        <Card className="border-none shadow-sm rounded-3xl p-6 bg-white mb-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-100 text-white">
-                <Shield size={24} />
-              </div>
-              <div>
-                <Title level={2} style={{ margin: 0, fontWeight: 700, letterSpacing: '-0.5px' }}>Security Gate Console</Title>
-                <Text type="secondary" className="text-sm">Manage, verify, and record real-time hostel gate entry/exit activity</Text>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <Button icon={<RefreshCw size={16} />} onClick={fetchData} loading={loading} className="h-11 rounded-xl flex items-center justify-center font-semibold">
-                Refresh Stats
-              </Button>
-              <Button icon={<LogOut size={16} />} onClick={logout} danger className="h-11 rounded-xl flex items-center justify-center gap-2 font-semibold">
-                Sign Out
-              </Button>
-            </div>
-          </div>
-        </Card>
+        <WorkspacePageHeader title="Security Gate Console" icon={Shield}
+          description={`Campus gate · ${moment().format('DD MMM YYYY')}`}>
+          {canViewActivity && <Button icon={<RefreshCw size={16} />} onClick={fetchData} loading={loading}>Refresh</Button>}
+          <Button icon={<LogOut size={16} />} onClick={logout}>Sign out</Button>
+        </WorkspacePageHeader>
 
         {/* Stats Section */}
-        <Row gutter={[24, 24]} className="mb-8">
+        {canViewActivity && loadError && <Alert className="mb-4" type="error" showIcon title="Gate activity unavailable" description={loadError} action={<Button onClick={fetchData} loading={loading}>Retry</Button>} />}
+        {canViewActivity && <Row gutter={[24, 24]} className="mb-6">
           <Col lg={8} md={8} xs={24}>
-            <Card className="border-none shadow-sm rounded-3xl p-6 bg-white flex flex-col justify-between">
+            <Card className="border-none shadow-sm rounded-surface p-6 bg-white flex flex-col justify-between">
               <Statistic 
                 title={<Text className="text-slate-400 font-bold uppercase text-[10px] tracking-wider">Students Currently Outside</Text>}
-                value={stats.outside} 
+                value={loadError ? '—' : stats.outside}
                 valueStyle={{ color: '#8b5cf6', fontWeight: 800, fontSize: '32px' }}
                 prefix={<Users size={24} className="text-purple-500 mr-2 inline" />}
               />
             </Card>
           </Col>
           <Col lg={8} md={8} xs={24}>
-            <Card className="border-none shadow-sm rounded-3xl p-6 bg-white flex flex-col justify-between">
+            <Card className="border-none shadow-sm rounded-surface p-6 bg-white flex flex-col justify-between">
               <Statistic 
                 title={<Text className="text-slate-400 font-bold uppercase text-[10px] tracking-wider">Recorded Exits Today</Text>}
-                value={stats.exits} 
+                value={loadError ? '—' : stats.exits}
                 valueStyle={{ color: '#10b981', fontWeight: 800, fontSize: '32px' }}
                 prefix={<LogOut size={24} className="text-emerald-500 mr-2 inline" />}
               />
             </Card>
           </Col>
           <Col lg={8} md={8} xs={24}>
-            <Card className="border-none shadow-sm rounded-3xl p-6 bg-white flex flex-col justify-between">
+            <Card className="border-none shadow-sm rounded-surface p-6 bg-white flex flex-col justify-between">
               <Statistic 
                 title={<Text className="text-slate-400 font-bold uppercase text-[10px] tracking-wider">Recorded Returns Today</Text>}
-                value={stats.returns} 
+                value={loadError ? '—' : stats.returns}
                 valueStyle={{ color: '#3b82f6', fontWeight: 800, fontSize: '32px' }}
                 prefix={<LogIn size={24} className="text-blue-500 mr-2 inline" />}
               />
             </Card>
           </Col>
-        </Row>
+        </Row>}
 
         <Row gutter={[24, 24]}>
           {/* LEFT: Scan and Activity Logs */}
-          <Col lg={16} md={24} xs={24} className="space-y-6">
+          <Col lg={canViewActivity ? 16 : 24} md={24} xs={24} className="space-y-6">
             
             {/* Manual Verification Form */}
-            <Card className="border-none shadow-sm rounded-3xl p-6 bg-white">
+            {canViewScanner && <Card>
               <Title level={4} className="mb-4 flex items-center gap-2">
                 <Key size={20} className="text-indigo-600" />
-                Log Gate Activity / Scan QR
+                Verify and log gate activity
               </Title>
-              <form onSubmit={handleVerify} className="flex gap-4">
+              <form onSubmit={handleVerify} className="workspace-toolbar">
                 <Input 
-                  placeholder="Enter Student Outpass Token or Roll Number" 
+                  aria-label="Outpass QR token"
+                  placeholder="Enter the outpass QR token"
                   value={qrToken}
                   onChange={(e) => setQrToken(e.target.value)}
-                  className="h-12 rounded-xl text-base flex-1"
-                  disabled={verifyLoading}
+                  className="workspace-search"
+                  disabled={verifyLoading || !canScan}
                 />
                 <Button 
                   type="primary" 
                   htmlType="submit" 
                   loading={verifyLoading} 
-                  className="h-12 px-6 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 border-none"
+                  disabled={!canScan}
                 >
                   Verify & Log
                 </Button>
@@ -250,9 +245,9 @@ const SecurityDashboard = () => {
 
               {/* Scan result display panel */}
               {scanResult && (
-                <div className={`mt-6 p-5 rounded-2xl border ${scanResult.success ? 'bg-emerald-50/50 border-emerald-100' : 'bg-rose-50/50 border-rose-100'} transition-all duration-300`}>
+                <div role={scanResult.success ? 'status' : 'alert'} className={`mt-6 p-5 rounded-surface border ${scanResult.success ? 'bg-emerald-50/50 border-emerald-100' : 'bg-rose-50/50 border-rose-100'} transition-all duration-300`}>
                   <div className="flex gap-4 items-start">
-                    <div className={`p-2.5 rounded-xl ${scanResult.success ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    <div className={`p-2.5 rounded-control ${scanResult.success ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                       <CheckCircle size={20} />
                     </div>
                     <div className="flex-1">
@@ -261,7 +256,7 @@ const SecurityDashboard = () => {
                       </Title>
                       
                       {scanResult.outpass && (
-                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white/70 p-4 rounded-xl border border-slate-100">
+                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white/70 p-4 rounded-surface border border-slate-100">
                           <div>
                             <Text type="secondary" className="text-xs">Student Name</Text>
                             <Text className="block font-bold text-slate-800">{scanResult.outpass.Student?.userName}</Text>
@@ -288,34 +283,35 @@ const SecurityDashboard = () => {
                   </div>
                 </div>
               )}
-            </Card>
+            </Card>}
 
             {/* Recent activity log table */}
-            <Card className="border-none shadow-sm rounded-3xl p-6 bg-white">
+            {canViewActivity && <Card>
               <Title level={4} className="mb-4 flex items-center gap-2">
                 <Clock size={20} className="text-indigo-600" />
                 Recent Gate Activity
               </Title>
               <Table 
-                dataSource={recentScans} 
+                dataSource={loadError ? [] : recentScans}
                 columns={recentColumns} 
                 rowKey="id" 
                 pagination={{ pageSize: 5 }}
-                locale={{ emptyText: 'No gate scans recorded yet today.' }}
+                loading={loading} scroll={{ x: 565 }}
+                locale={{ emptyText: loadError ? 'Gate scans could not be loaded.' : 'No recent gate scans.' }}
               />
-            </Card>
+            </Card>}
 
           </Col>
 
           {/* RIGHT: Students Currently Outside */}
-          <Col lg={8} md={24} xs={24}>
-            <Card className="border-none shadow-sm rounded-3xl p-6 bg-white h-full">
+          {canViewActivity && <Col lg={8} md={24} xs={24}>
+            <Card className="border-none shadow-sm rounded-surface p-6 bg-white h-full">
               <Title level={4} className="mb-4 flex items-center gap-2">
                 <Users size={20} className="text-purple-600" />
                 Who is Outside?
               </Title>
               <List
-                dataSource={outsideStudents}
+                dataSource={loadError ? [] : outsideStudents}
                 renderItem={item => (
                   <List.Item className="flex justify-between items-center py-3.5 border-b border-slate-100 last:border-none">
                     <List.Item.Meta
@@ -330,10 +326,11 @@ const SecurityDashboard = () => {
                     />
                   </List.Item>
                 )}
-                locale={{ emptyText: 'All students are inside.' }}
+                loading={loading}
+                locale={{ emptyText: loadError ? 'Outside status could not be loaded.' : 'All students are inside.' }}
               />
             </Card>
-          </Col>
+          </Col>}
         </Row>
       </div>
     </ConfigProvider>

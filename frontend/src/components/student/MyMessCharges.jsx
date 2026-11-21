@@ -1,9 +1,11 @@
+import { cornerRadius } from '../../theme/cornerRadius';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
-  Alert, Card, Typography, Row, Col, Statistic, Button, Space,
-  Divider, ConfigProvider, theme, Skeleton, Badge, 
+  Card, Typography, Row, Col, Statistic, Button, Space,
+  Divider, ConfigProvider, Skeleton, Badge,
   Tooltip, Table, Tag, Empty 
 } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import { 
   Receipt, Calendar, CheckCircle2, XCircle, ChevronDown, 
   ChevronUp, Clock, IndianRupee, BookOpen, Droplet, 
@@ -23,7 +25,7 @@ const ChargeSkeleton = () => (
     </div>
     <Row gutter={24}>
       {[...Array(3)].map((_, i) => (
-        <Col span={8} key={i}><Skeleton.Button active block style={{ height: 120, borderRadius: 24 }} /></Col>
+        <Col span={8} key={i}><Skeleton.Button active block style={{ height: 120, borderRadius: cornerRadius.surface }} /></Col>
       ))}
     </Row>
     <Skeleton active paragraph={{ rows: 10 }} />
@@ -130,7 +132,7 @@ const MyMessCharges = () => {
       fixed: 'right',
       width: 120,
       render: (v) => (
-        <div className="bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
+        <div className="bg-slate-50 px-3 py-1 rounded-control border border-slate-100">
           <Text strong className="text-blue-600">₹{parseFloat(v).toFixed(2)}</Text>
         </div>
       )
@@ -140,13 +142,13 @@ const MyMessCharges = () => {
   if (loading) return <ChargeSkeleton />;
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Header & Navigation */}
         <div className="module-page-header flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100">
               <Receipt className="text-white" size={24} />
             </div>
             <div>
@@ -156,34 +158,34 @@ const MyMessCharges = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <div className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200 flex items-center">
+            <div className="bg-white p-1 rounded-control shadow-sm border border-slate-200 flex items-center">
               <Button type="text" icon={<ChevronLeft size={16} />} onClick={() => changeYear(-1)} />
               <div className="px-4 text-center min-w-[70px]"><Text strong className="text-slate-700">{selectedDate.format('YYYY')}</Text></div>
               <Button type="text" icon={<ChevronRight size={16} />} onClick={() => changeYear(1)} />
             </div>
 
-            <div className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200 flex items-center">
+            <div className="bg-white p-1 rounded-control shadow-sm border border-slate-200 flex items-center">
               <Button type="text" icon={<ChevronLeft size={16} />} onClick={() => changeMonth(-1)} />
               <div className="px-6 text-center min-w-[120px]"><Text strong className="text-blue-600 uppercase tracking-wide">{selectedDate.format('MMMM')}</Text></div>
               <Button type="text" icon={<ChevronRight size={16} />} onClick={() => changeMonth(1)} />
             </div>
-            <Button onClick={handleToday} className="rounded-2xl h-11 border-slate-200 text-slate-500 font-medium">Today</Button>
+            <Button onClick={handleToday} className="rounded-control h-11 border-slate-200 text-slate-500 font-medium">Today</Button>
           </div>
         </div>
 
         {/* Top Summary Cards */}
         <Row gutter={[24, 24]}>
           <Col xs={24} lg={16}>
-             <Card className="border-none shadow-sm rounded-[32px] bg-white h-full" title={<div className="flex items-center gap-2"><Wallet size={18} className="text-blue-600"/><Text strong>Reconciliation Summary</Text></div>}>
+             <Card className="border-none shadow-sm rounded-surface bg-white h-full" title={<div className="flex items-center gap-2"><Wallet size={18} className="text-blue-600"/><Text strong>Reconciliation Summary</Text></div>}>
                <Row gutter={16}>
                  <Col span={12}>
-                   <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100">
+                   <div className="bg-slate-50 p-4 rounded-surface border border-slate-100">
                      <Text className="text-[10px] uppercase font-bold text-slate-400 block">Food daily rate</Text>
                      <Title level={3} style={{ margin: 0 }}>₹{summaryData.dailyRate.toFixed(2)}</Title>
                    </div>
                  </Col>
                  <Col span={12}>
-                    <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100">
+                    <div className="bg-slate-50 p-4 rounded-surface border border-slate-100">
                       <Text className="text-[10px] uppercase font-bold text-slate-400 block">Billable food days</Text>
                       <Title level={3} style={{ margin: 0 }}>{summaryData.manDays} Days</Title>
                     </div>
@@ -206,14 +208,14 @@ const MyMessCharges = () => {
           </Col>
 
           <Col xs={24} lg={8}>
-            <Card className="border-none shadow-lg rounded-[32px] bg-blue-600 text-white h-full relative overflow-hidden">
+            <Card className="border-none shadow-lg rounded-surface bg-blue-600 text-white h-full relative overflow-hidden">
                <div className="relative z-10">
                  <Text className="text-blue-100 text-[10px] uppercase font-bold tracking-widest block mb-1">Total Payable Amount</Text>
                  <div className="flex items-baseline gap-1 mb-8">
                     <span className="text-2xl font-light">₹</span>
                     <span className="text-5xl font-black">{totalBill.toFixed(2)}</span>
                  </div>
-                 <Button block size="large" className="h-14 rounded-2xl border-none shadow-xl font-bold bg-white text-blue-600" onClick={() => window.open("https://www.iobnet.co.in/iobpay/commonpage.do?type=MESS%20FEES", "_blank")}>Pay Mess Fees (IOB)</Button>
+                 <Button block size="large" className="h-14 rounded-control border-none shadow-xl font-bold bg-white text-blue-600" onClick={() => window.open("https://www.iobnet.co.in/iobpay/commonpage.do?type=MESS%20FEES", "_blank")}>Pay Mess Fees (IOB)</Button>
                </div>
                <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-blue-500 rounded-full opacity-20" />
             </Card>
@@ -221,7 +223,7 @@ const MyMessCharges = () => {
         </Row>
 
         {/* Daily Audit Ledger with Pagination */}
-        <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }} title={
+        <Card className="border-none shadow-sm rounded-surface overflow-hidden" bodyStyle={{ padding: 0 }} title={
           <div className="flex justify-between items-center px-2 py-4">
             <div className="flex items-center gap-2"><History size={18} className="text-blue-600"/><Text strong className="text-lg">Daily Audit Ledger</Text></div>
             <Button icon={<RefreshCw size={14}/>} onClick={fetchCharges} type="text" />

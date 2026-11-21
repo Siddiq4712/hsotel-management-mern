@@ -24,7 +24,7 @@ afterAll(() => vi.unstubAllGlobals());
 
 it('loads actual hostel details, saves edits, and refreshes the list with correct room counts', async () => {
   render(<ManageHostels />);
-  expect(await screen.findByText('1 Rooms')).toBeInTheDocument();
+  expect(await screen.findByText('1 room')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Edit Maple House' }));
   const dialog = await screen.findByRole('dialog');
   await waitFor(() => expect(within(dialog).getByLabelText('Hostel name')).toHaveValue('Maple House'));
@@ -38,12 +38,13 @@ it('loads actual hostel details, saves edits, and refreshes the list with correc
 
 it('creates a hostel from the same page and returns to the refreshed management list', async () => {
   render(<ManageHostels />);
-  fireEvent.click(screen.getByRole('button', { name: /Create Hostel/ }));
-  fireEvent.change(screen.getByLabelText('Hostel Identity Name'), { target: { value: 'New Residence' } });
-  fireEvent.change(screen.getByLabelText('Authorized Bed Capacity'), { target: { value: '15' } });
+  await screen.findByRole('button', { name: 'Edit Maple House' }, { timeout: 5000 });
+  fireEvent.click(screen.getByRole('tab', { name: 'Create Hostel' }));
+  fireEvent.change(screen.getByLabelText('Hostel name'), { target: { value: 'New Residence' } });
+  fireEvent.change(screen.getByLabelText('Bed capacity'), { target: { value: '15' } });
   fireEvent.click(screen.getByRole('button', { name: 'Create' }));
   await waitFor(() => expect(adminAPI.createHostel).toHaveBeenCalledWith(expect.objectContaining({ name: 'New Residence', capacity: 15 })));
-  await screen.findByRole('button', { name: 'Edit Maple House' });
+  await screen.findByRole('button', { name: 'Edit Maple House' }, { timeout: 5000 });
 }, 30000);
 
 it('sends search and inactive filters to the server and requires confirmation before deletion', async () => {

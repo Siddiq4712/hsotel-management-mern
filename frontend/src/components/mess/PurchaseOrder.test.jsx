@@ -60,7 +60,7 @@ it('lets suggestions prefill quantity and preserves the form on a duplicate rece
   await user.type(screen.getByLabelText('Purchase rate (₹ / unit)'), '40');
   messAPI.receivePurchaseOrder.mockRejectedValue({ response: { data: { message: 'Already received.' } } });
   fireEvent.click(screen.getByRole('button', { name: 'Confirm receipt & add stock' }));
-  await waitFor(() => expect(message.error).toHaveBeenCalledWith('Already received.'));
+  expect(await screen.findByText('Already received.')).toBeInTheDocument();
   expect(screen.getByLabelText('Order reference')).toHaveValue('PO-EXISTING');
   expect(screen.getByRole('dialog')).toBeInTheDocument();
 });

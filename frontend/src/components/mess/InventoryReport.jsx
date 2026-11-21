@@ -106,7 +106,7 @@
             <select
               value={stockFilter}
               onChange={(e) => setStockFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Stock</option>
               <option value="low">Low Stock Only</option>
@@ -116,7 +116,7 @@
 
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white p-4 rounded-lg shadow-md">
+          <div className="bg-white p-4 rounded-control shadow-md">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-sm text-gray-600">Total Items</p>
@@ -126,7 +126,7 @@
             </div>
           </div>
           
-          <div className="bg-white p-4 rounded-lg shadow-md">
+          <div className="bg-white p-4 rounded-control shadow-md">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-sm text-gray-600">Low Stock Items</p>
@@ -138,7 +138,7 @@
             </div>
           </div>
           
-          <div className="bg-white p-4 rounded-lg shadow-md">
+          <div className="bg-white p-4 rounded-control shadow-md">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-sm text-gray-600">Out of Stock</p>

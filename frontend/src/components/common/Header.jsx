@@ -5,10 +5,12 @@ import { useAuth } from '../../context/AuthContext';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
 import NotificationBell from './NotificationBell';
 
-const Header = ({ onMenuClick, onCollapse, isCollapsed, sidebarOpen, workspace, onWorkspaceChange }) => {
+const Header = ({ onMenuClick, onCollapse, isCollapsed, sidebarOpen, workspace, workspaceChoices, workspaceSelection, workspaceError, onWorkspaceRetry, onWorkspaceChange }) => {
   const { user, logout } = useAuth();
   const name = user?.userName || user?.username || 'My account';
-  const role = workspace || user?.role || 'Hostel';
+  const staffResident = user?.role === 'student' && user?.resident_type === 'staff';
+  const role = staffResident ? 'Staff resident' : workspace || user?.role || 'Hostel';
+  const identityLabel = staffResident ? 'Staff resident' : user?.role || 'Account';
   return (
     <header className="workspace-header">
       <div className="workspace-brand">
@@ -23,16 +25,16 @@ const Header = ({ onMenuClick, onCollapse, isCollapsed, sidebarOpen, workspace, 
         </div>
       </div>
       <div className="workspace-header-actions">
-        {user?.role === 'admin' && <WorkspaceSwitcher workspace={workspace} onChange={onWorkspaceChange} onLogout={logout} />}
+        {user?.role === 'admin' && <WorkspaceSwitcher choices={workspaceChoices} selected={workspaceSelection} error={workspaceError} onRetry={onWorkspaceRetry} onChange={onWorkspaceChange} onLogout={logout} />}
         <NotificationBell key={user?.userId || user?.id} />
         {user?.role !== 'admin' && <Dropdown trigger={['click']} placement="bottomRight" menu={{ items: [
-          { key: 'identity', disabled: true, label: `${name} · ${user?.role || 'Account'}` },
+          { key: 'identity', disabled: true, label: `${name} · ${identityLabel}` },
           { type: 'divider' },
           { key: 'logout', label: 'Sign out', icon: <LogOut size={16} />, onClick: logout },
         ] }}>
           <button type="button" className="workspace-profile" aria-label="Account menu" aria-haspopup="menu">
             <Avatar shape="square" size={36} src={user?.profileImage} icon={<User size={18} />} />
-            <span className="workspace-profile-copy"><strong>{name}</strong><span>{user?.role}</span></span>
+            <span className="workspace-profile-copy"><strong>{name}</strong><span>{identityLabel}</span></span>
             <ChevronDown size={14} className="workspace-profile-chevron" />
           </button>
         </Dropdown>}

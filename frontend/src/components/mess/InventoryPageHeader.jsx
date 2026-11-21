@@ -1,8 +1,8 @@
 import React from 'react';
-import { Space, Typography } from 'antd';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
 
 export const inventoryTheme = {
-  token: { colorPrimary: '#2563eb', borderRadius: 10, fontFamily: 'inherit', controlHeight: 40 },
+  token: { colorPrimary: '#2563eb', fontFamily: 'inherit', controlHeight: 40 },
   components: {
     Table: { headerBg: '#f8fafc', headerColor: '#475569', cellPaddingBlock: 14, cellPaddingInline: 16 },
     Card: { paddingLG: 20 },
@@ -11,9 +11,5 @@ export const inventoryTheme = {
 };
 
 export default function InventoryPageHeader({ title, description, children }) {
-  return <header className="inventory-page-header">
-    <div><Typography.Title level={3}>{title}</Typography.Title>
-      <Typography.Text type="secondary">{description}</Typography.Text></div>
-    <Space wrap className="inventory-page-actions">{children}</Space>
-  </header>;
+  return <WorkspacePageHeader title={title} description={description}>{children}</WorkspacePageHeader>;
 }

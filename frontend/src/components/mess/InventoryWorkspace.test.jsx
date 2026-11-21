@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import InventoryWorkspace, { useInventoryWorkspace } from './InventoryWorkspace';
 import { inventoryAPI } from '../../services/api';
 
-const auth = vi.hoisted(() => ({ user: { role: 'admin', userId: 1 } }));
-vi.mock('../../context/AuthContext', () => ({ useAuth: () => auth }));
+import { MemoryRouter } from 'react-router-dom';
+import { StaffWorkspaceContext } from '../../context/StaffWorkspaceContext';
+
 vi.mock('../../services/api', () => ({ inventoryAPI: { list: vi.fn() } }));
 vi.mock('antd', () => ({
   Form: { Provider: ({ children }) => <>{children}</> },
@@ -24,7 +25,7 @@ function Entry() {
   return <div><span>Loaded stock: {inventory.name}</span><input aria-label="Entry quantity" value={value} onChange={event => setValue(event.target.value)} /></div>;
 }
 beforeEach(() => {
-  vi.clearAllMocks(); sessionStorage.clear(); auth.user = { role: 'admin', userId: 1 };
+  vi.clearAllMocks();
   inventoryAPI.list.mockResolvedValue({ data: { data: [
     { id: 10, name: 'Central Inventory', hostels: [{ id: 1, name: 'Hostel A' }, { id: 2, name: 'Hostel B' }] },
     { id: 20, name: 'Separate Inventory', hostels: [{ id: 3, name: 'Hostel C' }] },
@@ -32,35 +33,27 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-it('requires inventory selection, exposes supplied hostels, and resets entries when changing pools', async () => {
-  render(<InventoryWorkspace><Entry /></InventoryWorkspace>);
-  await screen.findByText('Choose an inventory to view this page.');
-  expect(screen.queryByLabelText('Entry quantity')).not.toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText('Inventory for stock management'), { target: { value: '10' } });
-  expect(screen.getByText('Supplies: Hostel A, Hostel B')).toBeInTheDocument();
-  expect(sessionStorage.getItem('selectedInventoryId')).toBe('10');
-  fireEvent.change(screen.getByLabelText('Entry quantity'), { target: { value: '4' } });
-  fireEvent.change(screen.getByLabelText('Inventory for stock management'), { target: { value: '20' } });
-  expect(screen.getByText('Loaded stock: Separate Inventory')).toBeInTheDocument();
-  expect(screen.getByLabelText('Entry quantity').value).toBe('');
-  expect(sessionStorage.getItem('selectedInventoryId')).toBe('20');
-});
-
-it('automatically uses the assigned pool for mess staff', async () => {
-  auth.user = { role: 'mess', userId: 2 };
-  inventoryAPI.list.mockResolvedValue({ data: { data: [{ id: 10, name: 'Central Inventory', hostels: [{ id: 1, name: 'Hostel A' }, { id: 2, name: 'Hostel B' }] }] } });
-  render(<InventoryWorkspace><Entry /></InventoryWorkspace>);
-  await screen.findByText('Loaded stock: Central Inventory');
+it('shows the chosen staff hostel and the assigned shared inventory', async () => {
+  const staff = { id: 20, hostel: { id: 2, name: 'Hostel B' }, inventory: { id: 10, name: 'Central Inventory' } };
+  render(<MemoryRouter><StaffWorkspaceContext.Provider value={staff}>
+    <InventoryWorkspace><Entry /></InventoryWorkspace>
+  </StaffWorkspaceContext.Provider></MemoryRouter>);
+  expect(await screen.findByText('Loaded stock: Central Inventory')).toBeInTheDocument();
+  expect(screen.getByText('Workspace hostel: Hostel B · Supplies: Hostel A, Hostel B')).toBeInTheDocument();
   expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-  expect(sessionStorage.getItem('selectedInventoryId')).toBe('10');
 });
 
-it('does not load stock when inventory assignments fail and offers retry', async () => {
+it('blocks inventory workflows when the hostel needs an assignment', async () => {
+  inventoryAPI.list.mockResolvedValue({ data: { data: [] } });
+  render(<InventoryWorkspace><Entry /></InventoryWorkspace>);
+  await screen.findByText('An inventory assignment is required to open this page.');
+  expect(screen.queryByLabelText('Entry quantity')).not.toBeInTheDocument();
+});
+
+it('offers retry after the assignment lookup fails', async () => {
   inventoryAPI.list.mockRejectedValueOnce(new Error('Offline'));
   render(<InventoryWorkspace><Entry /></InventoryWorkspace>);
-  await screen.findByText('Unable to load inventory assignments.');
-  expect(screen.queryByLabelText('Entry quantity')).not.toBeInTheDocument();
+  await screen.findByText('Offline');
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-  await waitFor(() => expect(inventoryAPI.list).toHaveBeenCalledTimes(2));
-  await screen.findByText('Choose an inventory to view this page.');
+  expect(await screen.findByText('Loaded stock: Central Inventory')).toBeInTheDocument();
 });

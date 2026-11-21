@@ -2,7 +2,7 @@ import { PermissionButton as Button } from '../common/PermissionControls';
 import { exportWorkbook } from '../../utils/reportExport';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Space, Typography, ConfigProvider, theme, Skeleton, Row, Col, Statistic, message, Divider, Tooltip } from 'antd';
+import { Card, Table, Space, Typography, ConfigProvider, Skeleton, Row, Col, Statistic, message, Divider, Tooltip } from 'antd';
 import { 
   FileText, Download, BarChart3, Calendar, 
   RefreshCw, FileDown, PieChart, TrendingUp 
@@ -15,7 +15,7 @@ const { Title, Text } = Typography;
 
 // --- Specialized Skeleton for Reports ---
 const ReportSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+  <Card className="border-none shadow-sm rounded-surface p-6 bg-white overflow-hidden">
     <div className="space-y-6">
       <div className="flex justify-between">
         <Skeleton.Input active style={{ width: 200 }} />
@@ -151,13 +151,13 @@ const ConsumptionReport = () => {
   const totalCost = categoryData.reduce((sum, item) => sum + parseFloat(item.total_cost || 0), 0);
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header Section */}
         <div className="module-page-header flex justify-between items-center mb-8">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100">
               <BarChart3 className="text-white" size={24} />
             </div>
             <div>
@@ -166,7 +166,7 @@ const ConsumptionReport = () => {
             </div>
           </div>
           <Space>
-            <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-100 flex items-center gap-3 px-4 h-12">
+            <div className="bg-white p-2 rounded-control shadow-sm border border-slate-100 flex items-center gap-3 px-4 h-12">
               <Calendar size={16} className="text-blue-500" />
               <DatePicker 
                 picker="month" 
@@ -181,7 +181,7 @@ const ConsumptionReport = () => {
                 type="primary" 
                 icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''} />} 
                 onClick={handleGenerateOnScreenReport}
-                className="rounded-xl h-12"
+                className="rounded-control h-12"
             >
                 Refresh
             </Button>
@@ -191,7 +191,7 @@ const ConsumptionReport = () => {
         {/* Stats Row */}
         <Row gutter={[24, 24]} className="mb-8">
           <Col xs={24} sm={12} lg={6}>
-            <Card className="border-none shadow-sm rounded-2xl">
+            <Card className="border-none shadow-sm rounded-surface">
               <Statistic 
                 title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Total Monthly Cost</span>}
                 value={totalCost}
@@ -203,7 +203,7 @@ const ConsumptionReport = () => {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="border-none shadow-sm rounded-2xl">
+            <Card className="border-none shadow-sm rounded-surface">
               <Statistic 
                 title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Active Categories</span>}
                 value={categoryData.length}
@@ -214,7 +214,7 @@ const ConsumptionReport = () => {
         </Row>
 
         {/* Report Actions Card */}
-        <Card className="border-none shadow-sm rounded-2xl mb-8">
+        <Card className="border-none shadow-sm rounded-surface mb-8">
           <div className="flex justify-between items-center">
             <Text type="secondary" italic>Select an export method to generate detailed Excel workbooks for auditing.</Text>
             <Space>
@@ -222,7 +222,7 @@ const ConsumptionReport = () => {
                 <Button permissionAction="export" 
                     icon={<FileDown size={18} />} 
                     onClick={() => message.info('Exporting Particulars...')} 
-                    className="rounded-xl h-10"
+                    className="rounded-control h-10"
                 >
                     Export Particulars
                 </Button>
@@ -235,7 +235,7 @@ const ConsumptionReport = () => {
                     icon={<Download size={18}/>} 
                     onClick={handleExportConsumptionReport} 
                     loading={exportingDetails}
-                    className="rounded-xl h-10"
+                    className="rounded-control h-10"
                 >
                     Export Full Details
                 </Button>
@@ -246,7 +246,7 @@ const ConsumptionReport = () => {
 
         {/* Data Table */}
         {loading ? <ReportSkeleton /> : (
-          <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+          <Card className="border-none shadow-sm rounded-surface overflow-hidden" bodyStyle={{ padding: 0 }}>
             <Table
               columns={onScreenColumns}
               dataSource={categoryData}

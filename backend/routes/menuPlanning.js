@@ -13,7 +13,7 @@ const endpoint = handler => async (req, res) => {
   }
 };
 router.get('/hostels', endpoint(req => Hostel.findAll({
-  ...(req.user.role === 'admin' ? {} : { where: { id: req.user.hostel_id || 0 } }),
+  ...(req.staffWorkspace ? { where: { id: req.staffWorkspace.hostel.id } } : req.user.role === 'admin' ? {} : { where: { id: req.user.hostel_id || 0 } }),
   attributes: ['id', 'name'], order: [['name', 'ASC']]
 })));
 router.get('/metadata', endpoint(planningMetadata));

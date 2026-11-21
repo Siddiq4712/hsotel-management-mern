@@ -1,3 +1,4 @@
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
 import { PermissionButton as Button, PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Alert, Card, Col, Form, Input, InputNumber, List, Modal, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
@@ -169,13 +170,10 @@ export default function MessExpenses() {
   };
 
   return <div className="module-page mess-expenses-page">
-    <div className="module-page-header expense-page-header">
-      <div className="expense-heading"><span className="expense-heading-icon"><CreditCard size={24} /></span>
-        <div><Title level={2}>Daily Expenses</Title></div>
-      </div>
-      <Space wrap><Button icon={<RefreshCw size={16} />} onClick={fetchData} loading={loading}>Refresh</Button>
-        <Button icon={<LayoutGrid size={16} />} onClick={() => setShowTypeModal(true)}>Manage categories</Button></Space>
-    </div>
+    <WorkspacePageHeader title="Daily Expenses" icon={CreditCard} description={scope?.name}>
+      <Button icon={<RefreshCw size={16} />} onClick={fetchData} loading={loading}>Refresh</Button>
+      <Button icon={<LayoutGrid size={16} />} onClick={() => setShowTypeModal(true)}>Manage categories</Button>
+    </WorkspacePageHeader>
     <ScopeAnchor />
     {loadError && <Alert type="error" showIcon title={loadError} className="expense-load-error" />}
 

@@ -79,6 +79,65 @@ export async function bulkMarkAttendance(req, res) {
   } catch (error) { res.status(error.status || 500).json({ message: error.message }); }
 }
 
+function mergeRecordedAttendance(manual, gps) {
+  const byDay = new Map();
+  for (const row of manual) {
+    const key = `${row.student_id}:${row.date}`;
+    if (!byDay.has(key) || row.reduction_request_id) byDay.set(key, row.get({ plain: true }));
+  }
+  for (const row of gps) {
+    const key = `${row.user_id}:${row.attendance_date}`;
+    if (!byDay.has(key)) byDay.set(key, { id: `gps-${row.id}`, student_id: row.user_id, date: row.attendance_date, status: row.status, source: 'GPS', Student: row.User });
+  }
+  return [...byDay.values()];
+}
+
+export async function getStudentMonthlyAttendance(req, res) {
+  try {
+    const hostel_id = Number(req.user.hostel_id ?? req.user.hostelId);
+    const student_id = Number(req.params.student_id);
+    if (!hostel_id) throw errorWithStatus('Select a hostel.');
+    if (!Number.isSafeInteger(student_id) || student_id <= 0) throw errorWithStatus('Invalid student ID.');
+    const student = await User.findOne({ where: { userId: student_id, hostel_id }, attributes: ['userId'] });
+    if (!student) throw errorWithStatus('Student not found in this hostel.', 404);
+
+    const today = dateOnly(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }));
+    const year = Number(today.slice(0, 4));
+    const month = Number(today.slice(5, 7));
+    const months = new Map(Array.from({ length: 12 }, (_, offset) => {
+      const period = new Date(Date.UTC(year, month - 12 + offset, 1)).toISOString().slice(0, 7);
+      return [period, { month: period, present: null, absent: null, onDuty: null, importedMessDays: null }];
+    }));
+    const range = { [Op.between]: [`${months.keys().next().value}-01`, today] };
+    const [attendance, gps] = await Promise.all([
+      Attendance.findAll({ where: { hostel_id, student_id, date: range },
+        attributes: ['student_id', 'date', 'status', 'is_monthly', 'totalManDays', 'reduction_request_id'], order: [['date', 'DESC'], ['id', 'DESC']] }),
+      GPSAttendance.findAll({ where: { hostel_id, user_id: student_id, attendance_date: range },
+        attributes: ['id', 'user_id', 'attendance_date', 'status'], order: [['marked_at', 'DESC'], ['id', 'DESC']] }),
+    ]);
+    const fields = { P: 'present', A: 'absent', OD: 'onDuty' };
+    const recordedDays = mergeRecordedAttendance(attendance.filter(row => !row.is_monthly), gps);
+    for (const day of recordedDays) {
+      const entry = months.get(day.date.slice(0, 7));
+      const field = fields[day.status];
+      if (!entry || !field) continue;
+      entry.present ??= 0;
+      entry.absent ??= 0;
+      entry.onDuty ??= 0;
+      entry[field]++;
+    }
+    for (const row of attendance) {
+      if (!row.is_monthly || row.totalManDays == null) continue;
+      const entry = months.get(row.date.slice(0, 7));
+      if (entry && entry.importedMessDays == null) entry.importedMessDays = Number(row.totalManDays);
+    }
+    const todayRecord = recordedDays.find(day => day.date === today);
+    res.json({ success: true, data: [...months.values()], todayAttendance: todayRecord?.status ?? null });
+  } catch (error) {
+    res.status(error.status || 500).json({ message: error.status ? error.message : 'Could not load monthly attendance.' });
+  }
+}
+
 export async function getAttendance(req, res) {
   try {
     const hostel_id = Number(req.user.hostel_id ?? req.user.hostelId);
@@ -97,15 +156,6 @@ export async function getAttendance(req, res) {
       Attendance.findAll({ where: { hostel_id, date, [Op.or]: [{ is_monthly: false }, { is_monthly: null }] }, include: includes, order: [['date', 'DESC'], ['id', 'DESC']] }),
       GPSAttendance.findAll({ where: { hostel_id, attendance_date: date }, include: [{ model: User, attributes: ['userId', 'userName', 'roll_number'] }], order:[['marked_at','DESC']] })
     ]);
-    const byDay = new Map();
-    for (const row of manual) {
-      const key = `${row.student_id}:${row.date}`;
-      if (!byDay.has(key) || row.reduction_request_id) byDay.set(key, row.get({plain:true}));
-    }
-    for (const row of gps) {
-      const key = `${row.user_id}:${row.attendance_date}`;
-      if (!byDay.has(key)) byDay.set(key, {id:`gps-${row.id}`,student_id:row.user_id,date:row.attendance_date,status:row.status,source:'GPS',Student:row.User});
-    }
-    res.json({success:true,data:[...byDay.values()],legacyMonthlySummaries,view:monthly?'monthly':'daily'});
+    res.json({success:true,data:mergeRecordedAttendance(manual, gps),legacyMonthlySummaries,view:monthly?'monthly':'daily'});
   } catch (error) { res.status(error.status || 500).json({message:error.message}); }
 }

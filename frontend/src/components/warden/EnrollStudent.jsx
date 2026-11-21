@@ -1,14 +1,17 @@
+import WorkspaceContextHeader from '../common/WorkspaceContextHeader';
+import { useWardenHostelName } from './WardenWorkspace';
 import { PermissionButton as Button } from '../common/PermissionControls';
 import { studentBatch } from '../../utils/batchMatching';
 import './ImportPreview.css';
 import { useScopeDraft, useScopeForm } from '../common/WorkspaceScope';
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
-import { Card, Form, Input, InputNumber, Select, Checkbox, Typography, Row, Col, Divider, message, ConfigProvider, Skeleton, Steps, Tag, Timeline, Descriptions, Upload, Table, Tabs, Modal, Alert, Space, Tooltip, Badge } from 'antd';
+import { Card, Form, Input, InputNumber, Select, Checkbox, Typography, Row, Col, Divider, message, ConfigProvider, Skeleton, Steps, Tag, Descriptions, Upload, Table, Tabs, Modal, Space, Tooltip, Badge } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import { 
-  User, Lock, CheckCircle2, AlertCircle, Bed, School, 
-  Hash, Mail, Send, ArrowRight, ArrowLeft, GraduationCap,
-  ShieldCheck, Info, FileSpreadsheet, Download, Trash2,
+  User, CheckCircle2, AlertCircle, Bed,
+  Hash, Send, ArrowLeft,
+  ShieldCheck, Info, FileSpreadsheet, Trash2,
   UploadCloud, Users, Check, RefreshCw, Building2, Layers
 } from 'lucide-react';
 import { wardenAPI } from '../../services/api';
@@ -41,6 +44,7 @@ const FormSkeleton = () => (
 );
 
 const EnrollStudent = () => {
+  const hostelName = useWardenHostelName();
   const [form] = Form.useForm();
   const watchedGender = Form.useWatch('gender', form);
   const watchedBatchYear = Form.useWatch('erp_batch_year', form);
@@ -212,7 +216,7 @@ const EnrollStudent = () => {
         content: (
           <div className="py-2 space-y-3">
             <p className="text-slate-600">The bulk student admission process has completed.</p>
-            <div className="bg-slate-50 p-4 rounded-xl space-y-2 border border-slate-100">
+            <div className="bg-slate-50 p-4 rounded-control space-y-2 border border-slate-100">
               <div className="flex justify-between">
                 <Text strong className="text-green-600">Successfully Enrolled:</Text>
                 <Tag color="green" className="font-bold text-sm px-3">{successful}</Tag>
@@ -229,7 +233,7 @@ const EnrollStudent = () => {
               )}
             </div>
             {errors.length > 0 && (
-              <div className="max-h-32 overflow-y-auto text-xs text-red-500 bg-red-50 p-2 rounded">
+              <div className="max-h-32 overflow-y-auto text-xs text-red-500 bg-red-50 p-2 rounded-surface">
                 {errors.map((e, idx) => (
                   <div key={idx}>• {e.name || 'Row'}: {e.error}</div>
                 ))}
@@ -393,7 +397,7 @@ const EnrollStudent = () => {
             aria-label={`Remove ${record.userName} (${record.roll_number})`}
             icon={<Trash2 size={16} />}
             onClick={() => handleRemoveStudentRow(record.key)}
-            className="hover:bg-red-50 rounded-lg p-2 flex items-center justify-center"
+            className="hover:bg-red-50 rounded-control p-2 flex items-center justify-center"
           />
         </Tooltip>
       )
@@ -401,31 +405,12 @@ const EnrollStudent = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="module-page p-4 md:p-8 bg-slate-50 min-h-screen">
-        
-        {/* Header */}
-        <div className="module-page-header flex flex-wrap items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg text-white">
-              <GraduationCap size={28} />
-            </div>
-            <div>
-              <Title level={2} style={{ margin: 0 }}>Student Admission</Title>
-              <Text type="secondary">Register new students individually or import via Excel spreadsheet</Text>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              icon={<Download size={16} />}
-              className="h-11 rounded-xl border-blue-200 text-blue-700 hover:border-blue-400 bg-white"
-              onClick={() => downloadStudentBulkImportTemplate()}
-            >
-              Download Excel Template
-            </Button>
-          </div>
-        </div>
+    <ConfigProvider>
+      <div className="module-page warden-page">
+        <WorkspaceContextHeader title="Student Admission" headingAs="h1" scope={hostelName}
+          description="Register students individually or import them from Excel."
+          actions={<Button onClick={() => downloadStudentBulkImportTemplate()}>Download Excel Template</Button>} />
+        <Alert type="info" showIcon title="Student enrollment follows the hostel assigned to each batch." className="mb-6" />
 
         {/* Tab Navigation */}
         <div className="mb-6">
@@ -433,23 +418,16 @@ const EnrollStudent = () => {
             activeKey={activeTab}
             onChange={setActiveTab}
             type="card"
-            size="large"
-            className="bg-transparent"
+            className="warden-admission-tabs"
             items={[
               {
                 key: 'single',
-                label: (
-                  <div className="flex items-center gap-2 px-2 py-1 font-semibold">
-                    <User size={18} />
-                    <span>Single Student Entry</span>
-                  </div>
-                )
+                label: 'Single Student Entry'
               },
               {
                 key: 'bulk',
                 label: (
-                  <div className="flex items-center gap-2 px-2 py-1 font-semibold">
-                    <FileSpreadsheet size={18} />
+                  <div className="flex items-center gap-2">
                     <span>Bulk Import & Preview</span>
                     {previewStudents.length > 0 && (
                       <Badge count={previewStudents.length} className="site-badge-count-4" style={{ backgroundColor: '#2563eb' }} />
@@ -465,59 +443,60 @@ const EnrollStudent = () => {
         {activeTab === 'single' && (
           <Row gutter={[24, 24]}>
             <Col lg={16} xs={24}>
-              <Card className="border-none shadow-sm rounded-[32px] overflow-hidden min-h-[550px]">
+              <Card className="warden-admission-card">
                 {sessionsLoading ? <FormSkeleton /> : (
                   <>
-                    <div className="px-8 pt-8">
+                    <div className="warden-admission-stepbar">
                       <Steps
                         current={currentStep}
                         items={[
-                          { title: 'Student Info', icon: <User size={18}/> },
-                          { title: 'College Info', icon: <School size={18}/> },
-                          { title: 'Final Check', icon: <ShieldCheck size={18}/> }
+                          { title: 'Student Info' },
+                          { title: 'College Info' },
+                          { title: 'Final Check' }
                         ]}
                       />
                     </div>
                     
-                    <Divider className="my-8" />
+                    <Divider className="my-5" />
 
                     <Form 
                       form={form} 
                       initialValues={{ college: 'nec' }}
                       layout="vertical" 
                       onFinish={onSingleFinish} 
-                      className="px-8 pb-8"
+                      className="warden-admission-form"
                       preserve={true}
                     >
                       {/* STEP 0: PERSONAL */}
                       <div className={currentStep === 0 ? "block animate-in fade-in duration-500" : "hidden"}>
+                        <h2 className="warden-table-title mb-5">Student information</h2>
                         <Row gutter={16}>
                           <Col span={18}>
                             <Form.Item name="baseUsername" label={<Text strong>Student Name</Text>} rules={[{ required: true, message: 'Please enter student name' }]}>
-                              <Input prefix={<User size={16} className="text-slate-400"/>} placeholder="Full Name (without initial)" className="h-12 rounded-xl" />
+                              <Input placeholder="Full Name (without initial)" />
                             </Form.Item>
                           </Col>
                           <Col span={6}>
                             <Form.Item name="initial" label={<Text strong>Initial</Text>} rules={[{ required: true, message: 'Initial required' }]}>
-                              <Input placeholder="K" className="h-12 text-center uppercase font-bold rounded-xl" maxLength={1} />
+                              <Input placeholder="K" maxLength={1} />
                             </Form.Item>
                           </Col>
                         </Row>
                         <Form.Item name="email" label={<Text strong>Email Address</Text>} rules={[{ type: 'email' }]}>
-                          <Input prefix={<Mail size={16} className="text-slate-400"/>} placeholder="student@college.edu" className="h-12 rounded-xl" />
+                          <Input placeholder="student@college.edu" />
                         </Form.Item>
                         <Form.Item name="password" label={<Text strong>Login Password</Text>} rules={[{ required: true, min: 6, message: 'Minimum 6 characters' }]}>
-                          <Input.Password prefix={<Lock size={16} className="text-slate-400"/>} placeholder="Create a password" className="h-12 rounded-xl" />
+                          <Input.Password placeholder="Create a password" />
                         </Form.Item>
                       </div>
 
                       {/* STEP 1: ACADEMIC */}
                       <div className={currentStep === 1 ? "block animate-in fade-in duration-500" : "hidden"}>
                         <Form.Item name="roll_number" label={<Text strong>Roll Number / UID</Text>} rules={[{ required: true, message: 'Please enter roll number' }]}>
-                          <Input prefix={<Hash size={16} className="text-slate-400"/>} placeholder="e.g. 24104085" className="h-12 rounded-xl" />
+                          <Input prefix={<Hash size={16} className="text-slate-400"/>} placeholder="e.g. 24104085" className="h-12 rounded-control" />
                         </Form.Item>
                         <Form.Item name="college" label={<Text strong>College / Campus</Text>} rules={[{ required: true, message: 'Please select college' }]}>
-                          <Select className="h-12 rounded-xl" placeholder="Select Affiliated College">
+                          <Select className="h-12 rounded-control" placeholder="Select Affiliated College">
                             <Option value="nec">National Engineering College (NEC)</Option>
                           </Select>
                         </Form.Item>
@@ -530,7 +509,7 @@ const EnrollStudent = () => {
                           <Select disabled placeholder="Matched automatically from ERP batch year" options={sessions.map(batch => ({ value: batch.id, label: batch.name }))} />
                         </Form.Item>
                         <Form.Item label="Assigned Hostel"><Input readOnly value={studentBatch(watchedBatchYear, sessions, watchedGender)?.hostel_name || 'No batch configured for this admission year'} /></Form.Item>
-                        <Form.Item name="requires_bed" valuePropName="checked" className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                        <Form.Item name="requires_bed" valuePropName="checked" className="bg-blue-50 p-4 rounded-surface border border-blue-100">
                           <Checkbox>
                             <Text strong className="text-blue-700 ml-2 text-sm">Allocate Room/Bed</Text>
                             <Paragraph className="text-[11px] text-blue-500 m-0 ml-6 italic">Enable this if the student will be staying in the hostel.</Paragraph>
@@ -541,7 +520,7 @@ const EnrollStudent = () => {
                       {/* STEP 2: REVIEW */}
                       {currentStep === 2 && (
                         <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                          <div className="bg-white rounded-2xl border-2 border-blue-50 shadow-sm overflow-hidden">
+                          <div className="bg-white rounded-surface border-2 border-blue-50 shadow-sm overflow-hidden">
                             <div className="bg-blue-50 px-6 py-3 border-b border-blue-100">
                               <Text strong className="text-blue-700 flex items-center gap-2"><ShieldCheck size={16}/> Final Verification</Text>
                             </div>
@@ -564,7 +543,7 @@ const EnrollStudent = () => {
                               </Descriptions>
                             </div>
                           </div>
-                          <div className="mt-6 flex items-center gap-3 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                          <div className="mt-6 flex items-center gap-3 p-4 bg-amber-50 rounded-surface border border-amber-100">
                             <AlertCircle size={20} className="text-amber-500 flex-shrink-0" />
                             <Text className="text-[11px] text-amber-800">
                               Please confirm all details are correct. Clicking the button below will save this student to the hostel records.
@@ -574,7 +553,7 @@ const EnrollStudent = () => {
                       )}
 
                       {/* BUTTON CONTAINER */}
-                      <div className="mt-12 flex justify-between">
+                      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
                         {currentStep > 0 ? (
                           <Button 
                             type="text" 
@@ -582,21 +561,19 @@ const EnrollStudent = () => {
                             onClick={handlePrev} 
                             size="large" 
                             icon={<ArrowLeft size={18}/>} 
-                            className="h-14 px-8 rounded-xl hover:bg-slate-100"
+                            className="h-14 px-8 rounded-control hover:bg-slate-100"
                           >
                             Back
                           </Button>
-                        ) : <div />}
+                        ) : <span className="warden-record-meta">* Required fields</span>}
 
                         {currentStep < 2 ? (
                           <Button 
                             type="primary" 
                             htmlType="button"
                             onClick={handleNext} 
-                            size="large" 
-                            className="h-14 px-12 rounded-2xl font-bold shadow-lg shadow-blue-100 flex items-center gap-2"
                           >
-                            Next Step <ArrowRight size={18}/>
+                            Next Step
                           </Button>
                         ) : (
                           <Button permissionAction="create" 
@@ -604,7 +581,7 @@ const EnrollStudent = () => {
                             htmlType="submit" 
                             size="large" 
                             loading={loading} 
-                            className="h-14 px-12 rounded-2xl font-bold bg-green-600 hover:bg-green-700 border-none shadow-lg shadow-green-100 flex items-center gap-2"
+                            className="h-14 px-12 rounded-control font-bold bg-green-600 hover:bg-green-700 border-none shadow-lg shadow-green-100 flex items-center gap-2"
                           >
                             Register Student <Send size={18}/>
                           </Button>
@@ -619,23 +596,16 @@ const EnrollStudent = () => {
             {/* Admission Steps Sidebar */}
             <Col lg={8} xs={24}>
               <div className="space-y-6">
-                <Card className="border-none shadow-sm rounded-[32px] bg-blue-600 text-white relative overflow-hidden">
-                  <div className="relative z-10 p-2">
-                    <Title level={4} className="text-white mb-6 flex items-center gap-2"><Info size={20}/> Admission Steps</Title>
-                    <Timeline 
-                      mode="left"
-                      items={[
-                        { children: <Text className="text-blue-50 text-xs">Enter Student Details</Text>, color: 'white' },
-                        { children: <Text className="text-blue-50 text-xs">Assign Year/Batch</Text>, color: 'white' },
-                        { children: <Text className="text-blue-100 font-bold text-xs">Warden Verification</Text>, color: '#10b981' },
-                      ]}
-                    />
-                  </div>
-                  <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-blue-400 rounded-full opacity-10" />
+                <Card className="warden-admission-card">
+                  <h2 className="warden-table-title mb-4">Admission Steps</h2>
+                  <ol className="warden-admission-steps">
+                    {['Enter Student Details', 'Assign Year/Batch', 'Warden Verification'].map((label, index) =>
+                      <li key={label} aria-current={currentStep === index ? 'step' : undefined}><b aria-hidden="true">{index + 1}</b>{label}</li>)}
+                  </ol>
                 </Card>
 
-                <Card className="border-none shadow-sm rounded-[32px] p-2 bg-white border border-slate-100">
-                  <div className="p-4">
+                <Card className="warden-admission-card">
+                  <div>
                     <Title level={5} className="mb-2">Bulk Import Available</Title>
                     <Paragraph className="text-xs text-slate-500 mb-4 leading-relaxed">
                       Use the <strong>Bulk Import & Preview</strong> tab to upload Student Name, Roll Number, Admission Year, and Gender. Room Number and Email are optional.
@@ -644,7 +614,7 @@ const EnrollStudent = () => {
                       type="default"
                       icon={<FileSpreadsheet size={16} />}
                       onClick={() => setActiveTab('bulk')}
-                      className="w-full h-10 rounded-xl text-blue-600 border-blue-200 hover:border-blue-400"
+                      className="w-full h-10 rounded-control text-blue-600 border-blue-200 hover:border-blue-400"
                     >
                       Switch to Bulk Import
                     </Button>
@@ -661,14 +631,11 @@ const EnrollStudent = () => {
             
             {/* If no students loaded, show Upload Zone */}
             {previewStudents.length === 0 ? (
-              <Card className="border-none shadow-sm rounded-[32px] bg-white p-6 md:p-10 text-center">
-                <div className="max-w-5xl mx-auto space-y-6">
-                  <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
-                    <FileSpreadsheet size={36} />
-                  </div>
+              <Card className="warden-admission-card text-center">
+                <div className="space-y-6">
                   
                   <div>
-                    <Title level={3} style={{ marginBottom: 8 }}>Bulk Student Import</Title>
+                    <Title level={4} style={{ marginBottom: 8 }}>Bulk Student Import</Title>
                     <Paragraph className="text-slate-500 text-sm">
                       Upload an Excel sheet (.xlsx, .xls) containing student records. 
                       You will be able to review, adjust batch allocations, select hostel beds, and configure college settings before submitting.
@@ -676,14 +643,14 @@ const EnrollStudent = () => {
                   </div>
 
                   {/* Required Columns Info */}
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 text-left w-full">
+                  <div className="bg-slate-50 p-4 rounded-surface border border-slate-200/80 text-left w-full">
                     <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                       <Info size={14} className="text-blue-600" />
                       Sheet Columns (Exact or Similar Headers):
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {requiredImportColumns.map((col) => (
-                        <Tag key={col.key} color={col.optional ? 'default' : 'blue'} className="px-3 py-1 rounded-lg font-semibold text-xs">
+                        <Tag key={col.key} color={col.optional ? 'default' : 'blue'} className="px-3 py-1 rounded-control font-semibold text-xs">
                           {col.label}{col.optional ? ' (Optional)' : ' *'}
                         </Tag>
                       ))}
@@ -692,15 +659,14 @@ const EnrollStudent = () => {
                   </div>
 
                   {/* Upload Dragger Zone */}
-                  <div className="py-2">
+                  <div className="warden-admission-upload">
                     <Dragger
                       accept=".xlsx, .xls"
                       showUploadList={false}
                       beforeUpload={handleExcelUpload}
-                      className="rounded-3xl border-2 border-dashed border-blue-200 hover:border-blue-400 bg-blue-50/30 p-8"
                     >
                       <p className="ant-upload-drag-icon flex justify-center text-blue-600 mb-3">
-                        <UploadCloud size={48} />
+                        <UploadCloud size={36} aria-hidden="true" />
                       </p>
                       <p className="text-base font-bold text-slate-800 mb-1">
                         Click or drag Excel spreadsheet here to upload
@@ -708,18 +674,10 @@ const EnrollStudent = () => {
                       <p className="text-xs text-slate-400">
                         Supports .xlsx, .xls files formatted with Name, Roll Number, Email
                       </p>
+                      <span className="warden-upload-action">Browse files</span>
                     </Dragger>
                   </div>
 
-                  <div className="flex justify-center items-center gap-4 pt-2">
-                    <Button
-                      icon={<Download size={16} />}
-                      onClick={() => downloadStudentBulkImportTemplate()}
-                      className="h-11 rounded-xl border-blue-200 text-blue-700 hover:border-blue-400 px-6 font-semibold"
-                    >
-                      Download Sample Template
-                    </Button>
-                  </div>
                 </div>
               </Card>
             ) : (
@@ -727,12 +685,12 @@ const EnrollStudent = () => {
               <div className="space-y-6">
                 
                 {/* Top Section: Common College & Global Batch Controls */}
-                <Card className="import-preview-card border-none shadow-sm rounded-[24px] bg-white overflow-hidden">
+                <Card className="import-preview-card border-none shadow-sm rounded-surface bg-white overflow-hidden">
                   <div className="import-preview-body">
                     <div className="import-preview-header">
                       <div>
                         <div className="import-preview-title">
-                          <span className="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">
+                          <span className="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-tag">
                             Live Preview
                           </span>
                           <Title level={4} style={{ margin: 0 }}>Review Imported Students</Title>
@@ -750,7 +708,7 @@ const EnrollStudent = () => {
                         >
                           <Button 
                             icon={<RefreshCw size={15} />}
-                            className="rounded-xl border-slate-200 hover:border-blue-400 text-slate-600"
+                            className="rounded-control border-slate-200 hover:border-blue-400 text-slate-600"
                           >
                             Re-upload Sheet
                           </Button>
@@ -760,7 +718,7 @@ const EnrollStudent = () => {
                           type="text"
                           icon={<Trash2 size={15} />}
                           onClick={handleClearPreview}
-                          className="rounded-xl hover:bg-red-50"
+                          className="rounded-control hover:bg-red-50"
                         >
                           Clear All
                         </Button>
@@ -823,14 +781,14 @@ const EnrollStudent = () => {
                           <Button
                             size="middle"
                             onClick={() => handleToggleAllBeds(true)}
-                            className="flex-1 rounded-xl text-xs font-semibold h-11 border-blue-200 text-blue-700 hover:bg-blue-50"
+                            className="flex-1 rounded-control text-xs font-semibold h-11 border-blue-200 text-blue-700 hover:bg-blue-50"
                           >
                             Check All
                           </Button>
                           <Button
                             size="middle"
                             onClick={() => handleToggleAllBeds(false)}
-                            className="flex-1 rounded-xl text-xs font-semibold h-11 border-slate-200 text-slate-600 hover:bg-slate-100"
+                            className="flex-1 rounded-control text-xs font-semibold h-11 border-slate-200 text-slate-600 hover:bg-slate-100"
                           >
                             Uncheck All
                           </Button>
@@ -863,7 +821,7 @@ const EnrollStudent = () => {
                 </Card>
 
                 {/* Students Preview Table */}
-                <Card className="border-none shadow-sm rounded-[24px] bg-white overflow-hidden">
+                <Card className="border-none shadow-sm rounded-surface bg-white overflow-hidden">
                   <div className="p-4 md:p-6">
                     <Table
                       dataSource={previewStudents}
@@ -889,7 +847,7 @@ const EnrollStudent = () => {
                         <Button
                           size="large"
                           onClick={handleClearPreview}
-                          className="h-12 px-6 rounded-xl border-slate-200 text-slate-600 hover:bg-slate-100"
+                          className="h-12 px-6 rounded-control border-slate-200 text-slate-600 hover:bg-slate-100"
                         >
                           Cancel
                         </Button>
@@ -898,7 +856,7 @@ const EnrollStudent = () => {
                           size="large"
                           loading={bulkSubmitting}
                           onClick={handleBulkSubmit}
-                          className="h-12 px-8 rounded-xl font-bold bg-green-600 hover:bg-green-700 border-none shadow-lg shadow-green-100 flex items-center gap-2 text-sm"
+                          className="h-12 px-8 rounded-control font-bold bg-green-600 hover:bg-green-700 border-none shadow-lg shadow-green-100 flex items-center gap-2 text-sm"
                         >
                           <CheckCircle2 size={18} />
                           Confirm & Enroll All ({previewStudents.length}) Students

@@ -1,3 +1,4 @@
+import { resolveStaffWorkspace } from '../services/staffWorkspace.js';
 import { normalizeRole } from '../../shared/roles.js';
 import { enforceScreenPermissions } from './screenPermissions.js';
 import jwt from 'jsonwebtoken';
@@ -30,6 +31,9 @@ export const auth = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ message: 'Token is not valid' });
     }
+    if (user.status === false) {
+      return res.status(401).json({ code: 'ACCOUNT_INACTIVE', message: 'This account is inactive' });
+    }
 
     const roleFromToken = normalizeRole(decoded.role);
     const roleFromUser = normalizeRole(user.role?.roleName || user.roleName);
@@ -46,6 +50,20 @@ export const auth = async (req, res, next) => {
       role: resolvedRole,
       hostel_id: user.hostel_id ?? null
     };
+
+    const staffId = req.get?.('X-Staff-Workspace-Id');
+    if (staffId) {
+      if (resolvedRole !== 'admin') return res.status(403).json({ message: 'Only administrators can open a staff workspace.' });
+      const staff = await resolveStaffWorkspace(staffId);
+      if (!staff || staff.role !== req.get('X-Workspace')) {
+        return res.status(409).json({ code: 'STAFF_WORKSPACE_UNAVAILABLE', message: 'This staff workspace is unavailable. Refresh the workspace list.' });
+      }
+      const expectedScope = req.get('X-Staff-Workspace-Scope');
+      if (expectedScope && expectedScope !== `${staff.hostel.id}:${staff.inventory?.id ?? ''}`) {
+        return res.status(409).json({ code: 'STAFF_WORKSPACE_UNAVAILABLE', message: 'This assignment changed. Refresh the workspace before retrying.' });
+      }
+      req.staffWorkspace = staff;
+    }
 
     return withNotificationRequest(req, () => withActivityRequest(req, res, () => enforceScreenPermissions(req, res, next)));
   } catch (error) {

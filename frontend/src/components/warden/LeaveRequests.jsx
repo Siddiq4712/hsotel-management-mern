@@ -1,327 +1,158 @@
-import { PermissionButton as Button } from '../common/PermissionControls';
-import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Typography, Row, Col, Statistic, Space, Select, Divider, ConfigProvider, theme, Skeleton, Badge, Tooltip, Tag, Table, Modal, Input, Empty, message } from 'antd';
-import { 
-  Calendar, User, Clock, CheckCircle2, XCircle, 
-  RefreshCw, Filter, ShieldCheck, ClipboardList, 
-  Info, MessageSquare, UserCheck, Inbox
-} from 'lucide-react';
-import { wardenAPI } from '../../services/api';
+import RequestQueue, { filterRequests, requestPagination, RequestSearch } from '../common/RequestQueue';
+import RequestActions, { requestActionsColumnWidth } from '../common/RequestActions';
+import RequestReviewDialog from '../common/RequestReviewDialog';
+import { Check, RefreshCw } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Alert, Button, Empty, Input, Select, Skeleton, Table, Tag } from 'antd';
+import { useSearchParams } from 'react-router-dom';
 import moment from 'moment';
+import { wardenAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import { useStaffWorkspace } from '../../context/StaffWorkspaceContext';
+import { usePermissions } from '../../context/PermissionContext';
+import { useScopeDraft } from '../common/WorkspaceScope';
+import { screenForView } from '../../../../shared/permissions.js';
 
-const { Title, Text, Paragraph } = Typography;
-const { TextArea } = Input;
+const statuses = {
+  pending: { label: 'Pending review', color: 'warning' },
+  approved: { label: 'Approved', color: 'success' },
+  rejected: { label: 'Rejected', color: 'error' },
+};
+const options = [{ value: 'all', label: 'All requests' },
+  ...Object.entries(statuses).map(([value, { label }]) => ({ value, label }))];
+const residentName = row => row.Student?.userName || `Resident #${row.student_id}`;
+const dateRange = row => `${moment(row.from_date).format('DD MMM YYYY')} – ${moment(row.to_date).format('DD MMM YYYY')}`;
+const statusTag = status => <Tag color={statuses[status]?.color} className={status === 'pending' ? 'request-pending-tag' : undefined}>{statuses[status]?.label || status}</Tag>;
 
-/* ---------- 1. Specialized Skeletons ---------- */
-
-const StatCardsSkeleton = () => (
-  <Row gutter={[24, 24]}>
-    {[...Array(4)].map((_, i) => (
-      <Col xs={24} sm={12} lg={6} key={i}>
-        <Card className="border-none shadow-sm rounded-2xl">
-          <Skeleton loading active avatar={{ size: 'small', shape: 'square' }} paragraph={{ rows: 1, width: '60%' }} title={false} />
-        </Card>
-      </Col>
-    ))}
-  </Row>
-);
-
-const LeaveRequestSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden mt-8">
-    <div className="space-y-6">
-      <div className="flex justify-between items-center mb-4">
-        <Skeleton.Input active style={{ width: 250 }} />
-        <Skeleton.Button active />
-      </div>
-      {[...Array(5)].map((_, i) => (
-        <div key={i} className="flex gap-4 items-center border-b border-slate-50 pb-6 last:border-0">
-          <Skeleton.Avatar active shape="circle" size="large" />
-          <div className="flex-1">
-            <Skeleton active title={{ width: '40%' }} paragraph={{ rows: 1, width: '20%' }} />
-          </div>
-          <Skeleton.Button active style={{ width: 100 }} />
-        </div>
-      ))}
-    </div>
-  </Card>
-);
-
-const LeaveRequests = () => {
-  const [leaveRequests, setLeaveRequests] = useState([]);
+export default function LeaveRequests() {
+  const { user } = useAuth();
+  const staff = useStaffWorkspace();
+  const { can } = usePermissions();
+  const canDecide = can(screenForView('leave-requests', 'warden'), 'approve');
+  const [params, setParams] = useSearchParams();
+  const selectedStatus = params.get('status');
+  const status = Object.hasOwn(statuses, selectedStatus) ? selectedStatus : 'all';
+  const [rows, setRows] = useState([]);
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedLeave, setSelectedLeave] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [actionType, setActionType] = useState('');
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const [intent, setIntent] = useState();
   const [remarks, setRemarks] = useState('');
-  const [actionLoading, setActionLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [result, setResult] = useState('');
+  const hostelName = staff?.hostel.name || user?.hostel?.name || user?.Hostel?.name;
+  useScopeDraft(Boolean(selected && remarks.trim()), saving);
 
-  const fetchLeaveRequests = useCallback(async () => {
+  function setStatus(value) {
+    const next = new URLSearchParams(params);
+    if (value === 'all') next.delete('status');
+    else next.set('status', value);
     setLoading(true);
+    setParams(next);
+  }
+
+  const refresh = () => setRevision(value => value + 1);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    wardenAPI.getLeaveRequests(status === 'all' ? {} : { status })
+      .then(response => { if (active) setRows(response.data.data || []); })
+      .catch(failure => {
+        if (active) setError(failure.message || 'Could not load leave requests.');
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [status, revision, staff?.id]);
+
+  function review(row, decision) {
+    setRemarks('');
+    setSaveError('');
+    setSelected(row);
+    setIntent(decision);
+  }
+
+  async function decide(decision) {
+    if (!selected || saving || !canDecide || selected.status !== 'pending') return;
+    setSaving(true);
+    setSaveError('');
     try {
-      const params = statusFilter !== 'all' ? { status: statusFilter } : {};
-      const response = await wardenAPI.getLeaveRequests(params);
-      setLeaveRequests(response.data.data || []);
-    } catch (error) {
-      message.error('Session timeout or network error. Try again.');
+      await wardenAPI.approveLeave(selected.id, { status: decision, remarks: remarks.trim() });
+      setResult(`Leave request for ${residentName(selected)} ${decision}.`);
+      setSelected(null);
+      refresh();
+    } catch (failure) {
+      setSaveError(failure.message || 'Could not save the decision.');
     } finally {
-      setTimeout(() => setLoading(false), 800);
+      setSaving(false);
     }
-  }, [statusFilter]);
+  }
 
-  useEffect(() => { fetchLeaveRequests(); }, [fetchLeaveRequests]);
-
-  const confirmAction = async () => {
-    if (!selectedLeave || !actionType) return;
-    setActionLoading(true);
-    try {
-      await wardenAPI.approveLeave(selectedLeave.id, {
-        status: actionType,
-        remarks: remarks
-      });
-      message.success(`Leave request ${actionType === 'approved' ? 'Approved' : 'Rejected'}`);
-      setShowModal(false);
-      fetchLeaveRequests();
-    } catch (error) {
-      message.error('Action failed. Please try again.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const statusConfig = {
-    approved: { color: 'success', icon: <CheckCircle2 size={12} />, label: 'Approved' },
-    rejected: { color: 'error', icon: <XCircle size={12} />, label: 'Rejected' },
-    pending: { color: 'warning', icon: <Clock size={12} />, label: 'Pending Review' }
-  };
-
+  const visible = filterRequests(rows, search);
   const columns = [
-    {
-      title: 'Student Details',
-      key: 'student',
-      render: (_, r) => (
-        <Space gap={3}>
-          <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
-            <User size={18} />
-          </div>
-          <Space direction="vertical" size={0}>
-            <Text strong className="text-slate-700">{r.Student?.userName}</Text>
-            <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-              Roll: {r.Student?.roll_number || 'N/A'}
-            </Text>
-          </Space>
-        </Space>
-      )
-    },
-    {
-      title: 'Leave Details',
-      key: 'details',
-      render: (_, r) => (
-        <Space direction="vertical" size={0}>
-          <Tag bordered={false} color="blue" className="rounded-lg text-[10px] font-bold uppercase m-0">
-            {r.leave_type}
-          </Tag>
-          <Text className="text-xs text-slate-500 mt-1">
-            {moment(r.from_date).format('DD MMM')} - {moment(r.to_date).format('DD MMM')} 
-            <span className="ml-1 text-slate-300">
-              ({moment(r.to_date).diff(moment(r.from_date), 'days') + 1}D)
-            </span>
-          </Text>
-        </Space>
-      )
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      render: (s) => (
-        <Tag 
-          icon={statusConfig[s]?.icon} 
-          color={statusConfig[s]?.color} 
-          className="rounded-full border-none px-3 font-bold uppercase text-[9px]"
-        >
-          {statusConfig[s]?.label || s}
-        </Tag>
-      )
-    },
-    {
-      title: 'Actions',
-      key: 'action',
-      align: 'right',
-      render: (_, r) => (
-        r.status === 'pending' ? (
-          <Space>
-            <Button permissionAction="approve" 
-              type="primary" 
-              size="small" 
-              className="rounded-lg font-bold text-[10px] bg-emerald-600 border-none shadow-sm h-8"
-              onClick={() => { setSelectedLeave(r); setActionType('approved'); setShowModal(true); }}
-            >
-              APPROVE
-            </Button>
-            <Button permissionAction="approve" 
-              danger 
-              size="small" 
-              className="rounded-lg font-bold text-[10px] border-none bg-rose-50 h-8"
-              onClick={() => { setSelectedLeave(r); setActionType('rejected'); setShowModal(true); }}
-            >
-              REJECT
-            </Button>
-          </Space>
-        ) : (
-          <Tooltip title={r.remarks || 'No remarks'}>
-            <Button icon={<MessageSquare size={14}/>} type="text" className="text-slate-300" />
-          </Tooltip>
-        )
-      )
-    }
+    { title: 'Resident', key: 'resident', render: (_, row) => <><strong>{residentName(row)}</strong>{row.Student?.roll_number && <div>{row.Student.roll_number}</div>}</> },
+    { title: 'Dates', key: 'dates', render: (_, row) => <>{dateRange(row)}<div className="text-xs text-slate-500">Departure → Return</div></> },
+    { title: 'Type', dataIndex: 'leave_type' },
+    { title: 'Status', dataIndex: 'status', render: statusTag },
+    { title: 'Actions', key: 'action', align: 'right', width: requestActionsColumnWidth, render: (_, row) => {
+      const pending = canDecide && row.status === 'pending';
+      return <RequestActions
+        reviewLabel={`Review leave request for ${residentName(row)}`} onReview={() => review(row)}
+        onAccept={pending ? () => review(row, 'approved') : undefined}
+        onReject={pending ? () => review(row, 'rejected') : undefined} />;
+    } },
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
-        
-        {/* Header Section */}
-        <div className="module-page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
-              <ShieldCheck className="text-white" size={24} />
+    <div className="module-page">
+      <RequestQueue title="Leave Requests" description="Review and manage resident leave requests." scope={hostelName}
+        pending={!loading && !error ? visible.filter(row => row.status === 'pending').length : 0}
+        count={!loading && !error ? visible.length : undefined} listTitle={status === 'all' ? 'All requests' : statuses[status].label}
+        filters={<>
+          <RequestSearch label="Search leave requests" value={search} onChange={setSearch} />
+          <Select aria-label="Status" value={status} options={options} onChange={setStatus} />
+          <Button icon={<RefreshCw size={16} />} onClick={refresh} loading={loading}>Refresh</Button>
+        </>}>
+      {result && <div className="request-queue-message" role="status"><Alert type="success" showIcon title={result} closable onClose={() => setResult('')} /></div>}
+      {loading ? <div className="request-queue-message" aria-label="Loading leave requests"><Skeleton active /></div>
+        : error ? <div className="request-queue-message"><Alert type="error" showIcon title="Could not load leave requests" description={error} action={<Button onClick={refresh}>Retry</Button>} /></div>
+          : visible.length ? <Table rowKey="id" columns={columns} dataSource={visible} pagination={requestPagination} scroll={{ x: 760 }} />
+            : search.trim() ? <Empty description="No leave requests match your search and status." />
+            : <Empty description={status === 'all' ? 'No leave requests yet.' : `No ${status} leave requests.`}>
+              {status !== 'all' && <Button onClick={() => setStatus('all')}>Show all requests</Button>}
+            </Empty>}
+      </RequestQueue>
+      <RequestReviewDialog title={intent === 'approved' ? 'Accept leave request' : intent === 'rejected' ? 'Reject leave request' : 'Review leave request'}
+        open={Boolean(selected)} busy={saving} onClose={() => setSelected(null)}
+        status={selected && statusTag(selected.status)} resident={selected && residentName(selected)} hostel={hostelName}
+        details={selected ? [
+          ['Departure', moment(selected.from_date).format('DD MMM YYYY')],
+          ['Return', moment(selected.to_date).format('DD MMM YYYY')], ['Type', selected.leave_type],
+        ] : []}
+        actions={canDecide && selected?.status === 'pending' && <>
+          {(!intent || intent === 'rejected') && <Button danger loading={intent === 'rejected' && saving}
+            disabled={saving} onClick={() => decide('rejected')}>{intent ? 'Confirm rejection' : 'Reject'}</Button>}
+          {(!intent || intent === 'approved') && <Button type="primary" icon={<Check size={16} aria-hidden="true" />}
+            loading={saving} onClick={() => decide('approved')}>{intent ? 'Confirm acceptance' : 'Approve'}</Button>}
+        </>}>
+        {selected && <>
+          <div><strong className="request-review-label">Reason</strong><p className="request-review-note">{selected.reason || 'No reason provided.'}</p></div>
+          {selected.status === 'pending' && canDecide ? (
+            <div><label htmlFor="leave-remarks">Warden remarks</label>
+              <Input.TextArea id="leave-remarks" placeholder="Enter your remarks..." value={remarks} disabled={saving} onChange={event => setRemarks(event.target.value)} rows={3} />
             </div>
-            <div>
-              <Title level={2} style={{ margin: 0 }}>Leave Requests</Title>
-              <Text type="secondary">Manage and approve student leave permissions</Text>
-            </div>
-          </div>
-          <Button 
-            icon={<RefreshCw size={16}/>} 
-            onClick={fetchLeaveRequests} 
-            className="rounded-xl h-11 px-6 font-bold shadow-sm"
-          >
-            Refresh List
-          </Button>
-        </div>
-
-        {/* Statistics Row */}
-        {loading ? (
-          <StatCardsSkeleton />
-        ) : (
-          <Row gutter={[24, 24]}>
-            {[
-              { label: 'Total Requests', val: leaveRequests.length, icon: ClipboardList, color: 'text-blue-500' },
-              { label: 'Pending Review', val: leaveRequests.filter(l => l.status === 'pending').length, icon: Clock, color: 'text-amber-500' },
-              { label: 'Approved', val: leaveRequests.filter(l => l.status === 'approved').length, icon: UserCheck, color: 'text-emerald-500' },
-              { label: 'Rejected', val: leaveRequests.filter(l => l.status === 'rejected').length, icon: XCircle, color: 'text-rose-500' },
-            ].map((stat, i) => (
-              <Col xs={24} sm={12} lg={6} key={i}>
-                <Card className="border-none shadow-sm rounded-2xl">
-                  <Statistic 
-                    title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{stat.label}</span>} 
-                    value={stat.val} 
-                    prefix={<stat.icon size={18} className={`${stat.color} mr-2`} />} 
-                    valueStyle={{ fontWeight: 800 }} 
-                  />
-                </Card>
-              </Col>
-            ))}
-          </Row>
-        )}
-
-        {/* Filter Hub */}
-        <Card className="border-none shadow-sm rounded-2xl mb-6">
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 md:max-w-md focus-within:border-blue-300 transition-all">
-              <Filter size={18} className="text-slate-300" />
-              <Select 
-                value={statusFilter} 
-                onChange={setStatusFilter} 
-                bordered={false} 
-                className="w-full font-medium"
-              >
-                <Select.Option value="all">Display All Requests</Select.Option>
-                <Select.Option value="pending">Pending Review</Select.Option>
-                <Select.Option value="approved">Approved Requests</Select.Option>
-                <Select.Option value="rejected">Rejected Requests</Select.Option>
-              </Select>
-            </div>
-          </div>
-        </Card>
-
-        {/* Ledger */}
-        {loading ? (
-          <LeaveRequestSkeleton />
-        ) : leaveRequests.length > 0 ? (
-          <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
-            <Table 
-              dataSource={leaveRequests} 
-              columns={columns} 
-              rowKey="id" 
-              pagination={{ pageSize: 10, position: ['bottomCenter'] }} 
-            />
-          </Card>
-        ) : (
-          <div className="py-24 flex flex-col items-center justify-center bg-white rounded-[32px] shadow-sm">
-            <Empty 
-              image={<div className="bg-slate-50 p-8 rounded-full mb-4"><Inbox size={64} className="text-slate-200" /></div>} 
-              description={<Text className="text-slate-400 block">No leave requests found in the current audit.</Text>} 
-            />
-          </div>
-        )}
-
-        {/* Leave Approval Modal */}
-        <Modal
-          title={<div className="flex items-center gap-2 text-blue-600"><ShieldCheck size={20}/> Leave Approval</div>}
-          open={showModal}
-          onCancel={() => setShowModal(false)}
-          footer={[
-            <Button key="back" onClick={() => setShowModal(false)} className="rounded-xl h-11 px-6">Cancel</Button>,
-            <Button permissionAction="approve" 
-              key="submit" 
-              type="primary" 
-              danger={actionType === 'rejected'}
-              loading={actionLoading} 
-              onClick={confirmAction}
-              className={`rounded-xl h-11 px-8 font-bold shadow-lg ${actionType === 'approved' ? 'shadow-emerald-100 bg-emerald-600' : 'shadow-rose-100 bg-rose-600'}`}
-            >
-              Confirm {actionType === 'approved' ? 'Approval' : 'Rejection'}
-            </Button>
-          ]}
-          className="rounded-[32px]"
-          width={500}
-        >
-          {selectedLeave && (
-            <div className="mt-6 space-y-6">
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
-                <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest block mb-2">
-                  Leave Details
-                </Text>
-                <div className="flex items-center justify-between mb-2">
-                  <Text strong className="text-lg">{selectedLeave.Student?.userName}</Text>
-                  <Tag color="blue" className="m-0 rounded-lg">{selectedLeave.leave_type}</Tag>
-                </div>
-                <Paragraph className="text-xs text-slate-500 m-0 italic bg-white p-3 rounded-xl border border-slate-100">
-                  "{selectedLeave.reason}"
-                </Paragraph>
-              </div>
-
-              <div className="space-y-3 px-1">
-                <Text strong className="text-[11px] uppercase text-slate-400 block mb-2">
-                  Warden Remarks
-                </Text>
-                <TextArea 
-                  rows={4} 
-                  className="rounded-2xl p-4 border-slate-200" 
-                  placeholder={actionType === 'approved' 
-                    ? "Add any notes (e.g. contact parents)..." 
-                    : "Reason for rejection..."}
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                />
-              </div>
+          ) : selected.status !== 'pending' && (
+            <div><strong className="request-review-label">Decision details</strong>
+              {selected.ApprovedBy?.userName && <div>{selected.ApprovedBy.userName}</div>}
+              <p className="request-review-note">{selected.remarks || 'No remarks recorded.'}</p>
             </div>
           )}
-        </Modal>
-      </div>
-    </ConfigProvider>
+          {saveError && <Alert type="error" showIcon title="Could not save the decision" description={saveError} />}
+        </>}
+      </RequestReviewDialog>
+    </div>
   );
-};
-
-export default LeaveRequests;
+}

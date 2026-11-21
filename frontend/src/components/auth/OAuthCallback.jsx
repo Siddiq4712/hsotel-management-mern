@@ -1,3 +1,4 @@
+import { cornerRadius } from '../../theme/cornerRadius';
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Spin, message, Avatar } from 'antd';
@@ -137,7 +138,7 @@ const OAuthCallback = () => {
       <div style={{
         background: 'white',
         padding: '30px',
-        borderRadius: '8px',
+        borderRadius: cornerRadius.surface,
         boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
         textAlign: 'center',
         maxWidth: '400px',

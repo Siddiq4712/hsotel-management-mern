@@ -110,3 +110,28 @@ it('deletes only selected filtered empty rooms after confirmation and clears hid
   expect(screen.queryByText('S1')).toBeNull();
   expect(screen.getByText('S2')).toBeInTheDocument();
 });
+
+it('shows room occupancy and paginates four rooms at a time', async () => {
+  const rooms = Array.from({ length: 5 }, (_, index) => ({
+    id: index + 1, room_number: `R${index + 1}`, floor: 0, room_type_id: 5,
+    occupancy_count: index === 0 ? 3 : 0, RoomType: { name: 'Triple', capacity: 3 }, Hostel: { name: 'Hostel II' },
+  }));
+  wardenAPI.getRooms.mockResolvedValue({ data: { data: rooms } });
+  await act(async () => { render(<BulkRoomCreator showRooms />); });
+
+  const fullRoom = within(screen.getByText('R1').closest('tr'));
+  expect(fullRoom.getByText('3 / 3')).toBeInTheDocument();
+  expect(fullRoom.getByText('Full')).toBeInTheDocument();
+  expect(fullRoom.getByRole('button', { name: 'Delete' })).toBeDisabled();
+  expect(screen.getByText('Showing 1–4 of 5 rooms')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  expect(screen.getByText('R5')).toBeInTheDocument();
+  expect(screen.getByText('Showing 5–5 of 5 rooms')).toBeInTheDocument();
+  fireEvent.click(screen.getByTitle('1'));
+  expect(screen.getByText('Showing 1–4 of 5 rooms')).toBeInTheDocument();
+  fireEvent.click(screen.getByTitle('2'));
+  expect(screen.getByText('R5')).toBeInTheDocument();
+  fireEvent.change(screen.getByRole('textbox', { name: 'Search room number' }), { target: { value: 'R1' } });
+  expect(screen.getByText('R1')).toBeInTheDocument();
+  expect(screen.queryByText('R5')).not.toBeInTheDocument();
+});

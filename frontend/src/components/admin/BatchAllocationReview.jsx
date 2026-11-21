@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Input, Modal, Space, Table, Tag, message, Select, Button, Checkbox } from 'antd';
+import { Input, Modal, Space, Table, Tag, message, Select, Button, Checkbox } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import { adminAPI } from '../../services/api';
 
 export default function BatchAllocationReview({ open, onClose, onApplied }) {

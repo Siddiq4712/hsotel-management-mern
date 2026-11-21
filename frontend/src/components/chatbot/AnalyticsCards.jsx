@@ -34,7 +34,7 @@ export const AnalyticsCards = ({ cards }) => {
         return (
           <div
             key={idx}
-            className={`flex flex-col p-2.5 border rounded-xl shadow-sm hover:shadow transition-all ${themeClasses}`}
+            className={`flex flex-col p-2.5 border rounded-surface shadow-sm hover:shadow transition-all ${themeClasses}`}
           >
             <div className="flex items-center justify-between mb-1">
               <span className="text-[9px] font-bold uppercase tracking-wider opacity-80 truncate pr-1">

@@ -7,6 +7,7 @@ import { wardenAPI } from '../../services/api';
 import EnrollStudent from './EnrollStudent';
 
 vi.setConfig({ testTimeout: 60000 });
+vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { role: 'warden', hostel: { name: 'Hostel I' } } }) }));
 vi.mock('../../services/api', () => ({ wardenAPI: { getSessions: vi.fn(), bulkEnrollStudents: vi.fn() } }));
 beforeAll(() => {
   window.matchMedia = () => ({ matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} });

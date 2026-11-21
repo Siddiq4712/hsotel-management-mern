@@ -7,7 +7,10 @@ import { DEFAULT_CONFIGURATION, fail, integer, text, validDate, today, canEdit, 
 import { _recordBulkConsumptionLogic } from '../controllers/messController.js';
 
 export async function planningHostel(req) {
-  const id = integer(req.user.role === 'admin' ? (req.query.hostel_id || req.body?.hostel_id || req.header?.('X-Entry-Hostel-Id')) : req.user.hostel_id, 'Hostel', 1, 2147483647);
+  const assigned = req.staffWorkspace?.hostel.id;
+  const requested = req.query.hostel_id || req.body?.hostel_id || req.header?.('X-Entry-Hostel-Id');
+  if (assigned && requested && Number(assigned) !== Number(requested)) fail('This menu belongs to another hostel.', 403);
+  const id = integer(assigned || (req.user.role === 'admin' ? requested : req.user.hostel_id), 'Hostel', 1, 2147483647);
   if (!await Hostel.findByPk(id)) fail('Hostel not found', 404);
   return id;
 }

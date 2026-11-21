@@ -1,7 +1,7 @@
 import { PermissionPopconfirm as Popconfirm, PermissionButton as Button } from '../common/PermissionControls';
 import { exportWorkbook } from '../../utils/reportExport';
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, Table, Space, Select, InputNumber, message, Modal, Form, Switch, Tag, Tabs, Typography, Input, Row, Col, ConfigProvider, theme, Skeleton, Divider, Tooltip } from 'antd';
+import { Card, Table, Space, Select, InputNumber, message, Modal, Form, Switch, Tag, Tabs, Typography, Input, Row, Col, ConfigProvider, Skeleton, Divider, Tooltip } from 'antd';
 import {
   Plus, FileSpreadsheet, Trash2, Search, Link, Store, 
   Package, LayoutGrid, CheckCircle2, Info, ChevronRight, X, Filter
@@ -14,7 +14,7 @@ const { Text, Title } = Typography;
 
 // --- Skeleton for Loading State ---
 const MappingSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+  <Card className="border-none shadow-sm rounded-surface p-6 bg-white overflow-hidden">
     <div className="space-y-6">
       <div className="flex gap-4">
         <Skeleton.Input active style={{ width: '100%' }} />
@@ -158,20 +158,20 @@ const ItemStoreMapping = () => {
       align: 'right',
       render: (_, record) => (
         <Popconfirm permissionAction="delete" title="Remove mapping?" onConfirm={() => messAPI.removeItemStoreMapping(record.id).then(fetchInitialData)}>
-          <Button type="text" danger icon={<Trash2 size={16} />} className="flex items-center justify-center hover:bg-rose-50 rounded-lg" />
+          <Button type="text" danger icon={<Trash2 size={16} />} className="flex items-center justify-center hover:bg-rose-50 rounded-control" />
         </Popconfirm>
       )
     }
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header Section */}
         <div className="module-page-header flex justify-between items-center mb-8">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100">
               <Link className="text-white" size={24} />
             </div>
             <div>
@@ -180,14 +180,14 @@ const ItemStoreMapping = () => {
             </div>
           </div>
           <Space>
-            <Button permissionAction="export" icon={<FileSpreadsheet size={18}/>} onClick={handleExportExcel} className="rounded-xl h-12">Export Results</Button>
-            <Button type="primary" icon={<Plus size={18}/>} onClick={() => setModalVisible(true)} className="rounded-xl h-12 shadow-lg shadow-blue-100 font-semibold">Add New Mapping</Button>
+            <Button permissionAction="export" icon={<FileSpreadsheet size={18}/>} onClick={handleExportExcel} className="rounded-control h-12">Export Results</Button>
+            <Button type="primary" icon={<Plus size={18}/>} onClick={() => setModalVisible(true)} className="rounded-control h-12 shadow-lg shadow-blue-100 font-semibold">Add New Mapping</Button>
           </Space>
         </div>
 
         {/* --- LIVE SEARCH BAR --- */}
-        <Card className="border-none shadow-sm rounded-2xl mb-6">
-            <div className="flex items-center gap-3 bg-slate-50 p-3 px-5 rounded-2xl border border-slate-100 w-full transition-all focus-within:border-blue-300 focus-within:bg-white focus-within:shadow-md">
+        <Card className="border-none shadow-sm rounded-surface mb-6">
+            <div className="flex items-center gap-3 bg-slate-50 p-3 px-5 rounded-control border border-slate-100 w-full transition-all focus-within:border-blue-300 focus-within:bg-white focus-within:shadow-md">
                 <Search size={20} className="text-slate-400" />
                 <Input 
                     placeholder="Quick search by item name, store name, or category..." 
@@ -206,7 +206,7 @@ const ItemStoreMapping = () => {
         </Card>
 
         {loading ? <MappingSkeleton /> : (
-            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+            <Card className="border-none shadow-sm rounded-surface overflow-hidden" bodyStyle={{ padding: 0 }}>
                 <Table 
                     dataSource={filteredMappings} 
                     columns={columns} 
@@ -223,10 +223,10 @@ const ItemStoreMapping = () => {
           onCancel={() => setModalVisible(false)}
           footer={null}
           width={900}
-          className="rounded-2xl"
+          className="rounded-surface"
         >
           <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={{ items: [{}] }}>
-            <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100 mb-6">
+            <div className="bg-blue-50/50 p-6 rounded-surface border border-blue-100 mb-6">
               <Form.Item name="store_id" label={<Text strong>Target Store</Text>} rules={[{ required: true }]}>
                 <Select placeholder="Select the store to map items to..." className="h-11">
                   {stores.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
@@ -239,7 +239,7 @@ const ItemStoreMapping = () => {
                 <>
                   <div className="max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                     {fields.map(({ key, name, ...restField }) => (
-                      <div key={key} className="bg-white p-5 rounded-2xl border border-slate-100 mb-4 shadow-sm relative group hover:border-blue-200 transition-all">
+                      <div key={key} className="bg-white p-5 rounded-surface border border-slate-100 mb-4 shadow-sm relative group hover:border-blue-200 transition-all">
                         <Row gutter={16} align="middle">
                           <Col span={10}>
                             <Form.Item {...restField} name={[name, 'item_id']} label="Item" rules={[{ required: true }]}>
@@ -259,13 +259,13 @@ const ItemStoreMapping = () => {
                             </Form.Item>
                           </Col>
                           <Col span={2}>
-                            <Button type="text" danger icon={<X size={18} />} onClick={() => remove(name)} className="mt-6 flex items-center justify-center hover:bg-rose-50 rounded-lg" />
+                            <Button type="text" danger icon={<X size={18} />} onClick={() => remove(name)} className="mt-6 flex items-center justify-center hover:bg-rose-50 rounded-control" />
                           </Col>
                         </Row>
                       </div>
                     ))}
                   </div>
-                  <Button type="dashed" onClick={() => add()} block icon={<Plus size={16}/>} className="h-12 rounded-xl mb-4 border-slate-300 text-slate-500 hover:text-blue-600 hover:border-blue-600">
+                  <Button type="dashed" onClick={() => add()} block icon={<Plus size={16}/>} className="h-12 rounded-control mb-4 border-slate-300 text-slate-500 hover:text-blue-600 hover:border-blue-600">
                     Add Another Item Row
                   </Button>
                 </>
@@ -273,8 +273,8 @@ const ItemStoreMapping = () => {
             </Form.List>
 
             <div className="flex justify-end gap-3 mt-8 border-t pt-6">
-              <Button onClick={() => setModalVisible(false)} className="rounded-xl h-11 px-6">Cancel</Button>
-              <Button type="primary" htmlType="submit" loading={confirmLoading} className="rounded-xl h-11 px-8 font-bold">
+              <Button onClick={() => setModalVisible(false)} className="rounded-control h-11 px-6">Cancel</Button>
+              <Button type="primary" htmlType="submit" loading={confirmLoading} className="rounded-control h-11 px-8 font-bold">
                 Save All Mappings
               </Button>
             </div>

@@ -1,3 +1,4 @@
+import { listStaffWorkspaces } from '../services/staffWorkspace.js';
 import { uploadReductionDocument, reductionDocument, reviseReduction, decideReduction } from '../controllers/reductionController.js';
 import express from 'express';
 import { previewAdminRooms, createAdminRooms, deleteAdminRooms } from '../controllers/bulkRoomsController.js';
@@ -68,6 +69,7 @@ router.post('/monthly-attendance/preview', previewMonthlyAttendance);
 router.post('/monthly-attendance/import', importMonthlyAttendance);
 
 // Dashboard
+router.get('/staff-workspaces', listStaffWorkspaces);
 router.get('/dashboard-stats', getDashboardStats);
 router.get('/chart-data', getAdminChartData);
 

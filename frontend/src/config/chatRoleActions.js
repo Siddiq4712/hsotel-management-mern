@@ -18,7 +18,7 @@ const ACTIONS = {
   ],
   admin: [
     { label: 'List Students', message: 'List students' }, { label: 'Dashboard', message: 'Admin dashboard', navigationPath: '/dashboard' }, { label: 'Manage Hostels', message: 'Manage hostels', navigationPath: '/hostels' },
-    { label: 'Room Management', message: 'Room management', navigationPath: '/room-management' }, { label: 'Create User', message: 'Create user', navigationPath: '/create-user' },
+    { label: 'Room Management', message: 'Room management', navigationPath: '/room-management' }, { label: 'Manage User', message: 'Manage user', navigationPath: '/create-user' },
     { label: 'Sessions', message: 'Manage sessions', navigationPath: '/sessions' }, { label: 'Outpass Logs', message: 'Outpass logs', navigationPath: '/outpass-logs' },
   ],
   mess: [

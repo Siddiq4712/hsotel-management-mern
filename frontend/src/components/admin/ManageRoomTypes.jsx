@@ -1,158 +1,134 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  Card, Typography, Row, Col, Button, Space, Divider, Skeleton, Badge, 
-  Tag, Modal, Input, Empty, message, Form, InputNumber, Table, Segmented, Tooltip, Select, FloatButton
-} from 'antd';
-import { 
-  Bed, Plus, Users, AlertCircle, Edit3, Trash2, RefreshCw, LayoutGrid, Info, Inbox, 
-  Settings2, Activity, List, AlignJustify, Maximize, Square, Hash, ClipboardList, Building 
-} from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Card, Button, Space, Modal, Input, message, Form, InputNumber, Table, Select } from 'antd';
+import { Plus, RefreshCw, Search } from 'lucide-react';
 import { adminAPI } from '../../services/api';
-import moment from 'moment';
+import WorkspaceAlert from '../common/WorkspaceAlert';
+import WorkspaceToolbar from '../common/WorkspaceToolbar';
 
-const { Title, Text, Paragraph } = Typography;
-const { TextArea } = Input;
-
-const ManageRoomTypes = ({ isTabbed }) => {
+export default function ManageRoomTypes({ active = true }) {
   const [form] = Form.useForm();
   const [roomTypes, setRoomTypes] = useState([]);
   const [hostels, setHostels] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const loadRevision = useRef(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [btnLoading, setBtnLoading] = useState(false);
-  const [viewMode, setViewMode] = useState('tiles');
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [hostelFilter, setHostelFilter] = useState();
 
   const fetchData = useCallback(async () => {
+    const revision = ++loadRevision.current;
     setLoading(true);
+    setError('');
     try {
-      const [typesRes, hostelsRes] = await Promise.all([
-        adminAPI.getRoomTypes(),
-        adminAPI.getHostels()
-      ]);
-      setRoomTypes(typesRes.data.data || []);
-      setHostels(hostelsRes.data.data || []);
+      const [typeResponse, hostelResponse] = await Promise.all([adminAPI.getRoomTypes(), adminAPI.getHostels()]);
+      if (revision !== loadRevision.current) return;
+      setRoomTypes(typeResponse.data.data || []);
+      setHostels(hostelResponse.data.data || []);
     } catch (error) {
-      message.error('Registry sync failed.');
+      if (revision === loadRevision.current) setError(error.message || 'Unable to load room types.');
     } finally {
-      setLoading(false);
+      if (revision === loadRevision.current) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { if (active) fetchData(); }, [active, fetchData]);
 
-  const handleOpenModal = (record = null) => {
-    if (record) {
-      setEditingId(record.id);
-      form.setFieldsValue(record);
-    } else {
-      setEditingId(null);
-      form.resetFields();
-    }
+  const openRoomType = (type) => {
+    setEditingId(type?.id ?? null);
+    form.resetFields();
+    form.setFieldsValue(type
+      ? { name: type.name, capacity: type.capacity, hostel_id: type.hostel_id, description: type.description }
+      : { hostel_id: hostelFilter });
     setIsModalOpen(true);
   };
 
-  const handleFinish = async (values) => {
-    setBtnLoading(true);
+  const saveRoomType = async (values) => {
+    setSaving(true);
     try {
-      if (editingId) {
-        await adminAPI.updateRoomType(editingId, values);
-        message.success('Inventory updated.');
-      } else {
-        await adminAPI.createRoomType(values);
-        message.success('New template deployed.');
-      }
+      if (editingId) await adminAPI.updateRoomType(editingId, values);
+      else await adminAPI.createRoomType(values);
+      message.success(editingId ? 'Room type updated.' : 'Room type added.');
       setIsModalOpen(false);
-      fetchData();
+      await fetchData();
     } catch (error) {
-      message.error(error.message || 'Action failed.');
+      message.error(error.message || 'Unable to save room type.');
     } finally {
-      setBtnLoading(false);
+      setSaving(false);
     }
   };
 
-  const handleDelete = (id) => {
+  const deleteRoomType = (type) => {
     Modal.confirm({
-      title: 'Void Room Type?',
-      content: 'This will remove the room configuration from the registry.',
-      okText: 'Delete',
-      okType: 'danger',
+      title: `Delete room type ${type.name}?`,
+      content: 'Room types assigned to active rooms cannot be deleted.',
+      okText: 'Delete room type',
+      okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          await adminAPI.deleteRoomType(id);
-          message.success('Entry purged.');
-          fetchData();
-        } catch (e) { message.error('Deletion failed.'); }
+          await adminAPI.deleteRoomType(type.id);
+          setRoomTypes(current => current.filter(item => item.id !== type.id));
+          message.success('Room type deleted.');
+          await fetchData();
+        } catch (error) {
+          message.error(error.message || 'Unable to delete room type.');
+          throw error;
+        }
       }
     });
   };
 
-  return (
-    <div className={isTabbed ? "p-4" : "p-8 bg-slate-50 min-h-screen"}>
-      {isTabbed && (
-        <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-           <Text strong className="text-slate-600 uppercase text-[11px] tracking-widest">Classification Templates</Text>
-           <Button type="primary" icon={<Plus size={18}/>} onClick={() => handleOpenModal()} className="rounded-xl px-6 h-10 border-none shadow-lg shadow-blue-100">
-             Add Type
-           </Button>
-        </div>
-      )}
+  const namesByHostel = new Map(hostels.map(hostel => [Number(hostel.id), hostel.name]));
+  const hostelOptions = hostels.map(hostel => ({ value: hostel.id, label: hostel.name }));
+  const query = search.trim().toLowerCase();
+  const visibleTypes = roomTypes.filter(type =>
+    (!hostelFilter || Number(type.hostel_id) === Number(hostelFilter)) &&
+    [type.name, type.description].some(text => String(text ?? '').toLowerCase().includes(query)));
+  const actionsDisabled = loading || Boolean(error);
 
-      {loading ? <Skeleton active /> : (
-        <Row gutter={[20, 20]}>
-          {roomTypes.map(type => (
-            <Col xs={24} md={12} lg={8} key={type.id}>
-              {/* Changed bordered={false} to variant and fixed styling */}
-              <Card bordered={false} className="rounded-2xl shadow-sm border-l-4 border-l-blue-500">
-                <div className="flex justify-between">
-                  <Text strong className="text-lg">{type.name}</Text>
-                  <Space>
-                    <Edit3 size={16} className="cursor-pointer text-slate-400" onClick={() => handleOpenModal(type)} />
-                    <Trash2 size={16} className="cursor-pointer text-rose-400" onClick={() => handleDelete(type.id)} />
-                  </Space>
-                </div>
-                <div className="mt-2">
-                  <Tag color="blue">{type.capacity} max</Tag>
-                  <Tag color="cyan">{hostels.find(h => h.id === type.hostel_id)?.name || 'N/A'}</Tag>
-                </div>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-      )}
-
-      <Modal
-        title={editingId ? 'Modify Template' : 'Register Template'}
-        open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
-        footer={null}
-        width={450}
-        centered
-      >
-        <Form form={form} layout="vertical" onFinish={handleFinish} className="mt-4">
-          <Form.Item name="hostel_id" label="Assign to Hostel" rules={[{ required: true }]}>
-            <Select placeholder="Select Hostel" variant="filled">
-              {hostels.map(h => <Select.Option key={h.id} value={h.id}>{h.name}</Select.Option>)}
-            </Select>
-          </Form.Item>
-          <Form.Item name="name" label="Template Label" rules={[{ required: true }]}>
-            <Input placeholder="e.g., Executive Suite" variant="filled" />
-          </Form.Item>
-          <Form.Item name="capacity" label="max Capacity" rules={[{ required: true }]}>
-            <InputNumber min={1} className="w-full" variant="filled" />
-          </Form.Item>
-          <Form.Item name="description" label="Description">
-            <TextArea rows={3} variant="filled" />
-          </Form.Item>
-          <Button type="primary" block htmlType="submit" loading={btnLoading} className="h-10 rounded-lg">
-            {editingId ? 'Update' : 'Deploy'}
-          </Button>
-        </Form>
-      </Modal>
-
-      <FloatButton icon={<Plus />} type="primary" onClick={() => handleOpenModal()} />
-    </div>
-  );
-};
-
-export default ManageRoomTypes;
+  return <Card>
+    <WorkspaceToolbar className="mb-4">
+      <Input className="workspace-search" aria-label="Search room types" placeholder="Search by room type or description" allowClear
+        prefix={<Search size={16} aria-hidden="true" />} value={search} onChange={event => setSearch(event.target.value)} />
+      <Select className="workspace-toolbar-filter" aria-label="Filter room types by hostel" placeholder="All hostels" allowClear
+        value={hostelFilter} onChange={setHostelFilter} options={hostelOptions} />
+      <div className="workspace-toolbar-actions">
+        <Button icon={<RefreshCw size={16} />} loading={loading} onClick={fetchData}>Refresh</Button>
+        <Button type="primary" icon={<Plus size={16} />} disabled={actionsDisabled} onClick={() => openRoomType()}>Add Room Type</Button>
+      </div>
+    </WorkspaceToolbar>
+    {error && <WorkspaceAlert type="error" showIcon title={error} className="mb-4" />}
+    <Table rowKey="id" loading={loading} dataSource={visibleTypes} scroll={{ x: 680 }}
+      locale={{ emptyText: error ? 'Room types could not be loaded' : (query || hostelFilter ? 'No room types match your filters' : 'No room types yet') }}
+      columns={[
+        { title: 'Room type', dataIndex: 'name' },
+        { title: 'Hostel', key: 'hostel', render: (_, type) => namesByHostel.get(Number(type.hostel_id)) || '—' },
+        { title: 'Capacity', dataIndex: 'capacity' },
+        { title: 'Description', dataIndex: 'description', render: value => value || '—' },
+        { title: 'Actions', key: 'actions', align: 'center', width: 164, render: (_, type) => <Space>
+          <Button aria-label={`Edit room type ${type.name}`} disabled={actionsDisabled} onClick={() => openRoomType(type)}>Edit</Button>
+          <Button danger aria-label={`Delete room type ${type.name}`} disabled={actionsDisabled} onClick={() => deleteRoomType(type)}>Delete</Button>
+        </Space> },
+      ]} />
+    <Modal title={editingId ? 'Edit Room Type' : 'Add Room Type'} open={isModalOpen} onCancel={() => setIsModalOpen(false)}
+      onOk={() => form.submit()} okText={editingId ? 'Save changes' : 'Add room type'} confirmLoading={saving} forceRender
+      cancelButtonProps={{ disabled: saving }} closable={!saving} keyboard={!saving} mask={{ closable: !saving }}>
+      <Form form={form} name="admin-room-type" layout="vertical" onFinish={saveRoomType} disabled={saving}>
+        <Form.Item name="hostel_id" label="Hostel" rules={[{ required: true }]}>
+          <Select placeholder="Choose a hostel" options={hostelOptions} />
+        </Form.Item>
+        <Form.Item name="name" label="Room type name" rules={[{ required: true, whitespace: true }]}>
+          <Input placeholder="e.g. Double room" />
+        </Form.Item>
+        <Form.Item name="capacity" label="Capacity" rules={[{ required: true }]}>
+          <InputNumber min={1} precision={0} className="w-full" />
+        </Form.Item>
+        <Form.Item name="description" label="Description">
+          <Input.TextArea rows={3} />
+        </Form.Item>
+      </Form>
+    </Modal>
+  </Card>;
+}

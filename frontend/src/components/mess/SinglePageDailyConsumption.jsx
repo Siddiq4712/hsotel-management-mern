@@ -1,8 +1,13 @@
+import { cornerRadius } from '../../theme/cornerRadius';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
+import WorkspaceToolbar from '../common/WorkspaceToolbar';
+import { useStaffWorkspace } from '../../context/StaffWorkspaceContext';
 import { PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import { useScopeDraft } from '../common/WorkspaceScope';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Card, Table, Tag, Space, message, Form, Input, Select, InputNumber, Typography, Divider, ConfigProvider, Row, Col, Alert, Badge, Spin, Tooltip, Progress } from 'antd';
+import { Card, Table, Tag, Space, message, Form, Input, Select, InputNumber, Typography, Divider, ConfigProvider, Row, Col, Badge, Spin, Tooltip, Progress } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import {
   Zap, Calendar, Plus, Trash2, CheckCircle2, AlertTriangle,
   Coffee, Sun, Sunset, Moon, Package, ArrowRight, RefreshCw,
@@ -33,7 +38,6 @@ const T = {
   warningBg: '#FFFBEB',
   success: '#10B981',
   successBg: '#ECFDF5',
-  radius: '12px',
   shadow: '0 4px 12px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.03)',
 };
 
@@ -47,9 +51,10 @@ const MEAL_TYPES = [
 const SinglePageDailyConsumption = () => {
   const { user } = useAuth();
   const inventory = useInventoryWorkspace();
+  const staff = useStaffWorkspace();
   const isAdmin = user?.role === 'admin';
   const [hostels, setHostels] = useState([]);
-  const [selectedHostel, setSelectedHostel] = useState(null);
+  const [selectedHostel, setSelectedHostel] = useState(staff?.hostel.id ?? null);
   const [hostelsLoading, setHostelsLoading] = useState(isAdmin);
   const [hostelsError, setHostelsError] = useState('');
   const [loadError, setLoadError] = useState('');
@@ -115,8 +120,8 @@ const SinglePageDailyConsumption = () => {
 
   const previousMode = useRef(sharedMode);
   useEffect(() => {
-    if (previousMode.current !== sharedMode) { changeHostel(null); previousMode.current = sharedMode; }
-  }, [sharedMode]);
+    if (previousMode.current !== sharedMode) { changeHostel(staff?.hostel.id ?? null); previousMode.current = sharedMode; }
+  }, [sharedMode, staff?.hostel.id]);
 
   // Fetch items and stocks
   const fetchData = useCallback(async () => {
@@ -174,7 +179,7 @@ const SinglePageDailyConsumption = () => {
   }, [fetchData]);
 
   const canEnterStock = !loading && !loadError && (!needsHostel || Boolean(selectedHostel));
-  const selectedHostelName = hostels.find(hostel => hostel.id === selectedHostel)?.name;
+  const selectedHostelName = staff?.hostel.name || hostels.find(hostel => hostel.id === selectedHostel)?.name;
 
   // Create an item lookup map
   const itemMap = useMemo(() => {
@@ -269,35 +274,23 @@ const SinglePageDailyConsumption = () => {
     return payloadItems;
   }, [mealEntries, itemMap, uomMap]);
 
+  const stockImpact = useMemo(() => {
+    const totals = new Map();
+    flattenedSubmissionData.forEach(item => {
+      const existing = totals.get(item.item_id);
+      if (existing) existing.quantity += Number(item.quantity_consumed);
+      else totals.set(item.item_id, { id: item.item_id, name: item.item_name, unit: item.unit_name,
+        before: Number(item.current_stock), quantity: Number(item.quantity_consumed) });
+    });
+    return [...totals.values()];
+  }, [flattenedSubmissionData]);
+
   const validateStockBeforeSubmit = () => {
-  const itemTotals = new Map();
-
-  flattenedSubmissionData.forEach(item => {
-    const itemId = item.item_id;
-
-    if (!itemTotals.has(itemId)) {
-      itemTotals.set(itemId, {
-        item_name: item.item_name,
-        unit_name: item.unit_name,
-        current_stock: Number(item.current_stock),
-        total_quantity: 0
-      });
-    }
-
-    itemTotals.get(itemId).total_quantity += Number(item.quantity_consumed);
-  });
-
-  for (const [, item] of itemTotals) {
-    if (item.total_quantity > item.current_stock) {
-      message.error(
-        `${item.item_name}: Requested ${item.total_quantity} ${item.unit_name}, but only ${item.current_stock} ${item.unit_name} is available.`
-      );
-      return false;
-    }
-  }
-
-  return true;
-};
+    const shortage = stockImpact.find(item => item.quantity > item.before);
+    if (!shortage) return true;
+    message.error(`${shortage.name}: Requested ${shortage.quantity} ${shortage.unit}, but only ${shortage.before} ${shortage.unit} is available.`);
+    return false;
+  };
 
   // Handle final submission to backend
   const handleFinalSubmit = async () => {
@@ -379,41 +372,19 @@ if (!validateStockBeforeSubmit()) {
       theme={{
         token: {
           colorPrimary: '#2563EB',
-          borderRadius: 8,
           fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
         },
       }}
     >
-      <div style={{ background: T.bg, minHeight: '100vh', padding: '24px 32px' }}>
-        
-        {/* ─── Header Section ─── */}
-        <div style={{
-          background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius,
-          padding: '24px 28px', marginBottom: 24, boxShadow: T.shadow,
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16
-        }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-              <div style={{ background: T.accentBg, padding: 8, borderRadius: 8, color: T.accent }}>
-                <Zap size={22} />
-              </div>
-              <Title level={3} style={{ margin: 0, color: T.ink, fontWeight: 800 }}>
-                Single-Page Daily Meal Stock Entry
-              </Title>
-              <Tag color="blue" style={{ borderRadius: 6, fontWeight: 700, padding: '2px 10px' }}>
-                Instant Stock Reduction
-              </Tag>
-            </div>
-            <Text style={{ color: T.inkSoft, fontSize: 13, fontWeight: 500 }}>
-              Enter all raw ingredient consumptions for Breakfast, Lunch, Snacks & Dinner on one single screen.
-            </Text>
-          </div>
-
-          {sharedMode && <Alert type="info" showIcon title="Shared inventory entry"
+      <section className="module-page">
+        <WorkspacePageHeader title="Single-Page Daily Meal Stock Entry" icon={Zap}
+          description={[inventory?.name, !sharedMode && selectedHostelName].filter(Boolean).join(' · ') || 'Record ingredients used across all meals.'} />
+        <Card className="mb-6">
+          {sharedMode && <Alert className="mb-4" type="info" showIcon title="Shared inventory entry"
             description={`Enter the total quantity used across ${(inventory?.hostels || []).map(hostel => hostel.name).join(', ')}. Stock is deducted once and the ingredient cost belongs to this inventory's shared billing group.`} />}
           {/* Date Selector & Action */}
-          <Space size="middle" wrap>
-            {needsHostel && <div>
+          <WorkspaceToolbar className="workspace-toolbar-labeled">
+            {needsHostel && !staff && <div>
               <label htmlFor="consumption-hostel" style={{ display: 'block', fontWeight: 600 }}>Hostel</label>
               <Select id="consumption-hostel" aria-label="Hostel for daily stock entry"
                 placeholder="Select hostel" value={selectedHostel} onChange={changeHostel}
@@ -421,46 +392,28 @@ if (!validateStockBeforeSubmit()) {
                 style={{ minWidth: 220 }}
                 options={hostels.map(hostel => ({ value: hostel.id, label: hostel.name }))} />
             </div>}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.bg, padding: '6px 12px', borderRadius: 8, border: `1px solid ${T.border}` }}>
-              <Calendar size={16} color={T.inkMid} />
-              <Text style={{ fontSize: 12, fontWeight: 600, color: T.inkMid }}>Consumption Date:</Text>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="meal-entry-date">Consumption date</label>
               <DatePicker
+                id="meal-entry-date"
                 value={consumptionDate}
                 onChange={(date) => setConsumptionDate(date || moment())}
                 format="YYYY-MM-DD"
                 allowClear={false}
-                style={{ border: 'none', background: 'transparent', fontWeight: 700 }}
               />
             </div>
 
-            <Button
-              type="default"
-              icon={<RefreshCw size={14} />}
-              onClick={fetchData}
-              disabled={loading || submitting || (needsHostel && !selectedHostel)}
-              style={{ borderRadius: 8, fontWeight: 600 }}
-            >
-              Refresh Stock
-            </Button>
-
-            <Button permissionAction="create"
-              type="primary"
-              size="large"
-              icon={<CheckCircle2 size={18} />}
-              disabled={!canEnterStock || submitting || summaryStats.validRowsCount === 0}
-              onClick={() => setConfirmModalVisible(true)}
-              style={{
-                borderRadius: 8,
-                fontWeight: 700,
-                padding: '0 24px',
-                background: summaryStats.validRowsCount > 0 ? '#2563EB' : undefined,
-                boxShadow: summaryStats.validRowsCount > 0 ? '0 4px 12px rgba(37, 99, 235, 0.25)' : undefined
-              }}
-            >
-              Submit & Reduce Stock ({summaryStats.validRowsCount} items)
-            </Button>
-          </Space>
-        </div>
+            <div className="workspace-toolbar-actions">
+              <Button icon={<RefreshCw size={16} />} onClick={fetchData}
+                disabled={loading || submitting || (needsHostel && !selectedHostel)}>Refresh Stock</Button>
+              <Button permissionAction="create" type="primary" icon={<CheckCircle2 size={16} />}
+                disabled={!canEnterStock || submitting || summaryStats.validRowsCount === 0}
+                onClick={() => setConfirmModalVisible(true)}>
+                Submit & Reduce Stock ({summaryStats.validRowsCount} items)
+              </Button>
+            </div>
+          </WorkspaceToolbar>
+        </Card>
 
         {isAdmin && hostelsError && <Alert type="error" showIcon title={hostelsError}
           action={<Button onClick={fetchHostels} loading={hostelsLoading}>Retry hostels</Button>} />}
@@ -475,9 +428,9 @@ if (!validateStockBeforeSubmit()) {
         {/* ─── Metric Stat Cards ─── */}
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
           <Col xs={24} sm={12} md={6}>
-            <Card style={{ borderRadius: T.radius, border: `1px solid ${T.border}`, boxShadow: T.shadow }}>
+            <Card style={{ borderRadius: cornerRadius.surface, border: `1px solid ${T.border}`, boxShadow: T.shadow }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ background: '#EFF6FF', padding: 12, borderRadius: 10, color: '#2563EB' }}>
+                <div style={{ background: '#EFF6FF', padding: 12, borderRadius: cornerRadius.control, color: '#2563EB' }}>
                   <Layers size={22} />
                 </div>
                 <div>
@@ -489,9 +442,9 @@ if (!validateStockBeforeSubmit()) {
           </Col>
 
           <Col xs={24} sm={12} md={6}>
-            <Card style={{ borderRadius: T.radius, border: `1px solid ${T.border}`, boxShadow: T.shadow }}>
+            <Card style={{ borderRadius: cornerRadius.surface, border: `1px solid ${T.border}`, boxShadow: T.shadow }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ background: '#ECFDF5', padding: 12, borderRadius: 10, color: '#10B981' }}>
+                <div style={{ background: '#ECFDF5', padding: 12, borderRadius: cornerRadius.control, color: '#10B981' }}>
                   <Package size={22} />
                 </div>
                 <div>
@@ -503,9 +456,9 @@ if (!validateStockBeforeSubmit()) {
           </Col>
 
           <Col xs={24} sm={12} md={6}>
-            <Card style={{ borderRadius: T.radius, border: `1px solid ${T.border}`, boxShadow: T.shadow }}>
+            <Card style={{ borderRadius: cornerRadius.surface, border: `1px solid ${T.border}`, boxShadow: T.shadow }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ background: '#FEF3C7', padding: 12, borderRadius: 10, color: '#D97706' }}>
+                <div style={{ background: '#FEF3C7', padding: 12, borderRadius: cornerRadius.control, color: '#D97706' }}>
                   <Sparkles size={22} />
                 </div>
                 <div>
@@ -519,9 +472,9 @@ if (!validateStockBeforeSubmit()) {
           </Col>
 
           <Col xs={24} sm={12} md={6}>
-            <Card style={{ borderRadius: T.radius, border: summaryStats.lowStockCount > 0 ? `1px solid #FCA5A5` : `1px solid ${T.border}`, boxShadow: T.shadow, background: summaryStats.lowStockCount > 0 ? '#FEF2F2' : T.surface }}>
+            <Card style={{ borderRadius: cornerRadius.surface, border: summaryStats.lowStockCount > 0 ? `1px solid #FCA5A5` : `1px solid ${T.border}`, boxShadow: T.shadow, background: summaryStats.lowStockCount > 0 ? '#FEF2F2' : T.surface }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ background: summaryStats.lowStockCount > 0 ? '#FEE2E2' : '#F1F5F9', padding: 12, borderRadius: 10, color: summaryStats.lowStockCount > 0 ? '#EF4444' : T.inkSoft }}>
+                <div style={{ background: summaryStats.lowStockCount > 0 ? '#FEE2E2' : '#F1F5F9', padding: 12, borderRadius: cornerRadius.control, color: summaryStats.lowStockCount > 0 ? '#EF4444' : T.inkSoft }}>
                   <AlertTriangle size={22} />
                 </div>
                 <div>
@@ -544,7 +497,7 @@ if (!validateStockBeforeSubmit()) {
                 <div style={{
                   background: T.surface,
                   border: `1px solid ${T.border}`,
-                  borderRadius: T.radius,
+                  borderRadius: cornerRadius.surface,
                   boxShadow: T.shadow,
                   overflow: 'hidden',
                   height: '100%',
@@ -561,13 +514,13 @@ if (!validateStockBeforeSubmit()) {
                     alignItems: 'center'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ background: '#FFFFFF', padding: 6, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
+                      <div style={{ background: '#FFFFFF', padding: 6, borderRadius: cornerRadius.control, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
                         <MealIcon size={18} color={meal.color} />
                       </div>
                       <Text style={{ fontSize: 16, fontWeight: 800, color: T.ink }}>
                         {meal.label}
                       </Text>
-                      <Tag color={meal.color} style={{ borderRadius: 6, fontWeight: 700, margin: 0 }}>
+                      <Tag color={meal.color} style={{ borderRadius: cornerRadius.tag, fontWeight: 700, margin: 0 }}>
                         {summaryStats.mealItemCounts[meal.key]} Logged
                       </Tag>
                     </div>
@@ -595,7 +548,7 @@ if (!validateStockBeforeSubmit()) {
                         <div key={row.id} style={{
                           background: isInsufficient ? '#FEF2F2' : T.bg,
                           border: `1px solid ${isInsufficient ? '#FCA5A5' : T.border}`,
-                          borderRadius: 8,
+                          borderRadius: cornerRadius.control,
                           padding: '12px 14px',
                           marginBottom: 12,
                           transition: 'all 0.15s ease'
@@ -626,7 +579,7 @@ if (!validateStockBeforeSubmit()) {
                                   >
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                       <span style={{ fontWeight: 600 }}>{item.name}</span>
-                                      <Tag style={{ fontSize: 10, margin: 0, borderRadius: 4 }}>
+                                      <Tag style={{ fontSize: 10, margin: 0, borderRadius: cornerRadius.tag }}>
                                         Stock: {item.current_stock} {item.UOM?.abbreviation || 'units'}
                                       </Tag>
                                     </div>
@@ -647,7 +600,7 @@ if (!validateStockBeforeSubmit()) {
                                 placeholder="Qty"
                                 value={row.quantity}
                                 onChange={(val) => updateRowField(meal.key, row.id, 'quantity', val)}
-                                style={{ width: '100%', borderRadius: 6 }}
+                                style={{ width: '100%', borderRadius: cornerRadius.control }}
                               />
                             </Col>
 
@@ -672,7 +625,7 @@ if (!validateStockBeforeSubmit()) {
                                 {!isInsufficient && isLow && ' (⚠️ Low Stock Threshold)'}
                               </Text>
 
-                              <Tag color={isInsufficient ? 'red' : isLow ? 'warning' : 'green'} style={{ borderRadius: 4, fontSize: 10 }}>
+                              <Tag color={isInsufficient ? 'red' : isLow ? 'warning' : 'green'} style={{ borderRadius: cornerRadius.tag, fontSize: 10 }}>
                                 {unitName}
                               </Tag>
                             </div>
@@ -686,7 +639,7 @@ if (!validateStockBeforeSubmit()) {
                       block
                       icon={<Plus size={14} />}
                       onClick={() => addRow(meal.key)}
-                      style={{ borderRadius: 8, fontWeight: 600, color: meal.color, borderColor: meal.border }}
+                      style={{ borderRadius: cornerRadius.control, fontWeight: 600, color: meal.color, borderColor: meal.border }}
                     >
                       + Add Item to {meal.label}
                     </Button>
@@ -702,7 +655,7 @@ if (!validateStockBeforeSubmit()) {
           marginTop: 28,
           background: T.surface,
           border: `1px solid ${T.border}`,
-          borderRadius: T.radius,
+          borderRadius: cornerRadius.surface,
           padding: '20px 28px',
           display: 'flex',
           justify: 'space-between',
@@ -725,7 +678,7 @@ if (!validateStockBeforeSubmit()) {
             disabled={submitting || summaryStats.validRowsCount === 0}
             onClick={() => setConfirmModalVisible(true)}
             style={{
-              borderRadius: 8,
+              borderRadius: cornerRadius.surface,
               fontWeight: 700,
               padding: '0 32px',
               background: '#2563EB'
@@ -761,11 +714,11 @@ if (!validateStockBeforeSubmit()) {
           {needsHostel && <Paragraph>Hostel: <strong>{selectedHostelName}</strong></Paragraph>}
           {inventory && <Paragraph>Stock inventory: <strong>{inventory.name}</strong></Paragraph>}
 
-          <div style={{ maxHeight: 320, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 8, padding: 12, marginBottom: 16 }}>
+          <div style={{ maxHeight: 320, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: cornerRadius.surface, padding: 12, marginBottom: 16 }}>
             {flattenedSubmissionData.map((d, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: i % 2 === 0 ? T.bg : T.surface, borderRadius: 6, marginBottom: 4 }}>
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: i % 2 === 0 ? T.bg : T.surface, borderRadius: cornerRadius.compact, marginBottom: 4 }}>
                 <div>
-                  <Tag color={MEAL_TYPES.find(m => m.key === d.meal_type)?.color} style={{ borderRadius: 4, textTransform: 'uppercase', fontSize: 10, fontWeight: 700 }}>
+                  <Tag color={MEAL_TYPES.find(m => m.key === d.meal_type)?.color} style={{ borderRadius: cornerRadius.tag, textTransform: 'uppercase', fontSize: 10, fontWeight: 700 }}>
                     {d.meal_type}
                   </Tag>
                   <span style={{ fontWeight: 700, color: T.ink }}>{d.item_name}</span>
@@ -777,6 +730,12 @@ if (!validateStockBeforeSubmit()) {
             ))}
           </div>
 
+          <Paragraph strong>Estimated stock after this entry</Paragraph>
+          <ul>
+            {stockImpact.map(item => <li key={item.id}>
+              {item.name} · {item.before} → {Number((item.before - item.quantity).toFixed(4))} {item.unit}
+            </li>)}
+          </ul>
           <Alert
             type="info"
             showIcon
@@ -801,7 +760,7 @@ if (!validateStockBeforeSubmit()) {
         >
           {resultModalData && (
             <div>
-              <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, padding: 16, marginBottom: 20, textAlign: 'center' }}>
+              <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: cornerRadius.surface, padding: 16, marginBottom: 20, textAlign: 'center' }}>
                 <Text style={{ fontSize: 12, color: '#065F46', fontWeight: 600 }}>TOTAL CONSUMPTION COST CALCULATED</Text>
                 <Title level={2} style={{ margin: '4px 0 0 0', color: '#047857', fontWeight: 800 }}>
                   ₹{parseFloat(resultModalData.totalCost || 0).toFixed(2)}
@@ -812,7 +771,7 @@ if (!validateStockBeforeSubmit()) {
               </div>
 
               {resultModalData.lowStockItems && resultModalData.lowStockItems.length > 0 && (
-                <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8, padding: 14 }}>
+                <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: cornerRadius.surface, padding: 14 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#991B1B', fontWeight: 700, marginBottom: 8 }}>
                     <AlertTriangle size={18} />
                     <span>Low Stock Warning for Reordering:</span>
@@ -830,7 +789,7 @@ if (!validateStockBeforeSubmit()) {
         </Modal>
 
         </>}
-      </div>
+      </section>
     </ConfigProvider>
   );
 };

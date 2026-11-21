@@ -7,8 +7,8 @@ import { exportWorkbook, printTables } from '../../utils/reportExport';
 import { reportFieldType, reportKeys, reportText, reportView, reportViewDescription } from '../../utils/reportView';
 import './ReportPreview.css';
 
-export default function ReportPreview({ rows, title, metadata = [], label = key => key, filename = 'Report.xlsx', disabled = false, compact = false, formatValue = reportText, searchPlaceholder = 'Search report' }) {
-  const [search, setSearch] = useState('');
+export default function ReportPreview({ rows, title, metadata = [], label = key => key, filename = 'Report.xlsx', disabled = false, compact = false, formatValue = reportText, searchPlaceholder = 'Search report', initialSearch = '' }) {
+  const [search, setSearch] = useState(initialSearch);
   const [filters, setFilters] = useState({});
   const [sort, setSort] = useState({});
   const [page, setPage] = useState(1);

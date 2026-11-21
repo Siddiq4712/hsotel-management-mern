@@ -55,7 +55,7 @@ export default function NotificationBell() {
   return <>
     <Badge count={unread} overflowCount={99} size="small" offset={[-3,4]}>
       <button type="button" aria-label={`Notifications${unread?`, ${unread} unread`:''}`} aria-expanded={open} aria-haspopup="dialog"
-        onClick={()=>{setOpen(true);load();}} className="relative flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+        onClick={()=>{setOpen(true);load();}} className="relative flex h-10 w-10 items-center justify-center rounded-control text-slate-500 hover:bg-blue-50 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
         <Bell size={21}/>
       </button>
     </Badge>
@@ -71,8 +71,8 @@ export default function NotificationBell() {
       <div className="space-y-3">
         {items.map(item=>{const Icon=icons[item.type]||Bell;const isUnread=item.status==='unread';return <button type="button" key={item.id} disabled={working}
           onClick={()=>read(item)} aria-label={`${isUnread?'Read':'View'} notification: ${item.title}`}
-          className={`w-full rounded-2xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isUnread?'border-blue-100 bg-blue-50/60 hover:bg-blue-50':'border-slate-100 bg-white hover:bg-slate-50'}`}>
-          <div className="flex gap-3"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isUnread?'bg-blue-100 text-blue-600':'bg-slate-100 text-slate-400'}`}><Icon size={17}/></span>
+          className={`w-full rounded-surface border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${isUnread?'border-blue-100 bg-blue-50/60 hover:bg-blue-50':'border-slate-100 bg-white hover:bg-slate-50'}`}>
+          <div className="flex gap-3"><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-control ${isUnread?'bg-blue-100 text-blue-600':'bg-slate-100 text-slate-400'}`}><Icon size={17}/></span>
             <div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><span className={`text-sm ${isUnread?'font-semibold text-slate-800':'font-medium text-slate-600'}`}>{item.title}</span>
               {isUnread?<span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-500"/>:<Check size={13} className="shrink-0 text-slate-400"/>}</div>
               <p className="mt-1 mb-2 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-500 line-clamp-2">{item.message}</p>

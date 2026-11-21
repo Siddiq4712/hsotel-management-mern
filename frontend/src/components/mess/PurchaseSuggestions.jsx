@@ -1,7 +1,7 @@
 import { PermissionButton as Button } from '../common/PermissionControls';
 import { exportWorkbook } from '../../utils/reportExport';
 import React, { useEffect, useState, useMemo } from 'react';
-import { Card, DatePicker, Table, message, Typography, ConfigProvider, theme, Skeleton, Space, Tag, Tooltip } from 'antd';
+import { Card, DatePicker, Table, message, Typography, ConfigProvider, Skeleton, Space, Tag, Tooltip } from 'antd';
 import {
   FileSpreadsheet, Calendar, Search, RefreshCw,
   ShoppingBag, ClipboardList, Info, PackageSearch
@@ -14,7 +14,7 @@ const { Title, Text } = Typography;
 
 // --- 1. Meaningful Empty State for Purchase Suggestions ---
 const EmptySuggestions = () => (
-  <div className="flex flex-col items-center justify-center p-20 text-center bg-white rounded-[32px] border-2 border-dashed border-slate-100 my-4 animate-in fade-in zoom-in duration-500">
+  <div className="flex flex-col items-center justify-center p-20 text-center bg-white rounded-surface border-2 border-dashed border-slate-100 my-4 animate-in fade-in zoom-in duration-500">
     <div className="p-6 bg-blue-50 rounded-full mb-6">
       <PackageSearch size={64} className="text-blue-300" strokeWidth={1.5} />
     </div>
@@ -27,7 +27,7 @@ const EmptySuggestions = () => (
 
 // --- 2. Skeleton Loader ---
 const PurchaseSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+  <Card className="border-none shadow-sm rounded-surface p-6 bg-white overflow-hidden">
     <div className="space-y-6">
       <div className="flex justify-between">
         <Skeleton.Input active style={{ width: 250 }} />
@@ -128,7 +128,7 @@ const PurchaseSuggestions = ({ onReceiveItem }) => {
       key: 'quantity_needed',
       align: 'right',
       render: (val) => (
-        <div className="bg-blue-50 py-1 px-4 rounded-xl inline-block border border-blue-100">
+        <div className="bg-blue-50 py-1 px-4 rounded-control inline-block border border-blue-100">
           <Text strong className="text-blue-600 text-lg">
             {parseFloat(val).toFixed(2)}
           </Text>
@@ -144,13 +144,13 @@ const PurchaseSuggestions = ({ onReceiveItem }) => {
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen">
 
         {/* Header Section */}
         <div className="module-page-header flex justify-between items-center mb-8">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100">
               <ClipboardList className="text-white" size={24} />
             </div>
             <div>
@@ -162,7 +162,7 @@ const PurchaseSuggestions = ({ onReceiveItem }) => {
             <Button
                 icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''} />}
                 onClick={fetchData}
-                className="rounded-xl h-12"
+                className="rounded-control h-12"
             >
                 Refresh
             </Button>
@@ -170,7 +170,7 @@ const PurchaseSuggestions = ({ onReceiveItem }) => {
                 type="primary"
                 icon={<FileSpreadsheet size={18}/>}
                 onClick={handleExport}
-                className="rounded-xl h-12 shadow-lg shadow-blue-100 flex items-center gap-2 font-semibold"
+                className="rounded-control h-12 shadow-lg shadow-blue-100 flex items-center gap-2 font-semibold"
             >
                 Export Order
             </Button>
@@ -178,10 +178,10 @@ const PurchaseSuggestions = ({ onReceiveItem }) => {
         </div>
 
         {/* Filter Toolbar */}
-        <Card className="border-none shadow-sm rounded-2xl mb-6">
+        <Card className="border-none shadow-sm rounded-surface mb-6">
           <div className="flex justify-between items-center">
             <Space size="large">
-              <div className="flex items-center gap-3 bg-slate-100 p-2 px-4 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-3 bg-slate-100 p-2 px-4 rounded-control border border-slate-200">
                 <Calendar size={16} className="text-slate-500" />
                 <DatePicker
                   picker="month"
@@ -193,7 +193,7 @@ const PurchaseSuggestions = ({ onReceiveItem }) => {
                 />
               </div>
             </Space>
-            <Space className="bg-blue-50/50 p-2 px-4 rounded-xl border border-blue-100">
+            <Space className="bg-blue-50/50 p-2 px-4 rounded-control border border-blue-100">
                 <Info size={16} className="text-blue-500" />
                 <Text className="text-blue-700 text-xs">Suggestions are based on monthly minimum stock requirements.</Text>
             </Space>
@@ -206,7 +206,7 @@ const PurchaseSuggestions = ({ onReceiveItem }) => {
         ) : data.length === 0 ? (
           <EmptySuggestions />
         ) : (
-          <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+          <Card className="border-none shadow-sm rounded-surface overflow-hidden" bodyStyle={{ padding: 0 }}>
             <Table
               rowKey="item_id"
               columns={columns}

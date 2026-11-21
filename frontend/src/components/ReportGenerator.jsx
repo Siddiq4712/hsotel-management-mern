@@ -68,7 +68,7 @@ const ReportGenerator = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md mb-6">
+    <div className="bg-white rounded-control shadow-md mb-6">
       <div className="p-4 border-b border-gray-200 flex justify-between items-center">
         <div>
           <h3 className="text-lg font-medium text-gray-900">{title}</h3>
@@ -79,14 +79,14 @@ const ReportGenerator = ({
         <div className="flex space-x-2">
           <button
             onClick={() => setShowFilterPanel(!showFilterPanel)}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center"
+            className="px-3 py-2 border border-gray-300 rounded-control text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center"
           >
             <Filter size={16} className="mr-1" />
             Filters
           </button>
           <button
             onClick={resetFilters}
-            className="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center"
+            className="px-3 py-2 border border-gray-300 rounded-control text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center"
             disabled={Object.keys(activeFilters).length === 0}
           >
             <RefreshCw size={16} className="mr-1" />
@@ -94,7 +94,7 @@ const ReportGenerator = ({
           </button>
           <button
             onClick={downloadExcel}
-            className="px-3 py-2 bg-green-600 border border-transparent rounded-md text-sm font-medium text-white hover:bg-green-700 flex items-center"
+            className="px-3 py-2 bg-green-600 border border-transparent rounded-control text-sm font-medium text-white hover:bg-green-700 flex items-center"
             disabled={filteredData.length === 0}
           >
             <Download size={16} className="mr-1" />
@@ -114,7 +114,7 @@ const ReportGenerator = ({
                 <select
                   value={activeFilters[filter.key] || 'all'}
                   onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All {filter.label}s</option>
                   {filter.options.map((option) => (

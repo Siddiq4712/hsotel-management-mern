@@ -4,15 +4,19 @@ import { assertAdditionalFoodQuantity } from '../services/additionalFoodQuantity
 import { normalizeAdditionalFood, validateAdditionalFoodOrder } from '../utils/additionalFood.js';
 import { freezeSharedBilling } from '../services/freezeSharedBilling.js';
 import { inventoryScope } from '../services/inventoryScope.js';
+import { allocateWeightedStockIssue } from '../services/weightedStockIssue.js';
+import { loadHistoricalStockItemLinks, historicalStockItemError } from '../services/historicalStockItemLinks.js';
 import { RECEIVED_ORDER_PREFIX, parseReceivedOrderNotes } from '../services/receivedPurchaseOrder.js';
 import { randomUUID } from 'node:crypto';
 import { consumptionPolicy, hostelPolicy, datePeriod, schoolToday, consumptionReadScope } from '../services/inventoryBilling.js';
 import { InventoryMealEntry } from '../models/inventoryBilling.js';
 import { Inventory } from '../models/inventory.js';
 import { getBillingDays } from '../services/billingDays.js';
-import { getMessCalculation } from '../services/messCalculation.js';
-import { buildMonthlyMessReport } from '../services/monthlyMessReport.js';
+import { assertBillingDetails, getMessCalculation } from '../services/messCalculation.js';
+import { buildMonthlyMessReport, loadMonthlyMessReport } from '../services/monthlyMessReport.js';
 import ExcelJS from 'exceljs';
+import { buildUnitRateWorkbook } from '../utils/unitRateWorkbook.js';
+import { loadHistoricalUnitRateRows } from '../services/historicalUnitRateRows.js';
 import {
   Menu, Item, ItemCategory, User, MenuItem, Hostel, Attendance, Enrollment, DailyMessCharge,
   MenuSchedule, UOM, ItemStock, DailyConsumption, MessBill, Session, CreditToken, Concern, Holiday,
@@ -27,8 +31,7 @@ import moment from 'moment';
 import { getMonthDateRange } from '../utils/dateUtils.js'; // Added .js extension
 import { sendConsumptionNotificationToAdmin } from '../utils/emailUtils.js'; // Added .js extension
 import { fetchStudentsFromERP } from '../services/erpStudentService.js';
-import { getHistoricalBilling, monthlyHistoricalReport, sendHistoricalDailyReport } from '../utils/historicalBilling.js';
-import { historicalDailyReport } from '../services/historicalDailyReport.js';
+import { getHistoricalBilling } from '../utils/historicalBilling.js';
 
 async function studentRoleId() {
   const role = await Role.findOne({ where: { roleName: 'Student' } });
@@ -1802,6 +1805,13 @@ export const updateItemStock = async (req, res) => {
     }
 
     // Ensure Item and Hostel exist
+    const scope = await inventoryScope(hostel_id, transaction);
+    const links = await loadHistoricalStockItemLinks(scope.inventory_id, transaction);
+    const itemError = historicalStockItemError(links, item_id);
+    if (itemError) {
+      await transaction.rollback();
+      return res.status(409).json({ success: false, message: itemError });
+    }
     const item = await Item.findByPk(item_id, { transaction });
     if (!item) {
       await transaction.rollback();
@@ -1871,6 +1881,8 @@ export const createBulkStock = async (req, res) => {
 
   const transaction = await sequelize.transaction();
   try {
+    const scope = await inventoryScope(hostel_id, transaction);
+    const links = await loadHistoricalStockItemLinks(scope.inventory_id, transaction);
     const itemIds = [...new Set(stocks.filter((row) => row.item_id).map((row) => row.item_id))];
     const itemNames = [...new Set(stocks.filter((row) => row.item_name).map((row) => String(row.item_name).trim().toLowerCase()))];
 
@@ -1911,6 +1923,12 @@ export const createBulkStock = async (req, res) => {
 
       if (!itemNameFromRow || Number.isNaN(quantity) || Number.isNaN(unit_price) || quantity <= 0 || unit_price < 0) {
         errors.push({ row: rowNumber, message: 'Missing or invalid quantity, unit price, or item name' });
+        continue;
+      }
+
+      const itemError = historicalStockItemError(links, item.id);
+      if (itemError) {
+        errors.push({ row: rowNumber, message: itemError });
         continue;
       }
 
@@ -2175,7 +2193,8 @@ export const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_
       throw new Error("Invalid consumption data: item_id and a positive quantity_consumed are required.");
     }
 
-    const requiredQty = requestedQty;
+    const requiredQty = Number(requestedQty.toFixed(2));
+    if (!Number.isFinite(requiredQty) || requiredQty <= 0) throw new Error('Issue quantity must be at least 0.01 stock units.');
 
     // Determine unit id
     let unitId = unit;
@@ -2202,7 +2221,7 @@ export const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_
 
     const availableQty = batches.reduce((sum, batch) => sum + parseFloat(batch.quantity_remaining), 0);
     console.log(`[WEIGHTED-AVG] Total available qty: ${availableQty}`);
-    if (availableQty < requiredQty) throw new Error(`Not enough stock for item ${item_id}. Needed ${requiredQty}, available ${availableQty}`);
+    if (Number(availableQty.toFixed(8)) < requiredQty) throw new Error(`Not enough stock for item ${item_id}. Needed ${requiredQty}, available ${availableQty}`);
 
     const totalValue = batches.reduce(
       (sum, batch) => sum + parseFloat(batch.quantity_remaining) * parseFloat(batch.unit_price),
@@ -2212,14 +2231,11 @@ export const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_
     const totalCost = averageUnitCost * requiredQty;
     console.log(`[WEIGHTED-AVG] Weighted average unit cost: ${averageUnitCost.toFixed(4)} | Total cost: ${totalCost.toFixed(4)}`);
 
-    let remaining = requiredQty;
     const batchBreakdown = [];
-
-    for (const batch of batches) {
-      if (remaining <= 0) break;
-      const batchQty = parseFloat(batch.quantity_remaining);
-      const qtyToUse = Math.min(batchQty, remaining);
-      batch.quantity_remaining = batchQty - qtyToUse;
+    let cumulativeCost = 0;
+    let loggedCost = 0;
+    for (const { batch, used, remaining } of allocateWeightedStockIssue(batches, requiredQty)) {
+      batch.quantity_remaining = remaining;
 
       if (batch.quantity_remaining <= 0) {
         console.log(`[WEIGHTED-AVG] Batch ${batch.id} depleted.`);
@@ -2229,12 +2245,14 @@ export const _recordBulkConsumptionLogic = async (consumptions, hostel_id, user_
       }
       await batch.save({ transaction });
 
+      cumulativeCost += used * averageUnitCost;
+      const totalLoggedCost = Math.round(cumulativeCost * 100);
       batchBreakdown.push({
         batch_id: batch.id,
-        quantity_used: qtyToUse,
-        cost: qtyToUse * averageUnitCost,
+        quantity_used: used,
+        cost: (totalLoggedCost - loggedCost) / 100,
       });
-      remaining -= qtyToUse;
+      loggedCost = totalLoggedCost;
     }
 
     const dailyConsumption = await DailyConsumption.create({
@@ -2570,7 +2588,7 @@ export const recordBulkConsumption = async (req, res) => {
 /**
  * Single-Page Daily Consumption Entry
  * Groups breakfast, lunch, snacks, dinner items into one submission payload,
- * runs FIFO batch depletion, stock reduction, logging, and restock planning.
+ * runs weighted-average batch depletion, stock reduction, logging, and restock planning.
  */
 export const recordSinglePageDailyConsumption = async (req, res) => {
   const { consumption_date, items, meals } = req.body;
@@ -2711,6 +2729,14 @@ export const recordInventoryPurchase = async (req, res) => {
   const transaction = await sequelize.transaction({ isolationLevel: 'READ COMMITTED' });
   try {
     const scope = await inventoryScope(hostel_id, transaction);
+    const links = await loadHistoricalStockItemLinks(scope.inventory_id, transaction);
+    for (const item of items) {
+      const itemError = historicalStockItemError(links, item?.item_id);
+      if (itemError) {
+        await transaction.rollback();
+        return res.status(409).json({ success: false, message: itemError });
+      }
+    }
     const orderNotes = req.receivedOrderReference ? `${RECEIVED_ORDER_PREFIX}${req.receivedOrderReference}\nReceipt: ${randomUUID()}` : null;
     if (orderNotes) {
       const previous = await InventoryTransaction.findAll({ where: { ...scope, store_id: items[0].store_id,
@@ -3545,9 +3571,9 @@ export const recordItemReturn = async (req, res) => {
 
     for (const payload of items) {
       const { item_id, quantity_returned } = payload;
-      const qty = parseFloat(quantity_returned);
+      const qty = Number(Number(quantity_returned).toFixed(2));
 
-      if (!item_id || !qty || qty <= 0) throw new Error('Invalid return data: item_id and positive quantity required.');
+      if (!item_id || !Number.isFinite(qty) || qty <= 0) throw new Error('Invalid return data: item_id and positive quantity required.');
 
       let returnedUnitCost;
       if (returnPolicy.mode === 'shared') {
@@ -3572,10 +3598,13 @@ export const recordItemReturn = async (req, res) => {
 
       if (!latestBatch) throw new Error(`No inventory batch found for item_id ${item_id}.`);
 
-      // 2. Add returned qty back to the batch
-      latestBatch.quantity_remaining = parseFloat(latestBatch.quantity_remaining) + qty;
-      if (latestBatch.status === 'depleted') latestBatch.status = 'active';
-      await latestBatch.save({ transaction });
+      const returnUnitCost = returnedUnitCost ?? Number(latestBatch.unit_price);
+      // A return restores value at its credited rate without changing a supplier lot's cost.
+      await InventoryBatch.create({
+        item_id, hostel_id, ...(await inventoryScope(hostel_id, transaction)),
+        quantity_purchased: 0, quantity_remaining: qty, unit_price: returnUnitCost,
+        purchase_date: return_date || schoolToday(), status: 'active',
+      }, { transaction });
 
       // 3. Update ItemStock
       const stock = await ItemStock.findOne({
@@ -3599,7 +3628,7 @@ export const recordItemReturn = async (req, res) => {
         unit: payload.unit_id || (await Item.findByPk(item_id, { transaction }))?.unit_id,
         meal_type: 'snacks',
         recorded_by: user_id,
-        total_cost: -(qty * (returnedUnitCost ?? parseFloat(latestBatch.unit_price))),
+        total_cost: -(qty * returnUnitCost),
       }, { transaction });
 
       results.push(returnRecord);
@@ -5029,8 +5058,7 @@ export const getMessFeeSummary = async (req, res) => {
 export const getStudentFeeBreakdown = async (req, res) => {
   try {
     const { month, year } = req.query;
-    const historical = await historicalDailyReport(req.user.hostel_id, month, year);
-    const report = historical ? monthlyHistoricalReport(historical) : await buildMonthlyMessReport(req.user.hostel_id, month, year);
+    const report = await loadMonthlyMessReport(req.user.hostel_id, month, year);
     res.json({ success: true, data: report.data.map(row => ({
       userId: row.studentId, userName: row.name, roll_number: row.regNo,
       baseDays: row.baseDays, approvedReductionDays: row.approvedReductionDays, messDays: row.messDays,
@@ -5387,10 +5415,16 @@ export const generateMonthlyMessReport = async (req, res) => {
   try {
     const { month, year, college } = req.query;
     const hostelId = req.user.hostel_id;
-    const historical = await historicalDailyReport(hostelId, month, year);
-    if (historical) return res.json(monthlyHistoricalReport(historical, college));
-    const { calculation, ...report } = await buildMonthlyMessReport(hostelId, month, year, college);
-    res.json(report);
+    const { calculation, ...report } = await loadMonthlyMessReport(hostelId, month, year, college);
+    if (!calculation) return res.json(report);
+    const ratesLocked = Boolean(calculation.finalized || calculation.legacyFinalized);
+    const issuedBills = ratesLocked
+      ? await MessBill.findAll({ where: { hostel_id: hostelId, month, year }, attributes: ['student_id'], raw: true })
+      : [];
+    const issuedIds = new Set(issuedBills.map(bill => String(bill.student_id)));
+    const data = report.data.map(row => ({ ...row, issued: issuedIds.has(String(row.studentId)) }));
+    const issuedCount = data.filter(row => row.issued).length;
+    res.json({ ...report, data, ratesLocked, issuedCount, finalized: data.length > 0 && issuedCount === data.length });
   } catch (error) { res.status(error.status || 500).json({ message: error.message }); }
 };
 export const createConcern = async (req, res) => {
@@ -5847,6 +5881,7 @@ export const saveDailyRate = async (req, res) => {
       await Hostel.findByPk(hostel_id, {transaction, lock: transaction.LOCK.UPDATE});
       if (await MessBill.count({where: {hostel_id, month, year}, transaction})) throw Object.assign(new Error('Bills already exist. This rate cannot be changed.'), {status:409});
       const c = await getMessCalculation(hostel_id, month, year, transaction);
+      assertBillingDetails(c, 'This historical monthly rate is report-only. Reconcile student charges before saving a billing rate.');
       if (!c.totalManDays) throw Object.assign(new Error('There are no billable mess days.'), {status:400});
       const values = { gross_expenses: c.subTotal - c.waterTotal, total_deductions: c.totalDeductions,
         total_man_days: c.totalManDays, daily_rate: c.dailyRate, saved_by: req.user.userId };
@@ -5932,13 +5967,27 @@ export const exportUnitRateCalculation = async (req, res) => {
             AND ib.quantity_remaining > 0
           GROUP BY ib.item_id
       ),
+      PurchaseBatches AS (
+          SELECT ib.*
+          FROM \`tbl_InventoryBatch\` AS ib
+          WHERE ib.inventory_id = :inventory_id AND ib.quantity_purchased > 0
+            AND NOT EXISTS (
+              SELECT 1 FROM \`tbl_InventoryTransaction\` AS movement
+              WHERE movement.inventory_id = ib.inventory_id
+                AND movement.item_id = ib.item_id
+                AND movement.transaction_type = 'opening_balance'
+                AND movement.transaction_date = ib.purchase_date
+                AND movement.quantity = ib.quantity_purchased
+                AND movement.unit_price = ib.unit_price
+            )
+      ),
       -- Aggregate purchases for the current month
       MonthlyPurchases AS (
           SELECT
               ib.item_id,
               SUM(ib.quantity_purchased) AS purchase_qty,
               SUM(ib.quantity_purchased * ib.unit_price) AS purchase_amount
-          FROM \`tbl_InventoryBatch\` AS ib
+          FROM PurchaseBatches AS ib
           WHERE ib.inventory_id = :inventory_id
             AND ib.purchase_date BETWEEN :startOfMonth AND :endOfMonth
             AND ib.quantity_purchased > 0 -- Only consider actual purchases
@@ -5949,10 +5998,10 @@ export const exportUnitRateCalculation = async (req, res) => {
           SELECT 
               ib.item_id,
               ib.unit_price AS last_unit_price
-          FROM \`tbl_InventoryBatch\` ib
+          FROM PurchaseBatches ib
           INNER JOIN (
               SELECT item_id, MAX(purchase_date) max_date
-              FROM \`tbl_InventoryBatch\`
+              FROM PurchaseBatches
               WHERE inventory_id = :inventory_id
               GROUP BY item_id
           ) latest ON ib.item_id = latest.item_id AND ib.purchase_date = latest.max_date
@@ -5984,182 +6033,23 @@ export const exportUnitRateCalculation = async (req, res) => {
       ORDER BY ai.name ASC;
     `;
 
-    const reportData = await sequelize.query(mainReportQuery, {
-      replacements: { ...(await inventoryScope(hostel_id)), startOfMonth, endOfMonth, previousMonthEnd },
+    const scope = await inventoryScope(hostel_id);
+    const historicalRows = await loadHistoricalUnitRateRows(scope.inventory_id, month, year);
+    const reportData = historicalRows ?? await sequelize.query(mainReportQuery, {
+      replacements: { ...scope, startOfMonth, endOfMonth, previousMonthEnd },
       type: sequelize.QueryTypes.SELECT,
     });
     console.log(`[UnitRateExport] Fetched ${reportData.length} aggregated item data rows.`);
 
-    // --- Excel Generation ---
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Unit Rate Calculation');
-
-    // --- Header Rows ---
-    const reportInventory = await Inventory.findByPk((await inventoryScope(hostel_id)).inventory_id);
-    worksheet.addRow([`NATIONAL ENGINEERING COLLEGE — ${reportInventory?.name || 'Inventory'}`]);
-    worksheet.getCell('A1').font = { bold: true, size: 16 };
-    worksheet.getCell('A1').alignment = { horizontal: 'center' };
-
+    const inventory = await Inventory.findByPk(scope.inventory_id);
     const monthName = startOfMonthMoment.format('MMMM YYYY').toUpperCase();
-    worksheet.addRow([`Unit Rate Calculation - ${monthName}`]);
-    worksheet.getCell('A2').font = { bold: true, size: 14 };
-    worksheet.getCell('A2').alignment = { horizontal: 'center' };
-    worksheet.addRow([]); // Blank row
-
-    // Fixed column structure
-    const totalColsInReport = 10;
-    const lastColumnLetter = 'J';
-
-    // Merge title and subtitle rows across all columns
-    worksheet.mergeCells(`A1:${lastColumnLetter}1`);
-    worksheet.mergeCells(`A2:${lastColumnLetter}2`);
-
-    // Header Row 1 - Main Categories
-    const headerRow1Data = [
-      'Sl. No',
-      'Name of the Items',
-      `Opening Balance ${startOfMonthMoment.format('MMM')}`, null, null, // Opening (3 cols)
-      'Purchase during', null, null, // Purchase (3 cols)
-      'Grand Total', null // Grand Total (2 cols)
-    ];
-
-    const headerRow1 = worksheet.addRow(headerRow1Data);
-
-    // Header Row 2 - Sub-categories
-    const headerRow2Data = [
-      null, null, // Sl.No, Name
-      'Qty', 'Old Unit Rate', 'Total Amount', // Opening
-      'Qty', 'Unit Rate', 'Amount', // Purchase
-      'Qty', 'Amount' // Grand Total
-    ];
-
-    const headerRow2 = worksheet.addRow(headerRow2Data);
-
-    // Merging header cells (rows 4-5, 1-based)
-    let currentHeaderCol = 1;
-    worksheet.mergeCells(4, currentHeaderCol, 5, currentHeaderCol); currentHeaderCol++; // Sl. No
-    worksheet.mergeCells(4, currentHeaderCol, 5, currentHeaderCol); currentHeaderCol++; // Name
-    worksheet.mergeCells(4, currentHeaderCol, 4, currentHeaderCol + 2); currentHeaderCol += 3; // Opening Balance
-    worksheet.mergeCells(4, currentHeaderCol, 4, currentHeaderCol + 2); currentHeaderCol += 3; // Purchase during
-    worksheet.mergeCells(4, currentHeaderCol, 4, currentHeaderCol + 1); currentHeaderCol += 2; // Grand Total
-
-    // Styling headers
-    [headerRow1, headerRow2].forEach(row => {
-      row.font = { bold: true };
-      row.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-      row.eachCell(cell => {
-        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-      });
+    const workbook = buildUnitRateWorkbook(reportData, {
+      inventoryName: inventory?.name || 'Inventory',
+      monthName,
+      monthAbbreviation: startOfMonthMoment.format('MMM'),
+      openingBasis: historicalRows ? 'Opening balances and purchases from the imported monthly UNITRATE sheet.'
+        : 'Opening estimate based on the remaining quantities in batches dated before the selected month.'
     });
-
-    // Set column widths
-    worksheet.columns = [
-      { key: 'sl_no', width: 5 },
-      { key: 'name', width: 30 },
-      { key: 'open_qty', width: 10 },
-      { key: 'old_unit_rate', width: 12 },
-      { key: 'open_total_amount', width: 15 },
-      { key: 'purchase_qty', width: 10 },
-      { key: 'purchase_unit_rate', width: 12 },
-      { key: 'purchase_amount', width: 15 },
-      { key: 'grand_total_qty', width: 10 },
-      { key: 'grand_total_amount', width: 15 }
-    ];
-
-    // Data Rows
-    let grandTotalOverallAmount = 0;
-    let grandTotalQty = 0;
-
-    for (const [index, item] of reportData.entries()) {
-      const rowData = [];
-
-      // Sl. No
-      rowData.push(index + 1);
-
-      // Name of the Items
-      rowData.push(item.item_name + (item.unit_abbreviation ? ` (${item.unit_abbreviation})` : ''));
-
-      // Opening Balance
-      const openingQty = parseFloat(item.opening_qty || 0);
-      const oldUnitRate = parseFloat(item.old_unit_rate || 0);
-      const openingTotalAmount = openingQty * oldUnitRate;
-      rowData.push(openingQty, oldUnitRate, openingTotalAmount);
-
-      // Purchases during the month
-      const purchaseQty = parseFloat(item.purchase_qty || 0);
-      const lastUnitPrice = parseFloat(item.last_unit_price || 0);
-      const purchaseAmount = parseFloat(item.purchase_amount || 0);
-      rowData.push(purchaseQty, lastUnitPrice, purchaseAmount);
-
-      // Grand Total
-      const grandTotalQtyItem = openingQty + purchaseQty;
-      const grandTotalAmount = openingTotalAmount + purchaseAmount;
-      rowData.push(grandTotalQtyItem, grandTotalAmount);
-      grandTotalOverallAmount += grandTotalAmount;
-      grandTotalQty += grandTotalQtyItem;
-
-      const newRow = worksheet.addRow(rowData);
-
-      // Apply formatting for the new row
-      newRow.eachCell((cell, colIndex) => { // colIndex is 1-based
-        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-
-        // Number formats
-        if ([3, 6, 9].includes(colIndex)) {
-          cell.numFmt = '0.000'; // Qty columns
-        } else if ([4, 5, 7, 8, 10].includes(colIndex)) {
-          cell.numFmt = '0.00'; // Rate and Amount columns
-        }
-      });
-    }
-
-    // Grand Total Row (for the entire report summary)
-    const lastDataRowNumber = worksheet.lastRow.number;
-    const totalRow = worksheet.getRow(lastDataRowNumber + 1);
-
-    // Label "Grand Total" merged from B to H (before I=9)
-    const grandTotalLabelStartCol = 2; // B
-    const grandTotalLabelEndCol = 8; // H
-    worksheet.mergeCells(lastDataRowNumber + 1, grandTotalLabelStartCol, lastDataRowNumber + 1, grandTotalLabelEndCol);
-
-    totalRow.getCell(grandTotalLabelStartCol).value = 'Grand Total';
-    totalRow.getCell(grandTotalLabelStartCol).font = { bold: true };
-    totalRow.getCell(grandTotalLabelStartCol).alignment = { horizontal: 'right' };
-
-    // Grand Total Qty in I (9)
-    totalRow.getCell(9).value = grandTotalQty;
-    totalRow.getCell(9).numFmt = '0.000';
-    totalRow.getCell(9).font = { bold: true };
-
-    // Grand Total Amount in J (10)
-    totalRow.getCell(10).value = grandTotalOverallAmount;
-    totalRow.getCell(10).numFmt = '0.00';
-    totalRow.getCell(10).font = { bold: true };
-
-    // Apply borders to the total row
-    totalRow.eachCell((cell) => {
-      cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
-    });
-
-    // Signatures
-    const signatureRowNumber = worksheet.lastRow.number + 3; // 3 blank rows after the total row
-    const signatureRow = worksheet.getRow(signatureRowNumber);
-
-    signatureRow.getCell(2).value = 'ASSOCIATE WARDEN';
-    signatureRow.getCell(2).font = { bold: true };
-    signatureRow.getCell(2).alignment = { horizontal: 'center' };
-
-    // Positions for WARDEN (col D=4) and DIRECTOR (col J=10)
-    const wardenCol = 5;
-    const directorCol = 10;
-
-    signatureRow.getCell(wardenCol).value = 'WARDEN';
-    signatureRow.getCell(wardenCol).font = { bold: true };
-    signatureRow.getCell(wardenCol).alignment = { horizontal: 'center' };
-
-    signatureRow.getCell(directorCol).value = 'DIRECTOR';
-    signatureRow.getCell(directorCol).font = { bold: true };
-    signatureRow.getCell(directorCol).alignment = { horizontal: 'center' };
 
     // Finalize and send
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -6170,7 +6060,7 @@ export const exportUnitRateCalculation = async (req, res) => {
 
   } catch (error) {
     console.error('[UnitRateExport] Error exporting unit rate calculation:', error);
-    res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    res.status(error.status || 500).json({ success: false, message: error.message });
   }
 };
 export const createCreditToken = async (req, res) => {
@@ -6287,107 +6177,7 @@ export const deleteCreditToken = async (req, res) => {
         res.status(500).json({ success: false, message: `Server error: ${error.message}` });
     }
 };
-export const generateDailyRateReport = async (req, res) => {
-  try {
-    const { month, year, export: exportToExcel } = req.query;
-    const { hostel_id } = req.user;
-    const historical = await historicalDailyReport(hostel_id, month, year);
-    if (historical) return await sendHistoricalDailyReport(res, historical, exportToExcel);
-
-    if (!month || !year) {
-      return res.status(400).json({ success: false, message: 'Month and year are required.' });
-    }
-
-    const calculation = await getMessCalculation(hostel_id, month, year);
-    const { billing, frozenRows, ...reportData } = calculation;
-    const startDate = new Date(billing.start + 'T00:00:00Z');
-    const { expenses, subTotal, deductions, totalDeductions, totalExpenses, totalManDays, dailyRate } = calculation;
-    const cashTokenAmount = deductions.cashToken.amount, creditTokenAmount = deductions.creditToken.amount;
-    const creditTokenDescription = deductions.creditToken.description;
-    const specialOrdersAmount = deductions.specialOrders.amount, guestIncomeAmount = deductions.guestIncome.amount;
-
-    // 6. Handle Response (JSON or Excel)
-    if (exportToExcel === 'true') {
-      // --- Excel Generation Logic ---
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('Daily Rate Calculation');
-      
-      const hostel = await Hostel.findByPk(hostel_id);
-      
-      // Headers
-      worksheet.addRow([`${hostel.name}, K.R.Nagar`]);
-      worksheet.mergeCells('A1:B1');
-      worksheet.getCell('A1').font = { bold: true, size: 14, name: 'Arial' };
-      worksheet.getCell('A1').alignment = { horizontal: 'center' };
-
-      worksheet.addRow([`DAILY RATE CALCULATION ${moment(startDate).format('MMMM YYYY').toUpperCase()}`]);
-      worksheet.mergeCells('A2:B2');
-      worksheet.getCell('A2').font = { bold: true, size: 12, name: 'Arial' };
-      worksheet.getCell('A2').alignment = { horizontal: 'center' };
-      worksheet.addRow([]);
-
-      // Expense Table
-      const expenseHeader = worksheet.addRow(['Particulars', 'Amount (Rs)']);
-      expenseHeader.font = { bold: true };
-      expenseHeader.eachCell(cell => cell.border = { top: { style: 'thin' }, bottom: { style: 'thin' } });
-      
-      reportData.expenses.forEach((exp, index) => {
-        worksheet.addRow([`${index + 1}. ${exp.name}`, parseFloat(exp.amount)]);
-      });
-
-      // Sub Total
-      const subTotalRow = worksheet.addRow(['Sub total', reportData.subTotal]);
-      subTotalRow.font = { bold: true };
-      subTotalRow.getCell(2).border = { top: { style: 'thin' }, bottom: { style: 'double' }};
-
-      // Deductions
-      worksheet.addRow([]);
-      worksheet.addRow(['Cash Token : (Less)', reportData.deductions.cashToken.amount > 0 ? -reportData.deductions.cashToken.amount : 0]);
-      
-      const creditTokenRow = worksheet.addRow([`Credit Token : (Sister Concern Bill.) ${reportData.deductions.creditToken.description}`]);
-      creditTokenRow.getCell(2).value = reportData.deductions.creditToken.amount > 0 ? -reportData.deductions.creditToken.amount : 0;
-
-      worksheet.addRow(['Student Additional Credit Token(V & NV meals)', reportData.deductions.specialOrders.amount > 0 ? -reportData.deductions.specialOrders.amount : 0]);
-      worksheet.addRow(['Student Guest Income', reportData.deductions.guestIncome.amount > 0 ? -reportData.deductions.guestIncome.amount : 0]);
-
-      // Total Expenses
-      worksheet.addRow([]);
-      const totalRow = worksheet.addRow(['Total Expenses =', reportData.totalExpenses]);
-      totalRow.font = { bold: true };
-      totalRow.getCell(2).border = { top: { style: 'thin' }, bottom: { style: 'double' }};
-
-      // Mess Days
-      const messDaysRow = worksheet.addRow([`Billable food days = ${reportData.totalManDays}`, '']);
-      worksheet.addRow(['Water charged separately (not reduced)', reportData.waterTotal || 0]);
-      worksheet.addRow(['Net food expenses', reportData.foodExpenses ?? reportData.totalExpenses]);
-      messDaysRow.font = { bold: true };
-
-      // Daily Rate
-      const dailyRateRow = worksheet.addRow(['Daily Rate = Total Expenses / Mess Days', reportData.dailyRate]);
-      dailyRateRow.font = { bold: true };
-      dailyRateRow.getCell(2).numFmt = '#,##0.00';
-
-      // Formatting
-      worksheet.getColumn('A').width = 60;
-      worksheet.getColumn('B').width = 20;
-      worksheet.getColumn('B').numFmt = '#,##0.00';
-      worksheet.getColumn('B').alignment = { horizontal: 'right' };
-
-      // Send file
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="DailyRateCalculation_${year}_${month}.xlsx"`);
-      await workbook.xlsx.write(res);
-      res.end();
-    } else {
-      // Send JSON data
-      res.json({ success: true, data: reportData });
-    }
-
-  } catch (error) {
-    console.error('Error generating daily rate report:', error);
-    res.status(error.status || 500).json({ success: false, message: error.message });
-  }
-};
+export { generateDailyRateReport } from './dailyRateReportController.js';
 export { recordStaffRecordedSpecialFoodConsumption } from './specialMealController.js';
 
 // NEW: Generate and store consolidated MessBill records for a month

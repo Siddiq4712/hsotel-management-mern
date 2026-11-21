@@ -1,7 +1,8 @@
+import { cornerRadius } from '../../theme/cornerRadius';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Card, Typography, Row, Col, Statistic, Button, Space, 
-  Select, Divider, ConfigProvider, theme, Skeleton, Badge, 
+  Select, Divider, ConfigProvider, Skeleton, Badge,
   Tag, Modal, Input, Empty, message, Form, Table 
 } from 'antd';
 import { 
@@ -22,9 +23,9 @@ const StatsSkeleton = () => (
   <Row gutter={[20, 20]} className="mb-8">
     {[...Array(4)].map((_, i) => (
       <Col xs={24} sm={12} lg={6} key={i}>
-        <Card className="border-none shadow-sm rounded-[24px] p-5 bg-white">
+        <Card className="border-none shadow-sm rounded-surface p-5 bg-white">
           <div className="flex items-center gap-4">
-            <Skeleton.Button active style={{ width: 44, height: 44, borderRadius: 12 }} />
+            <Skeleton.Button active style={{ width: 44, height: 44, borderRadius: cornerRadius.control }} />
             <div className="space-y-2 flex-1">
               <Skeleton.Input active size="small" style={{ width: '50%', height: 10 }} />
               <Skeleton.Input active size="small" style={{ width: '30%', height: 20 }} />
@@ -37,7 +38,7 @@ const StatsSkeleton = () => (
 );
 
 const TableSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] overflow-hidden bg-white">
+  <Card className="border-none shadow-sm rounded-surface overflow-hidden bg-white">
     {[...Array(6)].map((_, i) => (
       <div key={i} className="flex items-center gap-6 p-6 border-b border-slate-50 last:border-0">
         <Skeleton.Avatar active shape="square" size="large" />
@@ -123,7 +124,7 @@ const ManageMaintenance = () => {
       key: 'issue',
       render: (_, r) => (
         <Space gap={3}>
-          <div className={`p-2 rounded-xl ${priorityConfig[r.priority].bg} ${priorityConfig[r.priority].text}`}>
+          <div className={`p-2 rounded-control ${priorityConfig[r.priority].bg} ${priorityConfig[r.priority].text}`}>
             <Wrench size={18} />
           </div>
           <Space direction="vertical" size={0}>
@@ -166,13 +167,13 @@ const ManageMaintenance = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Institutional Header */}
         <div className="module-page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-xl shadow-lg shadow-blue-100">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100">
               <Activity className="text-white" size={24} />
             </div>
             <div>
@@ -184,7 +185,7 @@ const ManageMaintenance = () => {
             type="primary" 
             icon={<Plus size={18}/>} 
             onClick={() => setShowCreateModal(true)}
-            className="h-10 rounded-lg px-6 font-medium shadow-sm border-none bg-blue-600"
+            className="h-10 rounded-control px-6 font-medium shadow-sm border-none bg-blue-600"
           >
             Report Incident
           </Button>
@@ -206,9 +207,9 @@ const ManageMaintenance = () => {
                 { label: 'Critical Ops', val: maintenance.filter(m => m.priority === 'urgent').length, icon: ShieldAlert, bg: 'bg-rose-50', color: 'text-rose-500' },
               ].map((stat, i) => (
                 <Col xs={24} sm={12} lg={6} key={i}>
-                  <Card className="border-none shadow-sm rounded-[24px] p-5 bg-white transition-all hover:bg-slate-50/50">
+                  <Card className="border-none shadow-sm rounded-surface p-5 bg-white transition-all hover:bg-slate-50/50">
                     <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center`}>
+                      <div className={`p-3 rounded-control ${stat.bg} ${stat.color} flex items-center justify-center`}>
                         <stat.icon size={20} strokeWidth={1.5} />
                       </div>
                       <div className="flex flex-col">
@@ -222,9 +223,9 @@ const ManageMaintenance = () => {
             </Row>
 
             {/* Filter Hub */}
-            <Card className="border-none shadow-sm rounded-2xl mb-6 bg-white">
+            <Card className="border-none shadow-sm rounded-surface mb-6 bg-white">
               <div className="flex flex-wrap gap-4 items-center">
-                <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 md:max-w-md focus-within:border-blue-300 transition-all">
+                <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-control border border-slate-100 flex-1 md:max-w-md focus-within:border-blue-300 transition-all">
                   <Search size={18} className="text-slate-300" />
                   <Input 
                     placeholder="Search by issue or unit..." 
@@ -234,12 +235,12 @@ const ManageMaintenance = () => {
                     onChange={e => setSearchTerm(e.target.value)}
                   />
                 </div>
-                <Button icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''}/>} onClick={fetchData} className="rounded-lg h-10 w-10 flex items-center justify-center border-slate-200" />
+                <Button icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''}/>} onClick={fetchData} className="rounded-control h-10 w-10 flex items-center justify-center border-slate-200" />
               </div>
             </Card>
 
             {/* Data Ledger */}
-            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+            <Card className="border-none shadow-sm rounded-surface overflow-hidden" bodyStyle={{ padding: 0 }}>
               {filteredData.length > 0 ? (
                 <Table 
                   dataSource={filteredData} 
@@ -262,7 +263,7 @@ const ManageMaintenance = () => {
           open={showCreateModal}
           onCancel={() => setShowCreateModal(false)}
           footer={null}
-          className="rounded-2xl"
+          className="rounded-surface"
           width={500}
         >
           <Form form={form} layout="vertical" onFinish={handleCreateMaintenance} className="mt-6" initialValues={{ priority: 'medium' }}>
@@ -275,7 +276,7 @@ const ManageMaintenance = () => {
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item name="issue_type" label={<Text style={{ fontWeight: 500 }} className="text-xs text-slate-500 uppercase tracking-wider">Classification</Text>} rules={[{ required: true }]}>
-                  <Input placeholder="e.g. Plumbing" className="h-11 rounded-lg" />
+                  <Input placeholder="e.g. Plumbing" className="h-11 rounded-control" />
                 </Form.Item>
               </Col>
               <Col span={12}>
@@ -291,17 +292,17 @@ const ManageMaintenance = () => {
             </Row>
 
             <Form.Item name="description" label={<Text style={{ fontWeight: 500 }} className="text-xs text-slate-500 uppercase tracking-wider">Diagnostic Details</Text>} rules={[{ required: true }]}>
-              <TextArea rows={4} placeholder="Detail the physical failure or maintenance requirement..." className="rounded-lg p-3 border-slate-200" />
+              <TextArea rows={4} placeholder="Detail the physical failure or maintenance requirement..." className="rounded-control p-3 border-slate-200" />
             </Form.Item>
 
-            <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 flex gap-3 mb-6">
+            <div className="bg-blue-50/50 p-4 rounded-surface border border-blue-100 flex gap-3 mb-6">
               <Info size={16} className="text-blue-500 shrink-0 mt-0.5" strokeWidth={1.5} />
               <Text className="text-[11px] text-blue-700 font-light leading-relaxed">Recording this incident notifies the relevant facility vendors and initiates the repair audit trail.</Text>
             </div>
 
             <Space className="w-full justify-end">
-              <Button onClick={() => setShowCreateModal(false)} className="rounded-lg h-11 px-6">Abort</Button>
-              <Button type="primary" htmlType="submit" loading={createLoading} className="h-11 rounded-lg px-8 font-medium shadow-sm bg-blue-600 border-none">Commit Record</Button>
+              <Button onClick={() => setShowCreateModal(false)} className="rounded-control h-11 px-6">Abort</Button>
+              <Button type="primary" htmlType="submit" loading={createLoading} className="h-11 rounded-control px-8 font-medium shadow-sm bg-blue-600 border-none">Commit Record</Button>
             </Space>
           </Form>
         </Modal>

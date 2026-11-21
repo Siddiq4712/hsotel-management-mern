@@ -124,7 +124,7 @@ const ManageFacilities = () => {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+          className="bg-blue-600 text-white px-4 py-2 rounded-control hover:bg-blue-700 transition-colors flex items-center"
         >
           <Plus size={20} className="mr-2" />
           Create Facility
@@ -132,7 +132,7 @@ const ManageFacilities = () => {
       </div>
 
       {message.text && (
-        <div className={`mb-4 p-3 rounded-lg flex items-center ${
+        <div className={`mb-4 p-3 rounded-control flex items-center ${
           message.type === 'success' 
             ? 'bg-green-100 border border-green-400 text-green-700' 
             : 'bg-red-100 border border-red-400 text-red-700'
@@ -146,7 +146,7 @@ const ManageFacilities = () => {
         </div>
       )}
 
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+      <div className="bg-white shadow-md rounded-control overflow-hidden">
         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
           <div className="flex items-center">
             <Wifi className="text-gray-400 mr-2" size={20} />
@@ -240,7 +240,7 @@ const ManageFacilities = () => {
       {/* Create Facility Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-control bg-white">
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Create Facility</h3>
               
@@ -253,7 +253,7 @@ const ManageFacilities = () => {
                     name="hostel_id"
                     value={formData.hostel_id}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   >
                     <option value="">Select Hostel</option>
@@ -273,7 +273,7 @@ const ManageFacilities = () => {
                     name="facility_type_id"
                     value={formData.facility_type_id}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   >
                     <option value="">Select Facility Type</option>
@@ -294,7 +294,7 @@ const ManageFacilities = () => {
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="e.g., Main Hall Wi-Fi"
                     required
                   />
@@ -309,7 +309,7 @@ const ManageFacilities = () => {
                     name="capacity"
                     value={formData.capacity}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Maximum users"
                     min="1"
                   />
@@ -325,7 +325,7 @@ const ManageFacilities = () => {
                     name="cost_per_use"
                     value={formData.cost_per_use}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="0.00"
                     min="0"
                   />
@@ -335,7 +335,7 @@ const ManageFacilities = () => {
                   <button
                     type="submit"
                     disabled={createLoading}
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-control hover:bg-blue-700 transition-colors disabled:opacity-50"
                   >
                     {createLoading ? 'Creating...' : 'Create Facility'}
                   </button>
@@ -352,7 +352,7 @@ const ManageFacilities = () => {
                       });
                       setMessage({ type: '', text: '' });
                     }}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
+                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-control hover:bg-gray-400 transition-colors"
                   >
                     Cancel
                   </button>

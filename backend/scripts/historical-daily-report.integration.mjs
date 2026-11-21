@@ -5,8 +5,7 @@ import { Writable } from 'node:stream';
 import ExcelJS from 'exceljs';
 import { sequelize, initAssociations, InventoryHostel, MessBill, MessBillingSnapshot, DailyRateLog } from '../models/index.js';
 import { HistoricalBilling } from '../utils/historicalBilling.js';
-import { generateDailyRateReport } from '../controllers/messController.js';
-import { installAdminWorkspace } from '../middleware/adminWorkspace.js';
+import { generateDailyRateReport } from '../controllers/dailyRateReportController.js';
 import { inventoryReport } from '../controllers/inventoryReportController.js';
 
 initAssociations();
@@ -43,12 +42,6 @@ try {
     check(res);
     console.log(`Hostel ${id}: shared August report passed`);
   }
-  const routes = {};
-  const router = Object.fromEntries(['get', 'post', 'put', 'patch', 'delete'].map(method => [method,
-    (path, ...handlers) => { routes[`${method} ${path}`] = handlers.at(-1); }]));
-  installAdminWorkspace(router, 'mess');
-  router.get('/reports/daily-rate-calculation', generateDailyRateReport);
-  const route = routes['get /reports/daily-rate-calculation'];
   const inventory = await InventoryHostel.findByPk(2);
   const preview = response();
   await inventoryReport({ user: { role: 'admin' }, params: { id: String(inventory.inventory_id) },
@@ -64,12 +57,12 @@ try {
     get: key => key === 'X-Inventory-Id' && selected ? String(inventory.inventory_id) : undefined });
   for (const selected of [true, false]) {
     const res = response();
-    await route(request(selected), res);
+    await generateDailyRateReport(request(selected), res);
     check(res);
     console.log(`${selected ? 'Selected inventory' : 'All hostels'}: August totals counted once`);
   }
   const exported = response();
-  await route(request(true, { export: 'true' }), exported);
+  await generateDailyRateReport(request(true, { export: 'true' }), exported);
   if (!exported.writableFinished) await new Promise(resolve => exported.once('finish', resolve));
   assert.equal(exported.code, 200, exported.body?.message);
   const workbook = new ExcelJS.Workbook();

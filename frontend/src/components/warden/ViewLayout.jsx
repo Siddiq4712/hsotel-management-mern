@@ -1,4 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Card, Empty, Skeleton, Tag } from 'antd';
+import WorkspaceAlert from '../common/WorkspaceAlert';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
+import { useWardenHostelName } from './WardenWorkspace';
 import { 
   Bed, ShieldCheck, ShowerHead, Laptop, 
   Layers, MapPin, Square, X, Home, Info 
@@ -43,7 +47,9 @@ const generateArchitecturalGrid = (config) => {
 
 /* ---------- VIEW COMPONENT ---------- */
 const ViewLayout = () => {
+  const hostelName = useWardenHostelName();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [layoutConfig, setLayoutConfig] = useState(null);
   const [cellData, setCellData] = useState({});
 
@@ -61,7 +67,7 @@ const ViewLayout = () => {
           }
         }
       } catch (error) {
-        console.error("Error loading blueprint view:", error);
+        setError(error.message || 'Unable to load the hostel layout.');
       } finally {
         setLoading(false);
       }
@@ -74,49 +80,21 @@ const ViewLayout = () => {
     return generateArchitecturalGrid(layoutConfig);
   }, [layoutConfig]);
 
-  if (loading) return (
-    <div className="flex h-screen items-center justify-center bg-white">
-      <div className="flex flex-col items-center gap-3">
-        <Layers className="animate-bounce text-blue-900" size={40} />
-        <span className="text-[10px] font-black uppercase tracking-widest text-blue-900">Rendering Blueprint...</span>
-      </div>
-    </div>
-  );
-
-  if (!layoutConfig) return (
-    <div className="p-12 text-center">
-      <div className="inline-block p-6 border-2 border-dashed border-slate-200 rounded-lg">
-        <Home className="mx-auto mb-4 text-slate-300" size={48} />
-        <p className="text-sm font-bold text-slate-400 uppercase tracking-tight">No layout has been committed yet.</p>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="module-page min-h-screen bg-[#fcfdff] p-8 font-serif">
-      <header className="module-page-header">
-        <div className="flex items-center gap-4">
-          <div className="p-2 bg-blue-900 text-white rounded-sm shadow-xl"><Layers size={24} /></div>
-          <div>
-            <h1 className="text-2xl font-black uppercase tracking-tighter text-blue-900 italic">Hostel Blueprint View</h1>
-            <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Hostel room layout | {layoutConfig.building_type}-Shape</p>
-          </div>
-        </div>
-        <div className="flex gap-4">
-            <div className="px-4 py-2 bg-white border border-blue-100 rounded flex items-center gap-2">
-                <Square className="text-orange-600 fill-orange-600" size={10} />
-                <span className="text-[9px] font-bold uppercase text-slate-500">Main Entrance: Side {layoutConfig.entrance_side.toUpperCase()}</span>
-            </div>
-        </div>
-      </header>
-
-      <main className="bg-white rounded-3xl p-4 md:p-8 border border-slate-200 shadow-sm relative overflow-auto min-h-[500px]">
+    <section className="module-page">
+      <WorkspacePageHeader title="Hostel Layout" icon={Layers}
+        description={[hostelName, layoutConfig?.building_type && `${layoutConfig.building_type}-shaped layout`].filter(Boolean).join(' · ')}>
+        {layoutConfig?.entrance_side && <Tag color="orange">Main entrance · Side {layoutConfig.entrance_side.toUpperCase()}</Tag>}
+      </WorkspacePageHeader>
+      {loading ? <Card><Skeleton active /></Card> : error ? <WorkspaceAlert type="error" title={error} showIcon />
+        : !layoutConfig ? <Card><Empty description="No hostel layout has been saved yet." /></Card> : <>
+      <section aria-label="Hostel floor plan" tabIndex={0} className="bg-white rounded-surface p-4 md:p-8 border border-slate-200 relative overflow-auto min-h-[420px]">
         {/* Blueprint Grid Background */}
         <div className="absolute inset-0 opacity-[0.04] pointer-events-none" 
              style={{ backgroundImage: 'linear-gradient(#1e3a8a 1px, transparent 1px), linear-gradient(90deg, #1e3a8a 1px, transparent 1px)', backgroundSize: '40px 40px' }} 
         />
 
-        <div className="relative z-10 flex flex-col items-center">
+        <div className="relative z-10 flex w-max min-w-full flex-col items-center">
           {layoutConfig.entrance_side === 't' && <EntranceLabel side="t" />}
 
           <div className="flex items-center">
@@ -143,9 +121,9 @@ const ViewLayout = () => {
 
           {layoutConfig.entrance_side === 'b' && <EntranceLabel side="b" />}
         </div>
-      </main>
+      </section>
 
-      <footer className="max-w-[1400px] mx-auto mt-8 grid grid-cols-4 gap-4">
+      <footer className="max-w-[1400px] mx-auto mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {Object.entries(ROOM_TYPES).map(([key, cfg]) => (
               <div key={key} className="bg-white p-3 border border-blue-50 flex items-center gap-3 shadow-sm">
                   <cfg.icon size={16} className="text-blue-900" />
@@ -153,7 +131,8 @@ const ViewLayout = () => {
               </div>
           ))}
       </footer>
-    </div>
+      </>}
+    </section>
   );
 };
 
@@ -204,8 +183,8 @@ function GridCell({ type, data, entranceSide }) {
 
 function EntranceLabel({ side }) {
   const styles = {
-    t: "mb-4 bg-orange-600 text-white px-8 py-1.5 text-[10px] font-black uppercase tracking-[0.3em] rounded-t shadow-lg animate-pulse",
-    b: "mt-4 bg-orange-600 text-white px-8 py-1.5 text-[10px] font-black uppercase tracking-[0.3em] rounded-b shadow-lg animate-pulse",
+    t: "mb-4 bg-orange-600 text-white px-8 py-1.5 text-[10px] font-black uppercase tracking-[0.3em] rounded-t-compact shadow-lg animate-pulse",
+    b: "mt-4 bg-orange-600 text-white px-8 py-1.5 text-[10px] font-black uppercase tracking-[0.3em] rounded-b-compact shadow-lg animate-pulse",
     l: "mr-8 bg-orange-600 text-white px-1.5 py-8 text-[10px] font-black uppercase tracking-[0.3em] [writing-mode:vertical-lr] rotate-180 shadow-lg animate-pulse",
     r: "ml-8 bg-orange-600 text-white px-1.5 py-8 text-[10px] font-black uppercase tracking-[0.3em] [writing-mode:vertical-lr] shadow-lg animate-pulse"
   };

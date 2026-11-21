@@ -1,0 +1,25 @@
+.manage-rooms-editor-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  margin-top: 20px;
+  padding-inline: 14px;
+  border: 1px solid #dce5f2;
+  border-radius: var(--ui-radius-control);
+  background: #fff;
+  color: #2455c8;
+  font-size: 13px;
+}
+
+.manage-rooms-editor-link:hover { background: #eff4ff; border-color: #a5bdf8; }
+.manage-rooms-page .workspace-context-actions > .ant-btn.ant-btn-primary:not(:disabled) {
+  background: #2c59d4;
+  border-color: #2c59d4;
+  box-shadow: none;
+  border-radius: var(--ui-radius-control);
+}
+
+.manage-rooms-page .workspace-context-actions > .ant-btn.ant-btn-primary:not(:disabled):hover {
+  background: #244bbb;
+  border-color: #244bbb;
+}

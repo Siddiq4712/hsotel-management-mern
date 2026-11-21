@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Modal, Select, message } from 'antd';
+import { Modal, Select, message } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import { adminAPI } from '../../services/api';
 
 export default function AssignHostelBatches({ hostel, onClose, onSaved }) {

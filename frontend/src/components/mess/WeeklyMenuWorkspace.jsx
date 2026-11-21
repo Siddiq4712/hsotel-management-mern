@@ -1,6 +1,12 @@
+import { useStaffWorkspace } from '../../context/StaffWorkspaceContext';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
+import WorkspaceToolbar from '../common/WorkspaceToolbar';
+import { CalendarDays } from 'lucide-react';
+import { useScopeDraft } from '../common/WorkspaceScope';
 import { PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Card, Checkbox, Empty, Input, InputNumber, Select, Space, Spin, Table, Tabs, Tag, Typography, message } from 'antd';
+import { Card, Checkbox, Empty, Input, InputNumber, Select, Space, Spin, Table, Tabs, Tag, Typography, message } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { menuPlanningAPI } from '../../services/api';
@@ -18,6 +24,7 @@ const Field = ({ label, children }) => <label className="weekly-field"><span>{la
 
 export default function WeeklyMenuWorkspace({ initialTab = 'today' }) {
   const { user } = useAuth();
+  const staff = useStaffWorkspace();
   const [hostels, setHostels] = useState([]);
   const [hostel, setHostel] = useState(null);
   const [date, setDate] = useState(localToday);
@@ -33,6 +40,7 @@ export default function WeeklyMenuWorkspace({ initialTab = 'today' }) {
   const [consumption, setConsumption] = useState(null);
   const [configuration, setConfiguration] = useState(null);
   const [settingsReason, setSettingsReason] = useState('');
+  useScopeDraft(Boolean(planDraft || override || consumption || settingsReason), busy);
   const request = useRef(0);
   const scopeRef = useRef('');
   scopeRef.current = `${hostel}:${date}`;
@@ -96,7 +104,13 @@ export default function WeeklyMenuWorkspace({ initialTab = 'today' }) {
   }
   function submitConsumption() {
     if (!consumption.items.length || consumption.items.some(row => !row.item_id || !(row.quantity > 0))) return message.error('Add ingredients with positive quantities actually used.');
-    Modal.confirm({ title: 'Confirm actual stock consumption?', content: 'This deducts the entered quantities from inventory and locks this meal’s consumption record.', okText: 'Confirm consumption',
+    Modal.confirm({ title: 'Confirm actual stock consumption?', content: <div>
+      <p>{hostels.find(row => row.id === hostel)?.name} · {date} · {consumption.meal.slot.label}</p>
+      <ul>{consumption.items.map(row => <li key={row._key}>
+        {itemName(row.item_id)?.name} · {row.quantity} {itemName(row.item_id)?.unit}
+      </li>)}</ul>
+      <p>Confirm to deduct stock and lock this meal’s consumption record.</p>
+    </div>, okText: 'Confirm consumption',
       onOk: async () => {
         setBusy(true);
         try {
@@ -111,8 +125,12 @@ export default function WeeklyMenuWorkspace({ initialTab = 'today' }) {
       } });
   }
   const dayPanel = <>
-    <div className="weekly-toolbar"><Field label="Menu date"><Input aria-label="Menu date" type="date" value={date} disabled={busy} onChange={event => event.target.value && setDate(event.target.value)} /></Field>
-      <Button disabled={busy} onClick={() => setDate(localToday())}>Today</Button><Button disabled={busy} onClick={load}>Refresh</Button></div>
+    <Card className="mb-4"><WorkspaceToolbar className="workspace-toolbar-labeled weekly-toolbar">
+      <Field label="Menu date"><Input aria-label="Menu date" type="date" value={date} disabled={busy} onChange={event => event.target.value && setDate(event.target.value)} /></Field>
+      <div className="workspace-toolbar-actions">
+        <Button disabled={busy} onClick={() => setDate(localToday())}>Today</Button><Button disabled={busy} onClick={load}>Refresh</Button>
+      </div>
+    </WorkspaceToolbar></Card>
     <Alert type="info" showIcon title="Your weekly plan repeats automatically" description="Change a meal or student count for this date only. Record the ingredients actually used after preparation." />
     {!metadata?.plans.length && <Empty description="Start by creating your regular weekly plan."><Button permissionAction="generate" type="primary" disabled={!permissions.plan} onClick={() => startPlan()}>Create weekly plan</Button></Empty>}
     <div className="weekly-meal-grid">{meals.map(meal => <Card key={meal.slot_key} title={<Space>{meal.slot.label}<Text type="secondary">{meal.slot.time}</Text></Space>}
@@ -131,8 +149,12 @@ export default function WeeklyMenuWorkspace({ initialTab = 'today' }) {
     </Card>)}</div>
   </>;
   const planPanel = <>
-    <div className="weekly-toolbar"><Button permissionAction="generate" type="primary" disabled={!permissions.plan} onClick={() => startPlan(metadata?.plans.find(plan => plan.kind === 'regular'))}>Create / revise weekly plan</Button>
-      <Text type="secondary">Publish a new version with an effective date. Temporary plans automatically expire.</Text></div>
+    <Card className="mb-4"><WorkspaceToolbar>
+      <Text type="secondary">Publish a new version with an effective date. Temporary plans automatically expire.</Text>
+      <div className="workspace-toolbar-actions">
+        <Button permissionAction="generate" type="primary" disabled={!permissions.plan} onClick={() => startPlan(metadata?.plans.find(plan => plan.kind === 'regular'))}>Create / revise weekly plan</Button>
+      </div>
+    </WorkspaceToolbar></Card>
     {!metadata?.plans.length && <Empty description="No weekly plans yet" />}
     {metadata?.plans.map(plan => <Card key={plan.id} className="weekly-plan-card" title={<Space wrap>{plan.name}<Tag>{plan.kind}</Tag></Space>}
       extra={<Button permissionAction="generate" disabled={!permissions.plan} onClick={() => startPlan(plan)}>Copy into new version</Button>}>
@@ -168,9 +190,10 @@ export default function WeeklyMenuWorkspace({ initialTab = 'today' }) {
       { configuration, revision: metadata.settings_revision, reason: settingsReason }), 'Menu settings saved')}>Save settings</Button>
   </>;
   return <section className="module-page weekly-workspace">
-    <div className="module-page-header"><div><h1>Weekly Menu</h1><Text type="secondary">Set the routine once. Adjust individual meals when needed.</Text></div>
-      <Select aria-label="Menu hostel" value={hostel} disabled={hostels.length < 2 || busy} style={{ minWidth: 180 }} options={hostels.map(h => ({ value: h.id, label: h.name }))}
-        onChange={setHostel} /></div>
+    <WorkspacePageHeader title="Weekly Menu" icon={CalendarDays} description="Plan recurring meals and adjust individual dates as needed.">
+      {staff ? <Text strong>{staff.hostel.name}</Text> : <Select aria-label="Menu hostel" value={hostel} disabled={hostels.length < 2 || busy} style={{ minWidth: 180 }} options={hostels.map(h => ({ value: h.id, label: h.name }))}
+        onChange={setHostel} />}
+    </WorkspacePageHeader>
     {loadError ? <Alert type="error" showIcon title={loadError} action={<Button onClick={load}>Retry</Button>} /> : loading ? <Spin description="Loading menu plan"><div style={{ minHeight: 220 }} /></Spin> : metadata &&
       <Tabs activeKey={tab} onChange={setTab} items={[{ key: 'today', label: "Today's Menu", children: dayPanel },
         { key: 'plans', label: 'Weekly Plans', children: planPanel }, { key: 'settings', label: 'Settings', children: settingsPanel },

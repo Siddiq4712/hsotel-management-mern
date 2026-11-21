@@ -124,7 +124,7 @@ const Login = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex items-center justify-center p-8">
-        <div className="max-w-md w-full bg-white bg-opacity-90 backdrop-blur-md rounded-2xl shadow-2xl p-8 animate-slideUp border border-white/30">
+        <div className="max-w-md w-full bg-white bg-opacity-90 backdrop-blur-md rounded-surface shadow-2xl p-8 animate-slideUp border border-white/30">
           {/* College Logo */}
           <div className="text-center mb-4">
             <div className="inline-block">
@@ -146,7 +146,7 @@ const Login = () => {
 
           {/* Session Timed Out Message */}
           {sessionTimedOut && (
-            <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded-lg animate-slideDown flex items-center gap-2">
+            <div className="mb-4 p-3 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded-control animate-slideDown flex items-center gap-2">
               <span className="text-xl">⏱️</span>
               Your session has timed out. Please log in again.
             </div>
@@ -154,7 +154,7 @@ const Login = () => {
 
           {/* Error Message */}
           {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg animate-shake flex items-center gap-2">
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-control animate-shake flex items-center gap-2">
               <span className="text-xl">❌</span>
               {error}
             </div>
@@ -162,7 +162,7 @@ const Login = () => {
 
           {/* OAuth Error */}
           {oauthError && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg animate-shake flex items-center gap-2">
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-control animate-shake flex items-center gap-2">
               <span className="text-xl">⚠️</span>
               {oauthError}
             </div>
@@ -181,8 +181,8 @@ const Login = () => {
                 required
                 value={credentials.userName}
                 onChange={handleChange}
-                className="block w-full pl-10 pr-3 py-2.5 border-2 border-gray-300 rounded-lg placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 hover:border-blue-300 group-focus-within:shadow-lg group-focus-within:shadow-blue-200"
-                placeholder="userName or Roll Number"
+                className="block w-full pl-10 pr-3 py-2.5 border-2 border-gray-300 rounded-control placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 hover:border-blue-300 group-focus-within:shadow-lg group-focus-within:shadow-blue-200"
+                placeholder="Username or Rollnumber"
               />
             </div>
 
@@ -198,7 +198,7 @@ const Login = () => {
                 required
                 value={credentials.password}
                 onChange={handleChange}
-                className="block w-full pl-10 pr-3 py-2.5 border-2 border-gray-300 rounded-lg placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 hover:border-blue-300 group-focus-within:shadow-lg group-focus-within:shadow-blue-200"
+                className="block w-full pl-10 pr-3 py-2.5 border-2 border-gray-300 rounded-control placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300 hover:border-blue-300 group-focus-within:shadow-lg group-focus-within:shadow-blue-200"
                 placeholder="Password"
               />
             </div>
@@ -207,7 +207,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full h-12 overflow-hidden rounded-lg font-semibold text-white transition-all duration-300 mt-6"
+              className="group relative w-full h-12 overflow-hidden rounded-control font-semibold text-white transition-all duration-300 mt-6"
             >
               {/* Animated Background */}
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-blue-800 transition-all duration-300 group-hover:shadow-xl group-hover:shadow-blue-500/50"></div>
@@ -257,7 +257,7 @@ const Login = () => {
           <button
             onClick={handleGoogleLogin}
             disabled={loading || googleLoading}
-            className="group relative w-full h-12 overflow-hidden rounded-lg font-semibold text-gray-800 transition-all duration-300 border-2 border-gray-300 hover:border-gray-400"
+            className="group relative w-full h-12 overflow-hidden rounded-control font-semibold text-gray-800 transition-all duration-300 border-2 border-gray-300 hover:border-gray-400"
           >
             {/* Animated Background */}
             <div className="absolute inset-0 bg-white transition-all duration-300 group-hover:bg-gray-50"></div>
@@ -283,8 +283,8 @@ const Login = () => {
           </button>
 
           {/* Additional Info */}
-          <div className="mt-6 p-3 bg-blue-50 rounded-lg border border-blue-200 text-center text-xs text-gray-600">
-            💡 <strong>Tip:</strong> You can use either your userName or roll number to log in.
+          <div className="mt-6 p-3 bg-blue-50 rounded-control border border-blue-200 text-center text-xs text-gray-600">
+            💡 <strong>Tip:</strong> You can use either your Username or Rollnumber to log in.
           </div>
         </div>
       </main>

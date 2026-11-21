@@ -779,7 +779,7 @@ const MessReportsPage = () => {
         .summary-item {
           padding: 1rem;
           background-color: #f8f9fa;
-          border-radius: 0.25rem;
+          border-radius: var(--ui-radius-surface);
           text-align: center;
         }
         .summary-item h3 {

@@ -1,3 +1,4 @@
+import { cornerRadius } from '../../theme/cornerRadius';
 import { PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import { exportWorkbook } from '../../utils/reportExport';
 import { DatePicker } from '../common/MomentPickers';
@@ -20,7 +21,7 @@ const { RangePicker } = DatePicker;
 
 // --- 1. Meaningful Empty State Component ---
 const EmptyState = ({ icon: Icon, title, subtitle, actionText, onAction }) => (
-  <div className="flex flex-col items-center justify-center p-16 text-center bg-white rounded-[32px] border-2 border-dashed border-slate-100 my-4 animate-in fade-in zoom-in duration-500">
+  <div className="flex flex-col items-center justify-center p-16 text-center bg-white rounded-surface border-2 border-dashed border-slate-100 my-4 animate-in fade-in zoom-in duration-500">
     <div className="p-6 bg-slate-50 rounded-full mb-6">
       <Icon size={48} className="text-slate-300" strokeWidth={1.5} />
     </div>
@@ -31,7 +32,7 @@ const EmptyState = ({ icon: Icon, title, subtitle, actionText, onAction }) => (
         type="primary" 
         size="large" 
         onClick={onAction} 
-        className="flex items-center gap-2 rounded-xl h-12 px-8 shadow-lg shadow-blue-100 font-semibold"
+        className="flex items-center gap-2 rounded-control h-12 px-8 shadow-lg shadow-blue-100 font-semibold"
       >
         <Plus size={18} /> {actionText}
       </Button>
@@ -41,7 +42,7 @@ const EmptyState = ({ icon: Icon, title, subtitle, actionText, onAction }) => (
 
 // --- 2. Meaningful Skeleton for Inventory ---
 const InventorySkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+  <Card className="border-none shadow-sm rounded-surface p-6 bg-white overflow-hidden">
     <div className="space-y-6">
       <div className="flex justify-between">
         <Skeleton.Input active style={{ width: 250 }} />
@@ -250,7 +251,7 @@ const InventoryManagement = () => {
       title: 'Latest Procurement', 
       key: 'procurement',
       render: (_, r) => r.last_bought_store_name ? (
-        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 min-w-[200px]">
+        <div className="bg-slate-50 p-2 rounded-control border border-slate-100 min-w-[200px]">
           <div className="flex items-center gap-2 mb-1">
             <Store size={14} className="text-blue-500" />
             <Text className="text-xs font-bold text-slate-700 truncate">{r.last_bought_store_name}</Text>
@@ -282,7 +283,7 @@ const InventoryManagement = () => {
       title: 'Action',
       align: 'right',
       render: (_, r) => r.transaction_type === 'purchase' && (
-        <Button permissionAction="edit" icon={<Edit3 size={14}/>} onClick={() => { setCorrectionRecord(r); correctionForm.setFieldsValue(r); setCorrectionModalVisible(true); }} className="rounded-lg h-8 flex items-center">Correct</Button>
+        <Button permissionAction="edit" icon={<Edit3 size={14}/>} onClick={() => { setCorrectionRecord(r); correctionForm.setFieldsValue(r); setCorrectionModalVisible(true); }} className="rounded-control h-8 flex items-center">Correct</Button>
       )
     }
   ];
@@ -293,19 +294,19 @@ const InventoryManagement = () => {
         
         {/* Header Section */}
         <InventoryPageHeader title="Purchase History" description="Review purchases, correct entries, and export supplier reports.">
-             <Button icon={<RefreshCw size={16}/>} onClick={fetchInitialData} className="rounded-xl h-12">Refresh</Button>
-             <Button permissionAction="export" type="primary" icon={<FileSpreadsheet size={18}/>} onClick={() => handleExportLastPurchase()} className="rounded-xl h-12 shadow-lg shadow-blue-100 flex items-center gap-2 font-semibold">Generate Report</Button>
+             <Button icon={<RefreshCw size={16}/>} onClick={fetchInitialData} className="rounded-control h-12">Refresh</Button>
+             <Button permissionAction="export" type="primary" icon={<FileSpreadsheet size={18}/>} onClick={() => handleExportLastPurchase()} className="rounded-control h-12 shadow-lg shadow-blue-100 flex items-center gap-2 font-semibold">Generate Report</Button>
         </InventoryPageHeader>
 
         {/* Stats Summary */}
         <Row gutter={[24, 24]} className="mb-8">
           <Col xs={24} sm={12} lg={6}>
-            <Card className="border-none shadow-sm rounded-2xl">
+            <Card className="border-none shadow-sm rounded-surface">
               <Statistic title={<span className="text-xs uppercase tracking-widest text-slate-400 font-bold">Live Inventory</span>} value={inventory.length} prefix={<Package size={18} className="text-blue-500 mr-2" />} suffix="Items" />
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="border-none shadow-sm rounded-2xl">
+            <Card className="border-none shadow-sm rounded-surface">
               <Statistic title={<span className="text-xs uppercase tracking-widest text-slate-400 font-bold">Low Stock Alert</span>} value={inventory.filter(i => parseFloat(i.current_stock) <= parseFloat(i.minimum_stock)).length} valueStyle={{ color: '#ef4444' }} prefix={<AlertTriangle size={18} className="text-rose-500 mr-2" />} />
             </Card>
           </Col>
@@ -322,15 +323,15 @@ const InventoryManagement = () => {
               label: <span className="flex items-center gap-2"><Package size={16}/> Latest Purchases & Reports</span>,
               children: (
                 <div className="space-y-6">
-                  <Card className="border-none shadow-sm rounded-2xl">
+                  <Card className="border-none shadow-sm rounded-surface">
                     <div className="flex flex-wrap gap-4 items-center">
                       <Input className="inventory-search" prefix={<Search size={16} />} placeholder="Search item name..." value={searchText} onChange={e => setSearchText(e.target.value)} allowClear />
-                      <Select placeholder="Filter by Store" className="w-64" value={selectedStoreId} onChange={setSelectedStoreId} allowClear dropdownStyle={{ borderRadius: 12 }}>
+                      <Select placeholder="Filter by Store" className="w-64" value={selectedStoreId} onChange={setSelectedStoreId} allowClear dropdownStyle={{ borderRadius: cornerRadius.surface }}>
                         {stores.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
                       </Select>
                       <Button 
                         onClick={() => setLowStockOnly(!lowStockOnly)} 
-                        className={`rounded-xl h-10 px-6 transition-all ${lowStockOnly ? 'bg-rose-50 text-rose-600 border-rose-100 font-bold' : 'text-slate-600'}`}
+                        className={`rounded-control h-10 px-6 transition-all ${lowStockOnly ? 'bg-rose-50 text-rose-600 border-rose-100 font-bold' : 'text-slate-600'}`}
                       >
                         {lowStockOnly ? 'Low Stock Active' : 'Filter Low Stock'}
                       </Button>
@@ -340,7 +341,7 @@ const InventoryManagement = () => {
                   {loading ? <InventorySkeleton /> : filteredInventory.length === 0 ? (
                     <EmptyState icon={PackageX} title="No Inventory Data" subtitle="Your stock filters didn't return any results. Try adjusting the store or name search." actionText="Clear All Filters" onAction={() => { setSearchText(''); setSelectedStoreId(''); setLowStockOnly(false); }} />
                   ) : (
-                    <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+                    <Card className="border-none shadow-sm rounded-surface overflow-hidden" bodyStyle={{ padding: 0 }}>
                       <Table dataSource={filteredInventory} columns={inventoryColumns} pagination={{ defaultPageSize: 10, showSizeChanger: true }} scroll={{ x: 760 }} rowKey="id" />
                     </Card>
                   )}
@@ -352,20 +353,20 @@ const InventoryManagement = () => {
               label: <span className="flex items-center gap-2"><History size={16}/> Transactions</span>,
               children: (
                 <div className="space-y-6">
-                  <Card className="border-none shadow-sm rounded-2xl">
+                  <Card className="border-none shadow-sm rounded-surface">
                     <div className="flex flex-wrap gap-4 justify-between items-center">
                       <Space size="large" wrap>
-                        <RangePicker value={dateRange} onChange={setDateRange} className="rounded-xl h-11" />
-                        <Button type="primary" ghost icon={<RefreshCw size={16}/>} onClick={fetchTransactions} className="rounded-xl">Update History</Button>
+                        <RangePicker value={dateRange} onChange={setDateRange} className="rounded-control h-11" />
+                        <Button type="primary" ghost icon={<RefreshCw size={16}/>} onClick={fetchTransactions} className="rounded-control">Update History</Button>
                       </Space>
-                      <Button permissionAction="export" type="primary" danger ghost icon={<FileDown size={18}/>} onClick={exportTransactions} className="rounded-xl h-11 border-dashed">Export transactions</Button>
+                      <Button permissionAction="export" type="primary" danger ghost icon={<FileDown size={18}/>} onClick={exportTransactions} className="rounded-control h-11 border-dashed">Export transactions</Button>
                     </div>
                   </Card>
 
                   {transactionLoading ? <InventorySkeleton /> : transactions.length === 0 ? (
                     <EmptyState icon={ShoppingBag} title="No Transactions" subtitle="No inventory transactions recorded for this date range." />
                   ) : (
-                    <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+                    <Card className="border-none shadow-sm rounded-surface overflow-hidden" bodyStyle={{ padding: 0 }}>
                       <Table dataSource={transactions} columns={transactionColumns} pagination={{ defaultPageSize: 10, showSizeChanger: true }} scroll={{ x: 760 }} rowKey="id" />
                     </Card>
                   )}
@@ -382,12 +383,12 @@ const InventoryManagement = () => {
           onCancel={() => setCorrectionModalVisible(false)}
           onOk={() => correctionForm.submit()}
           confirmLoading={confirmLoading}
-          className="rounded-2xl"
+          className="rounded-surface"
           okText="Apply Correction"
         >
           {correctionRecord && (
             <Form form={correctionForm} layout="vertical" onFinish={handleCorrectionSubmit} className="mt-4">
-               <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 mb-6 flex justify-between">
+               <div className="bg-blue-50/50 p-4 rounded-surface border border-blue-100 mb-6 flex justify-between">
                   <div>
                     <Text className="text-blue-400 text-[10px] uppercase font-bold block mb-1">Item Info</Text>
                     <Text strong className="text-lg text-blue-900">{correctionRecord.Item?.name}</Text>
@@ -409,7 +410,7 @@ const InventoryManagement = () => {
                   type="warning" 
                   showIcon 
                   icon={<AlertTriangle size={20} />}
-                  className="rounded-2xl border-amber-100 bg-amber-50"
+                  className="rounded-surface border-amber-100 bg-amber-50"
                />
             </Form>
           )}

@@ -1,7 +1,8 @@
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
 import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Form, Select, Input, InputNumber, message, Table, Row, Col, Typography, ConfigProvider, theme, Skeleton, Space, Divider, Tag, Tooltip } from 'antd';
+import { Card, Form, Select, Input, InputNumber, message, Table, Row, Col, Typography, ConfigProvider, Skeleton, Space, Divider, Tag, Tooltip } from 'antd';
 import { 
   Wallet, Plus, RefreshCw, ChevronLeft, ChevronRight, 
   History, Receipt, Calendar, User, Save, Landmark, ArrowDownCircle
@@ -15,7 +16,7 @@ const { Title, Text } = Typography;
 
 // --- Specialized Skeleton for Income Entries ---
 const EntrySkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+  <Card className="border-none shadow-sm rounded-surface p-6 bg-white overflow-hidden">
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <Skeleton.Input active style={{ width: 200 }} />
@@ -137,64 +138,54 @@ const IncomeEntryManager = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header with Nav Controllers */}
-        <div className="module-page-header flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
-              <Wallet className="text-white" size={24} />
-            </div>
-            <div>
-              <Title level={2} style={{ margin: 0 }}>Income & Deductions</Title>
-              <Text type="secondary">Manage Cash Tokens and Sister Concern credit billing</Text>
-            </div>
-          </div>
-
+        <WorkspacePageHeader title="Income & Deductions" icon={Wallet} description="Manage cash tokens and Sister Concern credit billing.">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200 flex items-center">
+            <div className="bg-white p-1 rounded-control shadow-sm border border-slate-200 flex items-center">
               <Button type="text" icon={<ChevronLeft size={16} />} onClick={() => changeYear(-1)} />
               <div className="px-4 text-center min-w-[70px]"><Text strong className="text-slate-700">{selectedDate.format('YYYY')}</Text></div>
               <Button type="text" icon={<ChevronRight size={16} />} onClick={() => changeYear(1)} />
             </div>
 
-            <div className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200 flex items-center">
+            <div className="bg-white p-1 rounded-control shadow-sm border border-slate-200 flex items-center">
               <Button type="text" icon={<ChevronLeft size={16} />} onClick={() => changeMonth(-1)} />
               <div className="px-6 text-center min-w-[120px]"><Text strong className="text-blue-600 uppercase tracking-wide">{selectedDate.format('MMMM')}</Text></div>
               <Button type="text" icon={<ChevronRight size={16} />} onClick={() => changeMonth(1)} />
             </div>
 
-            <Button onClick={handleToday} className="rounded-2xl h-11 border-slate-200 text-slate-500 font-medium hover:text-blue-600">Current</Button>
+            <Button onClick={handleToday} className="rounded-control h-11 border-slate-200 text-slate-500 font-medium hover:text-blue-600">Current</Button>
           </div>
-        </div>
+        </WorkspacePageHeader>
 
         <Row gutter={24}>
           {/* Form Side */}
           <Col xs={24} lg={8}>
-            <Card className="border-none shadow-sm rounded-[32px] sticky top-8 p-2">
+            <Card className="border-none shadow-sm rounded-surface sticky top-8 p-2">
               <Title level={4} className="mb-6 flex items-center gap-2">
                 <ArrowDownCircle size={20} className="text-blue-600" /> New Transaction
               </Title>
               
               <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ date: moment() }}>
                 <Form.Item name="type" label="Income/Deduction Type" rules={[{ required: true }]}>
-                  <Select placeholder="Select type" className="h-11 rounded-xl" suffixIcon={<Landmark size={16} className="text-slate-400" />}>
+                  <Select placeholder="Select type" className="h-11 rounded-control" suffixIcon={<Landmark size={16} className="text-slate-400" />}>
                     <Option value="Sister Concern Bill">Sister Concern (Credit Token)</Option>
                     <Option value="Cash Token">Cash Token (Less)</Option>
                   </Select>
                 </Form.Item>
 
                 <Form.Item name="date" label="Transaction Date" rules={[{ required: true }]}>
-                  <DatePicker className="w-full h-11 rounded-xl" />
+                  <DatePicker className="w-full h-11 rounded-control" />
                 </Form.Item>
 
                 <Form.Item name="amount" label="Total Amount (₹)" rules={[{ required: true }]}>
-                  <InputNumber min={0.01} className="w-full h-11 flex items-center rounded-xl" precision={2} prefix="₹" placeholder="0.00" />
+                  <InputNumber min={0.01} className="w-full h-11 flex items-center rounded-control" precision={2} prefix="₹" placeholder="0.00" />
                 </Form.Item>
 
                 <Form.Item name="description" label="Audit Remarks">
-                  <TextArea rows={3} placeholder="e.g., Guest lunch meeting charges" className="rounded-xl" />
+                  <TextArea rows={3} placeholder="e.g., Guest lunch meeting charges" className="rounded-control" />
                 </Form.Item>
 
                 <Divider className="my-6 border-slate-100" />
@@ -206,7 +197,7 @@ const IncomeEntryManager = () => {
                   size="large" 
                   loading={submitting} 
                   icon={<Save size={18} />}
-                  className="h-14 rounded-2xl shadow-lg shadow-blue-100 font-bold"
+                  className="h-14 rounded-control shadow-lg shadow-blue-100 font-bold"
                 >
                   Save Entry
                 </Button>
@@ -217,7 +208,7 @@ const IncomeEntryManager = () => {
           {/* Table Side */}
           <Col xs={24} lg={16}>
             {loading ? <EntrySkeleton /> : (
-              <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+              <Card className="border-none shadow-sm rounded-surface overflow-hidden" bodyStyle={{ padding: 0 }}>
                 <div className="p-6 pb-0 flex justify-between items-center">
                   <Title level={4} className="flex items-center gap-2 m-0">
                     <History size={20} className="text-blue-600" /> Entry Logs

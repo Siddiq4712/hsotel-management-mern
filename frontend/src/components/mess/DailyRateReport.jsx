@@ -1,6 +1,7 @@
 import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Row, Col, Table, message, Typography, Space, Divider, ConfigProvider, theme, Skeleton, Tooltip, Modal, Radio, Statistic, Alert } from 'antd';
+import { Card, Row, Col, Table, message, Typography, Space, Divider, ConfigProvider, Skeleton, Tooltip, Modal, Radio, Statistic } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import {
   Calculator, FileDown, ChevronLeft, ChevronRight,
   Send, Monitor, Save, ArrowRight, MinusCircle, UserCheck, Receipt, Info
@@ -105,13 +106,13 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider>
       <div className={`${isReadOnly ? 'p-0' : 'p-4 lg:p-8 bg-slate-50 min-h-screen'}`}>
 
         {/* HEADER SECTION */}
         <div className="module-page-header flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100 text-white">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100 text-white">
               <Calculator size={24} />
             </div>
             <div>
@@ -122,7 +123,7 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
 
           {!isReadOnly && (
             <div className="flex flex-wrap items-center gap-3">
-              <div className="bg-white p-1 rounded-2xl shadow-sm border flex items-center">
+              <div className="bg-white p-1 rounded-control shadow-sm border flex items-center">
                 <Button type="text" icon={<ChevronLeft size={16} />} onClick={() => setSelectedDate(prev => prev.clone().subtract(1, 'month'))} />
                 <Text strong className="px-4 min-w-[140px] text-center">{selectedDate.format('MMMM YYYY')}</Text>
                 <Button type="text" icon={<ChevronRight size={16} />} onClick={() => setSelectedDate(prev => prev.clone().add(1, 'month'))} />
@@ -134,14 +135,14 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
                   onClick={handleSaveToLedger}
                   disabled={Boolean(reportData?.historicalImport)}
                   loading={saving}
-                  className="rounded-xl h-12 font-semibold bg-white border-blue-200 hover:bg-blue-50"
+                  className="rounded-control h-12 font-semibold bg-white border-blue-200 hover:bg-blue-50"
                 >
                   Save to Ledger
                 </Button>
                 <Button
                   icon={<Send size={18} className="text-emerald-500" />}
                   onClick={() => setIsNotifyModalVisible(true)}
-                  className="rounded-xl h-12 font-semibold"
+                  className="rounded-control h-12 font-semibold"
                 >
                   Notify Admin
                 </Button>
@@ -149,7 +150,7 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
                   type="primary"
                   icon={<FileDown size={18}/>}
                   onClick={handleExport}
-                  className="rounded-xl h-12 px-6"
+                  className="rounded-control h-12 px-6"
                 >
                   Export
                 </Button>
@@ -161,14 +162,14 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
         {loading ? <Skeleton active /> : (
           <>
             {reportData?.historicalImport && <Alert className="mb-6" type="info" showIcon
-              title={`August 2026 imported statement${reportData.scopeLabel ? ` — ${reportData.scopeLabel}` : ''}`}
-              description="This statement already includes both boys’ hostels. Its approved mess days, expenses and rounded daily rate are preserved."
+              title={`${reportData.historicalMonthlySummary ? moment({ year: reportData.year, month: reportData.month - 1 }).format('MMMM YYYY') : 'August 2026'} historical statement${reportData.scopeLabel ? ` — ${reportData.scopeLabel}` : ''}`}
+              description={reportData.historicalMonthlySummary ? 'Rate calculated from reconciled monthly attendance, expenses and deductions, including water. Student bills require separate reconciliation.' : 'This statement already includes both boys’ hostels. Its approved mess days, expenses and rounded daily rate are preserved.'}
             />}
             {/* NEW: FORMULA BREAKDOWN BAR */}
-            <Card className="mb-8 border-none shadow-md rounded-[32px] overflow-hidden bg-white">
+            <Card className="mb-8 border-none shadow-md rounded-surface overflow-hidden bg-white">
               <div className="flex flex-col lg:flex-row items-center justify-around p-2 gap-4 lg:gap-0 text-center">
                 <div className="px-6">
-                  <Text type="secondary" className="uppercase text-[10px] tracking-wider font-bold">Food expenses (+)</Text>
+                  <Text type="secondary" className="uppercase text-[10px] tracking-wider font-bold">{reportData?.waterIncluded ? 'Expenses including water (+)' : 'Food expenses (+)'}</Text>
                   <Title level={3} className="m-0 text-slate-800">₹{((reportData?.subTotal || 0) - (reportData?.waterTotal || 0)).toLocaleString()}</Title>
                 </div>
                 <MinusCircle className="text-slate-300 hidden lg:block" size={24} />
@@ -182,8 +183,8 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
                   <Title level={3} className="m-0 text-blue-600">{reportData?.totalManDays}</Title>
                 </div>
                 <ArrowRight className="text-slate-300 hidden lg:block" size={24} />
-                <div className="px-8 py-3 bg-blue-600 rounded-[24px] text-white shadow-xl shadow-blue-200">
-                  <Text className="text-white opacity-80 uppercase text-[10px] tracking-wider font-bold block">{reportData?.historicalImport ? 'Approved Shared Daily Rate' : allHostels ? 'Average Daily Rate (All Hostels)' : 'Food Daily Rate'}</Text>
+                <div className="px-8 py-3 bg-blue-600 rounded-surface text-white shadow-xl shadow-blue-200">
+                  <Text className="text-white opacity-80 uppercase text-[10px] tracking-wider font-bold block">{reportData?.historicalMonthlySummary ? 'Historical Daily Rate' : reportData?.historicalImport ? 'Approved Shared Daily Rate' : allHostels ? 'Average Daily Rate (All Hostels)' : 'Food Daily Rate'}</Text>
                   <Title level={2} className="m-0 text-white">₹{reportData?.dailyRate?.toFixed(2)}</Title>
                 </div>
               </div>
@@ -194,7 +195,7 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
               <Col lg={16} xs={24}>
                 <Card
                   title={<div className="flex items-center gap-2"><Receipt size={18}/><span>Expense Particulars</span></div>}
-                  className="shadow-sm rounded-3xl overflow-hidden"
+                  className="shadow-sm rounded-surface overflow-hidden"
                   bodyStyle={{ padding: 0 }}
                 >
                   <Table
@@ -218,7 +219,7 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
               {/* DEDUCTIONS & SUMMARY SIDEBAR */}
               <Col lg={8} xs={24}>
                 <div className="flex flex-col gap-6">
-                  <Card className="shadow-sm rounded-3xl border-none" title="Deductions Breakdown">
+                  <Card className="shadow-sm rounded-surface border-none" title="Deductions Breakdown">
                     <Space direction="vertical" className="w-full" size="middle">
                       <div className="flex justify-between items-center">
                         <Space><Text type="secondary">Cash Tokens</Text></Space>
@@ -244,14 +245,14 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
                     </Space>
                   </Card>
 
-                  <Card className="shadow-sm rounded-3xl border-l-4 border-l-blue-600">
+                  <Card className="shadow-sm rounded-surface border-l-4 border-l-blue-600">
                     <Statistic
                       title={reportData?.historicalImport ? 'Imported net expenses' : reportData?.legacyFinalized ? 'Recorded net cost (legacy)' : 'Net food cost (water excluded)'}
                       value={reportData?.foodExpenses ?? reportData?.totalExpenses}
                       precision={2}
                       prefix="₹"
                     />
-                    <div className="mt-4 p-3 bg-blue-50 rounded-xl flex items-start gap-3">
+                    <div className="mt-4 p-3 bg-blue-50 rounded-surface flex items-start gap-3">
                       <Info size={16} className="text-blue-600 mt-1 shrink-0" />
                       <Text className="text-blue-800 text-xs">
                         {reportData?.historicalImport ? 'The original preparation sheet determines these expenses and mess days. Current student enrollments are not added to this historical statement.' : reportData?.legacyFinalized ? 'Recorded legacy rate and totals are preserved. Unavailable food/water and deduction breakdowns are not reconstructed.' : <>This food cost is divided by {reportData?.totalManDays} billable food days. Approved reductions: {reportData?.totalReductionDays ?? 0} days. Water ₹{Number(reportData?.waterTotal || 0).toFixed(2)} is charged separately without reduction.</>}
@@ -276,14 +277,14 @@ const DailyRateReport = ({ sharedData = null, isReadOnly = false }) => {
         >
           <div className="py-4">
             <Radio.Group onChange={(e) => setNotifyMethod(e.target.value)} value={notifyMethod} className="w-full flex flex-col gap-3">
-              <Radio.Button value="share" className="h-20 flex items-center rounded-xl px-4">
+              <Radio.Button value="share" className="h-20 flex items-center rounded-control px-4">
                 <Monitor className="mr-4 text-blue-500" />
                 <div className="text-left">
                   <div className="font-bold text-slate-700">Share Screen (Live)</div>
                   <div className="text-xs text-slate-400">Admin gets a popup to view this live screen instantly.</div>
                 </div>
               </Radio.Button>
-              <Radio.Button value="email" className="h-20 flex items-center rounded-xl px-4">
+              <Radio.Button value="email" className="h-20 flex items-center rounded-control px-4">
                 <Send className="mr-4 text-emerald-500" />
                 <div className="text-left">
                   <div className="font-bold text-slate-700">Send Email</div>

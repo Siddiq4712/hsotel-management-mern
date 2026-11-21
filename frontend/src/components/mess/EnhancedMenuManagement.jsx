@@ -1,3 +1,4 @@
+import { cornerRadius } from '../../theme/cornerRadius';
 import { PermissionNativeButton } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -33,7 +34,6 @@ const T = {
   dangerBg:  '#FEF2F2',
   success:   '#16A34A',
   successBg: '#F0FDF4',
-  radius:    '10px',
   shadow:    '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
   shadowMd:  '0 4px 12px rgba(0,0,0,0.08)',
 };
@@ -51,7 +51,7 @@ const MealBadge = ({ type }) => {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
-      padding: '3px 10px', borderRadius: 20,
+      padding: '3px 10px', borderRadius: cornerRadius.pill,
       backgroundColor: cfg.bg, color: cfg.color,
       fontSize: 12, fontWeight: 600, letterSpacing: '0.02em',
       fontFamily: "'DM Sans', sans-serif",
@@ -65,12 +65,12 @@ const MealBadge = ({ type }) => {
 const StatCard = ({ label, value, icon: Icon, accent }) => (
   <div style={{
     background: T.surface, border: `1px solid ${T.border}`,
-    borderRadius: T.radius, padding: '20px 24px',
+    borderRadius: cornerRadius.surface, padding: '20px 24px',
     display: 'flex', alignItems: 'center', gap: 16,
     boxShadow: T.shadow,
   }}>
     <div style={{
-      width: 44, height: 44, borderRadius: 10,
+      width: 44, height: 44, borderRadius: cornerRadius.control,
       background: accent ? T.accentBg : T.bg,
       display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
     }}>
@@ -307,7 +307,6 @@ const EnhancedMenuManagement = () => {
         algorithm: theme.defaultAlgorithm,
         token: {
           colorPrimary: T.accent,
-          borderRadius: 8,
           fontFamily: "'DM Sans', sans-serif",
           colorBgContainer: T.surface,
           colorBorder: T.border,
@@ -340,7 +339,7 @@ const EnhancedMenuManagement = () => {
           font-family: 'DM Sans', sans-serif !important;
         }
         .pm-search-input .ant-input-prefix { color: ${T.inkSoft}; }
-        .pm-modal .ant-modal-content { border-radius: 24px; overflow: hidden; }
+        .pm-modal .ant-modal-content { border-radius: var(--ui-radius-surface); overflow: hidden; }
         .pm-modal .ant-modal-header { border-bottom: 1px solid ${T.border}; padding: 18px 24px; }
         .pm-modal .ant-modal-body { padding: 24px; }
         .pm-drawer .ant-drawer-header { border-bottom: 1px solid ${T.border}; }
@@ -352,7 +351,7 @@ const EnhancedMenuManagement = () => {
         <div className="module-page-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{
-              width: 40, height: 40, borderRadius: 10,
+              width: 40, height: 40, borderRadius: cornerRadius.control,
               background: T.accentBg, display: 'flex',
               alignItems: 'center', justifyContent: 'center',
             }}>
@@ -373,7 +372,7 @@ const EnhancedMenuManagement = () => {
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
               background: T.accent, color: '#fff',
-              border: 'none', borderRadius: 8, padding: '9px 18px',
+              border: 'none', borderRadius: cornerRadius.control, padding: '9px 18px',
               fontSize: 13, fontWeight: 600, cursor: 'pointer',
               fontFamily: "'DM Sans', sans-serif",
               boxShadow: `0 2px 8px rgba(26,86,219,0.3)`,
@@ -400,7 +399,7 @@ const EnhancedMenuManagement = () => {
           {/* ── Filters ── */}
           <div style={{
             background: T.surface, border: `1px solid ${T.border}`,
-            borderRadius: T.radius, padding: '14px 20px',
+            borderRadius: cornerRadius.surface, padding: '14px 20px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginBottom: 16, boxShadow: T.shadow,
           }}>
@@ -415,7 +414,7 @@ const EnhancedMenuManagement = () => {
                     key={type}
                     onClick={() => setSelectedMealType(type)}
                     style={{
-                      padding: '4px 12px', borderRadius: 6, border: `1px solid`,
+                      padding: '4px 12px', borderRadius: cornerRadius.tag, border: `1px solid`,
                       borderColor: selectedMealType === type ? T.accent : T.border,
                       background: selectedMealType === type ? T.accentBg : 'transparent',
                       color: selectedMealType === type ? T.accent : T.inkMid,
@@ -433,7 +432,7 @@ const EnhancedMenuManagement = () => {
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8,
               background: T.bg, border: `1px solid ${T.border}`,
-              borderRadius: 8, padding: '7px 12px', width: 260,
+              borderRadius: cornerRadius.control, padding: '7px 12px', width: 260,
             }}>
               <Search size={14} color={T.inkSoft} />
               <input
@@ -453,7 +452,7 @@ const EnhancedMenuManagement = () => {
           {/* ── Table ── */}
           <div style={{
             background: T.surface, border: `1px solid ${T.border}`,
-            borderRadius: T.radius, boxShadow: T.shadow, overflow: 'hidden',
+            borderRadius: cornerRadius.surface, boxShadow: T.shadow, overflow: 'hidden',
           }}>
             <Table
               className="pm-table"
@@ -475,7 +474,7 @@ const EnhancedMenuManagement = () => {
           className="pm-modal"
           title={
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 32, height: 32, borderRadius: cornerRadius.control, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {editingMenu ? <Edit2 size={15} color={T.accent} /> : <Plus size={15} color={T.accent} />}
               </div>
               <span style={{ fontSize: 15, fontWeight: 700, color: T.ink, fontFamily: "'DM Sans', sans-serif" }}>
@@ -490,12 +489,12 @@ const EnhancedMenuManagement = () => {
         >
           <Form form={form} layout="vertical" onFinish={handleSubmit} className="pm-form-input" style={{ marginTop: 4 }}>
             <Form.Item name="name" label={<FieldLabel>Menu Name</FieldLabel>} rules={[{ required: true }]}>
-              <Input placeholder="e.g., Deluxe Veg Thali" style={{ borderRadius: 8 }} />
+              <Input placeholder="e.g., Deluxe Veg Thali" style={{ borderRadius: cornerRadius.control }} />
             </Form.Item>
             <Row gutter={12}>
               <Col span={12}>
                 <Form.Item name="meal_type" label={<FieldLabel>Meal Type</FieldLabel>} rules={[{ required: true }]}>
-                  <Select style={{ borderRadius: 8 }}>
+                  <Select style={{ borderRadius: cornerRadius.control }}>
                     {Object.entries(mealConfig).map(([v, c]) => (
                       <Option key={v} value={v}>{c.label}</Option>
                     ))}
@@ -504,15 +503,15 @@ const EnhancedMenuManagement = () => {
               </Col>
               <Col span={12}>
                 <Form.Item name="estimated_servings" label={<FieldLabel>Est. Servings</FieldLabel>} rules={[{ required: true }]}>
-                  <InputNumber className="w-full" min={1} style={{ width: '100%', borderRadius: 8 }} />
+                  <InputNumber className="w-full" min={1} style={{ width: '100%', borderRadius: cornerRadius.control }} />
                 </Form.Item>
               </Col>
             </Row>
             <Form.Item name="preparation_time" label={<FieldLabel>Prep Time (minutes)</FieldLabel>}>
-              <InputNumber min={1} style={{ width: '100%', borderRadius: 8 }} />
+              <InputNumber min={1} style={{ width: '100%', borderRadius: cornerRadius.control }} />
             </Form.Item>
             <Form.Item name="description" label={<FieldLabel>Internal Notes</FieldLabel>}>
-              <TextArea rows={3} placeholder="Optional instructions…" style={{ borderRadius: 8 }} />
+              <TextArea rows={3} placeholder="Optional instructions…" style={{ borderRadius: cornerRadius.control }} />
             </Form.Item>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
@@ -520,7 +519,7 @@ const EnhancedMenuManagement = () => {
                 type="button"
                 onClick={() => setModalVisible(false)}
                 style={{
-                  padding: '8px 16px', borderRadius: 8, border: `1px solid ${T.border}`,
+                  padding: '8px 16px', borderRadius: cornerRadius.control, border: `1px solid ${T.border}`,
                   background: T.surface, color: T.inkMid, fontSize: 13, fontWeight: 600,
                   cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                 }}
@@ -529,7 +528,7 @@ const EnhancedMenuManagement = () => {
                 type="submit"
                 disabled={confirmLoading}
                 style={{
-                  padding: '8px 18px', borderRadius: 8, border: 'none',
+                  padding: '8px 18px', borderRadius: cornerRadius.control, border: 'none',
                   background: T.accent, color: '#fff', fontSize: 13, fontWeight: 600,
                   cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                   display: 'flex', alignItems: 'center', gap: 7,
@@ -571,7 +570,7 @@ const EnhancedMenuManagement = () => {
                 ].map(({ label, value, icon: Icon }) => (
                   <div key={label} style={{
                     background: T.bg, border: `1px solid ${T.border}`,
-                    borderRadius: 8, padding: '14px 16px',
+                    borderRadius: cornerRadius.surface, padding: '14px 16px',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                       <Icon size={12} color={T.inkSoft} />
@@ -591,7 +590,7 @@ const EnhancedMenuManagement = () => {
                     <div key={i} style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '11px 14px', background: T.surface,
-                      border: `1px solid ${T.border}`, borderRadius: 8,
+                      border: `1px solid ${T.border}`, borderRadius: cornerRadius.surface,
                     }}>
                       <div>
                         <div style={{ fontWeight: 600, color: T.ink, fontSize: 13 }}>{item.tbl_Item?.name}</div>
@@ -612,7 +611,7 @@ const EnhancedMenuManagement = () => {
                         }}
                         style={{
                           background: 'none', border: 'none', cursor: 'pointer',
-                          color: T.inkSoft, padding: 4, borderRadius: 6,
+                          color: T.inkSoft, padding: 4, borderRadius: cornerRadius.control,
                           display: 'flex', alignItems: 'center',
                           transition: 'color 0.15s',
                         }}
@@ -651,14 +650,14 @@ const EnhancedMenuManagement = () => {
                 className="pm-form-input"
               >
                 <Form.Item name="item_id" label={<FieldLabel>Raw Material</FieldLabel>} rules={[{ required: true }]}>
-                  <Select showSearch placeholder="Search items…" optionFilterProp="children" style={{ borderRadius: 8 }}>
+                  <Select showSearch placeholder="Search items…" optionFilterProp="children" style={{ borderRadius: cornerRadius.control }}>
                     {items.map(i => <Option key={i.id} value={i.id}>{i.name}</Option>)}
                   </Select>
                 </Form.Item>
                 <Row gutter={12}>
                   <Col span={12}>
                     <Form.Item name="quantity" label={<FieldLabel>Quantity</FieldLabel>} rules={[{ required: true }]}>
-                      <InputNumber style={{ width: '100%', borderRadius: 8 }} />
+                      <InputNumber style={{ width: '100%', borderRadius: cornerRadius.control }} />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
@@ -667,7 +666,7 @@ const EnhancedMenuManagement = () => {
                       label={<FieldLabel>Unit</FieldLabel>} 
                       rules={[{ required: true, message: 'Required' }]}
                     >
-                      <Select placeholder="Select unit" style={{ borderRadius: 8 }}>
+                      <Select placeholder="Select unit" style={{ borderRadius: cornerRadius.control }}>
                         {uoms.map(u => (
                           <Option key={u.id} value={u.id}>{u.abbreviation} ({u.name})</Option>
                         ))}
@@ -678,7 +677,7 @@ const EnhancedMenuManagement = () => {
                 <PermissionNativeButton permissionAction={editingMenu ? 'edit' : 'create'}
                   type="submit"
                   style={{
-                    width: '100%', padding: '9px 0', borderRadius: 8, border: 'none',
+                    width: '100%', padding: '9px 0', borderRadius: cornerRadius.control, border: 'none',
                     background: T.accentBg, color: T.accent, fontWeight: 700, fontSize: 13,
                     cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
@@ -699,7 +698,7 @@ const EnhancedMenuManagement = () => {
           className="pm-modal"
           title={
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: T.successBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 32, height: 32, borderRadius: cornerRadius.control, background: T.successBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Calendar size={15} color={T.success} />
               </div>
               <div>
@@ -719,12 +718,12 @@ const EnhancedMenuManagement = () => {
             <Row gutter={12}>
               <Col span={12}>
                 <Form.Item name="startDate" label={<FieldLabel>Start Date</FieldLabel>} rules={[{ required: true }]}>
-                  <DatePicker style={{ width: '100%', borderRadius: 8 }} placeholder="YYYY-MM-DD" format="YYYY-MM-DD" />
+                  <DatePicker style={{ width: '100%', borderRadius: cornerRadius.control }} placeholder="YYYY-MM-DD" format="YYYY-MM-DD" />
                 </Form.Item>
               </Col>
               <Col span={12}>
                 <Form.Item name="endDate" label={<FieldLabel>End Date</FieldLabel>} rules={[{ required: true }]}>
-                  <DatePicker style={{ width: '100%', borderRadius: 8 }} placeholder="YYYY-MM-DD" format="YYYY-MM-DD" />
+                  <DatePicker style={{ width: '100%', borderRadius: cornerRadius.control }} placeholder="YYYY-MM-DD" format="YYYY-MM-DD" />
                 </Form.Item>
               </Col>
             </Row>
@@ -733,13 +732,13 @@ const EnhancedMenuManagement = () => {
               <Select
                 mode="multiple"
                 placeholder="Select days to apply…"
-                style={{ borderRadius: 8 }}
+                style={{ borderRadius: cornerRadius.control }}
                 options={['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d => ({ label: d, value: d }))}
               />
             </Form.Item>
 
             <div style={{
-              background: '#EFF6FF', borderRadius: 8, padding: '10px 14px',
+              background: '#EFF6FF', borderRadius: cornerRadius.surface, padding: '10px 14px',
               fontSize: 12, color: '#3B5FB0', marginBottom: 20, lineHeight: 1.5,
             }}>
               <strong>How it works:</strong> The menu will be applied to every matching weekday within the date range.
@@ -750,7 +749,7 @@ const EnhancedMenuManagement = () => {
                 type="button"
                 onClick={() => setApplyModalVisible(false)}
                 style={{
-                  padding: '8px 16px', borderRadius: 8, border: `1px solid ${T.border}`,
+                  padding: '8px 16px', borderRadius: cornerRadius.control, border: `1px solid ${T.border}`,
                   background: T.surface, color: T.inkMid, fontSize: 13, fontWeight: 600,
                   cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                 }}
@@ -759,7 +758,7 @@ const EnhancedMenuManagement = () => {
                 type="submit"
                 disabled={applyLoading}
                 style={{
-                  padding: '8px 20px', borderRadius: 8, border: 'none',
+                  padding: '8px 20px', borderRadius: cornerRadius.control, border: 'none',
                   background: T.success, color: '#fff', fontSize: 13, fontWeight: 600,
                   cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
                   display: 'flex', alignItems: 'center', gap: 7,
@@ -793,7 +792,7 @@ const ActionBtn = ({ icon, children, onClick, variant }) => {
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
         padding: children ? '5px 11px' : '5px 8px',
-        borderRadius: 7, border: `1px solid ${s.border}`,
+        borderRadius: cornerRadius.tag, border: `1px solid ${s.border}`,
         background: s.bg, color: s.color,
         fontSize: 12, fontWeight: 600, cursor: 'pointer',
         fontFamily: "'DM Sans', sans-serif",

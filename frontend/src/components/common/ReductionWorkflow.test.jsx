@@ -10,13 +10,13 @@ vi.mock('../../services/api',()=>({reductionAPI:{list:mocks.list,submit:mocks.su
 vi.mock('./ReductionEvidence',()=>({default:({request})=><span>{request.document?'Supporting document available':'No document'}</span>}));
 vi.mock('antd',()=>{
   const Wrap=({children,title})=><div>{typeof title==='string'?<h3>{title}</h3>:title}{children}</div>;
-  const Input=props=><input {...props}/>;Input.TextArea=props=><textarea {...props}/>;
+  const Input=({allowClear,prefix,...props})=><input {...props}/>;Input.TextArea=props=><textarea {...props}/>;
   return {App:{useApp:()=>({message:mocks.message})},Card:Wrap,Space:Wrap,Tag:Wrap,
     Typography:{Title:Wrap,Text:Wrap},Input,
     Alert:({message,description})=><div>{message}{description}</div>,
     Select:({options,value,onChange,'aria-label':label})=><select aria-label={label} value={value} onChange={e=>onChange(e.target.value)}>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>,
-    Button:({children,onClick,disabled,htmlType})=><button type={htmlType||'button'} onClick={onClick} disabled={disabled}>{children}</button>,
-    Modal:({open,children,title,onOk,okText})=>open?<div role="dialog">{title}{children}{onOk&&<button onClick={onOk}>{okText}</button>}</div>:null,
+    Button:({children,onClick,disabled,htmlType,'aria-label':label})=><button type={htmlType||'button'} onClick={onClick} disabled={disabled} aria-label={label}>{children}</button>,
+    Modal:({open,children,title,footer,onOk,okText})=>open?<div role="dialog">{title}{children}{footer}{onOk&&<button onClick={onOk}>{okText}</button>}</div>:null,
     Table:({dataSource,columns})=><table><tbody>{dataSource.map(row=><tr key={row.id}>{columns.map(col=><td key={col.key}>{col.render?col.render(null,row):row[col.dataIndex]}</td>)}</tr>)}</tbody></table>
   };
 });
@@ -41,7 +41,8 @@ it('admin reviews requests across hostels and approves directly',async()=>{
 it('warden review has no all-hostel switch and rejection requires remarks',async()=>{
   mocks.user={role:'warden'};render(<ReductionReview role="warden"/>);
   await screen.findByText('ANISH');expect(screen.queryByLabelText('Hostel filter')).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button',{name:'Review request #12'}));fireEvent.click(screen.getByRole('button',{name:'Reject'}));
+  fireEvent.click(screen.getByRole('button',{name:'Reject'}));
+  expect(mocks.decide).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button',{name:'Confirm decision'}));expect(mocks.decide).not.toHaveBeenCalled();
   fireEvent.change(screen.getByLabelText('Decision remarks'),{target:{value:'The letter does not cover these dates'}});
   fireEvent.click(screen.getByRole('button',{name:'Confirm decision'}));

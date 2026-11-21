@@ -1,5 +1,4 @@
 .weekly-workspace .ant-alert { margin-bottom: 20px; }
-.weekly-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
 .weekly-field { display: flex; flex-direction: column; gap: 7px; margin: 16px 0; font-size: 14px; font-weight: 500; }
 .weekly-field .ant-input-number { width: 100%; }
 .weekly-toolbar .weekly-field { margin: 0; }
@@ -15,6 +14,6 @@
 .weekly-editor .ant-select { width: 100%; margin-top: 8px; }
 .weekly-settings-table { min-width: 700px; }
 .weekly-settings-table .ant-select { width: 150px; }
-.weekly-tools { margin-top: 24px; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px; }
+.weekly-tools { margin-top: 24px; padding: 16px; border: 1px solid #e2e8f0; border-radius: var(--ui-radius-surface); }
 .weekly-tools summary { cursor: pointer; margin-bottom: 10px; }
 .weekly-permission { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; max-width: 650px; padding: 12px 0; }

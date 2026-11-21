@@ -30,3 +30,29 @@ test('visible hostel scope filters lists, supplies new entries, and never replac
   const invalid = response(); await routes['get /students'](req({ get: key => key === 'X-Workspace-Hostel-Id' ? 'bad' : undefined }), invalid);
   assert.equal(invalid.statusCode, 400);
 });
+
+test('staff workspace keeps the administrator as actor and rejects a mismatched hostel or inventory', async () => {
+  const routes = {};
+  const router = Object.fromEntries(['get', 'post', 'put', 'patch', 'delete'].map(method => [method, (path, ...handlers) => {
+    routes[`${method} ${path}`] = handlers.at(-1);
+  }]));
+  installAdminWorkspace(router, 'mess');
+  router.post('/consumption/single-page', (req, res) => res.json({
+    actor: req.user.userId, role: req.user.role, hostel: req.user.hostel_id, inventory: req.inventory_id,
+  }));
+  const run = async (hostel, body = {}, inventory = 10, requestedInventory) => {
+    const req = {
+      user: { userId: 99, role: 'admin' },
+      staffWorkspace: { id: hostel + 10, role: 'mess', hostel: { id: hostel }, inventory: inventory ? { id: inventory } : null },
+      body, query: {}, params: {}, get: key => key === 'X-Inventory-Id' ? requestedInventory : undefined,
+    };
+    const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(value) { this.body = value; return this; } };
+    await routes['post /consumption/single-page'](req, res);
+    return res;
+  };
+  assert.deepEqual((await run(1)).body, { actor: 99, role: 'admin', hostel: 1, inventory: 10 });
+  assert.deepEqual((await run(2)).body, { actor: 99, role: 'admin', hostel: 2, inventory: 10 });
+  assert.equal((await run(2, { hostel_id: 1 })).statusCode, 403);
+  assert.equal((await run(2, {}, 10, 20)).statusCode, 403);
+  assert.equal((await run(2, {}, null)).statusCode, 409);
+});

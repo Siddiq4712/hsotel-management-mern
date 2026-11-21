@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Alert, Button, Result, Spin } from 'antd';
+import { Button, Result, Spin } from 'antd';
+import Alert from '../components/common/WorkspaceAlert';
 import { useAuth } from './AuthContext';
 import api from '../services/api';
 import { can as allowed, screenById } from '../../../shared/permissions.js';

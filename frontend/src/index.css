@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+@theme inline {
+  --radius-surface: var(--ui-radius-surface);
+  --radius-control: var(--ui-radius-control);
+  --radius-compact: var(--ui-radius-compact);
+  --radius-tag: var(--ui-radius-tag);
+}
+
+.ant-tag.rounded-full {
+  border-radius: var(--ui-radius-pill);
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',

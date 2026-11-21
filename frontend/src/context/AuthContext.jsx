@@ -82,6 +82,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    sessionStorage.removeItem('rememberedAdminStaffId');
+    sessionStorage.removeItem('activeAdminStaffId');
+    sessionStorage.removeItem('activeAdminStaffScope');
+    sessionStorage.removeItem('adminWorkspace');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);

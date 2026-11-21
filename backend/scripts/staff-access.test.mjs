@@ -2,8 +2,10 @@ import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import jwt from 'jsonwebtoken';
-import { User, Role, Hostel } from '../models/index.js';
+import { User, Role, Hostel, Inventory, InventoryHostel } from '../models/index.js';
 import { updateStaffAccess } from '../controllers/staffAccessController.js';
+import { PermissionPolicy } from '../models/permissions.js';
+import { defaultPermissions } from '../../shared/permissions.js';
 import { auth, authorize } from '../middleware/auth.js';
 
 const originals = [User.findByPk, Role.findByPk, Hostel.findByPk];
@@ -55,7 +57,8 @@ test('only admin can access staff settings', () => {
     assert.equal(res.code, 403);
   }
 });
-test('existing tokens use the new hostel and never restore a removed assignment', async () => {
+test('existing tokens use the new hostel and never restore a removed assignment', async t => {
+  t.mock.method(PermissionPolicy, 'findByPk', async () => ({ revision: 1, grants: defaultPermissions() }));
   process.env.JWT_SECRET = 'staff-access-test-only';
   const token = jwt.sign({ userId: 5, role: 'warden', hostelId: 1 }, process.env.JWT_SECRET);
   for (const hostel_id of [2, null]) {
@@ -74,4 +77,35 @@ test('changing a staff role invalidates the old role token', async () => {
   const res = response();
   await auth({ header: () => `Bearer ${token}` }, res, () => assert.fail('Stale role must be rejected'));
   assert.equal(res.code, 401);
+});
+
+test('the staff workspace header resolves the assignment without changing the signed-in actor', async t => {
+  process.env.JWT_SECRET = 'staff-access-test-only';
+  let accountRole = 'admin';
+  let accountActive = true;
+  const account = { userId: 41, userName: 'Mess desk', role: { roleName: 'mess' }, Hostel: { id: 7, name: 'Hostel B' } };
+  t.mock.method(User, 'findByPk', async () => ({ role: { roleName: accountRole }, toJSON: () => ({ userId: 99 }) }));
+  t.mock.method(User, 'findOne', async ({ where }) => {
+    assert.equal(where.status, 'Active');
+    return accountActive && where.userId === 41 ? account : null;
+  });
+  t.mock.method(InventoryHostel, 'findByPk', async id => { assert.equal(id, 7); return { inventory_id: 10 }; });
+  t.mock.method(Inventory, 'findByPk', async id => ({ id, name: 'Central stock' }));
+  const run = async (workspace = 'mess', scope = '7:10') => {
+    const token = jwt.sign({ userId: 99, role: accountRole }, process.env.JWT_SECRET);
+    const headers = { 'X-Staff-Workspace-Id': '41', 'X-Workspace': workspace, 'X-Staff-Workspace-Scope': scope };
+    const req = { header: () => `Bearer ${token}`, get: name => headers[name],
+      originalUrl: '/api/mess/stock', method: 'GET' };
+    const res = response();
+    await auth(req, res, () => res.json({ actor: req.user.userId, role: req.user.role, scope: req.staffWorkspace }));
+    return res;
+  };
+  assert.deepEqual((await run()).body, { actor: 99, role: 'admin', scope: { id: 41, name: 'Mess desk',
+    role: 'mess', hostel: account.Hostel, inventory: { id: 10, name: 'Central stock' } } });
+  assert.equal((await run('warden')).code, 409);
+  assert.equal((await run('mess', '8:10')).code, 409);
+  accountActive = false;
+  assert.equal((await run()).code, 409);
+  accountRole = 'mess';
+  assert.equal((await run()).code, 403);
 });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Card, Typography, Row, Col, Statistic, Button, Space, 
-  Select, Divider, ConfigProvider, theme, Skeleton, 
+  Select, Divider, ConfigProvider, Skeleton,
   Tooltip, Tag, Table, Empty 
 } from 'antd';
 import { 
@@ -18,7 +18,7 @@ const { Title, Text, Paragraph } = Typography;
 
 // --- Specialized Skeleton ---
 const TransactionSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+  <Card className="border-none shadow-sm rounded-surface p-6 bg-white overflow-hidden">
     <div className="space-y-6">
       {[...Array(5)].map((_, i) => (
         <div key={i} className="flex gap-4 items-center border-b border-slate-50 pb-6 last:border-0">
@@ -79,7 +79,7 @@ const TransactionHistory = () => {
       key: 'info',
       render: (_, r) => (
         <Space size={12}>
-          <div className={`p-3 rounded-2xl ${r.transaction_type === 'refund' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+          <div className={`p-3 rounded-control ${r.transaction_type === 'refund' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
             {r.transaction_type === 'refund' ? <ArrowDownLeft size={20} /> : <ArrowUpRight size={20} />}
           </div>
           <Space direction="vertical" size={0}>
@@ -126,7 +126,7 @@ const TransactionHistory = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Header Section */}
@@ -136,7 +136,7 @@ const TransactionHistory = () => {
           className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6"
         >
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100 text-white">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100 text-white">
               <History size={24} />
             </div>
             <div>
@@ -145,14 +145,14 @@ const TransactionHistory = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-[24px] shadow-sm border border-slate-100">
+          <div className="flex flex-wrap items-center gap-3 bg-white p-2 rounded-control shadow-sm border border-slate-100">
             <Button type="text" icon={<ChevronLeft size={18}/>} onClick={() => setSelectedDate(prev => prev.clone().subtract(1, 'month'))} />
             <div className="px-4 text-center min-w-[140px]">
               <Text strong className="text-blue-600 uppercase tracking-widest">{selectedDate.format('MMMM YYYY')}</Text>
             </div>
             <Button type="text" icon={<ChevronRight size={18}/>} onClick={() => setSelectedDate(prev => prev.clone().add(1, 'month'))} />
             <Divider type="vertical" className="h-6" />
-            <Button onClick={() => setSelectedDate(moment())} className="rounded-xl font-bold">Today</Button>
+            <Button onClick={() => setSelectedDate(moment())} className="rounded-control font-bold">Today</Button>
           </div>
         </motion.div>
 
@@ -160,7 +160,7 @@ const TransactionHistory = () => {
         <Row gutter={[24, 24]}>
           <Col xs={24} lg={12}>
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1 }}>
-              <Card className="border-none shadow-sm rounded-[32px] bg-blue-600 overflow-hidden relative">
+              <Card className="border-none shadow-sm rounded-surface bg-blue-600 overflow-hidden relative">
                 <div className="absolute top-0 right-0 p-8 opacity-10">
                    <IndianRupee size={120} className="text-white" />
                 </div>
@@ -179,13 +179,13 @@ const TransactionHistory = () => {
           </Col>
           <Col xs={24} lg={12}>
              <div className="grid grid-cols-2 gap-4 h-full">
-                <Card className="border-none shadow-sm rounded-[24px]">
+                <Card className="border-none shadow-sm rounded-surface">
                   <Text className="text-[10px] uppercase font-bold text-slate-400 block mb-2">Success Rate</Text>
                   <Title level={3} className="m-0">
                     {transactions.length ? Math.round((transactions.filter(t => t.status === 'completed').length / transactions.length) * 100) : 0}%
                   </Title>
                 </Card>
-                <Card className="border-none shadow-sm rounded-[24px]">
+                <Card className="border-none shadow-sm rounded-surface">
                   <Text className="text-[10px] uppercase font-bold text-slate-400 block mb-2">Active Filters</Text>
                   <Tag color="blue" className="rounded-full capitalize m-0">{statusFilter}</Tag>
                 </Card>
@@ -194,9 +194,9 @@ const TransactionHistory = () => {
         </Row>
 
         {/* Filter Bar */}
-        <Card className="border-none shadow-sm rounded-[24px]">
+        <Card className="border-none shadow-sm rounded-surface">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-3 bg-slate-50 p-1 px-4 rounded-xl border border-slate-100 w-full max-w-md">
+            <div className="flex items-center gap-3 bg-slate-50 p-1 px-4 rounded-control border border-slate-100 w-full max-w-md">
               <Search size={18} className="text-slate-300" />
               <Select 
                 value={statusFilter} 
@@ -214,7 +214,7 @@ const TransactionHistory = () => {
             <Button 
               icon={<RefreshCw size={16} className={loading ? 'animate-spin' : ''}/>} 
               onClick={fetchTransactions}
-              className="rounded-xl h-11 px-6 font-bold flex items-center gap-2"
+              className="rounded-control h-11 px-6 font-bold flex items-center gap-2"
             >
               Sync Ledger
             </Button>
@@ -232,7 +232,7 @@ const TransactionHistory = () => {
               key="empty"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="py-24 flex flex-col items-center justify-center bg-white rounded-[40px] border border-dashed border-slate-200"
+              className="py-24 flex flex-col items-center justify-center bg-white rounded-surface border border-dashed border-slate-200"
             >
               <div className="relative mb-8">
                 <motion.div 
@@ -240,12 +240,12 @@ const TransactionHistory = () => {
                   transition={{ duration: 4, repeat: Infinity }}
                   className="absolute inset-0 -m-8 rounded-full bg-blue-50/50" 
                 />
-                <div className="relative bg-white p-8 rounded-[32px] shadow-xl shadow-slate-200/50 border border-slate-100">
+                <div className="relative bg-white p-8 rounded-surface shadow-xl shadow-slate-200/50 border border-slate-100">
                   <Receipt size={64} className="text-slate-200" strokeWidth={1.5} />
                   <motion.div 
                     animate={{ y: [0, -10, 0] }}
                     transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                    className="absolute -top-2 -right-2 p-3 bg-blue-600 rounded-2xl shadow-lg text-white"
+                    className="absolute -top-2 -right-2 p-3 bg-blue-600 rounded-control shadow-lg text-white"
                   >
                     <Search size={20} />
                   </motion.div>
@@ -264,7 +264,7 @@ const TransactionHistory = () => {
               key="table"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-hidden"
+              className="bg-white rounded-surface shadow-sm border border-slate-100 overflow-hidden"
             >
               <Table 
                 columns={columns} 

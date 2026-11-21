@@ -103,7 +103,7 @@ const FacilityUsage = () => {
       </div>
 
       {message.text && (
-        <div className={`mb-4 p-3 rounded-lg flex items-center ${
+        <div className={`mb-4 p-3 rounded-control flex items-center ${
           message.type === 'success' 
             ? 'bg-green-100 border border-green-400 text-green-700' 
             : 'bg-red-100 border border-red-400 text-red-700'
@@ -122,10 +122,10 @@ const FacilityUsage = () => {
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Available Facilities</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {facilities.map((facility) => (
-            <div key={facility.id} className="bg-white rounded-lg shadow-md p-6">
+            <div key={facility.id} className="bg-white rounded-control shadow-md p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center">
-                  <div className="bg-blue-100 p-3 rounded-lg">
+                  <div className="bg-blue-100 p-3 rounded-control">
                     <Wifi className="text-blue-600" size={24} />
                   </div>
                   <div className="ml-3">
@@ -158,13 +158,13 @@ const FacilityUsage = () => {
               {facility.status === 'active' ? (
                 <PermissionNativeButton permissionAction="create"
                   onClick={() => handleUseFacility(facility)}
-                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                  className="w-full bg-blue-600 text-white py-2 px-4 rounded-control hover:bg-blue-700 transition-colors flex items-center justify-center"
                 >
                                     <Plus size={16} className="mr-2" />
                   Use Facility
                 </PermissionNativeButton>
               ) : (
-                <div className="w-full bg-gray-300 text-gray-600 py-2 px-4 rounded-lg text-center">
+                <div className="w-full bg-gray-300 text-gray-600 py-2 px-4 rounded-control text-center">
                   {facility.status === 'maintenance' ? 'Under Maintenance' : 'Not Available'}
                 </div>
               )}
@@ -173,7 +173,7 @@ const FacilityUsage = () => {
         </div>
 
         {facilities.length === 0 && (
-          <div className="text-center py-12 bg-white rounded-lg shadow-md">
+          <div className="text-center py-12 bg-white rounded-control shadow-md">
             <Wifi className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900">No facilities available</h3>
             <p className="mt-1 text-sm text-gray-500">
@@ -184,7 +184,7 @@ const FacilityUsage = () => {
       </div>
 
       {/* Usage History */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+      <div className="bg-white shadow-md rounded-control overflow-hidden">
         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
           <div className="flex items-center">
             <Clock className="text-gray-400 mr-2" size={20} />
@@ -270,13 +270,13 @@ const FacilityUsage = () => {
       {/* Use Facility Modal */}
       {showUseModal && selectedFacility && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-control bg-white">
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 Use {selectedFacility.name}
               </h3>
               
-              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <div className="mb-4 p-3 bg-gray-50 rounded-control">
                 <p className="text-sm text-gray-600">
                   <strong>Facility Type:</strong> {selectedFacility.HostelFacilityType?.name}
                 </p>
@@ -299,7 +299,7 @@ const FacilityUsage = () => {
                       ...usageForm,
                       duration_minutes: e.target.value
                     })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     min="1"
                     required
                   />
@@ -321,7 +321,7 @@ const FacilityUsage = () => {
                       remarks: e.target.value
                     })}
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Any additional notes..."
                   />
                 </div>
@@ -329,7 +329,7 @@ const FacilityUsage = () => {
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
+                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-control hover:bg-blue-700 transition-colors"
                   >
                     Record Usage
                   </button>
@@ -340,7 +340,7 @@ const FacilityUsage = () => {
                       setSelectedFacility(null);
                       setUsageForm({ duration_minutes: '', remarks: '' });
                     }}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
+                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-control hover:bg-gray-400 transition-colors"
                   >
                     Cancel
                   </button>

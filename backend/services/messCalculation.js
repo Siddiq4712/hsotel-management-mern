@@ -1,8 +1,9 @@
 import { Op } from 'sequelize';
 import { DailyConsumption, MessDailyExpense, ExpenseType, AdditionalIncome, IncomeType, FoodOrder, MessBillingSnapshot, MessBill, DailyRateLog } from '../models/index.js';
 import { getBillingDays, billingMonth } from './billingDays.js';
-import { hostelPolicy } from './inventoryBilling.js';
+import { hostelPolicy, policyError } from './inventoryBilling.js';
 import { sharedHistoricalCalculation } from './sharedHistoricalBilling.js';
+import { historicalMonthlyRate } from './historicalMonthlyRate.js';
 
 // Every open-month report, rate, and bill uses these exact costs and approval-backed days.
 async function getHostelCalculation(hostelId, month, year, transaction) {
@@ -54,6 +55,8 @@ async function getHostelCalculation(hostelId, month, year, transaction) {
 }
 
 export async function getMessCalculation(hostelId, month, year, transaction) {
+  const monthly = await historicalMonthlyRate(hostelId, month, year, transaction);
+  if (monthly) return monthly;
   const policy = await hostelPolicy(hostelId, billingMonth(month, year).start, transaction);
   const historical = await sharedHistoricalCalculation(policy, hostelId, month, year, transaction);
   if (historical) return historical;
@@ -93,6 +96,10 @@ export async function getMessCalculation(hostelId, month, year, transaction) {
     waterRate: own.waterRate + (totalBaseDays ? poolWater / totalBaseDays : 0),
     sharedSummary: { inventoryId: policy.inventory_id, hostelIds: policy.hostel_ids, totalManDays, totalBaseDays, grossExpenses: subTotal, deductions: totalDeductions,
       foodExpenses, waterTotal, dailyRate: totalManDays > 0 ? foodExpenses / totalManDays : 0 } };
+}
+
+export function assertBillingDetails(calculation, message) {
+  if (calculation.rateOnly) throw policyError(message);
 }
 
 export function studentWaterCharge(calculation, days, fees = []) {

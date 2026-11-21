@@ -31,7 +31,7 @@ const SummaryCard = ({ label, value, type = 'info', icon }) => {
   return (
     <div
       style={{ backgroundColor: cfg.bg, borderColor: cfg.border, color: cfg.color }}
-      className="flex items-center gap-3 px-3 py-2.5 rounded-xl border"
+      className="flex items-center gap-3 px-3 py-2.5 rounded-surface border"
     >
       <span className="text-base leading-none shrink-0">{emoji}</span>
       <div className="flex-1 min-w-0">

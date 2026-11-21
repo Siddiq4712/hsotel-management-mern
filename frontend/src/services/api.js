@@ -22,20 +22,25 @@ export const menuPlanningAPI = {
 
 // Request interceptor to add token
 api.interceptors.request.use(async (config) => {
+  const workspace = sessionStorage.getItem('adminWorkspace');
+  const staffId = sessionStorage.getItem('activeAdminStaffId');
+  const staffScope = sessionStorage.getItem('activeAdminStaffScope');
   if (config.responseType === 'blob' && /\/mess\/.*(report|export)/i.test(config.url || '') && !config.reportFormatConfirmed) {
     const format = await requestReportFormat({ title: 'Choose export format', formats: ['xlsx'] });
     if (!format) throw new axios.CanceledError('Report generation cancelled.');
     config.reportFormatConfirmed = true;
   }
-  const token = localStorage.getItem('token');
-  const workspace = localStorage.getItem('adminWorkspace');
-  if (['admin', 'warden', 'mess'].includes(workspace)) config.headers['X-Workspace'] = workspace;
-  const wardenHostel = sessionStorage.getItem('selectedWardenHostelId');
-  if (workspace === 'warden' && wardenHostel && (config.url?.startsWith('/warden/') || config.url?.startsWith('/outpass/warden')) && !config.headers['X-Workspace-Hostel-Id']) {
-    config.headers['X-Workspace-Hostel-Id'] = wardenHostel;
+  if (workspace !== sessionStorage.getItem('adminWorkspace') || staffId !== sessionStorage.getItem('activeAdminStaffId')
+      || staffScope !== sessionStorage.getItem('activeAdminStaffScope')) {
+    throw new axios.CanceledError('Workspace changed. Run the action again in the current workspace.');
   }
-  const inventoryId = sessionStorage.getItem('selectedInventoryId');
-  if (inventoryId && config.url?.startsWith('/mess/') && !config.headers['X-Inventory-Id']) config.headers['X-Inventory-Id'] = inventoryId;
+  const token = localStorage.getItem('token');
+  if (['admin', 'warden', 'mess'].includes(workspace)) config.headers['X-Workspace'] = workspace;
+  if (staffId && /^(warden|mess)$/.test(workspace)
+      && /^\/(warden|mess|menu-planning|inventories)(?:\/|$)|^\/outpass\/(warden|approve|reject)(?:\/|$)/.test(config.url || '')) {
+    config.headers['X-Staff-Workspace-Id'] = staffId;
+    if (staffScope) config.headers['X-Staff-Workspace-Scope'] = staffScope;
+  }
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -56,9 +61,18 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 409 && error.response?.data?.code === 'HOSTEL_REQUIRED' && !error.config?.entryHostelRetry) {
+      const headers = error.config.headers;
+      if (headers.get('X-Staff-Workspace-Id')) throw new Error('The selected staff workspace could not resolve this entry.');
       const hostelId = await requestEntryHostel(error.response.data.hostels);
+      if (sessionStorage.getItem('activeAdminStaffId') || (headers.get('X-Workspace') ?? null) !== sessionStorage.getItem('adminWorkspace')) {
+        throw new axios.CanceledError('Workspace changed. Run the action again in the current workspace.');
+      }
       return api.request({ ...error.config, entryHostelRetry: true,
         headers: { ...error.config.headers, 'X-Entry-Hostel-Id': hostelId } });
+    }
+    if (error.response?.data?.code === 'STAFF_WORKSPACE_UNAVAILABLE'
+        && error.config?.headers.get('X-Staff-Workspace-Id') === sessionStorage.getItem('activeAdminStaffId')) {
+      window.dispatchEvent(new Event('staff-workspaces-changed'));
     }
     if (error.response?.data?.code === 'SCREEN_PERMISSION_DENIED') window.dispatchEvent(new Event('permissions-changed'));
     const status = error.response?.status;
@@ -66,6 +80,7 @@ api.interceptors.response.use(
     const requestUrl = String(error.config?.url || '');
     const isLoginCall = requestUrl.includes('/auth/login');
     const isTokenProblem =
+      error.response?.data?.code === 'ACCOUNT_INACTIVE' ||
       backendMessage.includes('token') ||
       backendMessage.includes('unauthorized') ||
       backendMessage.includes('jwt') ||
@@ -107,6 +122,7 @@ export const authAPI = {
 
 // Admin API - Complete CRUD operations
 export const adminAPI = {
+  getStaffWorkspaces: () => api.get('/admin/staff-workspaces'),
   getStaffAccess: () => api.get('/admin/staff-access'),
   updateStaffAccess: (id, data) => api.put(`/admin/staff-access/${id}`, data),
   getActivities: (params) => api.get('/admin/activities', {params}),
@@ -231,6 +247,7 @@ export const wardenAPI = {
   enrollStudent: (data) => api.post('/warden/students', data),
   getStudents: (params) => api.get('/warden/students', { params }),
   getStudentSummary: (studentId) => api.get(`/warden/students/${studentId}/summary`),
+  getStudentProfileRecords: (studentId, { signal } = {}) => api.get(`/warden/students/${studentId}/profile-records`, { signal }),
   bulkEnrollStudents: (data) => api.post('/warden/students/bulk-import', data),
 
   // EMI and Fee Management
@@ -263,6 +280,7 @@ export const wardenAPI = {
   markAttendance: (data) => api.post('/warden/attendance', data),
   bulkMarkAttendance: (data) => api.post('/warden/attendance/bulk', data),
   getAttendanceRoster: () => api.get('/warden/attendance/roster'),
+  getStudentMonthlyAttendance: (studentId, { signal } = {}) => api.get(`/warden/students/${studentId}/monthly-attendance`, { signal }),
   getAttendance: (params) => api.get('/warden/attendance', { params }),
   updateAttendance: (id, data) => api.put(`/warden/attendance/${id}`, data),
 
@@ -575,6 +593,10 @@ export const outpassAPI = {
   getWardenOutpasses: (params) => api.get('/outpass/warden', { params }),
   approveOutpass: (id, remarks) => api.put(`/outpass/approve/${id}`, { remarks }),
   rejectOutpass: (id, remarks) => api.put(`/outpass/reject/${id}`, { remarks }),
+  scanOutpassQR: (qrToken) => api.post('/outpass/scan', { qrToken }),
+  getTodayGateActivity: () => api.get('/outpass/today-activity'),
+  getStudentsCurrentlyOutside: () => api.get('/outpass/outside'),
+  getRecentScans: () => api.get('/outpass/recent-scans'),
   getAllOutpasses: (params) => api.get('/outpass/admin/all', { params }),
   toggleParentApproval: (data) => api.post('/outpass/admin/toggle-approval', data)
 };

@@ -1,7 +1,7 @@
 import { Op } from 'sequelize';
 import { Attendance, GPSAttendance, StudentFee, MessBill, FoodOrder } from '../models/index.js';
 import moment from 'moment';
-import { getMessCalculation } from './messCalculation.js';
+import { assertBillingDetails, getMessCalculation } from './messCalculation.js';
 import { getHistoricalBilling } from '../utils/historicalBilling.js';
 
 export async function studentMessCharges(user, month, year) {
@@ -26,6 +26,7 @@ export async function studentMessCharges(user, month, year) {
     monthlyCalculatedDailyRate:0,studentTotalManDaysForMonth:0,baseDays:null,approvedReductionDays:null,
     historicalFinalAmount:Number(bill.amount),flatFees:[],message:'Existing finalized bill preserved; daily breakdown is not reconstructed.' } };
   const calculation = await getMessCalculation(user.hostel_id, month, year);
+  assertBillingDetails(calculation, 'Historical monthly attendance is available, but student charges require reconciliation. A daily charge breakdown cannot be derived from monthly totals.');
   const { billing } = calculation;
   const [attendance, gps, fees] = await Promise.all([
     Attendance.findAll({ where: { student_id: user.userId, hostel_id: user.hostel_id, is_monthly: false, date: { [Op.between]: [billing.start, billing.end] } }, raw: true }),

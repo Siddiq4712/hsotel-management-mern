@@ -1,7 +1,7 @@
 import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Table, Space, Tag, Typography, Timeline, Badge, Modal, message, ConfigProvider, theme, Skeleton, Descriptions, Divider, Empty, Tooltip } from 'antd';
+import { Card, Table, Space, Tag, Typography, Timeline, Badge, Modal, message, ConfigProvider, Skeleton, Descriptions, Divider, Empty, Tooltip } from 'antd';
 import { 
   Eye, XCircle, Search, RefreshCw, ClipboardList, 
   History, ShoppingBag, Clock, CheckCircle2, Truck, 
@@ -15,7 +15,7 @@ const { Title, Text, Paragraph } = Typography;
 const OrderSkeleton = () => (
   <div className="module-page p-8 space-y-6 bg-slate-50 min-h-screen">
     <Skeleton.Input active style={{ width: 300 }} />
-    <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white">
+    <Card className="border-none shadow-sm rounded-surface p-6 bg-white">
       <Skeleton active paragraph={{ rows: 10 }} />
     </Card>
   </div>
@@ -63,7 +63,7 @@ const MyFoodOrders = () => {
       okText: 'Yes, Void Request',
       okType: 'danger',
       cancelText: 'Back',
-      className: 'rounded-3xl',
+      className: 'rounded-surface',
       onOk: async () => {
         try {
           const response = await studentAPI.cancelFoodOrder(id);
@@ -127,7 +127,7 @@ const MyFoodOrders = () => {
         <Space>
           <Button 
             icon={<Eye size={14}/>} 
-            className="rounded-lg border-none shadow-sm bg-slate-50 hover:bg-blue-50 transition-colors"
+            className="rounded-control border-none shadow-sm bg-slate-50 hover:bg-blue-50 transition-colors"
             onClick={() => { setSelectedOrder(r); setViewModalVisible(true); }}
           />
           {r.status === 'pending' && (
@@ -148,13 +148,13 @@ const MyFoodOrders = () => {
   if (loading) return <OrderSkeleton />;
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Institutional Header */}
         <div className="module-page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100">
               <ClipboardList className="text-white" size={24} />
             </div>
             <div>
@@ -163,7 +163,7 @@ const MyFoodOrders = () => {
             </div>
           </div>
           <Badge count={orders.filter(o => !['delivered', 'cancelled'].includes(o.status)).length} overflowCount={99}>
-             <div className="bg-white p-3 px-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
+             <div className="bg-white p-3 px-5 rounded-surface shadow-sm border border-slate-100 flex items-center gap-3">
                 <Clock size={16} className="text-blue-600" />
                 <Text strong className="text-[11px] uppercase tracking-wider text-slate-500">Live Requests</Text>
              </div>
@@ -171,9 +171,9 @@ const MyFoodOrders = () => {
         </div>
 
         {/* Filter Toolbar */}
-        <Card className="border-none shadow-sm rounded-[24px]">
+        <Card className="border-none shadow-sm rounded-surface">
           <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-3 bg-slate-50 p-1 px-3 rounded-xl border border-slate-100 flex-1 md:max-w-md focus-within:border-blue-300 transition-all">
+            <div className="flex items-center gap-3 bg-slate-50 p-1 px-3 rounded-control border border-slate-100 flex-1 md:max-w-md focus-within:border-blue-300 transition-all">
               <Search size={18} className="text-slate-300" />
               <DatePicker.RangePicker 
                 value={dateRange} 
@@ -186,20 +186,20 @@ const MyFoodOrders = () => {
               type="primary" 
               icon={<Search size={16}/>} 
               onClick={fetchOrders} 
-              className="rounded-xl h-12 px-8 font-bold shadow-lg shadow-blue-100"
+              className="rounded-control h-12 px-8 font-bold shadow-lg shadow-blue-100"
             >
               Apply Filter
             </Button>
             <Button 
               icon={<RefreshCw size={16}/>} 
               onClick={() => { setDateRange(null); setCurrentPage(1); fetchOrders(); }}
-              className="rounded-xl h-12 w-12 flex items-center justify-center border-slate-200"
+              className="rounded-control h-12 w-12 flex items-center justify-center border-slate-200"
             />
           </div>
         </Card>
 
         {/* Data Container */}
-        <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+        <Card className="border-none shadow-sm rounded-surface overflow-hidden" bodyStyle={{ padding: 0 }}>
           {orders.length > 0 ? (
             <Table 
               dataSource={orders} 
@@ -242,13 +242,13 @@ const MyFoodOrders = () => {
           title={<div className="flex items-center gap-2 text-blue-600"><ClipboardList size={20}/> Additional Food Details</div>}
           open={viewModalVisible}
           onCancel={() => setViewModalVisible(false)}
-          footer={<Button type="primary" onClick={() => setViewModalVisible(false)} className="rounded-xl h-11 px-8">Close Dossier</Button>}
+          footer={<Button type="primary" onClick={() => setViewModalVisible(false)} className="rounded-control h-11 px-8">Close Dossier</Button>}
           width={800}
-          className="rounded-[32px]"
+          className="rounded-surface"
         >
           {selectedOrder && (
             <div className="mt-6 space-y-6">
-              <Descriptions bordered column={2} className="bg-slate-50/50 rounded-2xl overflow-hidden">
+              <Descriptions bordered column={2} className="bg-slate-50/50 rounded-surface overflow-hidden">
                 <Descriptions.Item label="Ref ID">REC-#{selectedOrder.id}</Descriptions.Item>
                 <Descriptions.Item label="Serving Status">
                    {statusMap[selectedOrder.status]?.label}
@@ -262,7 +262,7 @@ const MyFoodOrders = () => {
                 rowKey="id"
                 pagination={false}
                 size="small"
-                className="border border-slate-100 rounded-xl overflow-hidden"
+                className="border border-slate-100 rounded-surface overflow-hidden"
                 columns={[
                   { title: 'Item', dataIndex: ['SpecialFoodItem', 'name'] },
                   { title: 'Qty', dataIndex: 'quantity', align: 'center' },

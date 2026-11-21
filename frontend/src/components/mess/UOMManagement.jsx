@@ -1,338 +1,113 @@
-import { PermissionNativeButton } from '../common/PermissionControls';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  Table, Button, Space, message, Modal, Form, Input,
-  Select, Typography, Tag, ConfigProvider, theme, Skeleton, Divider
-} from 'antd';
-import {
-  Ruler, Plus, Search, Edit2, Info, 
-  Scale, Filter, RefreshCw, Box, Layers, Weight, Droplets, Hash
-} from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { App, Button, Card, Form, Input, Select, Table, Tag } from 'antd';
+import { Pencil, Plus, RefreshCw, Ruler, Search } from 'lucide-react';
 import { messAPI } from '../../services/api';
+import WorkspaceAlert from '../common/WorkspaceAlert';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
+import WorkspaceToolbar from '../common/WorkspaceToolbar';
+import { PermissionButton, PermissionModal } from '../common/PermissionControls';
 
-const { Option } = Select;
-const { Title, Text } = Typography;
+const types = [
+  { value: 'weight', label: 'Weight' },
+  { value: 'volume', label: 'Volume' },
+  { value: 'length', label: 'Length' },
+  { value: 'count', label: 'Count' },
+  { value: 'other', label: 'Other' },
+];
 
-/* ─── Design Tokens ─────────────────────────────────────────────── */
-const T = {
-  bg:        '#F7F8FA',
-  surface:   '#FFFFFF',
-  border:    '#E8EAED',
-  borderHov: '#C8CDD5',
-  ink:       '#141820',
-  inkMid:    '#4B5263',
-  inkSoft:   '#8B92A5',
-  accent:    '#2563eb',
-  accentBg:  '#EBF2FF',
-  danger:    '#DC2626',
-  dangerBg:  '#FEF2F2',
-  success:   '#16A34A',
-  successBg: '#F0FDF4',
-  radius:    '24px',
-  shadow:    '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
-};
-
-const typeConfig = {
-  weight: { label: 'Weight', color: '#1E40AF', bg: '#EFF6FF', dot: '#3B82F6' },
-  volume: { label: 'Volume', color: '#065F46', bg: '#ECFDF5', dot: '#10B981' },
-  length: { label: 'Length', color: '#5B21B6', bg: '#F5F3FF', dot: '#8B5CF6' },
-  count:  { label: 'Count',  color: '#92400E', bg: '#FFFBEB', dot: '#F59E0B' },
-  other:  { label: 'Other',  color: '#374151', bg: '#F3F4F6', dot: '#9CA3AF' },
-};
-
-/* ─── Sub-components ─────────────────────────────────────────────── */
-const TypeBadge = ({ type }) => {
-  const cfg = typeConfig[type] || typeConfig.other;
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6,
-      padding: '3px 10px', borderRadius: 20,
-      backgroundColor: cfg.bg, color: cfg.color,
-      fontSize: 11, fontWeight: 700, letterSpacing: '0.02em',
-    }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot }} />
-      {cfg.label.toUpperCase()}
-    </span>
-  );
-};
-
-const StatCard = ({ label, value, icon: Icon, accent }) => (
-  <div style={{
-    background: T.surface, border: `1px solid ${T.border}`,
-    borderRadius: T.radius, padding: '20px 24px',
-    display: 'flex', alignItems: 'center', gap: 16, boxShadow: T.shadow,
-  }}>
-    <div style={{
-      width: 44, height: 44, borderRadius: 10,
-      background: accent ? T.accentBg : T.bg,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      <Icon size={20} color={accent ? T.accent : T.inkSoft} />
-    </div>
-    <div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: T.ink, lineHeight: 1.2 }}>{value}</div>
-      <div style={{ fontSize: 12, color: T.inkSoft, marginTop: 2, fontWeight: 600 }}>{label.toUpperCase()}</div>
-    </div>
-  </div>
-);
-
-const FieldLabel = ({ children }) => (
-  <div style={{ fontSize: 12, fontWeight: 600, color: T.inkMid, marginBottom: 6, letterSpacing: '0.04em' }}>
-    {children}
-  </div>
-);
-
-const ActionBtn = ({ icon, children, onClick, variant }) => {
-  const styles = {
-    danger:  { bg: T.dangerBg, color: T.danger, border: 'transparent', hover: '#FEE2E2' },
-    default: { bg: T.surface, color: T.inkMid, border: T.border, hover: T.bg },
-  };
-  const s = styles[variant] || styles.default;
-
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 5,
-        padding: children ? '6px 12px' : '7px',
-        borderRadius: 8, border: `1px solid ${s.border}`,
-        background: s.bg, color: s.color,
-        fontSize: 12, fontWeight: 600, cursor: 'pointer',
-        transition: 'all 0.15s',
-      }}
-      onMouseEnter={e => e.currentTarget.style.background = s.hover}
-      onMouseLeave={e => e.currentTarget.style.background = s.bg}
-    >
-      {icon}{children}
-    </button>
-  );
-};
-
-/* ─── Main Component ─────────────────────────────────────────────── */
-const UOMManagement = () => {
-  const [uoms, setUOMs] = useState([]);
+export default function UOMManagement() {
+  const { message } = App.useApp();
+  const [units, setUnits] = useState([]);
+  const [type, setType] = useState();
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingUOM, setEditingUOM] = useState(null);
+  const [error, setError] = useState('');
+  const loadRevision = useRef(0);
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [form] = Form.useForm();
-  const [confirmLoading, setConfirmLoading] = useState(false);
-  const [searchText, setSearchText] = useState('');
-  const [selectedType, setSelectedType] = useState('all');
 
-  const fetchUOMs = useCallback(async () => {
+  const load = useCallback(async () => {
+    const revision = ++loadRevision.current;
     setLoading(true);
+    setError('');
     try {
-      const params = {};
-      if (selectedType !== 'all') params.type = selectedType;
-      const response = await messAPI.getUOMs(params);
-      setUOMs(response.data.data || []);
-    } catch (error) {
-      message.error('Failed to sync units');
+      const response = await messAPI.getUOMs(type ? { type } : {});
+      if (revision === loadRevision.current) setUnits(response.data.data || []);
+    } catch (failure) {
+      if (revision === loadRevision.current) setError(failure.message || 'Unable to load units.');
     } finally {
-      setLoading(false);
+      if (revision === loadRevision.current) setLoading(false);
     }
-  }, [selectedType]);
+  }, [type]);
 
-  useEffect(() => {
-    fetchUOMs();
-    const link = document.createElement('link');
-    link.href = 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap';
-    link.rel = 'stylesheet';
-    document.head.appendChild(link);
-  }, [fetchUOMs]);
+  useEffect(() => { load(); }, [load]);
 
-  const handleSubmit = async (values) => {
-    setConfirmLoading(true);
+  const open = (unit = {}) => {
+    form.resetFields();
+    form.setFieldsValue(unit);
+    setEditing(unit);
+  };
+
+  const save = async (values) => {
+    setSaving(true);
     try {
-      if (editingUOM) {
-        await messAPI.updateUOM(editingUOM.id, values);
-        message.success('Unit updated');
-      } else {
-        await messAPI.createUOM(values);
-        message.success('New unit registered');
-      }
-      setModalVisible(false);
-      fetchUOMs();
-    } catch (error) {
-      message.error('Operation failed');
+      if (editing.id) await messAPI.updateUOM(editing.id, values);
+      else await messAPI.createUOM(values);
+      message.success(editing.id ? 'Unit updated.' : 'Unit added.');
+      setEditing(null);
+      await load();
+    } catch (failure) {
+      message.error(failure.message || 'Unable to save the unit.');
     } finally {
-      setConfirmLoading(false);
+      setSaving(false);
     }
   };
 
-  const stats = useMemo(() => {
-    return {
-      total: uoms.length,
-      weight: uoms.filter(u => u.type === 'weight').length,
-      volume: uoms.filter(u => u.type === 'volume').length,
-      others: uoms.filter(u => !['weight', 'volume'].includes(u.type)).length,
-    };
-  }, [uoms]);
-
+  const query = search.trim().toLowerCase();
+  const visibleUnits = units.filter(unit =>
+    [unit.name, unit.abbreviation].some(value => String(value ?? '').toLowerCase().includes(query)));
   const columns = [
-    {
-      title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>UNIT NAME</span>,
-      dataIndex: 'name',
-      render: (t) => <span style={{ fontWeight: 600, color: T.ink }}>{t}</span>
-    },
-    {
-      title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>ABBREVIATION</span>,
-      dataIndex: 'abbreviation',
-      render: (text) => <span style={{ fontFamily: 'DM Mono', background: T.bg, padding: '2px 8px', borderRadius: 4, fontWeight: 600, color: T.accent }}>{text}</span>
-    },
-    {
-      title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>MEASUREMENT TYPE</span>,
-      dataIndex: 'type',
-      render: (type) => <TypeBadge type={type} />,
-    },
-    {
-      title: '',
-      align: 'right',
-      render: (_, record) => (
-        <Space>
-          <ActionBtn icon={<Edit2 size={13}/>} onClick={() => { setEditingUOM(record); form.setFieldsValue(record); setModalVisible(true); }}>Edit</ActionBtn>
-        </Space>
-      ),
-    },
+    { title: 'Unit name', dataIndex: 'name' },
+    { title: 'Abbreviation', dataIndex: 'abbreviation', render: value => <Tag>{value}</Tag> },
+    { title: 'Measurement type', dataIndex: 'type', render: value => types.find(option => option.value === value)?.label || value },
+    { title: 'Actions', key: 'actions', align: 'center', width: 110, render: (_, unit) => (
+      <PermissionButton permissionAction="edit" icon={<Pencil size={14} />} aria-label={`Edit ${unit.name}`} disabled={loading || Boolean(error)} onClick={() => open(unit)}>Edit</PermissionButton>
+    ) },
   ];
 
-  return (
-    <ConfigProvider theme={{ token: { colorPrimary: T.accent, borderRadius: 12 } }}>
-      <style>{`
-        .pm-table .ant-table-thead > tr > th { background: #F7F8FA !important; border-bottom: 1px solid ${T.border} !important; padding: 12px 16px !important; }
-        .pm-table .ant-table-tbody > tr > td { padding: 14px 16px !important; border-bottom: 1px solid ${T.border} !important; }
-        .pm-form-input .ant-input, .pm-form-input .ant-select-selector { border-radius: 12px !important; }
-        .pm-modal .ant-modal-content { border-radius: 24px; overflow: hidden; }
-      `}</style>
-
-      <div className="module-page">
-        
-        {/* Header */}
-        <div className="module-page-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Ruler size={20} color={T.accent} />
-            </div>
-            <div>
-              <h1 className="module-title">Measurement Master</h1>
-              <div className="module-subtitle">Standardize units for raw materials and inventory</div>
-            </div>
-          </div>
-          <PermissionNativeButton permissionAction="create"
-            onClick={() => { setEditingUOM(null); form.resetFields(); setModalVisible(true); }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8, background: T.accent, color: '#fff',
-              border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600,
-              cursor: 'pointer', boxShadow: `0 2px 8px rgba(26,86,219,0.3)`
-            }}
-          >
-            <Plus size={16} /> Add New Unit
-          </PermissionNativeButton>
+  return <section className="module-page" aria-labelledby="units-title">
+    <WorkspacePageHeader id="units-title" title="Units of Measure" icon={Ruler} description="Manage the units used for inventory and ingredients." />
+    <Card>
+      <WorkspaceToolbar className="mb-4">
+        <Input aria-label="Search units" className="workspace-search" prefix={<Search size={16} aria-hidden="true" />}
+          placeholder="Search by name or abbreviation" allowClear value={search} onChange={event => setSearch(event.target.value)} />
+        <Select aria-label="Measurement type filter" className="workspace-toolbar-filter" placeholder="All types"
+          options={types} allowClear value={type} onChange={setType} />
+        <div className="workspace-toolbar-actions">
+          <Button icon={<RefreshCw size={16} />} loading={loading} onClick={load}>Refresh</Button>
+          <PermissionButton permissionAction="create" type="primary" icon={<Plus size={16} />} onClick={() => open()}>Add New Unit</PermissionButton>
         </div>
-
-        <div className="space-y-6">
-          
-          {/* Stats Row */}
-          <div className="module-stat-grid">
-            <StatCard label="Total Units" value={stats.total} icon={Layers} accent />
-            <StatCard label="Weight Metrics" value={stats.weight} icon={Weight} />
-            <StatCard label="Volume Metrics" value={stats.volume} icon={Droplets} />
-            <StatCard label="Other / Count" value={stats.others} icon={Hash} />
-          </div>
-
-          {/* Filters Bar */}
-          <div style={{
-            background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius,
-            padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            marginBottom: 16, boxShadow: T.shadow
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: '6px 12px', width: 300 }}>
-                <Search size={14} color={T.inkSoft} />
-                <input
-                  placeholder="Search units..."
-                  value={searchText}
-                  onChange={e => setSearchText(e.target.value)}
-                  style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: T.ink, width: '100%' }}
-                />
-              </div>
-              <Divider type="vertical" style={{ height: 24 }} />
-              <div style={{ display: 'flex', gap: 6 }}>
-                {['all', ...Object.keys(typeConfig)].map(type => (
-                  <button
-                    key={type}
-                    onClick={() => setSelectedType(type)}
-                    style={{
-                      padding: '4px 12px', borderRadius: 6, border: '1px solid',
-                      borderColor: selectedType === type ? T.accent : T.border,
-                      background: selectedType === type ? T.accentBg : 'transparent',
-                      color: selectedType === type ? T.accent : T.inkMid,
-                      fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.1s'
-                    }}
-                  >
-                    {type === 'all' ? 'All' : typeConfig[type].label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            <ActionBtn icon={<RefreshCw size={14}/>} onClick={fetchUOMs}>Sync</ActionBtn>
-          </div>
-
-          {/* Table Container */}
-          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: 'hidden', boxShadow: T.shadow }}>
-            <Table
-              className="pm-table"
-              columns={columns}
-              dataSource={uoms.filter(u => 
-                u.name.toLowerCase().includes(searchText.toLowerCase()) || 
-                u.abbreviation.toLowerCase().includes(searchText.toLowerCase())
-              )}
-              rowKey="id"
-              loading={loading}
-              pagination={{ pageSize: 10, size: 'small' }}
-            />
-          </div>
-        </div>
-
-        {/* Create/Edit Modal */}
-        <Modal
-          className="pm-modal"
-          title={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Plus size={15} color={T.accent} />
-              </div>
-              <span style={{ fontSize: 15, fontWeight: 700 }}>{editingUOM ? 'Update Unit' : 'Configure New Unit'}</span>
-            </div>
-          }
-          open={modalVisible}
-          onCancel={() => setModalVisible(false)}
-          onOk={() => form.submit()}
-          confirmLoading={confirmLoading}
-          width={450}
-        >
-          <Form form={form} layout="vertical" onFinish={handleSubmit} className="pm-form-input" style={{ marginTop: 12 }}>
-            <Form.Item name="name" label={<FieldLabel>Unit Full Name</FieldLabel>} rules={[{ required: true }]}>
-              <Input placeholder="e.g., Kilogram" />
-            </Form.Item>
-
-            <Form.Item name="abbreviation" label={<FieldLabel>Symbol / Short Form</FieldLabel>} rules={[{ required: true }]}>
-              <Input placeholder="e.g., kg" />
-            </Form.Item>
-
-            <Form.Item name="type" label={<FieldLabel>Measurement Category</FieldLabel>} rules={[{ required: true }]}>
-              <Select placeholder="Select category">
-                {Object.entries(typeConfig).map(([val, cfg]) => (
-                  <Option key={val} value={val}>{cfg.label}</Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Form>
-        </Modal>
-      </div>
-    </ConfigProvider>
-  );
-};
-
-export default UOMManagement;
+      </WorkspaceToolbar>
+      {error && <WorkspaceAlert type="error" showIcon title={error} className="mb-4" />}
+      <Table rowKey="id" columns={columns} dataSource={visibleUnits} loading={loading} scroll={{ x: 560 }}
+        locale={{ emptyText: error ? 'Units could not be loaded' : (query || type ? 'No units match your filters' : 'No units yet') }}
+        pagination={{ pageSize: 10, showTotal: total => `${total} ${total === 1 ? 'unit' : 'units'}` }} />
+    </Card>
+    <PermissionModal permissionAction={editing?.id ? 'edit' : 'create'} title={editing?.id ? 'Edit Unit' : 'Add Unit'} open={Boolean(editing)}
+      onCancel={() => setEditing(null)} onOk={() => form.submit()} okText={editing?.id ? 'Save changes' : 'Add unit'} confirmLoading={saving}
+      forceRender closable={!saving} keyboard={!saving} mask={{ closable: !saving }} cancelButtonProps={{ disabled: saving }}>
+      <Form form={form} name="measure-unit" layout="vertical" onFinish={save} disabled={saving}>
+        <Form.Item name="name" label="Unit name" rules={[{ required: true, whitespace: true }]}>
+          <Input placeholder="e.g. Kilogram" />
+        </Form.Item>
+        <Form.Item name="abbreviation" label="Abbreviation" rules={[{ required: true, whitespace: true }]}>
+          <Input placeholder="e.g. kg" />
+        </Form.Item>
+        <Form.Item name="type" label="Measurement type" rules={[{ required: true }]}>
+          <Select placeholder="Choose a type" options={types} />
+        </Form.Item>
+      </Form>
+    </PermissionModal>
+  </section>;
+}

@@ -77,7 +77,7 @@ export default function WardenRoomTemplates() {
   };
 
   return <>
-    <Button size="large" icon={<Layers size={17} />} className="!rounded-xl !text-sm !font-semibold !text-slate-600" onClick={start}>Manage Room Templates</Button>
+    <Button size="large" icon={<Layers size={17} />} className="!rounded-control !text-sm !font-semibold !text-slate-600" onClick={start}>Manage Room Templates</Button>
     <Modal title="Manage Room Templates" open={open} width={780} footer={null} closable={!working}
       mask={{ closable: !working }} onCancel={() => { if (!working) setOpen(false); }}>
       {error && <Alert className="mb-4" type="error" showIcon title={error} />}

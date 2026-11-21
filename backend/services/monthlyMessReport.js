@@ -1,14 +1,22 @@
 import { Op } from 'sequelize';
 import { Enrollment, User, StudentFee, MessBill } from '../models/index.js';
-import { getMessCalculation, studentWaterCharge } from './messCalculation.js';
+import { assertBillingDetails, getMessCalculation, studentWaterCharge } from './messCalculation.js';
+import { historicalDailyReport } from './historicalDailyReport.js';
+import { monthlyHistoricalReport } from '../utils/historicalBilling.js';
 
 export function roundBill(amount) {
   const floor = Math.floor(amount);
   return amount - floor <= 0.20 + 1e-7 ? floor : Math.ceil(amount);
 }
 
+export async function loadMonthlyMessReport(hostelId, month, year, college) {
+  const statement = await historicalDailyReport(hostelId, month, year);
+  return statement ? monthlyHistoricalReport(statement, college) : buildMonthlyMessReport(hostelId, month, year, college);
+}
+
 export async function buildMonthlyMessReport(hostelId, month, year, college, transaction) {
   const calculation = await getMessCalculation(hostelId, month, year, transaction);
+  assertBillingDetails(calculation, 'Historical monthly rate is reconciled, but student charges and legacy identity links require reconciliation before generating bills.');
   const { billing } = calculation;
   if (calculation.frozenRows) return summarize(calculation.frozenRows.filter(row=>!college||college==='all'||row.college===college),calculation);
   const enrollments = await Enrollment.findAll({ where: { hostel_id: hostelId, status: 'active',

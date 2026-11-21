@@ -6,8 +6,8 @@ import { getHistoricalBilling } from '../utils/historicalBilling.js';
 import { 
   User, Enrollment, RoomAllotment, HostelRoom, RoomType, Session,
   Attendance, GPSAttendance, Leave, Complaint, Suspension, Holiday, Fee, MessBill, Hostel, RoomRequest,
-  DayReductionRequest, Rebate, DailyRateLog, HostelLayout, AdditionalCollection, AdditionalCollectionType, Role, sequelize,
-  Outpass
+  DayReductionRequest, ReductionDay, Rebate, DailyRateLog, HostelLayout, AdditionalCollection, AdditionalCollectionType, Role, sequelize,
+  Outpass, StudentFee
 } from '../models/index.js';
 import { fetchStudentsFromERP } from '../services/erpStudentService.js';
 import { importStudentRoom } from '../services/importStudentRoom.js';
@@ -16,6 +16,8 @@ import { passwordFromDob, readStudentDob } from '../../shared/studentDob.js';
 import { importedStudentPassword, studentImportSettings } from '../services/studentImportPassword.js';
 import { normalizeCollege, assertAdmissionSource } from '../../shared/colleges.js';
 import { withBatchInventory } from '../services/batchInventory.js';
+import { readPermissionPolicy } from '../services/permissions.js';
+import { can } from '../../shared/permissions.js';
 
 const getHostelId = (user) => {
   const hId = user?.hostelId || user?.hostel_id;
@@ -96,6 +98,7 @@ export const enrollStudent = async (req, res) => {
       });
 
       if (student) {
+         if (student.resident_type === 'staff') throw new Error('Staff residents do not use academic student admission or batch allocation.');
          await assertCanMove(student.userId, hostel_id, transaction);
          if (!studentRoleIds.includes(Number(student.roleId))) {
             throw new Error('This email/roll belongs to a non-student account. Use a different email/roll number.');
@@ -233,7 +236,8 @@ export const getStudents = async (req, res) => {
                 as: 'tbl_RoomAllotments',
                 where: { is_active: true },
                 required: false,
-                include: [{ model: HostelRoom, attributes: ['id', 'room_number'] }]
+                include: [{ model: HostelRoom, attributes: ['id', 'room_number', 'floor', 'room_type_id'],
+                  include: [{ model: RoomType, attributes: ['name'] }] }]
             }
          ],
          order: [['userName', 'ASC']] 
@@ -347,6 +351,7 @@ export const bulkEnrollStudents = async (req, res) => {
           } else if (!studentRoleIds.includes(Number(user.roleId))) {
             throw new Error(`Existing account for ${normalizedRollNumber} is not a student account`);
           } else {
+            if (user.resident_type === 'staff') throw new Error('Staff residents do not use academic student admission or batch allocation.');
             await assertCanMove(user.userId, hostel_id, transaction);
             await user.update({
               gender: studentGender,
@@ -1123,14 +1128,15 @@ export const getDashboardStats = async (req, res) => {
          limit: 5
       });
 
-      // Today's Attendance Stats for Chart
-      const today = new Date().toISOString().split('T')[0];
+      const today = moment.utc().format('YYYY-MM-DD');
+      const firstAttendanceDay = moment.utc(today, 'YYYY-MM-DD').subtract(6, 'days').format('YYYY-MM-DD');
 
       const attendanceCounts = await Attendance.findAll({
-         attributes: ['status', [sequelize.fn('COUNT', sequelize.col('Attendance.id')), 'count']],
+         attributes: ['date', 'status', [sequelize.fn('COUNT', sequelize.col('Attendance.id')), 'count']],
          where: {
-            date: today,
-            hostel_id
+            date: { [Op.between]: [firstAttendanceDay, today] },
+            hostel_id,
+            [Op.or]: [{ is_monthly: false }, { is_monthly: null }]
          },
          include: [{
             model: User,
@@ -1139,20 +1145,29 @@ export const getDashboardStats = async (req, res) => {
             attributes: [],
             required: true
          }],
-         group: ['status'],
+         group: ['Attendance.date', 'Attendance.status'],
          raw: true
       });
 
-      const attendanceStatus = attendanceCounts.reduce((acc, curr) => {
-         acc[curr.status] = parseInt(curr.count) || 0;
-         return acc;
-      }, { P: 0, A: 0, OD: 0 });
-
-      const totalTodayAttendance = attendanceCounts.reduce((sum, curr) => sum + (parseInt(curr.count) || 0), 0);
+      const countsByDate = new Map();
+      for (const { date, status, count } of attendanceCounts) {
+         const counts = countsByDate.get(date) || { P: 0, A: 0, OD: 0 };
+         counts[status] = Number(count) || 0;
+         countsByDate.set(date, counts);
+      }
+      const attendanceStatus = countsByDate.get(today) || { P: 0, A: 0, OD: 0 };
+      const totalTodayAttendance = Object.values(attendanceStatus).reduce((sum, count) => sum + count, 0);
+      const attendanceTrend = Array.from({ length: 7 }, (_, index) => {
+         const date = moment.utc(firstAttendanceDay, 'YYYY-MM-DD').add(index, 'days').format('YYYY-MM-DD');
+         const counts = countsByDate.get(date);
+         const total = counts ? counts.P + counts.A + counts.OD : 0;
+         return { date, presentRate: total ? Math.round(counts.P / total * 100) : null };
+      });
 
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
+      const pendingReductions = await DayReductionRequest.count({ where: { hostel_id, status: 'pending_admin' } });
       const pendingOutpasses = await Outpass.count({ where: { hostel_id, status: 'pending' } });
       const outsideOutpasses = await Outpass.count({ where: { hostel_id, status: 'outside' } });
       const completedTodayOutpasses = await Outpass.count({
@@ -1173,6 +1188,7 @@ export const getDashboardStats = async (req, res) => {
             availableBeds: Math.max(0, availableBeds),
             
             pendingLeaves,
+            pendingReductions,
             totalLeaves,
             leaveStatus,
 
@@ -1185,6 +1201,7 @@ export const getDashboardStats = async (req, res) => {
 
             attendanceStatus,
             totalTodayAttendance,
+            attendanceTrend,
 
             outpasses: {
               pending: pendingOutpasses,
@@ -1381,7 +1398,7 @@ export const getLeaveRequests = async (req, res) => {
                model: User,
                as: 'Student',
                where: { hostel_id },
-               attributes: ['userId', 'userName', 'userMail']
+               attributes: ['userId', 'userName', 'userMail', 'roll_number']
             },
             {
                model: User,
@@ -1520,7 +1537,7 @@ export const getComplaints = async (req, res) => {
 
       let whereClause = {};
       if (status && status !== 'all') {
-         whereClause.status = status;
+         whereClause.status = status === 'open' ? { [Op.in]: ['submitted', 'in_progress'] } : status;
       }
       if (category && category !== 'all') {
          whereClause.category = category;
@@ -1541,7 +1558,7 @@ export const getComplaints = async (req, res) => {
                model: User,
                as: 'Student',
                where: { hostel_id },
-               attributes: ['userId', 'userName', 'userMail']
+               attributes: ['userId', 'userName', 'userMail', 'roll_number']
             },
             {
                model: User,
@@ -2474,6 +2491,74 @@ export const getLatestDailyRate = async (req, res) => {
 // ==========================================
 // CHATBOT SUMMARY (INDIVIDUAL STUDENT)
 // ==========================================
+export async function getStudentProfileRecords(req, res) {
+  const hostel_id = Number(getHostelId(req.user));
+  const student_id = Number(req.params.student_id);
+  if (!hostel_id || !Number.isSafeInteger(student_id) || student_id < 1) {
+    return res.status(400).json({ message: 'A valid student and hostel are required.' });
+  }
+  try {
+    const { grants } = req.user.role === 'admin' ? {} : await readPermissionPolicy();
+    const allowed = screen => req.user.role === 'admin' || can(grants, req.user.role, screen);
+    if (!allowed('students')) return res.status(403).json({ message: 'Student profiles are unavailable to this account.' });
+    const student = await User.findOne({ where: { userId: student_id, hostel_id, roleId: { [Op.in]: await getStudentRoleIds() } }, attributes: ['userId'] });
+    if (!student) return res.status(404).json({ message: 'Student not found in this hostel.' });
+
+    const schoolDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const today = moment.parseZone(`${schoolDate}T00:00:00+05:30`);
+    const tomorrow = today.clone().add(1, 'day').toDate();
+    const monthStart = today.clone().startOf('month');
+    const nextMonth = monthStart.clone().add(1, 'month');
+    const scoped = { hostel_id, student_id };
+    const billingPeriod = { ...scoped, year: today.year(), month: today.month() + 1 };
+    const lookups = [
+      ['leaves', 'leave-approvals', Leave, { student_id }, ['id', 'status', 'leave_type', 'from_date', 'to_date']],
+      ['outpasses', 'outpass-approvals', Outpass, scoped, ['id', 'status', 'destination', 'from_date', 'to_date', 'exit_time', 'return_time']],
+      ['suspensions', 'suspensions', Suspension, { student_id }, ['id', 'status', 'start_date', 'end_date']],
+      ['complaints', 'complaint-management', Complaint, { student_id }, ['id', 'status', 'subject', 'createdAt']],
+      ['roomRequests', 'room-requests', RoomRequest, scoped, ['id', 'status', 'requested_at']],
+      ['rebates', 'rebate-approvals', Rebate, { student_id, status: 'approved' }, ['id', 'rebate_type', 'amount', 'from_date', 'to_date']],
+      ['messBills', 'mess-fees', MessBill, billingPeriod, ['id', 'status', 'amount', 'due_date']],
+    ];
+    const metrics = [
+      ['pendingLeaves', 'leave-approvals', () => Leave.count({ where: { student_id, status: 'pending' } })],
+      ['pendingGatePasses', 'outpass-approvals', () => Outpass.count({ where: { ...scoped, status: 'pending' } })],
+      ['openComplaints', 'complaint-management', () => Complaint.count({ where: { student_id, status: { [Op.in]: ['submitted', 'in_progress'] } } })],
+      ['pendingRoomRequests', 'room-requests', () => RoomRequest.count({ where: { ...scoped, status: 'pending' } })],
+      ['lateReturnsThisMonth', 'outpass-approvals', () => Outpass.count({ where: { ...scoped, status: 'late_return',
+        return_time: { [Op.gte]: monthStart.toDate(), [Op.lt]: nextMonth.toDate() } } })],
+      ['approvedReductionDaysThisMonth', 'warden-reductions', () => ReductionDay.count({ distinct: true, col: 'date',
+        where: { ...scoped, active: true, date: { [Op.gte]: monthStart.format('YYYY-MM-DD'), [Op.lt]: nextMonth.format('YYYY-MM-DD') } } })],
+      ['currentGatePass', 'outpass-approvals', () => Outpass.findOne({ where: { ...scoped, status: 'outside' },
+        attributes: ['to_date'], order: [['exit_time', 'DESC']], raw: true })],
+      ['currentLeave', 'leave-approvals', () => Leave.findOne({ where: { student_id, status: 'approved',
+        from_date: { [Op.lt]: tomorrow }, to_date: { [Op.gte]: today.toDate() } }, attributes: ['to_date'], order: [['to_date', 'DESC']], raw: true })],
+      ['currentSuspension', 'suspensions', () => Suspension.findOne({ where: { student_id, status: 'active', start_date: { [Op.lt]: tomorrow },
+        [Op.or]: [{ end_date: null }, { end_date: { [Op.gte]: today.toDate() } }] }, attributes: ['end_date'], order: [['start_date', 'DESC']], raw: true })],
+    ];
+    const fees = allowed('mess-fees') ? Promise.all([
+      Hostel.findByPk(hostel_id, { attributes: ['annual_fee_amount'], raw: true }),
+      Fee.findAll({ where: { student_id, fee_type: { [Op.in]: ['hostel', 'security'] } },
+        include: [{ model: Enrollment, as: 'Enrollment', attributes: [], required: true, where: { hostel_id, student_id, status: 'active' } }],
+        attributes: ['fee_type', 'status', [sequelize.fn('SUM', sequelize.col('Fee.amount')), 'amount']],
+        group: ['Fee.fee_type', 'Fee.status'], raw: true }),
+      StudentFee.findAll({ where: billingPeriod,
+        attributes: ['fee_type', 'status', [sequelize.fn('SUM', sequelize.col('StudentFee.amount')), 'amount']],
+        group: ['StudentFee.fee_type', 'StudentFee.status'], order: [['fee_type', 'ASC'], ['status', 'ASC']], raw: true }),
+    ]).then(([hostel, hostelCharges, messCharges]) => ({ annualHostelRate: hostel?.annual_fee_amount, hostelCharges, messCharges })) : null;
+    const [data, computed, feeRecords] = await Promise.all([
+      Promise.all(lookups.filter(([, screen]) => allowed(screen)).map(async ([key, , model, where, attributes]) => [
+        key, await model.findAll({ where, attributes, order: [['id', 'DESC']], limit: key === 'messBills' ? 1 : 3, raw: true }),
+      ])),
+      Promise.all(metrics.filter(([, screen]) => allowed(screen)).map(async ([key, , read]) => [key, await read()])),
+      fees,
+    ]);
+    return res.json({ success: true, data: { ...Object.fromEntries(data), metrics: Object.fromEntries(computed), ...(feeRecords && { fees: feeRecords }) } });
+  } catch {
+    return res.status(500).json({ message: 'Could not load student activity.' });
+  }
+}
+
 export const getStudentSummaryForWarden = async (req, res) => {
   try {
     const { student_id } = req.params;
@@ -2563,11 +2648,13 @@ export const getErpSyncStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Hostel ID not found.' });
     }
 
+    const campusWide = req.user.role === 'admin' && !req.staffWorkspace;
+
     // 1. Fetch live hosteller students from ERP API
     const erpStudents = await fetchStudentsFromERP({
       authHeader: req.headers.authorization,
       hostellersOnly: true,
-      hostelId: req.user.role === 'admin' ? null : warden_hostel_id
+      hostelId: campusWide ? null : warden_hostel_id
     });
 
     if (!erpStudents || erpStudents.length === 0) {
@@ -2633,7 +2720,7 @@ export const getErpSyncStatus = async (req, res) => {
       let matchedBatch;
       try {
         matchedBatch = matchBatch(erp.erp_batch_year ?? erp.batch, configuredBatches, erp.gender);
-        if (req.user.role !== 'admin' && matchedBatch.hostel_id !== Number(warden_hostel_id)) return;
+        if (!campusWide && matchedBatch.hostel_id !== Number(warden_hostel_id)) return;
         const targetHostel = hostelsById.get(matchedBatch.hostel_id);
         if (!targetHostel?.is_active) throw new Error('The assigned hostel is inactive.');
       } catch (error) {
@@ -2722,11 +2809,13 @@ export const syncErpRecords = async (req, res) => {
     const warden_hostel_id = getHostelId(req.user);
     if (!warden_hostel_id) throw new Error("Hostel ID not found.");
 
+    const campusWide = req.user.role === 'admin' && !req.staffWorkspace;
+
     // 1. Fetch live hostellers from ERP
     const erpStudents = await fetchStudentsFromERP({
       authHeader: req.headers.authorization,
       hostellersOnly: true,
-      hostelId: req.user.role === 'admin' ? null : warden_hostel_id
+      hostelId: campusWide ? null : warden_hostel_id
     });
 
     if (!erpStudents || erpStudents.length === 0) {
@@ -2760,7 +2849,7 @@ export const syncErpRecords = async (req, res) => {
 
       // Resolve batch and hostel using the configured ERP batch year.
       const configured = matchBatch(erp.erp_batch_year ?? erp.batch, configuredBatches, erp.gender);
-      if (req.user.role !== 'admin' && configured.hostel_id !== Number(warden_hostel_id)) continue;
+      if (!campusWide && configured.hostel_id !== Number(warden_hostel_id)) continue;
       const matchedBatch = await resolveStudentBatch(erp.erp_batch_year ?? erp.batch, req.user, transaction, erp.gender);
       const studentGender = matchedBatch.gender;
       const resolvedSessionId = matchedBatch.id;

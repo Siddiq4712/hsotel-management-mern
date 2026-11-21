@@ -8,7 +8,7 @@ const StudentListCard = ({ cards, hasMore, totalCount, onFollowUp }) => {
 
   if (!cards || cards.length === 0) {
     return (
-      <div className="mt-3 bg-white border border-slate-200 rounded-2xl p-5 text-center">
+      <div className="mt-3 bg-white border border-slate-200 rounded-surface p-5 text-center">
         <p className="text-2xl mb-1">🔍</p>
         <p className="text-slate-700 text-sm font-semibold">No students found</p>
         <p className="text-slate-500 text-xs mt-1">Try a different name or roll number</p>
@@ -17,7 +17,7 @@ const StudentListCard = ({ cards, hasMore, totalCount, onFollowUp }) => {
   }
 
   return (
-    <div className="mt-3 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm font-sans">
+    <div className="mt-3 bg-white border border-slate-200 rounded-surface p-4 shadow-sm font-sans">
       {cards.length > 1 && (
         <div className="mb-4">
           <p className="text-sm font-bold text-slate-800">
@@ -37,7 +37,7 @@ const StudentListCard = ({ cards, hasMore, totalCount, onFollowUp }) => {
           
           if (isExpanded) {
             return (
-              <div key={id} className="mb-4 border border-indigo-100 rounded-xl p-3 bg-indigo-50/30">
+              <div key={id} className="mb-4 border border-indigo-100 rounded-surface p-3 bg-indigo-50/30">
                 <button 
                   onClick={() => setExpandedId(null)}
                   className="w-full text-left text-xs font-bold text-indigo-600 mb-3 hover:underline"
@@ -52,7 +52,7 @@ const StudentListCard = ({ cards, hasMore, totalCount, onFollowUp }) => {
           return (
             <div key={id}>
               <div 
-                className="py-3 cursor-pointer hover:bg-slate-50 transition-colors px-2 -mx-2 rounded-lg"
+                className="py-3 cursor-pointer hover:bg-slate-50 transition-colors px-2 -mx-2 rounded-control"
                 onClick={() => setExpandedId(id)}
               >
                 <div className="flex items-center gap-2 mb-1">

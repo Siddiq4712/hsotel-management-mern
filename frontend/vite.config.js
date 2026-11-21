@@ -43,6 +43,7 @@ export default defineConfig({
   // ----------------------------------
   test: {
     alias: {
+      '/nec-logo.png': path.resolve(__dirname, './public/nec-logo.png'),
       '/nec_logo.jpeg': path.resolve(__dirname, './public/nec_logo.jpeg'),
       '/nec_image.jpg': path.resolve(__dirname, './public/nec_image.jpg')
     },

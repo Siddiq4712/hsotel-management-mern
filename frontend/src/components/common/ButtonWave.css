@@ -1,0 +1,23 @@
+.button-wave {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  animation: button-wave-spread 400ms cubic-bezier(.08, .82, .17, 1) forwards,
+    button-wave-fade 2s cubic-bezier(.08, .82, .17, 1) forwards;
+}
+
+[data-button-wave-moving] .ant-wave { visibility: hidden; }
+
+@keyframes button-wave-spread {
+  from { box-shadow: 0 0 0 0 currentColor; }
+  to { box-shadow: 0 0 0 6px currentColor; }
+}
+
+@keyframes button-wave-fade {
+  from { opacity: .2; }
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button-wave, .ant-btn .ant-wave { visibility: hidden; }
+}

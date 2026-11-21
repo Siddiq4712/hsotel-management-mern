@@ -1,6 +1,7 @@
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
 import { PermissionButton as Button, PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, Form, Select, Input, InputNumber, message, Table, Row, Col, Typography, ConfigProvider, theme, Skeleton, Space, Divider, Tag, Tooltip } from 'antd';
+import { Card, Form, Select, Input, InputNumber, message, Table, Row, Col, Typography, ConfigProvider, Skeleton, Space, Divider, Tag, Tooltip } from 'antd';
 import { 
   Newspaper, Plus, RefreshCw, ChevronLeft, ChevronRight, 
   History, GraduationCap, Receipt, Calendar, User, Save, Trash2, Info, AlertTriangle
@@ -182,45 +183,35 @@ const handleDeleteBatch = async (batch) => {
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen">
         
         {/* Header */}
-        <div className="module-page-header flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
-              <Newspaper className="text-white" size={24} />
-            </div>
-            <div>
-              <Title level={2} style={{ margin: 0 }}>Paper Bill Center</Title>
-              <Text type="secondary">Grouping individual records into "Applied Step" batches for easy correction</Text>
-            </div>
-          </div>
-
+        <WorkspacePageHeader title="Paper Bill Center" icon={Newspaper} description="Review and correct paper bill charges by month.">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200 flex items-center">
+            <div className="bg-white p-1 rounded-control shadow-sm border border-slate-200 flex items-center">
               <Button type="text" icon={<ChevronLeft size={16} />} onClick={() => changeYear(-1)} />
               <div className="px-4 text-center min-w-[70px]"><Text strong>{selectedDate.format('YYYY')}</Text></div>
               <Button type="text" icon={<ChevronRight size={16} />} onClick={() => changeYear(1)} />
             </div>
-            <div className="bg-white p-1 rounded-2xl shadow-sm border border-slate-200 flex items-center">
+            <div className="bg-white p-1 rounded-control shadow-sm border border-slate-200 flex items-center">
               <Button type="text" icon={<ChevronLeft size={16} />} onClick={() => changeMonth(-1)} />
               <div className="px-6 text-center min-w-[120px]"><Text strong className="text-blue-600 uppercase">{selectedDate.format('MMMM')}</Text></div>
               <Button type="text" icon={<ChevronRight size={16} />} onClick={() => changeMonth(1)} />
             </div>
           </div>
-        </div>
+        </WorkspacePageHeader>
 
         <Row gutter={24}>
           <Col xs={24} lg={8}>
-            <Card className="border-none shadow-sm rounded-[32px] p-2">
+            <Card className="border-none shadow-sm rounded-surface p-2">
               <Title level={4} className="mb-6 flex items-center gap-2">
                 <Plus size={20} className="text-blue-600" /> New Applied Step
               </Title>
               
               <Form form={form} layout="vertical" onFinish={onFinish}>
                 <Form.Item name="session_id" label="Target Batch" rules={[{ required: true }]}>
-                  <Select placeholder="Choose batch" className="h-11 rounded-xl">
+                  <Select placeholder="Choose batch" className="h-11 rounded-control">
                     {sessions.map((s) => (
                       <Option key={s.id} value={s.id}>{s.name}</Option>
                     ))}
@@ -228,14 +219,14 @@ const handleDeleteBatch = async (batch) => {
                 </Form.Item>
 
                 <Form.Item name="description" label="Step Label (e.g. Hindu News)" rules={[{ required: true }]}>
-                  <Input placeholder="This helps you identify the batch later" className="h-11 rounded-xl" />
+                  <Input placeholder="This helps you identify the batch later" className="h-11 rounded-control" />
                 </Form.Item>
 
                 <Form.Item name="amount" label="Amount per Student" rules={[{ required: true }]}>
-                  <InputNumber min={0.01} className="w-full h-11 flex items-center rounded-xl" precision={2} prefix="₹" />
+                  <InputNumber min={0.01} className="w-full h-11 flex items-center rounded-control" precision={2} prefix="₹" />
                 </Form.Item>
 
-                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 mb-6">
+                <div className="bg-amber-50 p-4 rounded-surface border border-amber-100 mb-6">
                   <Text className="text-[11px] text-amber-700 leading-relaxed block">
                     <AlertTriangle size={12} className="inline mr-1 mb-1" />
                     <strong>Note:</strong> If you make a mistake, you can use the <strong>"Revert"</strong> button in the history table to undo the entire bulk operation.
@@ -249,7 +240,7 @@ const handleDeleteBatch = async (batch) => {
                   size="large" 
                   loading={submitting} 
                   icon={<Save size={18} />}
-                  className="h-14 rounded-2xl font-bold"
+                  className="h-14 rounded-control font-bold"
                 >
                   Apply Billing Step
                 </Button>
@@ -258,7 +249,7 @@ const handleDeleteBatch = async (batch) => {
           </Col>
 
           <Col xs={24} lg={16}>
-            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: 0 }}>
+            <Card className="border-none shadow-sm rounded-surface overflow-hidden" bodyStyle={{ padding: 0 }}>
               <div className="p-6 pb-2 flex justify-between items-center">
                 <div>
                     <Title level={4} className="m-0">Applied Steps Log</Title>

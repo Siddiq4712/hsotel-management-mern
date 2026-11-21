@@ -68,6 +68,9 @@ export const login = async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid password' });
     }
+    if (user.status === false) {
+      return res.status(403).json({ message: 'This account is inactive' });
+    }
 
     // 4. Resolve Role Name
     // Your SQL column is 'role' (int), but model maps it to 'roleId'
@@ -91,6 +94,7 @@ export const login = async (req, res) => {
         username: user.userName,
         role: resolvedRole,
         roleId: user.roleId,
+        resident_type: user.resident_type,
         hostel_id: user.hostel_id,
         hostel: user.Hostel
       }
@@ -139,7 +143,7 @@ export const googleCallback = (req, res, next) => {
     failureRedirect: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=access_denied`,
     session: false
   }, async (err, user, info) => {
-    if (err || !user) {
+    if (err || !user || user.status === false) {
       return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=not_registered`);
     }
 

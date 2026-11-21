@@ -67,9 +67,9 @@ const SubmitComplaint = () => {
         <p className="text-gray-600 mt-2">Report any issues or concerns you have</p>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6 max-w-2xl">
+      <div className="bg-white rounded-control shadow-md p-6 max-w-2xl">
         {message.text && (
-          <div className={`mb-4 p-3 rounded-lg flex items-center ${
+          <div className={`mb-4 p-3 rounded-control flex items-center ${
             message.type === 'success' 
               ? 'bg-green-100 border border-green-400 text-green-700' 
               : 'bg-red-100 border border-red-400 text-red-700'
@@ -95,7 +95,7 @@ const SubmitComplaint = () => {
                 name="subject"
                 value={formData.subject}
                 onChange={handleChange}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Brief summary of your complaint"
                 required
               />
@@ -110,7 +110,7 @@ const SubmitComplaint = () => {
               name="category"
               value={formData.category}
               onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
             >
               <option value="">Select Category</option>
@@ -135,7 +135,7 @@ const SubmitComplaint = () => {
               {priorities.map(priority => (
                 <label
                   key={priority.value}
-                  className={`relative flex flex-col p-3 border rounded-lg cursor-pointer hover:bg-gray-50 ${
+                  className={`relative flex flex-col p-3 border rounded-control cursor-pointer hover:bg-gray-50 ${
                     formData.priority === priority.value
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-300'
@@ -178,7 +178,7 @@ const SubmitComplaint = () => {
               value={formData.description}
               onChange={handleChange}
               rows={5}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Provide detailed information about your complaint. Include any relevant details such as location, time, people involved, etc."
               required
             />
@@ -191,7 +191,7 @@ const SubmitComplaint = () => {
             <PermissionNativeButton permissionAction="create"
               type="submit"
               disabled={loading}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-blue-600 text-white px-6 py-3 rounded-control hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Submitting...' : 'Submit Complaint'}
             </PermissionNativeButton>
@@ -204,7 +204,7 @@ const SubmitComplaint = () => {
                 category: '',
                 priority: 'medium'
               })}
-              className="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400 transition-colors"
+              className="bg-gray-300 text-gray-700 px-6 py-3 rounded-control hover:bg-gray-400 transition-colors"
             >
               Reset
             </button>
@@ -212,7 +212,7 @@ const SubmitComplaint = () => {
         </form>
 
         {/* Guidelines */}
-        <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="mt-8 p-4 bg-amber-50 border border-amber-200 rounded-control">
           <div className="flex items-start">
             <AlertTriangle className="text-amber-600 mt-0.5 mr-3" size={20} />
             <div>

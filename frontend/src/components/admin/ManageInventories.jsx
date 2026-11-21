@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Button, Card, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Boxes, Plus, RefreshCw, Search } from 'lucide-react';
+import Alert from '../common/WorkspaceAlert';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
+import WorkspaceToolbar from '../common/WorkspaceToolbar';
 import dayjs from 'dayjs';
 import { adminAPI, inventoryAPI } from '../../services/api';
 
@@ -11,6 +15,7 @@ export default function ManageInventories() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
   const [form] = Form.useForm();
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -35,7 +40,6 @@ export default function ManageInventories() {
         setDeletingId(inventory.id);
         try {
           await inventoryAPI.delete(inventory.id);
-          if (sessionStorage.getItem('selectedInventoryId') === String(inventory.id)) sessionStorage.removeItem('selectedInventoryId');
           message.success('Inventory deleted.');
           await load();
         } catch (error) { message.error(error.response?.data?.message || 'Unable to delete inventory.'); throw error; }
@@ -58,20 +62,31 @@ export default function ManageInventories() {
           else await inventoryAPI.create(payload);
           message.success('Inventory and hostel assignments saved.');
           setEditing(null); await load();
-          sessionStorage.removeItem('selectedInventoryId');
         } catch (error) { message.error(error.response?.data?.message || error.message || 'Unable to save inventory.'); throw error; }
         finally { setSaving(false); }
       },
     });
   };
-  return <div className="module-page">
-    <Space wrap style={{ width: '100%', justifyContent: 'space-between', marginBottom: 20 }}>
-      <div><Typography.Title level={3}>Manage Inventories</Typography.Title>
-        <Typography.Text>Shared item names, separate stock balances per inventory. Assign one or more hostels to each inventory.</Typography.Text></div>
-      <Space><Button onClick={load} loading={loading}>Refresh</Button><Button type="primary" onClick={() => open()}>Create inventory</Button></Space>
-    </Space>
-    {error && <Alert type="error" showIcon title={error} />}
-    <Table rowKey="id" loading={loading} dataSource={inventories} columns={[
+  const query = search.trim().toLowerCase();
+  const visibleInventories = inventories.filter(pool =>
+    [pool.name, ...pool.hostels.map(hostel => hostel.name)].some(value => String(value ?? '').toLowerCase().includes(query))
+  );
+
+  return <section className="module-page" aria-labelledby="manage-inventories-title">
+    <WorkspacePageHeader id="manage-inventories-title" title="Manage Inventories" icon={Boxes}
+      description="Assign hostels to inventories and manage their billing policies." />
+    <Card>
+      <WorkspaceToolbar className="mb-4">
+        <Input aria-label="Search inventories" className="workspace-search" prefix={<Search size={16} aria-hidden="true" />}
+          placeholder="Search by inventory or hostel" allowClear value={search} onChange={event => setSearch(event.target.value)} />
+        <div className="workspace-toolbar-actions">
+          <Button onClick={load} loading={loading} icon={<RefreshCw size={16} />}>Refresh</Button>
+          <Button type="primary" onClick={() => open()} icon={<Plus size={16} />}>Create inventory</Button>
+        </div>
+      </WorkspaceToolbar>
+      {error && <Alert type="error" showIcon title={error} className="mb-4" />}
+      <Table rowKey="id" loading={loading} dataSource={visibleInventories} scroll={{ x: 780 }}
+        locale={{ emptyText: query ? 'No inventories match your search' : 'No inventories yet' }} columns={[
       { title: 'Inventory', dataIndex: 'name' },
       { title: 'Consumption & billing', render: (_, pool) => <Space orientation="vertical">
         <Tag color={pool.billing_policy?.mode === 'shared' ? 'blue' : 'default'}>{pool.billing_policy?.mode === 'shared' ? 'Shared inventory rate' : 'Hostel-wise attribution'}</Tag>
@@ -79,13 +94,14 @@ export default function ManageInventories() {
       </Space> },
       { title: 'Assigned hostels', render: (_, pool) => pool.hostels.length ? pool.hostels.map(hostel => <Tag key={hostel.id}>{hostel.name}</Tag>) : 'No hostels assigned' },
       { title: 'Description', dataIndex: 'description' },
-      { title: 'Action', render: (_, pool) => <Space>
+      { title: 'Actions', key: 'actions', align: 'center', width: 240, render: (_, pool) => <Space>
         <Button disabled={Boolean(deletingId)} onClick={() => open(pool)}>Edit / assign hostels</Button>
         <Button danger loading={deletingId === pool.id} disabled={Boolean(deletingId) || pool.hostels.length > 0}
           title={pool.hostels.length ? 'Reassign all hostels before deleting this inventory.' : 'Delete inventory'}
           onClick={() => remove(pool)}>Delete</Button>
       </Space> },
-    ]} />
+      ]} />
+    </Card>
     <Modal title={editing?.id ? 'Edit inventory and assignments' : 'Create inventory'} open={Boolean(editing)}
       onCancel={() => !saving && setEditing(null)} onOk={() => form.submit()} confirmLoading={saving} okText="Review & save">
       <Alert type="info" showIcon title="One inventory can supply multiple hostels"
@@ -105,5 +121,5 @@ export default function ManageInventories() {
         </Form.Item>
       </Form>
     </Modal>
-  </div>;
+  </section>;
 }

@@ -5,62 +5,51 @@ import { Button, Drawer, Empty, Input, Menu } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
-  Home, Building, Users, UserPlus, Bed, Calendar, FileText, Settings,
-  ChefHat, Receipt, Wifi, Wrench, DollarSign, CreditCard, Truck,
+  Home, Building, Users, UserPlus, Bed, Calendar, FileText, Settings, Ruler,
+  ChefHat, Receipt, DollarSign, CreditCard, Truck,
   ClipboardCheck, MessageCircle, AlertCircle, UserX, CalendarDays,
   Package, Database, Coffee, ShoppingBag, BarChart2, Zap,
-  Clipboard, Cake, Search, LogOut, Activity
+  Clipboard, Cake, Search, LogOut, Activity, Building2, LayoutGrid, Shield
 } from 'lucide-react';
 
 const MENU_STRUCTURE = {
+  security: [
+    { title: 'Main', items: [{ id: 'dashboard', label: 'Gate Console', icon: Home }] },
+  ],
   admin: [
-    { title: 'Settings', items: [{ id: 'screen-permissions', label: 'Screen Permissions', icon: Settings }] },
-    { title: 'Main', items: [{ id: 'dashboard', label: 'Dashboard', icon: Home }, { id: 'activity-logs', label: 'Activity Logs', icon: Activity }] },
+    { title: 'Workspace', items: [{ id: 'dashboard', label: 'Overview', icon: LayoutGrid }] },
     {
-      title: 'Hostel Management',
+      title: 'Hostel Operations',
       items: [
-        { id: 'hostels', label: 'Manage Hostels', icon: Building },
-
-        // ✅ UPDATED: Single room management entry
+        { id: 'hostels', label: 'Manage Hostels', icon: Building2 },
         { id: 'room-management', label: 'Manage Rooms', icon: Bed },
-
-        { id: 'days-reduc', label: 'Mess Reductions', icon: FileText },
+        { id: 'sessions', label: 'Manage Batches', icon: Calendar },
+        { id: 'monthly-attendance-import', label: 'Monthly Attendance Import', icon: ClipboardCheck },
       ]
     },
     {
-      title: 'User Management',
+      title: 'Requests',
       items: [
-        { id: 'create-user', label: 'Create User', icon: UserPlus },
-        { id: 'staff-access', label: 'Staff Access Settings', icon: UserPlus },
-        { id: 'sessions', label: 'Manage Batches', icon: Calendar },
-        { id: 'monthly-attendance-import', label: 'Monthly Attendance Import', icon: ClipboardCheck },
-       // { id: 'outpass-logs', label: 'Outpass Logs', icon: FileText },
+        { id: 'days-reduc', label: 'Mess Reductions', icon: FileText },
+        { id: 'outpass-logs', label: 'Gate Pass Logs', icon: Clipboard },
       ]
-    }
-    //{
-     /* title: 'Facilities & Maintenance',
-      items: [
-        { id: 'facility-types', label: 'Facility Types', icon: Wifi },
-        { id: 'facilities', label: 'Manage Facilities', icon: Wifi },
-        { id: 'maintenance', label: 'Maintenance', icon: Wrench },
-      ]
-    }*/
-      ,
+    },
     {
-      title: 'Financial Setup',
+      title: 'Administration',
+      items: [
+        { id: 'create-user', label: 'Manage Users', icon: Users },
+        { id: 'screen-permissions', label: 'Screen Permissions', icon: Shield },
+        { id: 'activity-logs', label: 'Activity Logs', icon: Activity },
+      ]
+    },
+    {
+      title: 'Configuration',
       items: [
         { id: 'income-types', label: 'Income Types', icon: DollarSign },
         { id: 'expense-types', label: 'Expense Types', icon: CreditCard },
-       // { id: 'consumption', label: 'Record Additional Consumption', icon: ClipboardCheck },
-        //{ id: 'manage-inventories', label: 'Manage Inventories', icon: Database },
+        { id: 'uoms', label: 'Units of Measure', icon: Ruler },
       ]
     },
-    {
-      title: 'Measure',
-      items: [
-        { id: 'uoms', label: 'Units of Measure', icon: Database },
-      ]
-    }
   ],
 
   warden: [
@@ -76,8 +65,6 @@ const MENU_STRUCTURE = {
         { id: 'students', label: 'Manage Students', icon: Users },
         { id: 'enroll-student', label: 'Enroll Student', icon: UserPlus },
         { id: 'attendance', label: 'Attendance', icon: ClipboardCheck },
-        { id: 'leave-requests', label: 'Leave Requests', icon: Calendar },
-       // { id: 'outpass-approval', label: 'Outpass Approval', icon: Clipboard },
         { id: 'suspensions', label: 'Suspensions', icon: UserX },
       ]
     },
@@ -87,37 +74,29 @@ const MENU_STRUCTURE = {
         { id: 'room-allotment', label: 'Room Allotment', icon: Bed },
         { id: 'create-room', label: 'Manage Rooms', icon: Bed },
       //  { id: 'view-layout', label: 'View Layout', icon: Building },
-        { id: 'approve-room-requests', label: 'Room Requests', icon: Building },
       ]
     },
     {
       title: 'Miscellaneous',
       items: [
-        { id: 'warden-day-red', label: 'Mess Reductions', icon: FileText },
-        { id: 'complaints', label: 'Complaints', icon: MessageCircle },
         { id: 'holidays', label: 'Holidays', icon: CalendarDays },
         { id: 'rebate', label: 'Legacy Rebates', icon: CreditCard },
       ]
-    }
+    },
+    {
+      title: 'Requests',
+      items: [
+        { id: 'leave-requests', label: 'Leave Requests', icon: Calendar },
+        { id: 'warden-day-red', label: 'Mess Reductions', icon: FileText },
+        { id: 'outpass-approval', label: 'Gate Pass Requests', icon: Clipboard },
+        { id: 'approve-room-requests', label: 'Room Requests', icon: Building },
+        { id: 'complaints', label: 'Complaints', icon: MessageCircle },
+      ]
+    },
   ],
 
   student: [
     { title: 'Main', items: [{ id: 'dashboard', label: 'Dashboard', icon: Home }, { id: 'profile', label: 'My Profile', icon: Users }] },
-    {
-      title: 'Requests',
-      items: [
-        { id: 'my-leaves', label: 'My Leaves', icon: FileText },
-        { id: 'my-complaints', label: 'My Complaints', icon: AlertCircle },
-        { id: 'day-reduction', label: 'Mess Reductions', icon: FileText },
-       // { id: 'outpass', label: 'Gate Outpass', icon: Clipboard },
-      ]
-    },
-    {
-      title: 'Information',
-      items: [
-        { id: 'view-rooms', label: 'View Room', icon: Building },
-      ]
-    },
     {
       title: 'Finance & Mess',
       items: [
@@ -133,7 +112,17 @@ const MENU_STRUCTURE = {
         { id: 'food-order', label: 'Additional Food', icon: Coffee },
         { id: 'my-food-orders', label: 'My Additional Food', icon: ShoppingBag },
       ]
-    }
+    },
+    {
+      title: 'Requests',
+      items: [
+        { id: 'my-leaves', label: 'My Leaves', icon: Calendar },
+        { id: 'day-reduction', label: 'Mess Reductions', icon: FileText },
+        { id: 'outpass', label: 'Gate Pass', icon: Clipboard },
+        { id: 'view-rooms', label: 'Rooms & Requests', icon: Building },
+        { id: 'my-complaints', label: 'My Complaints', icon: AlertCircle },
+      ]
+    },
   ],
 
   mess: [
@@ -234,22 +223,28 @@ const Sidebar = ({ currentView, setCurrentView, isOpen, setIsOpen, isCollapsed, 
   };
 
   const navigation = (collapsed, mobile = false) => <>
-    <div className="workspace-sidebar-heading">
+    {role !== 'admin' && <div className="workspace-sidebar-heading">
       {collapsed ? <img className="workspace-sidebar-logo" src="/nec-logo.png" alt="National Engineering College logo" /> : <>
         <span className="workspace-sidebar-eyebrow">Your workspace</span>
-        <strong>{role === 'mess' ? 'Mess & dining' : `${role || 'Hostel'} portal`}</strong>
+        <strong>{role === 'student' && user?.resident_type === 'staff' ? 'Staff resident portal' : role === 'mess' ? 'Mess & dining' : `${role || 'Hostel'} portal`}</strong>
       </>}
-    </div>
-    {!collapsed && <div className="workspace-nav-search">
+    </div>}
+    {!collapsed && <div className={`workspace-nav-search${role === 'admin' ? ' admin-nav-search' : ''}`}>
       <Input allowClear prefix={<Search size={16} />} placeholder="Find a page…" aria-label="Search navigation" value={searchQuery} onChange={event => setSearchQuery(event.target.value)} />
     </div>}
     <nav aria-label={mobile ? 'Mobile workspace navigation' : 'Workspace navigation'} className="workspace-nav-scroll">
-      {items.length ? <Menu theme="light" mode="inline" inlineCollapsed={collapsed} selectedKeys={[currentView === 'create-hostel' ? 'hostels' : ['items', 'stock', 'inventory-transactions'].includes(currentView) ? 'inventory' : currentView]} items={items} onClick={selectItem} /> :
+      {items.length ? <Menu theme="light" mode="inline" inlineCollapsed={collapsed} inlineIndent={role === 'admin' ? 12 : undefined}
+        selectedKeys={[currentView === 'create-hostel' ? 'hostels' : ['items', 'stock', 'inventory-transactions'].includes(currentView) ? 'inventory' : currentView]} items={items} onClick={selectItem} /> :
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No matching pages" />}
     </nav>
     <div className="workspace-sidebar-footer">
       <Button type="text" block icon={<LogOut size={18} />} onClick={logout} aria-label="Sign out">{!collapsed && 'Sign out'}</Button>
-      {!collapsed && <span>National Engineering College</span>}
+      {!collapsed && (role === 'admin' ? (
+        <div className="admin-sidebar-account">
+          <strong>Administration</strong>
+          <span>{user?.userName || user?.username || 'Admin'}</span>
+        </div>
+      ) : <span>National Engineering College</span>)}
     </div>
   </>;
 

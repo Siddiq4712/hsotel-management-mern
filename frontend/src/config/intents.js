@@ -552,11 +552,11 @@ export const INTENTS = [
   },
   {
     intent: "CREATE_USER_ADMIN",
-    keywords: ["create user", "add user", "new user", "wardens", "mess staff", "mess staff add"],
+    keywords: ["manage user", "create user", "add user", "new user", "wardens", "mess staff", "mess staff add"],
     roles: ["admin"],
     action: "navigate",
     navigationPath: "/create-user",
-    response: "Opening Create User Form..."
+    response: "Opening Manage User..."
   },
   {
     intent: "MANAGE_SESSIONS",
@@ -641,7 +641,7 @@ export const getQuickActionsForRole = (role) => {
       return [
         { label: "Dashboard", text: "dashboard" },
         { label: "Manage Rooms", text: "room management" },
-        { label: "Create User", text: "create user" },
+        { label: "Manage User", text: "manage user" },
         { label: "Outpass Logs", text: "outpass logs" }
       ];
     default:
@@ -661,7 +661,7 @@ export const getSuggestionsForRole = (role) => {
     case 'mess':
       return ["Menus", "Daily Meal Entry", "Stock", "Reports"];
     case 'admin':
-      return ["Dashboard", "Manage Rooms", "Create User", "Outpass Logs"];
+      return ["Dashboard", "Manage Rooms", "Manage User", "Outpass Logs"];
     default:
       return ["Gate Pass", "Complaint", "Fees", "Mess Menu", "Attendance"];
   }

@@ -1,3 +1,4 @@
+import { cornerRadius } from '../../theme/cornerRadius';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Card, Table, Button, Tag, Space, message, Modal,
@@ -31,7 +32,6 @@ const T = {
   dangerBg:  '#FEF2F2',
   success:   '#16A34A',
   successBg: '#F0FDF4',
-  radius:    '10px',
   shadow:    '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
 };
 
@@ -48,11 +48,11 @@ const StatCard = ({ label, value, icon: Icon, accent, variant = "default" }) => 
   return (
     <div style={{
       background: T.surface, border: `1px solid ${T.border}`,
-      borderRadius: T.radius, padding: '18px 20px',
+      borderRadius: cornerRadius.surface, padding: '18px 20px',
       display: 'flex', alignItems: 'center', gap: 14, boxShadow: T.shadow,
     }}>
       <div style={{
-        width: 40, height: 40, borderRadius: 10,
+        width: 40, height: 40, borderRadius: cornerRadius.control,
         background: isDanger ? T.dangerBg : (accent ? T.accentBg : T.bg),
         display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
       }}>
@@ -226,7 +226,7 @@ const CreateMenu = () => {
           {(r.Ingredients || r.ingredients)?.map(i => (
             <span key={i.id} style={{ 
               fontSize: 11, background: T.bg, padding: '2px 8px', 
-              borderRadius: 4, color: T.inkMid, border: `1px solid ${T.border}` 
+              borderRadius: cornerRadius.tag, color: T.inkMid, border: `1px solid ${T.border}`
             }}>
               {i.ItemDetail?.name}
             </span>
@@ -244,7 +244,7 @@ const CreateMenu = () => {
             onClick={() => toggleRecipe(r)}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
-              padding: '6px 12px', borderRadius: 7, border: 'none',
+              padding: '6px 12px', borderRadius: cornerRadius.control, border: 'none',
               background: isSelected ? T.dangerBg : T.accentBg,
               color: isSelected ? T.danger : T.accent,
               fontSize: 12, fontWeight: 700, cursor: 'pointer',
@@ -260,18 +260,18 @@ const CreateMenu = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: T.accent, borderRadius: 12 } }}>
+    <ConfigProvider theme={{ token: { colorPrimary: T.accent } }}>
       <style>{`
         .pm-table .ant-table-thead > tr > th { background: #F7F8FA !important; border-bottom: 1px solid ${T.border} !important; padding: 12px 16px !important; }
         .pm-table .ant-table-tbody > tr > td { padding: 14px 16px !important; border-bottom: 1px solid ${T.border} !important; }
-        .pm-form-input .ant-input, .pm-form-input .ant-select-selector, .pm-form-input .ant-input-number { border-radius: 12px !important; }
+        .pm-form-input .ant-input, .pm-form-input .ant-select-selector, .pm-form-input .ant-input-number { border-radius: var(--ui-radius-control) !important; }
       `}</style>
 
       <div className="module-page">
         
         <div className="module-page-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 40, height: 40, borderRadius: cornerRadius.control, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <ChefHat size={20} color={T.accent} />
             </div>
             <div>
@@ -280,8 +280,8 @@ const CreateMenu = () => {
             </div>
           </div>
           <Space>
-            <button onClick={() => { setSelectedRecipes([]); form.resetFields(); }} style={{ padding: '9px 18px', borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.inkMid, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Reset</button>
-            <button disabled={loading || selectedRecipes.length === 0} onClick={handleSubmit} style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (loading || selectedRecipes.length === 0) ? 0.6 : 1, boxShadow: `0 2px 8px rgba(26,86,219,0.3)` }}>
+            <button onClick={() => { setSelectedRecipes([]); form.resetFields(); }} style={{ padding: '9px 18px', borderRadius: cornerRadius.control, border: `1px solid ${T.border}`, background: T.surface, color: T.inkMid, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Reset</button>
+            <button disabled={loading || selectedRecipes.length === 0} onClick={handleSubmit} style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.accent, color: '#fff', border: 'none', borderRadius: cornerRadius.control, padding: '9px 22px', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: (loading || selectedRecipes.length === 0) ? 0.6 : 1, boxShadow: `0 2px 8px rgba(26,86,219,0.3)` }}>
               <Save size={16} /> Confirm Menu
             </button>
           </Space>
@@ -297,7 +297,7 @@ const CreateMenu = () => {
 
           <Row gutter={20}>
             <Col span={9}>
-              <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: 24, boxShadow: T.shadow }}>
+              <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: cornerRadius.surface, padding: 24, boxShadow: T.shadow }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
                   <Settings size={16} color={T.accent} />
                   <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>1. Menu Setup</span>
@@ -332,7 +332,7 @@ const CreateMenu = () => {
             <Col span={15}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {selectedRecipes.length > 0 && (
-                  <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: 24, boxShadow: T.shadow }}>
+                  <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: cornerRadius.surface, padding: 24, boxShadow: T.shadow }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                       <Calculator size={16} color={T.success} />
                       <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>2. Requirement Analysis</span>
@@ -349,21 +349,21 @@ const CreateMenu = () => {
                         { title: 'EST. COST', render: (_, r) => <span>₹{r.total_cost.toFixed(0)}</span> },
                         { title: 'STATUS', align: 'right', render: (_, r) => (
                           r.shortage > 0 ? 
-                          <Tag color="error" style={{ borderRadius: 20 }}>Shortage: {r.shortage.toFixed(1)}</Tag> :
-                          <Tag color="success" style={{ borderRadius: 20 }}>Ready</Tag>
+                          <Tag color="error" style={{ borderRadius: cornerRadius.pill }}>Shortage: {r.shortage.toFixed(1)}</Tag> :
+                          <Tag color="success" style={{ borderRadius: cornerRadius.pill }}>Ready</Tag>
                         )}
                       ]}
                     />
                   </div>
                 )}
 
-                <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: 'hidden', boxShadow: T.shadow }}>
+                <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: cornerRadius.surface, overflow: 'hidden', boxShadow: T.shadow }}>
                   <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <LayoutGrid size={16} color={T.inkSoft} />
                       <span style={{ fontSize: 14, fontWeight: 700, color: T.ink }}>Browse Recipes</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: '6px 12px', width: 240 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: cornerRadius.control, padding: '6px 12px', width: 240 }}>
                       <Search size={14} color={T.inkSoft} />
                       <input placeholder="Search recipes..." style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, width: '100%' }} onChange={e => setSearchText(e.target.value)} />
                     </div>

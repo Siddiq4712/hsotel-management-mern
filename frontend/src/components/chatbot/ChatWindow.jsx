@@ -110,7 +110,7 @@ export const ChatWindow = () => {
 
   return (
     <div
-      className="fixed bottom-24 right-6 z-50 flex flex-col w-[390px] h-[630px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-110px)] bg-white/98 border border-slate-200/80 shadow-2xl rounded-2xl overflow-hidden transition-all duration-300 ease-in-out backdrop-blur-md
+      className="fixed bottom-24 right-6 z-50 flex flex-col w-[390px] h-[630px] max-w-[calc(100vw-32px)] max-h-[calc(100vh-110px)] bg-white/98 border border-slate-200/80 shadow-2xl rounded-surface overflow-hidden transition-all duration-300 ease-in-out backdrop-blur-md
         max-md:fixed max-md:inset-0 max-md:w-full max-md:h-full max-md:max-w-full max-md:max-h-full max-md:rounded-none max-md:z-50
       "
     >

@@ -1,0 +1,20 @@
+.workspace-context-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 22px;
+  color: #475a76;
+  font-size: 13px;
+  min-height: 24px;
+}
+
+.workspace-context-back:hover { color: #2456cf; }
+.workspace-context-heading, .workspace-context-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.workspace-context-heading { justify-content: space-between; margin-bottom: 24px; }
+.workspace-context-heading :is(h1, h2) { margin: 0; font-size: 30px; line-height: 1.25; font-weight: 700; letter-spacing: -.025em; color: #17263c; }
+.workspace-context-heading p { margin: 6px 0 0; color: #526681; font-size: 14px; }
+.workspace-context-scope { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: var(--ui-radius-compact); background: #fff; border: 1px solid #dce5f2; color: #17263c; font-size: 12px; }
+
+@media (max-width: 640px) {
+  .workspace-context-heading :is(h1, h2) { font-size: 25px; }
+}

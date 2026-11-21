@@ -186,7 +186,7 @@ const SupplierManagement = () => {
         </div>
         <button
           onClick={handleAdd}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 flex items-center"
+          className="bg-blue-600 text-white px-4 py-2 rounded-control hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 flex items-center"
         >
           <Plus size={20} className="mr-2" />
           Add Supplier
@@ -194,7 +194,7 @@ const SupplierManagement = () => {
       </div>
 
       {message.text && (
-        <div className={`mb-4 p-3 rounded-lg flex items-center ${
+        <div className={`mb-4 p-3 rounded-control flex items-center ${
           message.type === 'success' 
             ? 'bg-green-100 border border-green-400 text-green-700' 
             : 'bg-red-100 border border-red-400 text-red-700'
@@ -217,7 +217,7 @@ const SupplierManagement = () => {
             placeholder="Search suppliers..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
         <div className="flex items-center space-x-2">
@@ -225,7 +225,7 @@ const SupplierManagement = () => {
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">All Types</option>
             {supplierTypes.map(type => (
@@ -239,7 +239,7 @@ const SupplierManagement = () => {
 
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-white rounded-lg shadow-md p-4">
+        <div className="bg-white rounded-control shadow-md p-4">
           <div className="flex items-center">
             <Truck className="text-blue-600" size={24} />
             <div className="ml-3">
@@ -250,7 +250,7 @@ const SupplierManagement = () => {
         </div>
         
         {supplierTypes.slice(0, 3).map(type => (
-          <div key={type.value} className="bg-white rounded-lg shadow-md p-4">
+          <div key={type.value} className="bg-white rounded-control shadow-md p-4">
             <div className="flex items-center">
               <Truck className="text-green-600" size={24} />
               <div className="ml-3">
@@ -265,7 +265,7 @@ const SupplierManagement = () => {
       </div>
 
       {/* Suppliers Grid */}
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+      <div className="bg-white shadow-md rounded-control overflow-hidden">
         <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -281,7 +281,7 @@ const SupplierManagement = () => {
         {filteredSuppliers.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
             {filteredSuppliers.map((supplier) => (
-              <div key={supplier.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+              <div key={supplier.id} className="border border-gray-200 rounded-control p-6 hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">
@@ -294,14 +294,14 @@ const SupplierManagement = () => {
                   <div className="flex space-x-2">
                     <button
                       onClick={() => handleEdit(supplier)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-control"
                       title="Edit Supplier"
                     >
                       <Edit size={16} />
                     </button>
                     <button
                       onClick={() => handleDelete(supplier)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-control"
                       title="Delete Supplier"
                     >
                       <Trash2 size={16} />
@@ -358,7 +358,7 @@ const SupplierManagement = () => {
       {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+          <div className="relative top-10 mx-auto p-5 border w-full max-w-md shadow-lg rounded-control bg-white">
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 {editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}
@@ -374,7 +374,7 @@ const SupplierManagement = () => {
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   />
                 </div>
@@ -387,7 +387,7 @@ const SupplierManagement = () => {
                     name="supplier_type"
                     value={formData.supplier_type}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     required
                   >
                     {supplierTypes.map(type => (
@@ -407,7 +407,7 @@ const SupplierManagement = () => {
                     name="contact_person"
                     value={formData.contact_person}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
 
@@ -420,7 +420,7 @@ const SupplierManagement = () => {
                     name="phone"
                     value={formData.phone}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
 
@@ -433,7 +433,7 @@ const SupplierManagement = () => {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
 
@@ -446,7 +446,7 @@ const SupplierManagement = () => {
                     value={formData.address}
                     onChange={handleInputChange}
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
 
@@ -454,7 +454,7 @@ const SupplierManagement = () => {
                   <button
                     type="submit"
                     disabled={actionLoading}
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-control hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {actionLoading ? 'Saving...' : (editingSupplier ? 'Update Supplier' : 'Create Supplier')}
                   </button>
@@ -465,7 +465,7 @@ const SupplierManagement = () => {
                       resetForm();
                     }}
                     disabled={actionLoading}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50"
+                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-control hover:bg-gray-400 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50"
                   >
                     Cancel
                   </button>

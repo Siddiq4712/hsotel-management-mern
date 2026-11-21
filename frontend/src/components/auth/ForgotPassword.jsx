@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Modal, Button, Input, Alert, Form } from 'antd';
+import { Modal, Button, Input, Form } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import { authAPI } from '../../services/api';
 
 export default function ForgotPassword({ onClose }) {

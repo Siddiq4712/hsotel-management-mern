@@ -1,7 +1,8 @@
 import { PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Table, Select, message, Space, Typography, Tag, Switch, Form, InputNumber, ConfigProvider, theme, Input, Badge, Tooltip, Row, Col } from 'antd';
+import { Card, Table, Select, message, Space, Typography, Tag, Switch, Form, InputNumber, ConfigProvider, theme, Input, Badge, Tooltip, Row, Col } from 'antd';
+import WorkspaceToolbar from '../common/WorkspaceToolbar';
 import { 
   Warehouse, Plus, Download, RefreshCw, 
   Search, FileBarChart, Filter, Box, AlertCircle, UploadCloud
@@ -184,7 +185,7 @@ const StockManagement = () => {
       sorter: (a, b) => a.item_name.localeCompare(b.item_name),
       render: (_, r) => (
         <Space size={12}>
-          <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200">
+          <div className="w-9 h-9 rounded-control bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200">
             <Box size={18} />
           </div>
           <div className="flex flex-col">
@@ -199,7 +200,7 @@ const StockManagement = () => {
       dataIndex: 'unit',
       key: 'unit',
       width: 100,
-      render: (u) => <Tag bordered={false} className="bg-slate-100 text-slate-600 px-3 rounded-md font-medium">{u}</Tag>
+      render: (u) => <Tag bordered={false} className="bg-slate-100 text-slate-600 px-3 rounded-control font-medium">{u}</Tag>
     },
     {
       title: 'Current Stock',
@@ -254,43 +255,31 @@ const StockManagement = () => {
       <div className="module-page">
         
         {/* Page Header */}
-        <InventoryPageHeader title="Current Stock" description="View balances, record stock, and import inventory quantities.">
+        <InventoryPageHeader title="Current Stock" description="View balances, record stock, and import inventory quantities." />
+        <Card>
+          <WorkspaceToolbar className="mb-4">
+            <Input aria-label="Search current stock" className="workspace-search" prefix={<Search size={16} aria-hidden="true" />}
+              placeholder="Search by item or category" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} allowClear />
+            <Space><Switch aria-label="Low stock only" checked={showLowStock} onChange={setShowLowStock} size="small" /><Text>Low stock only</Text></Space>
+            <div className="workspace-toolbar-actions">
             <input ref={stockImportRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleStockImportChange} />
-            <Button icon={<RefreshCw size={16} />} onClick={fetchStocks} className="rounded-xl h-10">Refresh</Button>
-            <Button icon={<Download size={16} />} onClick={() => setIsUnitRateModalVisible(true)} className="rounded-xl h-10">Reports</Button>
-            <Button permissionAction="create" icon={<UploadCloud size={16} />} onClick={triggerStockImport} loading={importingStock} className="rounded-xl h-10">
+            <Button icon={<RefreshCw size={16} />} onClick={fetchStocks} className="rounded-control h-10">Refresh</Button>
+            <Button icon={<Download size={16} />} onClick={() => setIsUnitRateModalVisible(true)} className="rounded-control h-10">Reports</Button>
+            <Button permissionAction="create" icon={<UploadCloud size={16} />} onClick={triggerStockImport} loading={importingStock} className="rounded-control h-10">
               {importingStock ? 'Importing...' : 'Import Excel'}
             </Button>
-            <Button icon={<Download size={16} />} onClick={() => downloadStockBulkImportTemplate()} className="rounded-xl h-10">
+            <Button icon={<Download size={16} />} onClick={() => downloadStockBulkImportTemplate()} className="rounded-control h-10">
               Download Template
             </Button>
             <Button permissionAction="create" 
               type="primary" 
               icon={<Plus size={18} />} 
               onClick={() => setIsAddStockModalVisible(true)}
-              className="h-10 px-6 rounded-xl font-bold shadow-indigo-100 shadow-lg"
             >
               Add New Stock
             </Button>
-        </InventoryPageHeader>
-
-        {/* Toolbar: Search & Toggle */}
-        <div className="inventory-panel inventory-toolbar">
-          <Input 
-            prefix={<Search size={18} className="text-slate-400 mr-2" />} 
-            placeholder="Quick search material or category..." 
-            className="inventory-search"
-            onChange={e => setSearchQuery(e.target.value)}
-            allowClear
-          />
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border border-slate-200">
-               <Filter size={14} className="text-slate-400" />
-               <Text className="text-xs font-bold text-slate-500">LOW STOCK ONLY</Text>
-               <Switch checked={showLowStock} onChange={setShowLowStock} size="small" />
             </div>
-          </div>
-        </div>
+          </WorkspaceToolbar>
 
         {/* The Main Table */}
         <Table
@@ -298,9 +287,9 @@ const StockManagement = () => {
           columns={columns}
           loading={loading}
           pagination={{ defaultPageSize: 10, showSizeChanger: true }}
-          className="inventory-panel inventory-table"
           scroll={{ x: 760 }}
         />
+        </Card>
 
         {/* Modal: Add Stock */}
         <Modal permissionAction="create"
@@ -356,7 +345,7 @@ const StockManagement = () => {
             <Form.Item name="date" label="Reporting Month" initialValue={moment()} rules={[{required: true}]}>
                <DatePicker picker="month" className="w-full h-11" />
             </Form.Item>
-            <div className="p-4 bg-indigo-50 rounded-xl text-indigo-700 text-xs">
+            <div className="p-4 bg-indigo-50 rounded-surface text-indigo-700 text-xs">
               This will generate an Excel report including purchase batches, current inventory levels, and FIFO valuation.
             </div>
           </Form>

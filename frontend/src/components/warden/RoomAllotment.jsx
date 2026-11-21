@@ -1,353 +1,191 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, App, Checkbox, Empty, Input, Modal, Progress, Select, Skeleton } from 'antd';
+import { ArrowRight, DoorOpen, RefreshCw, Search, Users } from 'lucide-react';
 import { PermissionButton as Button } from '../common/PermissionControls';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, Table, Tag, Input, Select, Typography, Row, Col, Statistic, Space, Skeleton, Modal, Badge, Progress, Divider, Empty, message, ConfigProvider, theme } from 'antd';
-import { 
-  Bed, User, CheckCircle2, AlertCircle, Users, Home, Eye, 
-  Search, RefreshCw, Building, Users2, MapPin, Inbox,
-  ShieldCheck, ArrowRight, UserPlus
-} from 'lucide-react';
-import { wardenAPI } from '../../services/api';
+import WorkspaceContextHeader from '../common/WorkspaceContextHeader';
 import { useScopeDraft } from '../common/WorkspaceScope';
+import { useWardenHostelName } from './WardenWorkspace';
+import { wardenAPI } from '../../services/api';
+import './RoomAllotment.css';
 
-const { Title, Text, Paragraph } = Typography;
-
-// --- Specialized Skeletons for Precise UI Matching ---
-
-const SidebarSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
-    <Skeleton active title={{ width: '60%' }} paragraph={{ rows: 1 }} />
-    <div className="space-y-4 mt-6">
-      {[...Array(4)].map((_, i) => (
-        <div key={i} className="p-4 rounded-xl border border-slate-50 bg-slate-50/30">
-          <Skeleton active avatar={{ shape: 'square' }} title={{ width: '40%' }} paragraph={{ rows: 1 }} />
-        </div>
-      ))}
-    </div>
-  </Card>
-);
-
-const FormSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-8 bg-white overflow-hidden">
-    <div className="flex items-center gap-4 mb-8">
-      <Skeleton.Avatar active size="large" shape="square" />
-      <Skeleton active title={{ width: '40%' }} paragraph={false} />
-    </div>
-    <div className="space-y-8">
-      <Skeleton.Input active block style={{ height: 50, borderRadius: 12 }} />
-      <Skeleton active paragraph={{ rows: 4 }} />
-      <Skeleton.Button active block style={{ height: 60, borderRadius: 16 }} />
-    </div>
-  </Card>
-);
-
-const RoomAllotment = () => {
+function RoomAllotment() {
+  const { message } = App.useApp();
+  const hostelName = useWardenHostelName();
   const [students, setStudents] = useState([]);
-  const [availableRooms, setAvailableRooms] = useState([]);
-  const [selectedRoomId, setSelectedRoomId] = useState(null);
-  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [dataLoading, setDataLoading] = useState(true);
-  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
-  useScopeDraft(selectedStudentIds.length > 0, loading);
+  const [rooms, setRooms] = useState([]);
+  const [roomId, setRoomId] = useState(null);
+  const [studentIds, setStudentIds] = useState([]);
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const request = useRef(0);
+  useScopeDraft(studentIds.length > 0, saving);
 
-  // --- Data Synchronization ---
-  const fetchData = useCallback(async () => {
-    setDataLoading(true);
+  const refresh = useCallback(async () => {
+    const current = ++request.current;
+    setLoading(true);
+    setLoadError('');
     try {
-      const [studentRes, roomRes] = await Promise.all([
-        wardenAPI.getStudents(),
-        wardenAPI.getAvailableRooms()
-      ]);
+      const [studentRes, roomRes] = await Promise.all([wardenAPI.getStudents(), wardenAPI.getAvailableRooms()]);
+      if (current !== request.current) return;
 
-      // Filter unassigned students
-      const unassigned = studentRes.data.data.filter(s => 
-        !s.tbl_RoomAllotments?.some(a => a.is_active)
-      );
-      setStudents(unassigned);
-
-      // Map rooms with occupancy data
-      const roomData = await Promise.all(
-        roomRes.data.data.map(async (room) => {
-          const occRes = await wardenAPI.getRoomOccupants(room.id);
-          const occupants = occRes.data.data || [];
-          return {
-            ...room,
-            current_occupants: occupants.length,
-            spacesLeft: (room.RoomType?.capacity || 0) - occupants.length,
-            occupants
-          };
-        })
-      );
-      setAvailableRooms(roomData);
-    } catch (error) {
-      message.error('Failed to load hostel data.');
+      const waiting = (studentRes.data.data || []).filter(student =>
+        !student.tbl_RoomAllotments?.some(allotment => allotment.is_active));
+      const available = (roomRes.data.data || []).map(room => {
+        const occupied = Number(room.occupancy_count) || 0;
+        const capacity = Number(room.RoomType?.capacity) || 0;
+        return { ...room, occupied, capacity, spacesLeft: Math.max(0, capacity - occupied) };
+      });
+      const waitingIds = new Set(waiting.map(student => student.userId));
+      setStudents(waiting);
+      setRooms(available);
+      setStudentIds(previous => previous.filter(id => waitingIds.has(id)));
+    } catch {
+      if (current === request.current) setLoadError('Could not load the room allotment board.');
     } finally {
-      setTimeout(() => setDataLoading(false), 800);
+      if (current === request.current) setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    refresh();
+    return () => { request.current++; };
+  }, [refresh]);
 
-  // --- Computed States ---
-  const selectedRoom = useMemo(() => 
-    availableRooms.find(r => r.id === selectedRoomId), [availableRooms, selectedRoomId]);
+  const room = rooms.find(item => item.id === roomId);
+  const roomLabel = room ? `Room ${room.room_number}` : '';
+  const query = search.trim().toLowerCase();
+  const visibleStudents = students.filter(student => [student.userName, student.roll_number].join(' ').toLowerCase().includes(query));
+  const selectedCount = studentIds.length;
+  const canSelect = Boolean(room?.spacesLeft) && !loading && !loadError && !saving;
+  const canAssign = canSelect && selectedCount > 0 && selectedCount <= room.spacesLeft;
+  const percent = room?.capacity ? Math.min(100, Math.round(room.occupied / room.capacity * 100)) : 0;
 
-  const filteredStudents = useMemo(() => students.filter(s =>
-    s.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (s.roll_number && s.roll_number.toLowerCase().includes(searchTerm.toLowerCase()))
-  ), [students, searchTerm]);
-
-  // --- Handlers ---
-  const handleToggleStudent = (id) => {
-    setSelectedStudentIds(prev => {
-      if (prev.includes(id)) return prev.filter(i => i !== id);
-      if (selectedRoom && prev.length >= selectedRoom.spacesLeft) {
-        message.warning(`Room is full (${selectedRoom.spacesLeft} spaces left)`);
-        return prev;
-      }
-      return [...prev, id];
-    });
-  };
-
-  const confirmAllotment = async () => {
-    setLoading(true);
-    try {
-      await Promise.all(selectedStudentIds.map(sid => 
-        wardenAPI.allotRoom({ student_id: sid, room_id: selectedRoomId })
-      ));
-      message.success(`${selectedStudentIds.length} students successfully assigned to the room.`);
-      setSelectedRoomId(null);
-      setSelectedStudentIds([]);
-      setConfirmModalVisible(false);
-      fetchData();
-    } catch (error) {
-      message.error('Failed to save the allotment.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (dataLoading) {
-    return (
-      <div className="module-page p-8 space-y-6 bg-slate-50 min-h-screen">
-        <Row gutter={24}>
-          <Col lg={16} xs={24}><FormSkeleton /></Col>
-          <Col lg={8} xs={24}><SidebarSkeleton /></Col>
-        </Row>
-      </div>
-    );
+  function selectRoom(value) {
+    setRoomId(value);
+    setStudentIds([]);
   }
 
+  function toggleStudent(id) {
+    setStudentIds(previous => previous.includes(id) ? previous.filter(value => value !== id)
+      : previous.length < room.spacesLeft ? [...previous, id] : previous);
+  }
+
+  async function confirmAllotment() {
+    if (!canAssign) return;
+    setSaving(true);
+    try {
+      const results = await Promise.allSettled(studentIds.map(id => wardenAPI.allotRoom({ student_id: id, room_id: roomId })));
+      const failed = studentIds.filter((_, index) => results[index].status === 'rejected');
+      const saved = selectedCount - failed.length;
+      if (saved === selectedCount) {
+        message.success(saved === 1 ? 'Student assigned to the room.' : `${saved} students assigned to the room.`);
+        setRoomId(null);
+      } else if (saved) {
+        message.warning(`Assigned ${saved} of ${selectedCount} students. Review the remaining selection.`);
+      } else {
+        message.error(results[0].reason?.response?.data?.message || 'Could not save the allotment.');
+      }
+      setStudentIds(failed);
+      setConfirming(false);
+      await refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const roomOptions = rooms.map(item => ({
+    value: item.id,
+    disabled: item.spacesLeft <= 0,
+    label: <span className="allotment-room-option">
+      <span><DoorOpen size={16} aria-hidden="true" />Room {item.room_number}</span>
+      <span className={`allotment-slot-badge${item.spacesLeft ? '' : ' is-full'}`}>
+        {item.spacesLeft ? `${item.spacesLeft} ${item.spacesLeft === 1 ? 'slot' : 'slots'} available` : 'Full'}
+      </span>
+    </span>,
+  }));
+
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
-        
-        {/* Institutional Header */}
-        <div className="module-page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
-              <Building className="text-white" size={24} />
+    <div className="module-page room-allotment-page">
+      <WorkspaceContextHeader title="Room Allotment Board" headingAs="h1"
+        description={hostelName ? `Select a room and assign students in ${hostelName}.` : 'Select a room and assign students.'}
+        actions={<Button icon={<RefreshCw size={16} />} onClick={refresh} loading={loading} disabled={saving}>Refresh List</Button>} />
+
+      {loadError && <Alert type="error" showIcon title={loadError} className="allotment-load-error" />}
+      <div className="allotment-board">
+        <div className="allotment-workflow">
+          <section className="allotment-panel allotment-panel-body" aria-labelledby="allotment-room-heading">
+            <h2 id="allotment-room-heading"><span className="allotment-step" aria-hidden="true">1</span>Room Selection</h2>
+            <label className="allotment-label" htmlFor="allotment-target">Select target room</label>
+            <Select id="allotment-target" aria-label="Target room" className="allotment-target"
+              placeholder="Select a room" value={room?.id} onChange={selectRoom} options={roomOptions}
+              disabled={loading || saving || Boolean(loadError)} loading={loading} notFoundContent="No rooms available" />
+            {room && <div className="allotment-capacity">
+              <div className="allotment-capacity-bar">
+                <div><span>Room capacity status</span><strong>{percent}%</strong></div>
+                <Progress aria-label="Room capacity status" percent={percent} showInfo={false} size={['100%', 6]} strokeColor="#3265ed" railColor="#dfe7f4" />
+              </div>
+              <dl><div><dt>Occupied</dt><dd>{room.occupied}</dd></div><div><dt>Total</dt><dd>{room.capacity}</dd></div></dl>
+            </div>}
+          </section>
+
+          <section className="allotment-panel" aria-labelledby="allotment-students-heading">
+            <div className="allotment-panel-body">
+              <div className="allotment-students-heading">
+                <h2 id="allotment-students-heading"><span className="allotment-step" aria-hidden="true">2</span>Assign Student Members</h2>
+                <span className="allotment-count">{selectedCount} selected</span>
+              </div>
+              <Input aria-label="Search students for allotment" prefix={<Search size={15} aria-hidden="true" />}
+                placeholder="Filter by name or roll number" value={search} onChange={event => setSearch(event.target.value)} allowClear />
+              <p className="allotment-helper">{room
+                ? room.spacesLeft ? `Select up to ${room.spacesLeft} ${room.spacesLeft === 1 ? 'student' : 'students'} for ${roomLabel}.` : `${roomLabel} is full.`
+                : 'Select a room to start assigning students.'}</p>
+              {loading && !students.length ? <Skeleton active paragraph={{ rows: 3 }} />
+                : visibleStudents.length ? <div className="allotment-student-grid">
+                  {visibleStudents.map(student => {
+                    const checked = studentIds.includes(student.userId);
+                    return <Checkbox key={student.userId} className="allotment-student" checked={checked}
+                      disabled={!canSelect || (!checked && selectedCount >= room.spacesLeft)} onChange={() => toggleStudent(student.userId)}>
+                      <span>{student.userName}</span><small>{student.roll_number || 'No roll number'}</small>
+                    </Checkbox>;
+                  })}
+                </div> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={query ? 'No students match your search.' : 'No students are waiting for a room.'} />}
             </div>
-            <div>
-              <Title level={2} style={{ margin: 0 }}>Room Allotment Board</Title>
-              <Text type="secondary">Assign students to available hostel rooms</Text>
-            </div>
-          </div>
-          <Button icon={<RefreshCw size={16}/>} onClick={fetchData} className="rounded-xl h-11 px-6 font-bold shadow-sm">Refresh List</Button>
+            <footer className="allotment-footer">
+              <span role="status">{selectedCount} {selectedCount === 1 ? 'student' : 'students'} selected</span>
+              <Button permissionAction="create" type="primary" icon={<ArrowRight size={16} />} disabled={!canAssign}
+                onClick={() => setConfirming(true)}>{room ? `Assign to ${roomLabel}` : 'Assign students'}</Button>
+            </footer>
+          </section>
         </div>
 
-        <Row gutter={[24, 24]}>
-          {/* Main Action Area */}
-          <Col lg={16} xs={24} className="space-y-6">
-            <Card className="border-none shadow-sm rounded-[32px] p-4">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="p-3 bg-slate-100 rounded-xl"><UserPlus className="text-slate-600" size={20}/></div>
-                <Title level={4} style={{ margin: 0 }}>Step 1: Room Selection</Title>
-              </div>
-
-              <div className="space-y-8">
-                {/* Room Selector Dropdown */}
-                <div className="space-y-2">
-                  <Text strong className="text-[11px] uppercase tracking-widest text-slate-400">Select Target Room</Text>
-                  <Select
-                    placeholder="Select room to begin assignment..."
-                    className="w-full h-14"
-                    onChange={(val) => { setSelectedRoomId(val); setSelectedStudentIds([]); }}
-                    value={selectedRoomId}
-                  >
-                    {availableRooms.map(room => (
-                      <Select.Option key={room.id} value={room.id} disabled={room.spacesLeft === 0}>
-                        <div className="flex justify-between items-center py-1">
-                          <Space><Home size={16} className="text-blue-500"/> <Text strong>Room {room.room_number}</Text></Space>
-                          <Tag bordered={false} color={room.spacesLeft > 0 ? 'green' : 'default'} className="m-0 rounded-full font-bold uppercase text-[9px]">
-                            {room.spacesLeft} Slots Available
-                          </Tag>
-                        </div>
-                      </Select.Option>
-                    ))}
-                  </Select>
-                </div>
-
-                {selectedRoom && (
-                  <div className="animate-in fade-in slide-in-from-top-4 duration-500 space-y-6">
-                    {/* Capacity Analytics */}
-                    <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                      <Row gutter={24} align="middle">
-                        <Col span={14}>
-                          <Text type="secondary" className="text-[10px] uppercase font-bold block mb-3">Room Capacity Status</Text>
-                          <Progress 
-                            percent={Math.round((selectedRoom.current_occupants / selectedRoom.RoomType.capacity) * 100)} 
-                            strokeColor={{ '0%': '#3b82f6', '100%': '#2563eb' }}
-                            strokeWidth={12}
-                          />
-                        </Col>
-                        <Col span={10}>
-                          <div className="flex justify-around text-center">
-                            <Statistic title={<span className="text-[10px] uppercase font-bold text-slate-400">Occupied</span>} value={selectedRoom.current_occupants} valueStyle={{ fontWeight: 900 }} />
-                            <Statistic title={<span className="text-[10px] uppercase font-bold text-slate-400">Total</span>} value={selectedRoom.RoomType.capacity} valueStyle={{ fontWeight: 900 }} />
-                          </div>
-                        </Col>
-                      </Row>
-                    </div>
-
-                    {/* Student Multi-Select List */}
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                         <Text strong className="text-[11px] uppercase tracking-widest text-slate-400">Step 2: Assign Student Members ({selectedStudentIds.length} Selected)</Text>
-                         <Input 
-                            prefix={<Search size={14} className="text-slate-300"/>} 
-                            placeholder="Filter by name or roll..." 
-                            className="w-64 rounded-xl border-slate-200" 
-                            onChange={e => setSearchTerm(e.target.value)}
-                         />
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                        {filteredStudents.map(student => {
-                          const isSelected = selectedStudentIds.includes(student.userId);
-                          return (
-                            <div 
-                              key={student.userId} 
-                              onClick={() => handleToggleStudent(student.userId)}
-                              className={`p-4 rounded-2xl border-2 cursor-pointer transition-all ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-slate-100 bg-white hover:border-slate-300'}`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-xl ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                  <User size={18} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <Text strong className="block truncate">{student.userName}</Text>
-                                  <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{student.roll_number || 'No Roll Set'}</Text>
-                                </div>
-                                {isSelected && <CheckCircle2 size={20} className="text-blue-600" />}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <Button permissionAction="create" 
-                      type="primary" 
-                      block 
-                      size="large" 
-                      className="h-16 rounded-2xl font-bold shadow-lg shadow-blue-100 flex items-center justify-center gap-3 mt-4"
-                      disabled={selectedStudentIds.length === 0}
-                      onClick={() => setConfirmModalVisible(true)}
-                    >
-                      Process Assignment <ArrowRight size={20}/>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </Card>
-          </Col>
-
-          {/* Institutional Sidebar */}
-          <Col lg={8} xs={24} className="space-y-6">
-            {/* Quick Status Sidebar */}
-            <Card className="border-none shadow-sm rounded-[32px]" title={<Space><Users2 size={18} className="text-orange-500"/> <Text strong>Waiting List</Text></Space>}>
-              <div className="flex flex-col gap-3">
-                <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100">
-                   <Statistic title={<span className="text-orange-700 font-bold text-[10px] uppercase">Students Without Rooms</span>} value={students.length} valueStyle={{ color: '#c2410c', fontWeight: 900 }} />
-                </div>
-                <Divider className="my-2 border-slate-50" />
-                <div className="max-h-[300px] overflow-y-auto space-y-2">
-                  {students.slice(0, 5).map(s => (
-                    <div key={s.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-                      <Space size={3}><User size={12} className="text-slate-400"/><Text className="text-xs font-medium">{s.userName}</Text></Space>
-                      <Text className="text-[9px] font-bold text-slate-400">{s.roll_number}</Text>
-                    </div>
-                  ))}
-                  <Text className="text-[10px] text-slate-400 text-center block mt-2">Only top 5 shown</Text>
-                </div>
-              </div>
-            </Card>
-
-            {/* Protocol Card */}
-            <Card className="border-none shadow-sm rounded-[32px] bg-slate-900 text-white relative overflow-hidden">
-               <div className="relative z-10">
-                  <Title level={5} className="text-white mb-4 flex items-center gap-2"><ShieldCheck size={18} className="text-blue-400"/> Important Notes</Title>
-                  <Paragraph className="text-slate-400 text-[11px] leading-relaxed">
-                    Allotting a room updates the official hostel records. This action will:
-                  </Paragraph>
-                  <ul className="text-[10px] space-y-2 text-slate-300 pl-4 list-disc">
-                    <li>Update the Student Register for 2024-25</li>
-                    <li>Start monthly mess bill calculations</li>
-                    <li>Mark student as a "Hosteller" in the system</li>
-                  </ul>
-               </div>
-               <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-blue-500 rounded-full opacity-10" />
-            </Card>
-          </Col>
-        </Row>
-
-        {/* Audit Confirmation Modal */}
-        <Modal
-          title={<div className="flex items-center gap-2 text-blue-600"><Building size={20}/> Confirm Room Allotment</div>}
-          open={confirmModalVisible}
-          onCancel={() => setConfirmModalVisible(false)}
-          footer={[
-            <Button key="back" onClick={() => setConfirmModalVisible(false)} className="rounded-xl h-11 px-8">Cancel</Button>,
-            <Button permissionAction="create" key="submit" type="primary" loading={loading} onClick={confirmAllotment} className="rounded-xl h-11 px-12 font-bold shadow-lg shadow-blue-100">Confirm & Save</Button>
-          ]}
-          width={600}
-          className="rounded-[32px]"
-        >
-          <div className="mt-6 space-y-6">
-            <div className="bg-blue-50 p-6 rounded-3xl border border-blue-100 flex justify-between items-center">
-               <div>
-                 <Text type="secondary" className="text-[10px] uppercase font-bold tracking-widest">Selected Room</Text>
-                 <Title level={3} style={{ margin: 0 }}>Room {selectedRoom?.room_number}</Title>
-                 <Text type="secondary" className="text-xs">{selectedRoom?.RoomType?.name}</Text>
-               </div>
-               <Badge count={`${selectedStudentIds.length} Students`} style={{ backgroundColor: '#2563eb' }} className="h-fit font-bold" />
-            </div>
-
-            <Divider orientation="left" plain><Text className="text-[10px] uppercase font-bold text-slate-400">Selected Students</Text></Divider>
-
-            <div className="grid grid-cols-2 gap-3 max-h-[200px] overflow-y-auto">
-              {selectedStudentIds.map(id => {
-                const s = students.find(item => item.id === id);
-                return (
-                  <div key={id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <div className="p-1.5 bg-white rounded-lg shadow-sm"><User size={12} className="text-blue-500"/></div>
-                    <Text strong className="text-xs truncate">{s?.userName}</Text>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 flex gap-3">
-              <AlertCircle className="text-orange-500 shrink-0 mt-1" size={18} />
-              <Text className="text-[11px] text-orange-800 italic leading-tight">Note: This action updates official student records and will affect their room status immediately.</Text>
-            </div>
+        <aside className="allotment-panel allotment-waiting" aria-labelledby="allotment-waiting-heading">
+          <h2 id="allotment-waiting-heading"><Users size={18} aria-hidden="true" />Waiting List</h2>
+          <div className="allotment-panel-body">
+            <div className="allotment-waiting-count"><span>Students without rooms</span><strong>{loading && !students.length || loadError ? '—' : students.length}</strong></div>
+            {loading && !students.length ? <Skeleton active paragraph={{ rows: 3 }} />
+              : students.length ? <ul className="allotment-waiting-list" aria-label="Students without rooms" tabIndex={0}>
+                {students.map(student => <li key={student.userId}><span>{student.userName}</span><small>{student.roll_number}</small></li>)}
+              </ul> : !loadError && <p className="allotment-helper">No students are waiting for a room.</p>}
           </div>
-        </Modal>
+        </aside>
       </div>
-    </ConfigProvider>
+
+      <Modal title="Confirm Room Allotment" open={confirming} centered width={680}
+        onCancel={() => !saving && setConfirming(false)} mask={{ closable: !saving }} closable={!saving} keyboard={!saving}
+        footer={<>
+          <Button disabled={saving} onClick={() => setConfirming(false)}>Cancel</Button>
+          <Button permissionAction="create" type="primary" loading={saving} disabled={!canAssign && !saving} onClick={confirmAllotment}>Confirm &amp; Save</Button>
+        </>}>
+        <p>Assign {selectedCount} {selectedCount === 1 ? 'student' : 'students'} to <strong>{roomLabel}</strong>?</p>
+        <ul className="allotment-confirm-students">
+          {students.filter(student => studentIds.includes(student.userId)).map(student => <li key={student.userId}>{student.userName}</li>)}
+        </ul>
+      </Modal>
+    </div>
   );
-};
+}
 
 export default RoomAllotment;

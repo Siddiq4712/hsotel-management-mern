@@ -1,6 +1,6 @@
 import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, Typography, Row, Col, Statistic, Space, Select, Divider, ConfigProvider, theme, Skeleton, Badge, Tooltip, Tag, Input, Form, Empty, message, Radio } from 'antd';
+import { Card, Typography, Row, Col, Statistic, Space, Select, Divider, ConfigProvider, Skeleton, Badge, Tooltip, Tag, Input, Form, Empty, message, Radio } from 'antd';
 import { 
   MessageCircle, Send, RefreshCw, Filter, 
   Clock, CheckCircle2, AlertCircle, XCircle,
@@ -15,7 +15,7 @@ const { TextArea } = Input;
 
 // --- Specialized Skeleton for Complaints ---
 const ComplaintSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+  <Card className="border-none shadow-sm rounded-surface p-6 bg-white overflow-hidden">
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <Skeleton.Input active style={{ width: 200 }} />
@@ -108,13 +108,13 @@ const ComplaintManagement = () => {
   };
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Header */}
         <div className="module-page-header flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100">
               <LifeBuoy className="text-white" size={24} />
             </div>
             <div>
@@ -122,7 +122,7 @@ const ComplaintManagement = () => {
               <Text type="secondary">Report issues and track resolution timelines</Text>
             </div>
           </div>
-          <Button icon={<RefreshCw size={16}/>} onClick={fetchComplaints} className="rounded-xl h-11">Sync Logs</Button>
+          <Button icon={<RefreshCw size={16}/>} onClick={fetchComplaints} className="rounded-control h-11">Sync Logs</Button>
         </div>
 
         {/* Global Statistics */}
@@ -134,7 +134,7 @@ const ComplaintManagement = () => {
             { label: 'Resolved Cases', val: complaints.filter(c => c.status === 'resolved').length, icon: CheckCircle2, color: 'text-emerald-500' },
           ].map((stat, i) => (
             <Col xs={24} sm={12} lg={6} key={i}>
-              <Card className="border-none shadow-sm rounded-2xl">
+              <Card className="border-none shadow-sm rounded-surface">
                 <Statistic 
                   title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{stat.label}</span>}
                   value={stat.val}
@@ -149,20 +149,20 @@ const ComplaintManagement = () => {
         <Row gutter={24}>
           {/* New Complaint Form */}
           <Col lg={9} xs={24}>
-            <Card className="border-none shadow-sm rounded-[32px] p-2 sticky top-8">
+            <Card className="border-none shadow-sm rounded-surface p-2 sticky top-8">
               <Title level={4} className="mb-6 flex items-center gap-2">
                 <Zap size={20} className="text-blue-600" /> New Incident Report
               </Title>
               
               <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ priority: 'medium' }}>
                 <Form.Item name="subject" label="Subject Header" rules={[{ required: true }]}>
-                  <Input placeholder="Brief title of the issue..." className="h-11 rounded-xl" />
+                  <Input placeholder="Brief title of the issue..." className="h-11 rounded-control" />
                 </Form.Item>
 
                 <Row gutter={12}>
                   <Col span={12}>
                     <Form.Item name="category" label="Category" rules={[{ required: true }]}>
-                      <Select placeholder="Select Type" className="h-11 rounded-xl">
+                      <Select placeholder="Select Type" className="h-11 rounded-control">
                         <Select.Option value="room">Room Issues</Select.Option>
                         <Select.Option value="mess">Mess/Food</Select.Option>
                         <Select.Option value="facility">Facilities</Select.Option>
@@ -172,7 +172,7 @@ const ComplaintManagement = () => {
                   </Col>
                   <Col span={12}>
                     <Form.Item name="priority" label="Priority" rules={[{ required: true }]}>
-                      <Select className="h-11 rounded-xl">
+                      <Select className="h-11 rounded-control">
                         <Select.Option value="low">Low</Select.Option>
                         <Select.Option value="medium">Medium</Select.Option>
                         <Select.Option value="high">High</Select.Option>
@@ -183,10 +183,10 @@ const ComplaintManagement = () => {
                 </Row>
 
                 <Form.Item name="description" label="Problem Description" rules={[{ required: true, min: 15 }]}>
-                  <TextArea rows={5} placeholder="Provide specific details to help our team..." className="rounded-xl" />
+                  <TextArea rows={5} placeholder="Provide specific details to help our team..." className="rounded-control" />
                 </Form.Item>
 
-                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex gap-3 mb-6">
+                <div className="bg-amber-50 p-4 rounded-surface border border-amber-100 flex gap-3 mb-6">
                   <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-1" />
                   <Text className="text-[11px] text-amber-800 leading-relaxed">
                     Ensure details are factual. Providing specific room/table numbers helps us resolve issues faster.
@@ -200,7 +200,7 @@ const ComplaintManagement = () => {
                   size="large" 
                   loading={submitting} 
                   icon={<Send size={18} />}
-                  className="h-14 rounded-2xl shadow-lg shadow-blue-100 font-bold"
+                  className="h-14 rounded-control shadow-lg shadow-blue-100 font-bold"
                 >
                   Submit Report
                 </Button>
@@ -210,9 +210,9 @@ const ComplaintManagement = () => {
 
           {/* History Feed */}
           <Col lg={15} xs={24} className="space-y-6">
-            <Card className="border-none shadow-sm rounded-2xl">
+            <Card className="border-none shadow-sm rounded-surface">
               <div className="flex flex-wrap gap-4 items-center">
-                <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 focus-within:border-blue-300 transition-all">
+                <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-control border border-slate-100 flex-1 focus-within:border-blue-300 transition-all">
                   <Search size={18} className="text-slate-300" />
                   <Input 
                     placeholder="Search your logs..." 
@@ -231,7 +231,7 @@ const ComplaintManagement = () => {
             </Card>
 
             {loading ? <ComplaintSkeleton /> : filteredComplaints.length === 0 ? (
-              <div className="py-20 flex flex-col items-center justify-center bg-white rounded-[32px] shadow-sm">
+              <div className="py-20 flex flex-col items-center justify-center bg-white rounded-surface shadow-sm">
                 <Empty 
                   image={Empty.PRESENTED_IMAGE_SIMPLE} 
                   description={<Text className="text-slate-400">No support logs matching your criteria</Text>} 
@@ -240,7 +240,7 @@ const ComplaintManagement = () => {
             ) : (
               <div className="space-y-4">
                 {filteredComplaints.map((c) => (
-                  <Card key={c.id} className="border-none shadow-sm rounded-[32px] hover:shadow-md transition-all group overflow-hidden">
+                  <Card key={c.id} className="border-none shadow-sm rounded-surface hover:shadow-md transition-all group overflow-hidden">
                     <div className="flex flex-col md:flex-row justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -255,15 +255,15 @@ const ComplaintManagement = () => {
                         </div>
                         
                         <div className="flex gap-2 mb-4">
-                          <Tag color={categoryConfig[c.category]?.color || 'default'} className="m-0 border-none rounded-lg text-[10px] font-bold px-2">
+                          <Tag color={categoryConfig[c.category]?.color || 'default'} className="m-0 border-none text-[10px] font-bold px-2">
                             {categoryConfig[c.category]?.label || c.category}
                           </Tag>
-                          <Tag color={priorityConfig[c.priority]?.color} className="m-0 border-none rounded-lg text-[10px] font-bold px-2">
+                          <Tag color={priorityConfig[c.priority]?.color} className="m-0 border-none text-[10px] font-bold px-2">
                             {priorityConfig[c.priority]?.label} PRIORITY
                           </Tag>
                         </div>
 
-                        <Paragraph ellipsis={{ rows: 2, expandable: true, symbol: 'more' }} className="text-slate-600 mb-4 bg-slate-50 p-4 rounded-2xl italic">
+                        <Paragraph ellipsis={{ rows: 2, expandable: true, symbol: 'more' }} className="text-slate-600 mb-4 bg-slate-50 p-4 rounded-surface italic">
                           "{c.description}"
                         </Paragraph>
 
@@ -274,7 +274,7 @@ const ComplaintManagement = () => {
                         </div>
 
                         {c.resolution && (
-                          <div className="mt-4 p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                          <div className="mt-4 p-4 bg-emerald-50 rounded-surface border border-emerald-100">
                              <div className="flex items-center gap-2 mb-1">
                                <ShieldAlert size={14} className="text-emerald-600" />
                                <Text strong className="text-[10px] uppercase text-emerald-600">Official Resolution</Text>

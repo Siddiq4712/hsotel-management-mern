@@ -3,12 +3,13 @@ import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import AttendanceManagement from './AttendanceManagement';
 const api=vi.hoisted(()=>({getAttendanceRoster:vi.fn(),getAttendance:vi.fn(),bulkMarkAttendance:vi.fn(),message:{error:vi.fn(),success:vi.fn()}}));
+vi.mock('../../context/AuthContext',()=>({useAuth:()=>({user:{hostel:{name:'Boys Hostel'}}})}));
 vi.mock('../../services/api',()=>({wardenAPI:api}));
 vi.mock('antd',()=>{
  const Wrap=({children})=><div>{children}</div>;
- return {App:{useApp:()=>({message:api.message})},Card:Wrap,Tag:Wrap,Space:Wrap,Typography:{Title:Wrap,Text:Wrap,Paragraph:Wrap},
- Alert:({message,description})=><div>{message}{description}</div>,
- Input:props=><input {...props}/>,
+ return {Modal:{}, Form:{}, message:{}, App:{useApp:()=>({message:api.message})},Card:Wrap,Tag:Wrap,Space:Wrap,Typography:{Title:Wrap,Text:Wrap,Paragraph:Wrap},
+ Alert:({title,message,description})=><div>{title||message}{description}</div>,
+ Input:({prefix,allowClear,...props})=><input {...props}/>,
  Button:({children,onClick,disabled})=><button onClick={onClick} disabled={disabled}>{children}</button>,
  Select:({value,onChange,options,'aria-label':label})=><select aria-label={label} value={value||''} onChange={e=>onChange(e.target.value)}><option value="">Select</option>{options.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select>,
  Table:({dataSource,columns})=><table><tbody>{dataSource.map((r,i)=><tr key={r.key||r.id||i}>{columns.map(c=><td key={c.key}>{c.render?c.render(null,r):r[c.dataIndex]}</td>)}</tr>)}</tbody></table>};

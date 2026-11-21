@@ -59,7 +59,7 @@ const StudentProfileCard = ({ student, onFollowUp, embedded }) => {
   const roomFormatted = student.room ? `${student.block ? student.block + '-' : ''}${student.room}` : null;
 
   return (
-    <div className={`font-sans ${embedded ? '' : 'mt-3 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm'}`}>
+    <div className={`font-sans ${embedded ? '' : 'mt-3 bg-white border border-slate-200 rounded-surface p-5 shadow-sm'}`}>
       {!embedded && (
         <>
           <div className="flex items-center gap-2 mb-4">
@@ -100,7 +100,7 @@ const StudentProfileCard = ({ student, onFollowUp, embedded }) => {
             <button
               key={btn.topic}
               onClick={() => handleAction(btn.topic, btn.path)}
-              className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 transition-colors"
+              className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-control text-sm font-medium text-slate-700 transition-colors"
             >
               {btn.label}
             </button>

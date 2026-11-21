@@ -1,13 +1,15 @@
+import { cornerRadius } from '../../theme/cornerRadius';
 import { PermissionButton as Button } from '../common/PermissionControls';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useMemo } from 'react';
-import { Form, Input, Table, InputNumber, message, Row, Col, Typography, Space, Select, ConfigProvider, theme, Tag, Tabs } from 'antd';
+import { Form, Input, Table, InputNumber, message, Row, Col, Typography, Space, Select, Tag, Tabs } from 'antd';
 import {
   Save, Search, Calendar, ClipboardList,
   Filter, PackageMinus, ChevronRight, Info, PackageOpen, Undo2
 } from 'lucide-react';
 import { messAPI } from '../../services/api';
-import { useScopeDraft, useScopeForm } from '../common/WorkspaceScope';
+import { useScopeDraft, useScopeForm, useWorkspaceScope } from '../common/WorkspaceScope';
 import moment from 'moment';
 
 const { Option } = Select;
@@ -16,10 +18,10 @@ const { Text } = Typography;
 /* ─── Skeleton ─── */
 const AdhocSkeleton = () => (
   <div className="adhoc-shell">
-    <div className="adhoc-skeleton-pulse" style={{ height: 60, borderRadius: 16, marginBottom: 32 }} />
+    <div className="adhoc-skeleton-pulse" style={{ height: 60, borderRadius: cornerRadius.surface, marginBottom: 32 }} />
     <Row gutter={28}>
-      <Col span={9}><div className="adhoc-skeleton-pulse" style={{ height: 450, borderRadius: 20 }} /></Col>
-      <Col span={15}><div className="adhoc-skeleton-pulse" style={{ height: 550, borderRadius: 20 }} /></Col>
+      <Col span={9}><div className="adhoc-skeleton-pulse" style={{ height: 450, borderRadius: cornerRadius.surface }} /></Col>
+      <Col span={15}><div className="adhoc-skeleton-pulse" style={{ height: 550, borderRadius: cornerRadius.surface }} /></Col>
     </Row>
   </div>
 );
@@ -325,6 +327,7 @@ const ReturnTab = ({ items, categories, refetch }) => {
 
 /* ─── Main Component ─── */
 const RecordAdhocConsumption = ({ onSuccess }) => {
+  const scope = useWorkspaceScope();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -374,26 +377,10 @@ const RecordAdhocConsumption = ({ onSuccess }) => {
   return (
     <>
       <style>{CSS}</style>
-      <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#1a56db', borderRadius: 12, fontFamily: 'DM Sans, sans-serif' } }}>
-        <div className="adhoc-shell">
-          {/* Header */}
-          <div className="adhoc-topbar">
-            <div className="adhoc-topbar-left">
-              <div className={`adhoc-icon-badge ${activeTab === 'return' ? 'adhoc-icon-badge-return' : ''}`}>
-                {activeTab === 'return' ? <Undo2 size={20} /> : <PackageOpen size={20} />}
-              </div>
-              <div>
-                <h1 className="adhoc-heading">
-                  {activeTab === 'return' ? 'Item Return Entry' : 'Ad-hoc Consumption'}
-                </h1>
-                <p className="adhoc-subheading">
-                  {activeTab === 'return'
-                    ? 'Return unused materials back to stock'
-                    : 'Record one-off warehouse withdrawals for events'}
-                </p>
-              </div>
-            </div>
-          </div>
+        <section className="module-page adhoc-shell">
+          <WorkspacePageHeader title={activeTab === 'return' ? 'Item Return Entry' : 'Ad-hoc Consumption'}
+            icon={activeTab === 'return' ? Undo2 : PackageOpen}
+            description={scope?.name || (activeTab === 'return' ? 'Return unused materials to stock.' : 'Record one-off inventory withdrawals.')} />
 
           <Tabs
             activeKey={activeTab}
@@ -401,8 +388,7 @@ const RecordAdhocConsumption = ({ onSuccess }) => {
             items={tabItems}
             className="adhoc-tabs"
           />
-        </div>
-      </ConfigProvider>
+        </section>
     </>
   );
 };
@@ -423,36 +409,18 @@ const CSS = `
 @keyframes adhoc-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
 .adhoc-skeleton-pulse { background: #e2e8f0; animation: adhoc-pulse 1.8s ease-in-out infinite; }
 
-.adhoc-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.adhoc-topbar-left { display: flex; align-items: center; gap: 16px; }
-.adhoc-icon-badge {
-  width: 52px; height: 52px; border-radius: 16px;
-  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; box-shadow: 0 10px 20px rgba(30,64,175,.2);
-  transition: background .3s;
-}
-.adhoc-icon-badge-return {
-  background: linear-gradient(135deg, #065f46 0%, #10b981 100%) !important;
-  box-shadow: 0 10px 20px rgba(6,95,70,.2) !important;
-}
-.adhoc-heading { font-size: 24px; font-weight: 800; color: #0f172a; margin: 0; }
-.adhoc-subheading { font-size: 14px; color: #64748b; margin: 2px 0 0; }
-
 .adhoc-tabs .ant-tabs-tab { font-size: 14px !important; padding: 12px 20px !important; }
 .adhoc-tabs .ant-tabs-tab-active .ant-tabs-tab-btn { color: #1a56db !important; }
 .adhoc-tabs .ant-tabs-ink-bar { background: #1a56db !important; }
 
 .adhoc-save-btn.ant-btn, .adhoc-return-btn.ant-btn {
   height: 48px !important; padding: 0 28px !important;
-  border-radius: 14px !important; font-weight: 700 !important;
+  border-radius: var(--ui-radius-control) !important; font-weight: 700 !important;
   border: none !important;
 }
-.adhoc-save-btn.ant-btn { background: #1a56db !important; box-shadow: 0 8px 20px rgba(26,86,219,.25) !important; }
-.adhoc-return-btn.ant-btn { background: #059669 !important; box-shadow: 0 8px 20px rgba(5,150,105,.25) !important; }
 
 .adhoc-panel {
-  background: #fff; border-radius: 24px; padding: 28px;
+  background: #fff; border-radius: var(--ui-radius-surface); padding: clamp(16px, 2vw, 24px);
   border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,.02);
 }
 .adhoc-sticky { position: sticky; top: 24px; }
@@ -467,7 +435,7 @@ const CSS = `
 .adhoc-panel-icon-return { color: #059669; }
 
 .adhoc-input, .adhoc-datepicker, .adhoc-textarea {
-  border-radius: 12px !important; border-color: #e2e8f0 !important; height: 44px !important;
+  border-radius: var(--ui-radius-control) !important; border-color: #e2e8f0 !important; height: 44px !important;
 }
 .adhoc-textarea { height: auto !important; padding: 12px !important; }
 
@@ -475,10 +443,10 @@ const CSS = `
 .adhoc-search-box {
   flex: 1; display: flex; align-items: center; gap: 10px;
   background: #f8fafc; border: 1px solid #e2e8f0;
-  border-radius: 12px; padding: 0 16px;
+  border-radius: var(--ui-radius-control); padding: 0 16px;
 }
 .adhoc-filter-select .ant-select-selector {
-  border-radius: 12px !important; background: #f8fafc !important;
+  border-radius: var(--ui-radius-control) !important; background: #f8fafc !important;
   height: 44px !important; align-items: center !important; width: 180px;
 }
 .adhoc-table .ant-table-thead > tr > th {
@@ -487,19 +455,19 @@ const CSS = `
   font-weight: 700 !important; letter-spacing: .05em; padding: 16px !important;
 }
 .adhoc-table .ant-table-tbody > tr > td { padding: 16px !important; }
-.adhoc-qty-input { width: 100% !important; border-radius: 10px !important; border-color: #cbd5e1 !important; }
+.adhoc-qty-input { width: 100% !important; border-radius: var(--ui-radius-control) !important; border-color: #cbd5e1 !important; }
 .adhoc-qty-return { border-color: #6ee7b7 !important; }
 .adhoc-row-disabled { opacity: .5; background: #fcfcfc; }
 
 .adhoc-summary-footer {
   margin-top: 24px; padding: 20px; background: #f1f5f9;
-  border-radius: 16px; display: flex; align-items: center; justify-content: space-between;
+  border-radius: var(--ui-radius-surface); display: flex; align-items: center; justify-content: space-between;
 }
 .adhoc-summary-return { background: #ecfdf5; }
 
 .adhoc-info-card {
   display: flex; gap: 12px; background: #eff6ff;
-  border: 1px solid #bfdbfe; border-radius: 16px; padding: 16px; margin-top: 20px;
+  border: 1px solid #bfdbfe; border-radius: var(--ui-radius-surface); padding: 16px; margin-top: 20px;
 }
 .adhoc-info-return { background: #ecfdf5 !important; border-color: #6ee7b7 !important; }
 .adhoc-info-icon { color: #1a56db; flex-shrink: 0; }

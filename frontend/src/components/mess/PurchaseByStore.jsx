@@ -1,8 +1,9 @@
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
 import React, { useState, useEffect } from 'react';
 import {
   Card, Button, message, Typography, Row, Col, 
   InputNumber, Form, Modal, Space, ConfigProvider,
-  theme, Skeleton, Divider, Tag, Input, Table
+  Skeleton, Divider, Tag, Input, Table
 } from 'antd';
 import { 
   Store, Save, ArrowLeft, ShoppingCart, Info, 
@@ -80,7 +81,7 @@ const SuccessOverlay = ({ visible }) => {
 
 // --- Specialized Skeleton for Store Selection ---
 const StoreListSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white overflow-hidden">
+  <Card className="border-none shadow-sm rounded-surface p-6 bg-white overflow-hidden">
     <div className="space-y-6">
       {[...Array(4)].map((_, i) => (
         <div key={i} className="flex gap-4 items-center border-b border-slate-50 pb-6">
@@ -209,7 +210,7 @@ const PurchaseByStore = () => {
       ),
       okText: 'Confirm & Save',
       cancelText: 'Review',
-      okButtonProps: { className: 'rounded-lg bg-blue-600' },
+      okButtonProps: { className: 'rounded-control bg-blue-600' },
       onOk: async () => {
         setSubmitting(true);
         try {
@@ -234,26 +235,14 @@ const PurchaseByStore = () => {
   };
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
+    <ConfigProvider>
       <SuccessStyles />
       <SuccessOverlay visible={showSuccess} />
       
       <div className="module-page p-4 sm:p-6 lg:p-8 bg-slate-50 min-h-screen">
         {!selectedStore ? (
           <>
-            <div className="module-page-heading flex items-center gap-4 mb-8">
-              <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
-                <Store className="text-white" size={24} />
-              </div>
-              <div>
-                <Title level={2} style={{ margin: 0 }}>Record Purchase</Title>
-                <Text type="secondary">Choose a store, then enter quantities for the items you want to purchase.</Text>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-              {['1. Select a store', '2. Choose master items', '3. Review and save'].map(step => <div key={step} className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600">{step}</div>)}
-            </div>
+            <WorkspacePageHeader title="Record Purchase" icon={Store} description="Choose a supplier, then enter the items and quantities received." />
             {!loadingStores && !stores.length && <Card><Title level={4}>No active stores</Title><Text type="secondary">Add or activate a store in Manage Stores to record a purchase.</Text></Card>}
             {loadingStores ? <StoreListSkeleton /> : (
               <Row gutter={[24, 24]}>
@@ -261,11 +250,11 @@ const PurchaseByStore = () => {
                   <Col xs={24} sm={12} lg={8} key={store.id}>
                     <Card 
                       hoverable 
-                      className="border-none shadow-sm rounded-[24px] overflow-hidden group transition-all"
+                      className="border-none shadow-sm rounded-surface overflow-hidden group transition-all"
                       onClick={() => handleSelectStore(store)}
                     >
                       <div className="flex items-start justify-between">
-                        <div className="p-3 bg-slate-50 rounded-xl group-hover:bg-blue-50 transition-colors">
+                        <div className="p-3 bg-slate-50 rounded-control group-hover:bg-blue-50 transition-colors">
                           <Store size={24} className="text-slate-400 group-hover:text-blue-600" />
                         </div>
                         <Tag color="blue" className="rounded-full border-none px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider">Active Store</Tag>
@@ -289,36 +278,13 @@ const PurchaseByStore = () => {
           </>
         ) : (
           <div className="max-w-6xl mx-auto">
-            <div className="module-page-header flex flex-wrap justify-between items-center gap-4 mb-6">
-              <div className="flex items-center gap-4">
-                <Button 
-                  icon={<ArrowLeft size={18} />} 
-                  aria-label="Change store"
-                  disabled={submitting}
-                  onClick={handleBackToStoreList}
-                  className="rounded-xl h-11 w-11 flex items-center justify-center border-none shadow-sm"
-                />
-                <div>
-                  <Title level={2} style={{ margin: 0 }}>Purchase Items</Title>
-                  <div className="flex items-center gap-2">
-                    <Tag color="blue" className="rounded-full font-bold m-0">{selectedStore.name}</Tag>
-                  </div>
-                </div>
-              </div>
-              <Button 
-                type="primary" 
-                size="large" 
-                onClick={() => form.submit()} 
-                icon={<Save size={18} />} 
-                loading={submitting}
-                disabled={loadingItems || !itemsForStore.length}
-                className="rounded-xl h-12 px-8 shadow-lg shadow-blue-100 font-bold"
-              >
-                Review & Save Purchase
-              </Button>
-            </div>
+            <WorkspacePageHeader title="Purchase Items" icon={Store} description={selectedStore.name}>
+              <Button icon={<ArrowLeft size={16} />} aria-label="Change store" disabled={submitting} onClick={handleBackToStoreList}>Change store</Button>
+              <Button type="primary" onClick={() => form.submit()} icon={<Save size={16} />}
+                loading={submitting} disabled={loadingItems || !itemsForStore.length}>Review & Save Purchase</Button>
+            </WorkspacePageHeader>
 
-            <Card className="mb-6 rounded-2xl border-slate-200">
+            <Card className="mb-6 rounded-surface border-slate-200">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div><Text type="secondary">Selected store</Text><div className="font-semibold text-slate-800 mt-1">{selectedStore.name}</div><Text type="secondary">{selectedStore.address || 'Address not provided'}</Text></div>
                 <div><Text type="secondary">Items to purchase</Text><div className="font-semibold text-2xl text-slate-800 mt-1">{selectedItems.length}</div></div>
@@ -328,7 +294,7 @@ const PurchaseByStore = () => {
             {loadingItems ? <StoreListSkeleton /> : (
               itemsForStore.length > 0 ? (
                 <Form form={form} onFinish={handleSubmitPurchases} onValuesChange={() => setDraft(form.getFieldsValue(true))} layout="vertical">
-                  <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
+                  <Card className="border-none shadow-sm rounded-surface overflow-hidden">
                     <div className="flex flex-wrap justify-between items-start gap-4 mb-6">
                       <div><Title level={4} style={{margin:'0 0 8px'}}>Item master</Title><Text type="secondary">Enter a quantity to include an item. Prices can be adjusted for this purchase.</Text></div>
                       <Input aria-label="Search master items" placeholder="Search item or category" allowClear value={itemSearch} onChange={event => setItemSearch(event.target.value)} size="large" style={{width:300,maxWidth:'100%'}} />
@@ -359,7 +325,7 @@ const PurchaseByStore = () => {
                           width: 180,
                           render: (_, r) => (
                             <Form.Item name={`price_${r.item_id}`} noStyle rules={[{ required: true }]}>
-                              <InputNumber min={0} step={0.01} className="w-full rounded-xl" placeholder="0.00" prefix="₹" />
+                              <InputNumber min={0} step={0.01} className="w-full rounded-control" placeholder="0.00" prefix="₹" />
                             </Form.Item>
                           )
                         },
@@ -370,7 +336,7 @@ const PurchaseByStore = () => {
                           width: 180,
                           render: (_, r) => (
                             <Form.Item name={`quantity_${r.item_id}`} noStyle>
-                              <InputNumber min={0} className="w-full rounded-xl" placeholder="0" suffix={r.unit} />
+                              <InputNumber min={0} className="w-full rounded-control" placeholder="0" suffix={r.unit} />
                             </Form.Item>
                           )
                         },
@@ -386,7 +352,7 @@ const PurchaseByStore = () => {
                   </Card>
                 </Form>
               ) : (
-                <div className="flex flex-col items-center justify-center p-20 bg-white rounded-[40px] shadow-sm">
+                <div className="flex flex-col items-center justify-center p-20 bg-white rounded-surface shadow-sm">
                   <div className="p-6 bg-slate-50 rounded-full mb-6">
                     <ClipboardCheck size={48} className="text-slate-200" />
                   </div>

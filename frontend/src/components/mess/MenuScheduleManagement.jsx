@@ -1,6 +1,8 @@
+import { cornerRadius } from '../../theme/cornerRadius';
 import { PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, Button, Space, Tag, DatePicker, Select, message, Modal, List, Typography, Row, Col, Alert, ConfigProvider, theme, Skeleton, Divider, Empty } from 'antd';
+import { Table, Button, Space, Tag, DatePicker, Select, message, Modal, List, Typography, Row, Col, ConfigProvider, theme, Skeleton, Divider, Empty } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import dayjs from 'dayjs';
 import { 
   Search, Eye, CheckCircle2, Calendar, 
@@ -27,7 +29,6 @@ const T = {
   dangerBg:  '#FEF2F2',
   success:   '#16A34A',
   successBg: '#F0FDF4',
-  radius:    '24px',
   shadow:    '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
 };
 
@@ -44,7 +45,7 @@ const MealBadge = ({ type }) => {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
-      padding: '3px 10px', borderRadius: 20,
+      padding: '3px 10px', borderRadius: cornerRadius.pill,
       backgroundColor: cfg.bg, color: cfg.color,
       fontSize: 11, fontWeight: 700, letterSpacing: '0.02em',
     }}>
@@ -59,11 +60,11 @@ const StatCard = ({ label, value, icon: Icon, accent, variant }) => {
   return (
     <div style={{
       background: T.surface, border: `1px solid ${T.border}`,
-      borderRadius: T.radius, padding: '20px 24px',
+      borderRadius: cornerRadius.surface, padding: '20px 24px',
       display: 'flex', alignItems: 'center', gap: 16, boxShadow: T.shadow,
     }}>
       <div style={{
-        width: 44, height: 44, borderRadius: 10,
+        width: 44, height: 44, borderRadius: cornerRadius.control,
         background: isDanger ? T.dangerBg : (accent ? T.accentBg : T.bg),
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
@@ -92,7 +93,7 @@ const ActionBtn = ({ icon, children, onClick, variant }) => {
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
         padding: children ? '6px 12px' : '7px',
-        borderRadius: 8, border: `1px solid ${s.border}`,
+        borderRadius: cornerRadius.tag, border: `1px solid ${s.border}`,
         background: s.bg, color: s.color,
         fontSize: 12, fontWeight: 600, cursor: 'pointer',
         transition: 'all 0.15s',
@@ -200,7 +201,7 @@ const MenuScheduleManagement = () => {
       render: (status) => {
         const isServed = status === 'served';
         return (
-          <Tag color={isServed ? 'success' : 'processing'} style={{ borderRadius: 20, fontWeight: 600 }}>
+          <Tag color={isServed ? 'success' : 'processing'} style={{ borderRadius: cornerRadius.pill, fontWeight: 600 }}>
             {status.toUpperCase()}
           </Tag>
         );
@@ -235,11 +236,11 @@ const MenuScheduleManagement = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: T.accent, borderRadius: 12 } }}>
+    <ConfigProvider theme={{ token: { colorPrimary: T.accent } }}>
       <style>{`
         .pm-table .ant-table-thead > tr > th { background: #F7F8FA !important; border-bottom: 1px solid ${T.border} !important; padding: 12px 16px !important; }
         .pm-table .ant-table-tbody > tr > td { padding: 14px 16px !important; border-bottom: 1px solid ${T.border} !important; }
-        .pm-modal .ant-modal-content { border-radius: 24px; overflow: hidden; }
+        .pm-modal .ant-modal-content { border-radius: var(--ui-radius-surface); overflow: hidden; }
       `}</style>
 
       <div className="module-page">
@@ -247,7 +248,7 @@ const MenuScheduleManagement = () => {
         {/* Header */}
         <div className="module-page-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ width: 40, height: 40, borderRadius: cornerRadius.control, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <ClipboardList size={20} color={T.accent} />
             </div>
             <div>
@@ -259,7 +260,7 @@ const MenuScheduleManagement = () => {
             onClick={() => window.location.href='/mess/menu-planner'}
             style={{
               display: 'flex', alignItems: 'center', gap: 8, background: T.accent, color: '#fff',
-              border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600,
+              border: 'none', borderRadius: cornerRadius.control, padding: '9px 18px', fontSize: 13, fontWeight: 600,
               cursor: 'pointer', boxShadow: `0 2px 8px rgba(26,86,219,0.3)`
             }}
           >
@@ -272,12 +273,12 @@ const MenuScheduleManagement = () => {
           {/* Low Stock Banner */}
           {lowStockAlert && (
             <Alert
-              style={{ marginBottom: 24, borderRadius: 12, border: 'none', boxShadow: T.shadow }}
+              style={{ marginBottom: 24, borderRadius: cornerRadius.surface, border: 'none', boxShadow: T.shadow }}
               message={<Text strong style={{ color: '#92400E' }}>{lowStockAlert.message}</Text>}
               description={
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                   {lowStockAlert.items.map(item => (
-                    <Tag key={item.name} color="warning" style={{ borderRadius: 6 }}>
+                    <Tag key={item.name} color="warning" style={{ borderRadius: cornerRadius.tag }}>
                       {item.name}: <b>{parseFloat(item.current_stock).toFixed(1)}</b> left
                     </Tag>
                   ))}
@@ -300,7 +301,7 @@ const MenuScheduleManagement = () => {
 
           {/* Filters Bar */}
           <div style={{
-            background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius,
+            background: T.surface, border: `1px solid ${T.border}`, borderRadius: cornerRadius.surface,
             padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             marginBottom: 16, boxShadow: T.shadow
           }}>
@@ -308,7 +309,7 @@ const MenuScheduleManagement = () => {
               <RangePicker 
                 value={dateRange} 
                 onChange={(dates) => setDateRange(dates)} 
-                style={{ borderRadius: 8 }}
+                style={{ borderRadius: cornerRadius.control }}
               />
               <Divider type="vertical" style={{ height: 24 }} />
               
@@ -319,7 +320,7 @@ const MenuScheduleManagement = () => {
                     key={type}
                     onClick={() => setSelectedMealType(type)}
                     style={{
-                      padding: '4px 12px', borderRadius: 6, border: `1px solid`,
+                      padding: '4px 12px', borderRadius: cornerRadius.tag, border: `1px solid`,
                       borderColor: selectedMealType === type ? T.accent : T.border,
                       background: selectedMealType === type ? T.accentBg : 'transparent',
                       color: selectedMealType === type ? T.accent : T.inkMid,
@@ -335,7 +336,7 @@ const MenuScheduleManagement = () => {
             <button
               onClick={fetchSchedules}
               style={{
-                background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8,
+                background: T.bg, border: `1px solid ${T.border}`, borderRadius: cornerRadius.control,
                 padding: '6px 16px', fontSize: 12, fontWeight: 700, color: T.inkMid, cursor: 'pointer'
               }}
             >
@@ -344,7 +345,7 @@ const MenuScheduleManagement = () => {
           </div>
 
           {/* Table */}
-          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, overflow: 'hidden', boxShadow: T.shadow }}>
+          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: cornerRadius.surface, overflow: 'hidden', boxShadow: T.shadow }}>
             <Table
               className="pm-table"
               columns={columns}
@@ -360,7 +361,7 @@ const MenuScheduleManagement = () => {
         <Modal
           title={
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 32, height: 32, borderRadius: cornerRadius.control, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Utensils size={16} color={T.accent} />
               </div>
               <span style={{ fontSize: 15, fontWeight: 700, color: T.ink }}>Meal Finalization</span>
@@ -374,12 +375,12 @@ const MenuScheduleManagement = () => {
           {selectedSchedule && (
             <div style={{ marginTop: 8 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-                <div style={{ background: T.bg, padding: 16, borderRadius: 10, border: `1px solid ${T.border}` }}>
+                <div style={{ background: T.bg, padding: 16, borderRadius: cornerRadius.surface, border: `1px solid ${T.border}` }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft, marginBottom: 4 }}>SCHEDULE INFO</div>
                   <div style={{ fontWeight: 700, color: T.ink }}>{dayjs(selectedSchedule.scheduled_date).format('DD MMM YYYY')}</div>
                   <div style={{ marginTop: 4 }}><MealBadge type={selectedSchedule.meal_time} /></div>
                 </div>
-                <div style={{ background: T.bg, padding: 16, borderRadius: 10, border: `1px solid ${T.border}` }}>
+                <div style={{ background: T.bg, padding: 16, borderRadius: cornerRadius.surface, border: `1px solid ${T.border}` }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft, marginBottom: 4 }}>FINANCIAL IMPACT</div>
                   <div style={{ fontWeight: 700, color: T.ink }}>Total: ₹{parseFloat(selectedSchedule.total_cost || 0).toFixed(0)}</div>
                   <div style={{ fontSize: 12, color: T.accent, fontWeight: 600 }}>₹{parseFloat(selectedSchedule.cost_per_serving || 0).toFixed(2)} per plate</div>
@@ -389,7 +390,7 @@ const MenuScheduleManagement = () => {
               <div style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft, marginBottom: 12, letterSpacing: '0.05em' }}>RECIPE COMPONENTS</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
                 {selectedSchedule.Menu?.tbl_Menu_Items?.map((item, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#fff', border: `1px solid ${T.border}`, borderRadius: 8 }}>
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#fff', border: `1px solid ${T.border}`, borderRadius: cornerRadius.control }}>
                     <span style={{ fontWeight: 600, color: T.ink }}>{item.tbl_Item?.name}</span>
                     <span style={{ fontFamily: 'DM Mono', color: T.accent, fontWeight: 600 }}>{parseFloat(item.quantity).toFixed(2)} {item.unit}</span>
                   </div>
@@ -397,7 +398,7 @@ const MenuScheduleManagement = () => {
               </div>
 
               {selectedSchedule.status === 'scheduled' && (
-                <div style={{ padding: 20, background: T.successBg, borderRadius: 12, border: `1px solid #DCFCE7`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ padding: 20, background: T.successBg, borderRadius: cornerRadius.surface, border: `1px solid #DCFCE7`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ maxWidth: '65%' }}>
                     <div style={{ fontWeight: 700, color: T.success }}>Deduct Stock & Close?</div>
                     <div style={{ fontSize: 12, color: '#166534' }}>This will trigger FIFO inventory reduction for {selectedSchedule.estimated_servings} servings.</div>
@@ -405,7 +406,7 @@ const MenuScheduleManagement = () => {
                   <button
                     onClick={() => { handleMarkAsServed(selectedSchedule.id); setDetailsModalVisible(false); }}
                     style={{
-                      background: T.success, color: '#fff', border: 'none', borderRadius: 8,
+                      background: T.success, color: '#fff', border: 'none', borderRadius: cornerRadius.control,
                       padding: '10px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer',
                       boxShadow: '0 4px 12px rgba(22,163,74,0.2)'
                     }}

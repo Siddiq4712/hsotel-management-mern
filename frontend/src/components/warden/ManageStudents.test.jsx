@@ -7,7 +7,8 @@ import { wardenAPI } from '../../services/api';
 import ManageStudents from './ManageStudents';
 
 vi.mock('axios', () => ({ default: { get: vi.fn() } }));
-vi.mock('../../services/api', () => ({ wardenAPI: { getStudents: vi.fn(), getSessions: vi.fn(), bulkEnrollStudents: vi.fn() } }));
+vi.mock('../../services/api', () => ({ wardenAPI: { getStudents: vi.fn(), getSessions: vi.fn(), bulkEnrollStudents: vi.fn(), getStudentMonthlyAttendance: vi.fn(), getRoomOccupants: vi.fn(), getStudentProfileRecords: vi.fn() } }));
+vi.mock('react-chartjs-2', () => ({ Bar: props => <div role="img" aria-label={props['aria-label']} /> }));
 vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { role: 'warden', hostel_id: 2 } }) }));
 const local = [
   { id: 10, userName: 'Existing Student', roll_number: '24100000', erp_batch_year: 2024, session_id: 2, hostel_id: 2 },
@@ -89,3 +90,55 @@ it('uses the current server assignment even when the browser still has the previ
   expect(within(dialog).getByRole('button', { name: 'Select all matching eligible students (9)' })).toBeEnabled();
   expect(within(dialog).queryByText('Other Hostel')).not.toBeInTheDocument();
 }, 30000);
+
+it('shows monthly attendance under the selected student’s profile', async () => {
+  wardenAPI.getStudents.mockResolvedValue({ data: { data: [{ ...local[0], userMail: 'student@example.invalid',
+    tbl_RoomAllotments: [{ is_active: true, HostelRoom: { id: 7, room_number: '01', floor: 0, RoomType: { name: 'Triple' } } }],
+  }] } });
+  wardenAPI.getRoomOccupants.mockResolvedValue({ data: { data: [
+    { userId: 10, userName: 'Existing Student' }, { userId: 12, userName: 'Roommate', roll_number: '24100002' },
+  ] } });
+  wardenAPI.getStudentProfileRecords.mockResolvedValue({ data: { data: {
+    roomRequests: [{ id: 1, status: 'pending', requested_at: '2026-11-18' }],
+    messBills: [{ id: 3, amount: '2400.00', status: 'pending', due_date: '2026-11-30' }],
+    fees: { annualHostelRate: '8000.00', hostelCharges: [{ fee_type: 'hostel', status: 'paid', amount: '7500.00' }],
+      messCharges: [{ fee_type: 'bed_charge', status: 'pending', amount: '500.00' }] },
+    metrics: { pendingRoomRequests: 8, lateReturnsThisMonth: 2, currentLeave: { to_date: '2026-11-24' }, approvedReductionDaysThisMonth: 3 },
+  } } });
+  wardenAPI.getStudentMonthlyAttendance.mockResolvedValue({ data: { data: [
+    { month: '2026-10', present: 19, absent: 2, onDuty: 1, importedMessDays: null },
+    { month: '2026-11', present: null, absent: null, onDuty: null, importedMessDays: 17 },
+  ] } });
+  render(<ManageStudents />);
+  const row = within(await screen.findByRole('row', { name: /Existing Student/ }));
+  fireEvent.click(row.getByRole('button', { name: 'View Profile' }));
+  const profile = within(await screen.findByRole('dialog'));
+  const details = within(profile.getByRole('region', { name: 'Student profile details' }));
+  expect(profile.getByRole('heading', { name: 'Existing Student' })).toBeInTheDocument();
+  expect(await profile.findByRole('img', { name: 'Monthly attendance by recorded days' })).toBeInTheDocument();
+  expect(details.queryByRole('img', { name: 'Monthly attendance by recorded days' })).not.toBeInTheDocument();
+  expect(details.getByRole('heading', { name: 'Attendance and mess summary' })).toBeInTheDocument();
+  expect(profile.getByText('student@example.invalid')).toBeInTheDocument();
+  expect(profile.getByText('Triple')).toBeInTheDocument();
+  expect(await profile.findByText('Roommate', { exact: true })).toBeInTheDocument();
+  expect(profile.getAllByText('Existing Student')).toHaveLength(1);
+  expect(profile.queryByText('Phone', { exact: true })).not.toBeInTheDocument();
+  expect(await profile.findByText('Recent room requests')).toBeInTheDocument();
+  expect(profile.getByText('86% (19 of 22)')).toBeInTheDocument();
+  expect(profile.getByText('8', { exact: true })).toBeInTheDocument();
+  expect(profile.getByText('Late gate-pass returns this month')).toBeInTheDocument();
+  expect(profile.getByText('On approved leave')).toBeInTheDocument();
+  expect(profile.getByText('Approved reduction days')).toBeInTheDocument();
+  const fees = within(details.getByRole('heading', { name: 'Fees' }).closest('section'));
+  expect(fees.getByText('Hostel fees · Paid')).toBeInTheDocument();
+  expect(fees.getByText('₹7,500.00')).toBeInTheDocument();
+  expect(fees.getByText('₹2,400.00')).toBeInTheDocument();
+  fireEvent.click(fees.getByText('Recorded mess charges this month'));
+  expect(fees.getByText('Bed charge · Pending')).toBeInTheDocument();
+  expect(fees.queryByText('₹2,900.00')).not.toBeInTheDocument();
+  expect(profile.queryByText('Recent suspensions')).not.toBeInTheDocument();
+  expect(wardenAPI.getStudentMonthlyAttendance).toHaveBeenCalledWith(10, { signal: expect.any(AbortSignal) });
+  fireEvent.click(profile.getByText('View attendance values'));
+  expect(profile.getByText('Imported mess days', { exact: true })).toBeInTheDocument();
+  expect(within(profile.getByRole('table')).getByText('17', { exact: true })).toBeInTheDocument();
+}, 90000);

@@ -1,8 +1,41 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/database.js';
-import { Hostel, ItemStock, InventoryBatch, InventoryTransaction, RestockPlan, DailyConsumption, MessDailyExpense } from '../models/index.js';
+import { Hostel, ItemStock, InventoryBatch, InventoryTransaction, RestockPlan, DailyConsumption, MessDailyExpense, ConsumptionLog } from '../models/index.js';
 import { Inventory, InventoryHostel } from '../models/inventory.js';
 import { InventoryBillingPolicy, InventoryMealEntry } from '../models/inventoryBilling.js';
+
+export async function ensureOpeningBalanceType() {
+  const query = sequelize.getQueryInterface();
+  const table = InventoryTransaction.getTableName();
+  const { transaction_type: definition } = await query.describeTable(table);
+  const type = definition.type.toLowerCase();
+  if (type.includes("'opening_balance'")) return;
+  if (type !== "enum('purchase','consumption')") {
+    throw new Error('Unexpected inventory transaction types. Review the schema before adding opening balances.');
+  }
+  await query.changeColumn(table, 'transaction_type', {
+    type: DataTypes.ENUM('purchase', 'consumption', 'opening_balance'), allowNull: false
+  });
+}
+
+export async function ensureWeightedIssuePrecision() {
+  const query = sequelize.getQueryInterface();
+  for (const [model, fields] of [[InventoryBatch, ['quantity_remaining', 'unit_price']], [ConsumptionLog, ['quantity_consumed']]]) {
+    const columns = await query.describeTable(model.getTableName());
+    for (const field of fields) {
+      const definition = columns[field];
+      const size = /^decimal\((\d+),(\d+)\)$/i.exec(definition.type);
+      if (!size) throw new Error(`Unexpected decimal column ${model.name}.${field}`);
+      const scale = Math.max(8, Number(size[2]));
+      const precision = scale + Math.max(10, Number(size[1]) - Number(size[2]));
+      if (Number(size[1]) === precision && Number(size[2]) === scale) continue;
+      await query.changeColumn(model.getTableName(), field, {
+        type: DataTypes.DECIMAL(precision, scale), allowNull: false,
+        ...(field === 'quantity_remaining' ? { defaultValue: 0 } : {})
+      });
+    }
+  }
+}
 
 export async function ensureInventorySchema() {
   await Inventory.sync();
@@ -28,6 +61,8 @@ export async function ensureInventorySchema() {
       await query.addIndex(model.getTableName(), ['inventory_id', 'item_id'], { name: 'inventory_item_lookup' });
     }
   }
+  await ensureOpeningBalanceType();
+  await ensureWeightedIssuePrecision();
   // Idempotent upgrade: preserve each hostel's existing stock as a separate
   // inventory. Administrators explicitly choose which pools to combine later.
   await sequelize.transaction(async transaction => {

@@ -1,7 +1,8 @@
+import { cornerRadius } from '../../theme/cornerRadius';
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Card, Typography, Row, Col, Button, Space, Divider,message,Modal, Badge,
-  Input, Form, Tag, Skeleton, ConfigProvider, theme, Tooltip 
+  Input, Form, Tag, Skeleton, ConfigProvider, Tooltip
 } from 'antd';
 import { 
   User, Mail, Lock, Eye, EyeOff, Key, Users, Home,Info,XCircle,
@@ -23,8 +24,8 @@ const ProfileSkeleton = () => (
       </div>
     </div>
     <Row gutter={24}>
-      <Col span={12}><Skeleton.Button active block style={{ height: 200, borderRadius: 32 }} /></Col>
-      <Col span={12}><Skeleton.Button active block style={{ height: 200, borderRadius: 32 }} /></Col>
+      <Col span={12}><Skeleton.Button active block style={{ height: 200, borderRadius: cornerRadius.surface }} /></Col>
+      <Col span={12}><Skeleton.Button active block style={{ height: 200, borderRadius: cornerRadius.surface }} /></Col>
     </Row>
   </div>
 );
@@ -81,7 +82,7 @@ const StudentProfile = () => {
   const hostel = profile?.Hostel;
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 24 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen space-y-6">
         
         {/* Header Section */}
@@ -105,29 +106,29 @@ const StudentProfile = () => {
               </Space>
             </div>
           </div>
-          <Button icon={<Key size={16}/>} onClick={() => setIsChangingPassword(true)} className="rounded-xl h-12 px-6 font-bold shadow-sm">Password Settings</Button>
+          <Button icon={<Key size={16}/>} onClick={() => setIsChangingPassword(true)} className="rounded-control h-12 px-6 font-bold shadow-sm">Password Settings</Button>
         </div>
 
         <Row gutter={[24, 24]}>
           {/* Account Details */}
           <Col lg={12} xs={24}>
-            <Card className="border-none shadow-sm rounded-[32px] h-full" title={<div className="flex items-center gap-2"><User size={18} className="text-blue-600" /><Text strong>Account Information</Text></div>}>
+            <Card className="border-none shadow-sm rounded-surface h-full" title={<div className="flex items-center gap-2"><User size={18} className="text-blue-600" /><Text strong>Account Information</Text></div>}>
               <div className="space-y-6">
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center gap-4">
-                  <div className="p-3 bg-white rounded-xl text-blue-500 shadow-sm"><Mail size={20} /></div>
+                <div className="bg-slate-50 p-4 rounded-surface border border-slate-100 flex items-center gap-4">
+                  <div className="p-3 bg-white rounded-control text-blue-500 shadow-sm"><Mail size={20} /></div>
                   <div>
                     <Text className="text-[10px] uppercase font-bold text-slate-400 block">Primary Email</Text>
                     <Text strong className="text-slate-700">{profile?.email}</Text>
                   </div>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center gap-4">
-                  <div className="p-3 bg-white rounded-xl text-blue-500 shadow-sm"><Home size={20} /></div>
+                <div className="bg-slate-50 p-4 rounded-surface border border-slate-100 flex items-center gap-4">
+                  <div className="p-3 bg-white rounded-control text-blue-500 shadow-sm"><Home size={20} /></div>
                   <div>
                     <Text className="text-[10px] uppercase font-bold text-slate-400 block">Assigned Hostel</Text>
                     <Text strong className="text-slate-700">{hostel?.name || 'N/A'}</Text>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 p-2 px-4 bg-blue-50 rounded-xl border border-blue-100 text-blue-700 text-xs">
+                <div className="flex items-center gap-2 p-2 px-4 bg-blue-50 rounded-control border border-blue-100 text-blue-700 text-xs">
                    <Info size={14} /> To update official details, contact the Hostel Administration Office.
                 </div>
               </div>
@@ -136,24 +137,24 @@ const StudentProfile = () => {
 
           {/* Room Allocation */}
           <Col lg={12} xs={24}>
-            <Card className="border-none shadow-sm rounded-[32px] h-full" title={<div className="flex items-center gap-2"><Bed size={18} className="text-purple-600" /><Text strong>Housing Status</Text></div>}>
+            <Card className="border-none shadow-sm rounded-surface h-full" title={<div className="flex items-center gap-2"><Bed size={18} className="text-purple-600" /><Text strong>Housing Status</Text></div>}>
               {roomInfo ? (
                 <div className="space-y-4">
                   <Row gutter={16}>
                     <Col span={12}>
-                      <div className="bg-slate-50 p-6 rounded-3xl text-center border border-slate-100">
+                      <div className="bg-slate-50 p-6 rounded-surface text-center border border-slate-100">
                         <Text className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Room Number</Text>
                         <Title level={2} style={{ margin: 0, color: '#1e293b' }}>{roomInfo.room_number}</Title>
                       </div>
                     </Col>
                     <Col span={12}>
-                      <div className="bg-slate-50 p-6 rounded-3xl text-center border border-slate-100">
+                      <div className="bg-slate-50 p-6 rounded-surface text-center border border-slate-100">
                         <Text className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Room Type</Text>
                         <Title level={3} style={{ margin: 0, color: '#1e293b' }}>{roomInfo.tbl_RoomType?.name || 'Standard'}</Title>
                       </div>
                     </Col>
                   </Row>
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex justify-between items-center">
+                  <div className="p-4 bg-slate-50 rounded-surface border border-slate-100 flex justify-between items-center">
                     <Space><MapPin size={16} className="text-slate-400" /><Text className="text-xs text-slate-500">{hostel?.address || 'Main Campus'}</Text></Space>
                     <Tag color="success" className="rounded-full border-none px-3 font-bold uppercase text-[9px]">Verified Allocation</Tag>
                   </div>
@@ -170,7 +171,7 @@ const StudentProfile = () => {
 
         {/* Roommates Grid */}
         {roomInfo && (
-          <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" bodyStyle={{ padding: '24px' }} title={
+          <Card className="border-none shadow-sm rounded-surface overflow-hidden" bodyStyle={{ padding: '24px' }} title={
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2"><Users size={18} className="text-emerald-600" /><Text strong>Shared Occupants</Text></div>
               <Badge count={roomMates.length} color="#10b981" />
@@ -179,7 +180,7 @@ const StudentProfile = () => {
             <Row gutter={[20, 20]}>
               {roomMates.length > 0 ? roomMates.map((mate) => (
                 <Col lg={8} md={12} xs={24} key={mate.id}>
-                  <div className="p-5 rounded-[24px] bg-white border border-slate-100 shadow-sm hover:border-blue-200 transition-all group flex items-center gap-4">
+                  <div className="p-5 rounded-surface bg-white border border-slate-100 shadow-sm hover:border-blue-200 transition-all group flex items-center gap-4">
                     <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
                       {mate.userName?.charAt(0)}
                     </div>
@@ -205,17 +206,17 @@ const StudentProfile = () => {
           onCancel={() => { setIsChangingPassword(false); passwordForm.resetFields(); }}
           footer={null}
           width={480}
-          className="rounded-3xl"
+          className="rounded-surface"
         >
           <Form form={passwordForm} layout="vertical" onFinish={onPasswordFinish} className="mt-6">
             <Form.Item name="currentPassword" label="Existing Password" rules={[{ required: true }]}>
-              <Input.Password prefix={<Lock size={14} className="mr-2 text-slate-300"/>} placeholder="••••••••" className="h-12 rounded-xl" />
+              <Input.Password prefix={<Lock size={14} className="mr-2 text-slate-300"/>} placeholder="••••••••" className="h-12 rounded-control" />
             </Form.Item>
             
             <Divider className="my-6 border-slate-100" />
             
             <Form.Item name="newPassword" label="New Secure Password" rules={[{ required: true, min: 8 }]}>
-              <Input.Password prefix={<ShieldCheck size={14} className="mr-2 text-slate-300"/>} placeholder="Min. 8 characters" className="h-12 rounded-xl" />
+              <Input.Password prefix={<ShieldCheck size={14} className="mr-2 text-slate-300"/>} placeholder="Min. 8 characters" className="h-12 rounded-control" />
             </Form.Item>
 
             <Form.Item name="confirmNewPassword" label="Confirm Password" dependencies={['newPassword']} rules={[{ required: true }, ({ getFieldValue }) => ({
@@ -224,10 +225,10 @@ const StudentProfile = () => {
                 return Promise.reject(new Error('Passwords do not match!'));
               },
             })]}>
-              <Input.Password prefix={<CheckCircle2 size={14} className="mr-2 text-slate-300"/>} placeholder="Repeat new password" className="h-12 rounded-xl" />
+              <Input.Password prefix={<CheckCircle2 size={14} className="mr-2 text-slate-300"/>} placeholder="Repeat new password" className="h-12 rounded-control" />
             </Form.Item>
 
-            <Button type="primary" htmlType="submit" block size="large" loading={submittingPassword} className="h-14 rounded-2xl shadow-lg shadow-blue-100 font-bold mt-4">
+            <Button type="primary" htmlType="submit" block size="large" loading={submittingPassword} className="h-14 rounded-control shadow-lg shadow-blue-100 font-bold mt-4">
               Update Security Credentials
             </Button>
           </Form>

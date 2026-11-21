@@ -1,18 +1,26 @@
+import { PermissionAction } from '../../context/PermissionContext';
+import { useStaffWorkspace } from '../../context/StaffWorkspaceContext';
 import { PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Card, ConfigProvider, Form, Input, InputNumber, Select, Space, Table, Tabs, Tag, Typography, message } from 'antd';
+import { Card, ConfigProvider, Form, Input, InputNumber, Select, Space, Table, Tabs, Tag, Typography, message } from 'antd';
+import Alert from '../common/WorkspaceAlert';
+import WorkspaceToolbar from '../common/WorkspaceToolbar';
 import { Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { messAPI } from '../../services/api';
 import InventoryPageHeader, { inventoryTheme } from './InventoryPageHeader';
 import PurchaseSuggestions from './PurchaseSuggestions';
 import './InventoryHub.css';
-import { useScopeForm } from '../common/WorkspaceScope';
+import { useScopeForm, useWorkspaceScope } from '../common/WorkspaceScope';
 
 const money = value => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const errorText = error => error.response?.data?.message || 'Unable to load purchase orders. Please retry.';
 const emptyLine = () => ({ item_id: undefined, quantity: null, unit_price: null });
 
 export default function PurchaseOrder() {
+  const scope = useWorkspaceScope();
+  const staff = useStaffWorkspace();
+  const [savedReceipt, setSavedReceipt] = useState(null);
+  const [saveError, setSaveError] = useState('');
   const [orders, setOrders] = useState([]);
   const [items, setItems] = useState([]);
   const [stores, setStores] = useState([]);
@@ -39,6 +47,7 @@ export default function PurchaseOrder() {
   }
   useEffect(() => { load(); }, []);
   function start(suggestion) {
+    setSaveError('');
     form.resetFields();
     form.setFieldsValue({ items: [suggestion ? { item_id: suggestion.item_id, quantity: suggestion.recommended_quantity ?? suggestion.quantity_needed, unit_price: null } : emptyLine()] });
     setOpen(true);
@@ -47,16 +56,24 @@ export default function PurchaseOrder() {
     if (saving) return;
     const ids = values.items.map(line => line.item_id);
     if (new Set(ids).size !== ids.length) { message.error('Choose each item only once.'); return; }
+    setSaveError('');
     setSaving(true);
     try {
       await messAPI.receivePurchaseOrder({ order_reference: values.order_reference.trim(), store_id: values.store_id, items: values.items });
+      setSavedReceipt({ reference: values.order_reference.trim(), itemCount: values.items.length });
       message.success('Order received. Stock and unit rates updated; no daily expense was added.');
       setOpen(false); form.resetFields(); setTab('received'); await load();
-    } catch (failure) { message.error(failure.response?.data?.message || 'Unable to receive this order. Please retry.'); }
+    } catch (failure) { setSaveError(failure.response?.data?.message || failure.message || 'Unable to receive this order. Please retry.'); }
     finally { setSaving(false); }
   }
   const filtered = useMemo(() => orders.filter(order => `${order.order_reference} ${order.store_name} ${order.items.map(line => line.item_name).join(' ')}`.toLowerCase().includes(search.trim().toLowerCase())), [orders, search]);
+  const reportUrl = order => {
+    const params = new URLSearchParams({ kind: 'purchases', month: String(order.received_date).slice(0, 7), reference: order.order_reference });
+    if (staff) params.set('workspace', 'mess');
+    return `/inventory-reports?${params}`;
+  };
   const lineColumns = [
+    { title: 'Stock transaction ID', dataIndex: 'id' },
     { title: 'Item', dataIndex: 'item_name' },
     { title: 'Received quantity', render: (_, line) => `${line.quantity} ${line.unit}` },
     { title: 'Purchase rate', dataIndex: 'unit_price', render: money },
@@ -68,23 +85,31 @@ export default function PurchaseOrder() {
       <Button permissionAction="create" type="primary" icon={<Plus size={16} />} disabled={loading || !!error} onClick={() => start()}>Record received order</Button>
     </InventoryPageHeader>
     {error && <Alert showIcon type="error" title={error} style={{ marginBottom: 20 }} />}
+    {savedReceipt && <Alert type="success" showIcon closable onClose={() => setSavedReceipt(null)}
+      title={`Received ${savedReceipt.reference} · ${savedReceipt.itemCount} stock lines`} className="mb-4"
+      action={<Button onClick={() => setSearch(savedReceipt.reference)}>Find receipt</Button>} />}
     <Tabs activeKey={tab} onChange={setTab} destroyOnHidden items={[
       { key: 'received', label: 'Received Orders', children: <Card>
-        <Input.Search allowClear aria-label="Search received orders" placeholder="Search order, supplier or item" value={search} onChange={event => setSearch(event.target.value)} style={{ maxWidth: 420, marginBottom: 20 }} />
-        <Table rowKey="key" loading={loading} dataSource={filtered} scroll={{ x: 720 }} pagination={{ defaultPageSize: 10, showSizeChanger: true }}
+        <WorkspaceToolbar className="mb-4">
+          <Input.Search className="workspace-search" allowClear aria-label="Search received orders" placeholder="Search order, supplier or item" value={search} onChange={event => setSearch(event.target.value)} />
+        </WorkspaceToolbar>
+        <Table rowKey="key" loading={loading} dataSource={filtered} scroll={{ x: 850 }} pagination={{ defaultPageSize: 10, showSizeChanger: true }}
           columns={[
             { title: 'Order reference', dataIndex: 'order_reference' }, { title: 'Supplier store', dataIndex: 'store_name' },
             { title: 'Received on', dataIndex: 'received_date' }, { title: 'Total purchase value', dataIndex: 'total_amount', render: money },
             { title: 'Status', render: () => <Tag color="green">Received</Tag> },
+            { title: 'Stock movements', key: 'movements', render: (_, order) => <PermissionAction screen="inventory-reports" action="view"><a href={reportUrl(order)}>View purchase report</a></PermissionAction> },
           ]} expandable={{ expandedRowRender: order => <Table columns={lineColumns} rowKey="id" dataSource={order.items} pagination={false} /> }}
-          locale={{ emptyText: 'No received orders recorded yet. Existing direct purchases remain in Purchase History.' }} />
+          locale={{ emptyText: search.trim() ? 'No receipts match this search.' : 'No received orders recorded yet.' }} />
       </Card> },
       { key: 'suggestions', label: 'Purchase Suggestions', children: <PurchaseSuggestions onReceiveItem={start} /> },
     ]} />
     <Modal permissionAction="create" title="Record received purchase order" open={open} width={920} onCancel={() => !saving && setOpen(false)}
-      onOk={() => form.submit()} okText="Confirm receipt & add stock" confirmLoading={saving} closable={!saving} maskClosable={!saving} cancelButtonProps={{ disabled: saving }}>
+      onOk={() => form.submit()} okText="Confirm receipt & add stock" confirmLoading={saving} closable={!saving} mask={{ closable: !saving }} cancelButtonProps={{ disabled: saving }}>
       <Alert type="info" showIcon title="Save only after the items have arrived."
         description="This adds the received quantities to the selected inventory and records their purchase rates. It does not create a Daily Expenses entry. Ingredient consumption is costed separately." style={{ marginBottom: 20 }} />
+      {scope?.name && <Typography.Paragraph>Inventory · <strong>{scope.name}</strong></Typography.Paragraph>}
+      {saveError && <Alert type="error" showIcon title={saveError} style={{ marginBottom: 16 }} />}
       <Form form={form} layout="vertical" name="received-purchase-order" onFinish={save} disabled={saving}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
           <Form.Item name="order_reference" label="Order reference" rules={[{ required: true, whitespace: true, message: 'Enter the order reference.' }, { pattern: /^[A-Za-z0-9][A-Za-z0-9 ._/-]{0,79}$/, message: 'Use up to 80 letters, numbers, spaces, dots, slashes, underscores or hyphens.' }]}>
@@ -112,7 +137,7 @@ export default function PurchaseOrder() {
             <Button icon={<Plus size={16} />} onClick={() => add(emptyLine())} disabled={saving || fields.length >= 200}>Add item</Button>
           </>}
         </Form.List>
-        <Typography.Paragraph style={{ marginTop: 20 }}><Typography.Text strong>Total purchase value: {money(total)}</Typography.Text></Typography.Paragraph>
+        <Typography.Paragraph style={{ marginTop: 20 }}><Space wrap><Typography.Text>{lines.filter(line => line?.item_id).length} items</Typography.Text><Typography.Text strong>Total purchase value: {money(total)}</Typography.Text></Space></Typography.Paragraph>
       </Form>
     </Modal>
   </section></ConfigProvider>;

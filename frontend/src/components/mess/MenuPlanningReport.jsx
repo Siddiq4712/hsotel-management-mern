@@ -122,7 +122,7 @@ const MenuPlanningReport = () => {
               type="date"
               value={dateRange.startDate}
               onChange={(e) => setDateRange({...dateRange, startDate: e.target.value})}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div className="flex items-center space-x-2">
@@ -131,7 +131,7 @@ const MenuPlanningReport = () => {
               type="date"
               value={dateRange.endDate}
               onChange={(e) => setDateRange({...dateRange, endDate: e.target.value})}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>

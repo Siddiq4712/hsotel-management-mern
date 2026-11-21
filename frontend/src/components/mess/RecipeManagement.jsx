@@ -1,4 +1,7 @@
-import { PermissionNativeButton, PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
+import { cornerRadius } from '../../theme/cornerRadius';
+import { PermissionButton, PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
+import WorkspaceToolbar from '../common/WorkspaceToolbar';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, Table, Button, Tag, Space, message, Modal, Form, Input, Select, InputNumber, Typography, Divider, ConfigProvider, theme, Row, Col } from 'antd';
 import {
@@ -26,7 +29,6 @@ const T = {
   dangerBg:  '#FEF2F2',
   success:   '#16A34A',
   successBg: '#F0FDF4',
-  radius:    '10px',
   shadow:    '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
 };
 
@@ -34,12 +36,12 @@ const T = {
 const StatCard = ({ label, value, icon: Icon, accent }) => (
   <div style={{
     background: T.surface, border: `1px solid ${T.border}`,
-    borderRadius: T.radius, padding: '20px 24px',
+    borderRadius: cornerRadius.surface, padding: '20px 24px',
     display: 'flex', alignItems: 'center', gap: 16,
     boxShadow: T.shadow,
   }}>
     <div style={{
-      width: 44, height: 44, borderRadius: 10,
+      width: 44, height: 44, borderRadius: cornerRadius.control,
       background: accent ? T.accentBg : T.bg,
       display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
     }}>
@@ -71,7 +73,7 @@ const ActionBtn = ({ icon, children, onClick, variant }) => {
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 5,
         padding: children ? '5px 12px' : '6px',
-        borderRadius: 7, border: s.border ? `1px solid ${s.border}` : 'none',
+        borderRadius: cornerRadius.tag, border: s.border ? `1px solid ${s.border}` : 'none',
         background: s.bg, color: s.color,
         fontSize: 12, fontWeight: 600, cursor: 'pointer',
         transition: 'all 0.15s',
@@ -212,7 +214,7 @@ const RecipeManagement = () => {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {list.map((ing, idx) => (
               <span key={idx} style={{
-                display: 'inline-flex', alignItems: 'center', padding: '3px 10px', borderRadius: 20,
+                display: 'inline-flex', alignItems: 'center', padding: '3px 10px', borderRadius: cornerRadius.pill,
                 backgroundColor: T.accentBg, color: T.accent, fontSize: 12, fontWeight: 600, border: `1px solid #D4E6FF`
               }}>
                 {ing.ItemDetail?.name || 'Item'}: {parseFloat(ing.quantity_per_serving).toFixed(3)} {ing.UOMDetail?.abbreviation}
@@ -223,9 +225,9 @@ const RecipeManagement = () => {
       }
     },
     {
-      title: '',
+      title: 'Actions',
       key: 'actions',
-      align: 'right',
+      align: 'center',
       render: (_, record) => (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <ActionBtn icon={<Edit2 size={13}/>} onClick={() => handleEdit(record)}>Edit</ActionBtn>
@@ -238,57 +240,33 @@ const RecipeManagement = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: T.accent, borderRadius: 12 } }}>
+    <ConfigProvider theme={{ token: { colorPrimary: T.accent } }}>
       <style>{`
-        .pm-table .ant-table-thead > tr > th { background: #F7F8FA !important; border-bottom: 1px solid ${T.border} !important; padding: 11px 16px !important; }
-        .pm-table .ant-table-tbody > tr > td { border-bottom: 1px solid ${T.border} !important; padding: 14px 16px !important; }
-        .pm-form-input .ant-input, .pm-form-input .ant-select-selector, .pm-form-input .ant-input-number { border-radius: 12px !important; }
-        .pm-modal .ant-modal-content { border-radius: 24px; overflow: hidden; }
+        .pm-form-input .ant-input, .pm-form-input .ant-select-selector, .pm-form-input .ant-input-number { border-radius: var(--ui-radius-control) !important; }
+        .pm-modal .ant-modal-content { border-radius: var(--ui-radius-surface); overflow: hidden; }
       `}</style>
 
       <div className="module-page">
-        {/* Page Header */}
-        <div className="module-page-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <BookOpen size={20} color={T.accent} />
+        <WorkspacePageHeader title="Recipe Master" icon={BookOpen} description="Manage ingredient quantities for each serving." />
+        <Card>
+          <WorkspaceToolbar className="mb-4">
+            <Input aria-label="Search recipes" className="workspace-search" prefix={<Search size={16} aria-hidden="true" />}
+              placeholder="Search recipes" value={searchText} onChange={event => setSearchText(event.target.value)} allowClear />
+            <div className="workspace-toolbar-actions">
+              <PermissionButton permissionAction="create" type="primary" icon={<Plus size={16} />}
+                onClick={() => { setEditingRecipe(null); form.resetFields(); setModalVisible(true); }}>New Recipe</PermissionButton>
             </div>
-            <div>
-              <h1 className="module-title">Recipe Master</h1>
-              <div className="module-subtitle">Standardize ingredient ratios for mass cooking</div>
-            </div>
-          </div>
-          <PermissionNativeButton permissionAction="create" onClick={() => { setEditingRecipe(null); form.resetFields(); setModalVisible(true); }} style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: `0 2px 8px rgba(26,86,219,0.3)` }}>
-            <Plus size={16} /> New Recipe
-          </PermissionNativeButton>
-        </div>
-
-        <div className="space-y-6">
-          {/* Stats */}
-          {/* <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 24 }}>
-            <StatCard label="Total Recipes" value={stats.totalRecipes} icon={LayoutGrid} accent />
-            <StatCard label="Avg. Ingredients" value={stats.avgComponents} icon={Beaker} />
-            <StatCard label="Most Complex Dish" value={stats.mostComplexName} icon={ChefHat} />
-          </div> */}
-
-          {/* Search */}
-          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, boxShadow: T.shadow }}>
-            <Search size={16} color={T.inkSoft} />
-            <input placeholder="Search recipes (e.g. Sambar, Biryani)..." value={searchText} onChange={e => setSearchText(e.target.value)} style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 14, color: T.ink, flex: 1, fontFamily: "'DM Sans', sans-serif" }} />
-          </div>
-
-          {/* Table */}
-          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: T.radius, boxShadow: T.shadow, overflow: 'hidden' }}>
-            <Table className="pm-table" columns={columns} dataSource={recipes.filter(r => r.name?.toLowerCase().includes(searchText.toLowerCase()))} rowKey="id" loading={loading} pagination={{ pageSize: 8, size: 'small' }} />
-          </div>
-        </div>
+          </WorkspaceToolbar>
+          <Table columns={columns} dataSource={recipes.filter(recipe => recipe.name?.toLowerCase().includes(searchText.trim().toLowerCase()))}
+            rowKey="id" loading={loading} pagination={{ pageSize: 8 }} scroll={{ x: 700 }} />
+        </Card>
 
         {/* Create/Edit Modal */}
         <Modal
           className="pm-modal"
           title={
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 32, height: 32, borderRadius: cornerRadius.control, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <ChefHat size={15} color={T.accent} />
               </div>
               <span style={{ fontSize: 15, fontWeight: 700, color: T.ink }}>
@@ -310,7 +288,7 @@ const RecipeManagement = () => {
               <TextArea rows={2} placeholder="Brief instructions..." />
             </Form.Item>
 
-            <div style={{ background: '#FFFBEB', border: '1px solid #FEF3C7', padding: '12px 16px', borderRadius: 8, marginBottom: 20 }}>
+            <div style={{ background: '#FFFBEB', border: '1px solid #FEF3C7', padding: '12px 16px', borderRadius: cornerRadius.surface, marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#92400E', fontWeight: 700, fontSize: 12 }}>
                     <Info size={14} /> INGREDIENT RATIO (PER PERSON)
                 </div>
@@ -325,7 +303,7 @@ const RecipeManagement = () => {
                   {fields.map(({ key, name, ...restField }) => (
                     <div key={key} style={{ 
                         background: T.bg, border: `1px solid ${T.border}`, 
-                        padding: '16px', borderRadius: 10, display: 'flex', gap: 12, alignItems: 'start'
+                        padding: '16px', borderRadius: cornerRadius.surface, display: 'flex', gap: 12, alignItems: 'start'
                     }}>
                       <Form.Item {...restField} name={[name, 'item_id']} label={<FieldLabel>Material</FieldLabel>} style={{ flex: 1, marginBottom: 0 }} rules={[{required: true}]}>
                         <Select showSearch placeholder="Select item" optionFilterProp="children">
@@ -345,7 +323,7 @@ const RecipeManagement = () => {
                       </button>
                     </div>
                   ))}
-                  <button type="button" onClick={() => add()} style={{ width: '100%', padding: '12px', borderRadius: 10, border: `2px dashed ${T.border}`, background: 'none', color: T.inkMid, fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <button type="button" onClick={() => add()} style={{ width: '100%', padding: '12px', borderRadius: cornerRadius.control, border: `2px dashed ${T.border}`, background: 'none', color: T.inkMid, fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                     <Plus size={16} /> Add Ingredient Component
                   </button>
                 </div>
@@ -353,8 +331,8 @@ const RecipeManagement = () => {
             </Form.List>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
-              <button type="button" onClick={() => setModalVisible(false)} style={{ padding: '9px 20px', borderRadius: 8, border: `1px solid ${T.border}`, background: T.surface, color: T.inkMid, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-              <PermissionNativeButton permissionAction={editingRecipe ? 'edit' : 'create'} type="submit" style={{ padding: '9px 24px', borderRadius: 8, border: 'none', background: T.accent, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button type="button" onClick={() => setModalVisible(false)} style={{ padding: '9px 20px', borderRadius: cornerRadius.control, border: `1px solid ${T.border}`, background: T.surface, color: T.inkMid, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+              <PermissionNativeButton permissionAction={editingRecipe ? 'edit' : 'create'} type="submit" style={{ padding: '9px 24px', borderRadius: cornerRadius.control, border: 'none', background: T.accent, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Save size={16} /> {editingRecipe ? 'Update Recipe' : 'Save Recipe'}
               </PermissionNativeButton>
             </div>

@@ -1,16 +1,32 @@
-import { PermissionButton as Button, PermissionModal as Modal } from '../common/PermissionControls';
-import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Table, Tag, Space, Input, message, Typography, ConfigProvider, theme, Tabs, List, Avatar } from 'antd';
+import { useScopeDraft } from '../common/WorkspaceScope';
+import RequestActions, { requestActionsColumnWidth } from '../common/RequestActions';
+import RequestReviewDialog from '../common/RequestReviewDialog';
+import RequestQueue, { requestPagination, RequestSearch } from '../common/RequestQueue';
+import { useWardenHostelName } from './WardenWorkspace';
+import { usePermissions } from '../../context/PermissionContext';
+import { PermissionButton as Button } from '../common/PermissionControls';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Alert, Table, Tag, Space, Input, Select, message, Typography, ConfigProvider, Avatar } from 'antd';
 import { 
-  CheckCircle, XCircle, Clock, ExternalLink, MessageSquare, 
-  AlertTriangle, RefreshCw, Eye, Search
+  Check, CheckCircle, XCircle, Clock, ExternalLink,
+  AlertTriangle, RefreshCw, Eye
 } from 'lucide-react';
 import { outpassAPI } from '../../services/api';
 import moment from 'moment';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text } = Typography;
+
+const gateStatuses = [
+  { value: 'pending', label: 'Pending requests' },
+  { value: 'approved', label: 'Approved passes' },
+  { value: 'outside', label: 'Currently outside' },
+  { value: 'all', label: 'All requests' },
+];
 
 const OutpassApproval = () => {
+  const hostelName = useWardenHostelName();
+  const { can } = usePermissions();
+  const canDecide = can('outpass-approvals', 'approve');
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -18,39 +34,50 @@ const OutpassApproval = () => {
 
   // Modal actions
   const [selectedOutpass, setSelectedOutpass] = useState(null);
+  const [intent, setIntent] = useState();
   const [remarks, setRemarks] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
-  const [actionType, setActionType] = useState('approve'); // approve or reject
   const [actionLoading, setActionLoading] = useState(false);
 
+  const request = useRef(0);
+  const [loadError, setLoadError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  useScopeDraft(modalVisible && Boolean(remarks.trim()), actionLoading);
+
   const fetchOutpasses = useCallback(async () => {
+    const sequence = ++request.current;
     setLoading(true);
+    setLogs([]);
+    setLoadError('');
     try {
       const res = await outpassAPI.getWardenOutpasses({ 
         status: activeTab,
         search: search.trim() || undefined
       });
-      setLogs(res.data.data || []);
+      if (sequence === request.current) setLogs(res.data.data || []);
     } catch (error) {
-      message.error('Failed to load outpass requests');
+      if (sequence === request.current) setLoadError(error.message || 'Could not load outpasses.');
     } finally {
-      setLoading(false);
+      if (sequence === request.current) setLoading(false);
     }
   }, [activeTab, search]);
 
   useEffect(() => {
     fetchOutpasses();
+    return () => { request.current++; };
   }, [fetchOutpasses]);
 
-  const openActionModal = (record, type) => {
+  const openActionModal = (record, action) => {
     setSelectedOutpass(record);
-    setActionType(type);
+    setIntent(action);
     setRemarks('');
+    setSaveError('');
     setModalVisible(true);
   };
 
-  const handleAction = async () => {
-    if (!selectedOutpass) return;
+  const handleAction = async (actionType) => {
+    if (selectedOutpass?.status !== 'pending' || !canDecide || actionLoading) return;
+    setSaveError('');
     setActionLoading(true);
     try {
       if (actionType === 'approve') {
@@ -63,7 +90,7 @@ const OutpassApproval = () => {
       setModalVisible(false);
       fetchOutpasses();
     } catch (error) {
-      message.error(error.response?.data?.message || 'Failed to complete action');
+      setSaveError(error.message || 'Could not save this decision.');
     } finally {
       setActionLoading(false);
     }
@@ -127,28 +154,24 @@ const OutpassApproval = () => {
       render: (date) => moment(date).format('lll')
     },
     {
-      title: 'Action',
+      title: 'Status',
+      dataIndex: 'status',
+      render: status => status === 'pending'
+        ? <Tag color="warning" className="request-pending-tag">Pending review</Tag>
+        : getStatusTag(status)
+    },
+    {
+      title: 'Actions',
       key: 'action',
-      render: (_, record) => (
-        <Space>
-          <Button permissionAction="approve" 
-            type="primary" 
-            size="small" 
-            className="bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-1"
-            onClick={() => openActionModal(record, 'approve')}
-          >
-            Approve
-          </Button>
-          <Button permissionAction="approve" 
-            danger 
-            size="small" 
-            className="rounded-lg flex items-center gap-1"
-            onClick={() => openActionModal(record, 'reject')}
-          >
-            Reject
-          </Button>
-        </Space>
-      )
+      width: requestActionsColumnWidth,
+      align: 'right',
+      render: (_, record) => {
+        const pending = canDecide && record.status === 'pending';
+        return <RequestActions reviewLabel={`Review outpass for ${record.Student?.userName || 'resident'}`}
+          onReview={() => openActionModal(record)} disabled={loading}
+          onAccept={pending ? () => openActionModal(record, 'approve') : undefined}
+          onReject={pending ? () => openActionModal(record, 'reject') : undefined} />;
+      }
     }
   ];
 
@@ -208,154 +231,64 @@ const OutpassApproval = () => {
       dataIndex: 'status',
       key: 'status',
       render: (status) => getStatusTag(status)
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      align: 'right',
+      width: 105,
+      render: (_, record) => <RequestActions
+        reviewLabel={`Review outpass for ${record.Student?.userName || 'resident'}`}
+        onReview={() => openActionModal(record)} />
     }
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#3b82f6', borderRadius: 12 } }}>
-      <div className="module-page p-8 bg-slate-50 min-h-screen">
-        
-        {/* Header */}
-        <div className="module-page-header flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100 text-white">
-              <Clock size={24} />
-            </div>
-            <div>
-              <Title level={2} style={{ margin: 0, fontWeight: 600 }}>Outpass Requests Board</Title>
-              <Text type="secondary">Review, approve, and audit hostel student gate pass requests</Text>
-            </div>
-          </div>
-          <Button 
-            icon={<RefreshCw size={16} />} 
-            onClick={fetchOutpasses} 
-            loading={loading}
-            className="h-11 rounded-xl flex items-center gap-2 border-slate-200"
-          >
-            Sync Board
-          </Button>
-        </div>
+    <ConfigProvider>
+      <div className="module-page">
+        <RequestQueue title="Gate Pass Requests" scope={hostelName} description="Review, approve, and track resident gate passes."
+          listTitle={gateStatuses.find(status => status.value === activeTab)?.label}
+          count={!loading && !loadError ? logs.length : undefined}
+          pending={!loading && !loadError ? logs.filter(row => row.status === 'pending').length : 0}
+          filters={<>
+            <RequestSearch label="Search gate pass requests" value={search} onChange={setSearch} />
+            <Select aria-label="Gate pass status" value={activeTab} onChange={setActiveTab} options={gateStatuses} />
+            <Button icon={<RefreshCw size={16} />} onClick={fetchOutpasses} loading={loading}>Refresh</Button>
+          </>}>
+          {loadError && <div className="request-queue-message"><Alert type="error" showIcon title={loadError} /></div>}
+          <Table columns={activeTab === 'pending' ? pendingColumns : historyColumns}
+            dataSource={loading || loadError ? [] : logs} rowKey="id" loading={loading} scroll={{ x: 870 }}
+            locale={{ emptyText: loadError ? 'Gate passes unavailable' : search ? 'No gate passes match this search.' : 'No gate passes in this category.' }}
+            pagination={requestPagination} />
+        </RequestQueue>
 
-        {/* Content Tabs */}
-        <Card className="border-none shadow-sm rounded-[32px] overflow-hidden p-6 bg-white">
-          <Tabs 
-            activeKey={activeTab} 
-            onChange={(key) => setActiveTab(key)}
-            tabBarExtraContent={
-              <Input 
-                placeholder="Search name or roll..." 
-                prefix={<Search size={16} className="text-slate-400 mr-2" />}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-64 h-10 rounded-xl"
-              />
-            }
-            items={[
-              {
-                key: 'pending',
-                label: 'Pending Requests',
-                children: (
-                  <Table 
-                    columns={pendingColumns} 
-                    dataSource={logs} 
-                    rowKey="id" 
-                    loading={loading}
-                    pagination={{ pageSize: 10 }}
-                  />
-                )
-              },
-              {
-                key: 'approved',
-                label: 'Approved Permits',
-                children: (
-                  <Table 
-                    columns={historyColumns} 
-                    dataSource={logs} 
-                    rowKey="id" 
-                    loading={loading}
-                    pagination={{ pageSize: 10 }}
-                  />
-                )
-              },
-              {
-                key: 'outside',
-                label: 'Currently Outside',
-                children: (
-                  <Table 
-                    columns={historyColumns} 
-                    dataSource={logs} 
-                    rowKey="id" 
-                    loading={loading}
-                    pagination={{ pageSize: 10 }}
-                  />
-                )
-              },
-              {
-                key: 'all',
-                label: 'All Outpasses',
-                children: (
-                  <Table 
-                    columns={historyColumns} 
-                    dataSource={logs} 
-                    rowKey="id" 
-                    loading={loading}
-                    pagination={{ pageSize: 10 }}
-                  />
-                )
-              }
-            ]}
-          />
-        </Card>
-
-        {/* Action Remarks Modal */}
-        <Modal permissionAction="approve"
-          title={
-            <div className="flex items-center gap-2 mb-3">
-              {actionType === 'approve' ? (
-                <CheckCircle className="text-blue-500" size={22} />
-              ) : (
-                <XCircle className="text-rose-500" size={22} />
-              )}
-              <Text strong className="text-lg">
-                {actionType === 'approve' ? 'Approve Outpass Permit' : 'Reject Outpass Permit'}
-              </Text>
-            </div>
-          }
-          open={modalVisible}
-          onOk={handleAction}
-          onCancel={() => setModalVisible(false)}
-          confirmLoading={actionLoading}
-          okText={actionType === 'approve' ? 'Approve' : 'Reject'}
-          okButtonProps={{ 
-            danger: actionType === 'reject',
-            className: actionType === 'approve' ? 'bg-blue-600 hover:bg-blue-700' : ''
-          }}
-          className="rounded-2xl overflow-hidden"
-        >
-          <div className="space-y-4 py-2">
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-              <Space direction="vertical" size={2}>
-                <Text strong className="text-slate-800">{selectedOutpass?.Student?.userName}</Text>
-                <Text type="secondary" className="text-xs">Destination: {selectedOutpass?.destination}</Text>
-                <Text type="secondary" className="text-xs">Purpose: {selectedOutpass?.purpose}</Text>
-              </Space>
-            </div>
-
-            <Space direction="vertical" size={4} className="w-full">
-              <Text strong className="text-slate-700 flex items-center gap-1.5">
-                <MessageSquare size={16} />
-                Remarks (Optional)
-              </Text>
-              <Input.TextArea 
-                rows={3} 
-                placeholder="Enter remarks, instructions or reasons here..."
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                className="rounded-xl"
-              />
-            </Space>
-          </div>
-        </Modal>
+        <RequestReviewDialog title={intent === 'approve' ? 'Accept gate pass request' : intent === 'reject' ? 'Reject gate pass request' : 'Review gate pass request'}
+          open={modalVisible} busy={actionLoading} onClose={() => setModalVisible(false)}
+          status={selectedOutpass && getStatusTag(selectedOutpass.status)}
+          resident={selectedOutpass?.Student?.userName} hostel={hostelName}
+          details={selectedOutpass ? [
+            ['Departure', moment(selectedOutpass.from_date).format('lll')], ['Return', moment(selectedOutpass.to_date).format('lll')],
+            ['Destination', selectedOutpass.destination],
+          ] : []}
+          actions={canDecide && selectedOutpass?.status === 'pending' && <>
+            {(!intent || intent === 'reject') && <Button danger loading={intent === 'reject' && actionLoading}
+              disabled={actionLoading} onClick={() => handleAction('reject')}>{intent ? 'Confirm rejection' : 'Reject'}</Button>}
+            {(!intent || intent === 'approve') && <Button type="primary" icon={<Check size={16} aria-hidden="true" />} loading={actionLoading}
+              onClick={() => handleAction('approve')}>{intent ? 'Confirm acceptance' : 'Approve'}</Button>}
+          </>}>
+          {selectedOutpass && <div><strong className="request-review-label">Purpose</strong>
+            <p className="request-review-note">{selectedOutpass.purpose || 'No purpose recorded.'}</p>
+          </div>}
+          {selectedOutpass && selectedOutpass.status !== 'pending' && <div><strong className="request-review-label">Warden remarks</strong>
+            <p className="request-review-note">{selectedOutpass.remarks || 'No remarks recorded.'}</p>
+          </div>}
+          {canDecide && selectedOutpass?.status === 'pending' && <div>
+            <label htmlFor="outpass-remarks">Warden remarks (optional)</label>
+            <Input.TextArea id="outpass-remarks" aria-label="Outpass remarks" rows={3} placeholder="Enter your remarks..."
+              disabled={actionLoading} value={remarks} onChange={event => setRemarks(event.target.value)} />
+          </div>}
+          {saveError && <Alert type="error" showIcon title={saveError} />}
+        </RequestReviewDialog>
       </div>
     </ConfigProvider>
   );

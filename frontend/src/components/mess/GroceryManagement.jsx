@@ -114,7 +114,7 @@ const GroceryManagement = () => {
         </Space>
       }
     >
-      <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-3">
+      <div className="mb-4 rounded-control border border-blue-100 bg-blue-50 p-3">
         <Text className="text-xs text-blue-700">Excel reference for grocery item sheets: {requiredImportColumns.map((column) => column.label).join(', ')}</Text>
         <div className="flex flex-wrap gap-2 mt-2">
           {requiredImportColumns.map((column) => (

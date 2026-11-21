@@ -105,6 +105,9 @@ try {
   await consume(hostels[0], 30);
   await consume(hostels[1], 10);
   assert.equal(await balance(pool.id), 80);
+  const issuedBatches = await InventoryBatch.findAll({ where: { inventory_id: pool.id, item_id: item.id }, transaction });
+  const issuedValue = issuedBatches.reduce((sum, batch) => sum + Number(batch.quantity_remaining) * Number(batch.unit_price), 0);
+  assert(Math.abs(issuedValue - 360) < 0.00001, 'two issues at the weighted rate of 4.50 leave 360 of stock value');
   assert.equal(await balance(isolated.id), 10, 'another inventory remains isolated');
   const records = await DailyConsumption.findAll({ where: { inventory_id: pool.id, item_id: item.id }, transaction, raw: true });
   assert.deepEqual(records.map(row => row.hostel_id).sort((a,b) => a-b), [hostels[0].id, hostels[1].id]);
@@ -118,16 +121,16 @@ try {
   }
   const correction = response();
   await correctLastPurchase(request(hostels[0], { item_id: item.id, new_quantity: 25, new_unit_price: 7 }), correction);
-  assert.equal(correction.statusCode, 200, correction.body?.message);
-  assert.equal(await balance(pool.id), 85);
+  assert.match(correction.body.message, /consumption or returns/);
+  assert.equal(await balance(pool.id), 80);
   const returned = response();
   await recordItemReturn(request(hostels[1], { items: [{ item_id: item.id, quantity_returned: 2 }] }), returned);
   assert.equal(returned.statusCode, 201, returned.body?.message);
-  assert.equal(await balance(pool.id), 87);
+  assert.equal(await balance(pool.id), 82);
   const afterReturn = response();
   await correctLastPurchase(request(hostels[0], { item_id: item.id, new_quantity: 30, new_unit_price: 7 }), afterReturn);
   assert.match(afterReturn.body.message, /consumption or returns/);
-  assert.equal(await balance(pool.id), 87, 'a batch touched by returns cannot be reset by purchase correction');
+  assert.equal(await balance(pool.id), 82, 'a batch touched by returns cannot be reset by purchase correction');
   const activeBatchTotal = await InventoryBatch.sum('quantity_remaining', { where: { inventory_id: pool.id, item_id: item.id }, transaction });
   assert.equal(Number(activeBatchTotal), await balance(pool.id));
 
@@ -139,7 +142,7 @@ try {
   assert.equal(await balance(isolated.id), 10);
   const combined = await assign(true);
   assert.equal(combined.statusCode, 200, combined.body?.message);
-  assert.equal(await balance(pool.id), 97);
+  assert.equal(await balance(pool.id), 92);
   assert.equal(await ItemStock.count({ where: { inventory_id: pool.id, item_id: item.id }, transaction }), 1);
   assert.equal(await InventoryBatch.count({ where: { inventory_id: isolated.id }, transaction }), 0);
   assert.equal(await InventoryTransaction.count({ where: { inventory_id: pool.id, item_id: item.id }, transaction }), 3);
@@ -147,14 +150,14 @@ try {
   const listing = response(); await listInventories({ user: { role: 'mess', hostel_id: hostels[1].id } }, listing);
   assert.equal(listing.body.data.length, 1); assert.equal(listing.body.data[0].hostels.length, 3);
   assert.equal((await assign(true)).statusCode, 200);
-  assert.equal(await balance(pool.id), 97, 'saving unchanged assignments never combines stock twice');
+  assert.equal(await balance(pool.id), 92, 'saving unchanged assignments never combines stock twice');
   const split = response();
   const splitRequest = request(hostels[1], { name: isolated.name, hostel_ids: [hostels[1].id], combine_stock: false });
   splitRequest.params.id = isolated.id;
   await saveInventory(splitRequest, split);
   assert.equal(split.statusCode, 200, split.body?.message);
   assert.deepEqual(await inventoryScope(hostels[1].id, transaction), { inventory_id: isolated.id });
-  assert.equal(await balance(pool.id), 97, 'moving one hostel out of a group leaves stock in the original inventory');
+  assert.equal(await balance(pool.id), 92, 'moving one hostel out of a group leaves stock in the original inventory');
   assert.equal(await ItemStock.count({ where: { inventory_id: isolated.id }, transaction }), 0);
   const sharedHosts = [];
   for (const suffix of ['D', 'E']) sharedHosts.push(await Hostel.create({ name: `Billing fixture ${tag} ${suffix}`, capacity: 20 }, { transaction }));
@@ -187,6 +190,8 @@ try {
   assert.equal(sharedReturn.statusCode, 201, sharedReturn.body?.message);
   assert.equal(Number(sharedReturn.body.data[0].total_cost), -15, 'return reverses the consumption rate, not the latest supplier rate');
   assert.equal(sharedReturn.body.data[0].hostel_id, null);
+  const returnedBatches = await InventoryBatch.findAll({ where: { inventory_id: sharedPool.id, item_id: item.id }, transaction });
+  assert.equal(returnedBatches.reduce((sum, batch) => sum + Number(batch.quantity_remaining) * Number(batch.unit_price), 0), 2865);
   const excessiveReturn = response();
   await recordItemReturn(request(sharedHosts[0], { return_date: today, items: [{ item_id: item.id, quantity_returned: 100 }] }), excessiveReturn);
   assert.equal(excessiveReturn.statusCode, 400);
@@ -257,7 +262,7 @@ try {
   assert.equal(pastBlocked.statusCode, 400, 'an empty effective month must not bypass activity in a later affected month');
   assert.match(pastBlocked.body.message, /meal entries/);
   console.log('PASS: shared/hostel billing modes, month-effective policies, one inventory deduction, duplicate meals, pooled expenses, equal rates, report formats/scopes, staff authorization, group finalization, frozen history.');
-  console.log('PASS: received orders, duplicate receipt protection, atomic rollback, weighted rates, consumption-only expenses, shared purchases, FIFO depletion, hostel attribution, isolated pools, shared reports, returns, corrections, confirmed stock combining, and staff scope.');
+  console.log('PASS: received orders, duplicate receipt protection, atomic rollback, weighted rates, consumption-only expenses, shared purchases, proportional depletion, hostel attribution, isolated pools, shared reports, returns, corrections, confirmed stock combining, and staff scope.');
 } finally {
   sequelize.transaction = originalTransaction; sequelize.query = originalQuery;
   sequelize.removeHook('beforeFind', 'inventoryFixture'); sequelize.removeHook('beforeCount', 'inventoryFixture');

@@ -8,7 +8,7 @@ import { requestReportFormat } from '../../services/reportFormat';
 vi.mock('../../services/api', () => ({ inventoryAPI: { policy: vi.fn(), report: vi.fn() } }));
 vi.mock('../../services/reportFormat', () => ({ requestReportFormat: vi.fn() }));
 vi.mock('./InventoryWorkspace', () => ({ useInventoryWorkspace: () => ({ id: 10, name: 'Central inventory' }) }));
-vi.mock('../common/ReportPreview', () => ({ default: ({ rows }) => <div aria-label="Report preview">{JSON.stringify(rows)}</div> }));
+vi.mock('../common/ReportPreview', () => ({ default: ({ rows, initialSearch }) => <div aria-label="Report preview" data-search={initialSearch}>{JSON.stringify(rows)}</div> }));
 vi.mock('antd', () => {
   const Wrap = ({ children }) => <div>{children}</div>;
   return { Space: Wrap, Card: Wrap, Typography: { Title: Wrap, Paragraph: Wrap, Text: Wrap },
@@ -21,6 +21,7 @@ vi.mock('antd', () => {
 const data = (kind = 'consumption', name = 'Hostel A') => ({ kind, scope: { name, level: 'hostel', hostels: [{ id: 1, name }], month: 10, year: 2026 }, summary: {}, rows: [{ Item: 'Rice', Quantity: 10 }] });
 beforeEach(() => {
   vi.clearAllMocks();
+  window.history.replaceState({}, '', '/inventory-reports');
   inventoryAPI.policy.mockResolvedValue({ data: { data: { mode: 'hostel', hostels: [{ id: 1, name: 'Hostel A' }, { id: 2, name: 'Hostel B' }] } } });
   inventoryAPI.report.mockImplementation((_, params) => Promise.resolve({ data: { data: data(params.kind) } }));
 });
@@ -73,4 +74,11 @@ it('shows the API error message and clears the previous preview after refresh fa
   fireEvent.click(screen.getByText('Refresh preview'));
   await screen.findByText('API Error: Historical statement is unavailable.');
   expect(screen.queryByLabelText('Report preview')).not.toBeInTheDocument();
+});
+
+it('opens a receipt’s reporting period with its reference in the purchase search', async () => {
+  window.history.replaceState({}, '', '/inventory-reports?kind=purchases&month=2026-10&reference=PO-101');
+  render(<InventoryReports />);
+  expect(await screen.findByLabelText('Report preview')).toHaveAttribute('data-search', 'PO-101');
+  expect(inventoryAPI.report).toHaveBeenLastCalledWith(10, { kind: 'purchases', month: 10, year: 2026, format: 'preview' });
 });

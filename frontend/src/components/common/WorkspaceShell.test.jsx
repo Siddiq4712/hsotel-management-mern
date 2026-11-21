@@ -22,6 +22,23 @@ const Location = () => <output data-testid="location">{useLocation().pathname}{u
 const mount = (props = {}) => render(<MemoryRouter><Layout workspace="admin" currentView="dashboard" setCurrentView={vi.fn()} {...props}><h1>Overview</h1><Location /></Layout></MemoryRouter>);
 
 describe('Shared workspace navigation', { timeout: 30000 }, () => {
+  it('orders Admin navigation by workflow and keeps related pages together', () => {
+    mount();
+    const nav = screen.getByRole('navigation', { name: 'Workspace navigation' });
+    const sections = Array.from(nav.querySelectorAll('.ant-menu-item-group'), group => [
+      group.querySelector('.ant-menu-item-group-title').textContent,
+      within(group).getAllByRole('menuitem').map(item => item.textContent),
+    ]);
+
+    expect(sections).toEqual([
+      ['Workspace', ['Overview']],
+      ['Hostel Operations', ['Manage Hostels', 'Manage Rooms', 'Manage Batches', 'Monthly Attendance Import']],
+      ['Requests', ['Mess Reductions', 'Gate Pass Logs']],
+      ['Administration', ['Manage Users', 'Screen Permissions', 'Activity Logs']],
+      ['Configuration', ['Income Types', 'Expense Types', 'Units of Measure']],
+    ]);
+  });
+
   it('persists the explicit sidebar preference across mounts', () => {
     const view = mount();
     fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }));
@@ -41,6 +58,23 @@ describe('Shared workspace navigation', { timeout: 30000 }, () => {
     expect(select).toHaveBeenCalledWith('purchase-orders');
     expect(screen.getByTestId('location')).toHaveTextContent('/purchase-orders?workspace=mess');
   });
+  it('fades in a different page without delaying sidebar navigation', () => {
+    function Workspace() {
+      const [view, select] = React.useState('dashboard');
+      return <Layout workspace="admin" currentView={view} setCurrentView={select}><h1>{view}</h1><Location /></Layout>;
+    }
+    render(<MemoryRouter><Workspace /></MemoryRouter>);
+    const animate = vi.fn(() => ({ cancel: vi.fn() }));
+    screen.getByRole('main').querySelector('.workspace-content').animate = animate;
+    const nav = screen.getByRole('navigation', { name: 'Workspace navigation' });
+    const hostels = within(nav).getByText('Manage Hostels');
+    fireEvent.click(hostels);
+    expect(screen.getByRole('heading', { name: 'hostels' })).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/hostels?workspace=admin');
+    expect(animate).toHaveBeenCalledTimes(1);
+    fireEvent.click(hostels);
+    expect(animate).toHaveBeenCalledTimes(1);
+  });
   it('opens mobile navigation and closes it after selecting a destination', async () => {
     mount();
     fireEvent.click(screen.getByLabelText('Open navigation'));
@@ -49,10 +83,10 @@ describe('Shared workspace navigation', { timeout: 30000 }, () => {
     expect(screen.getByLabelText('Open navigation')).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByTestId('location')).toHaveTextContent('/hostels?workspace=admin');
   });
-  it('offers working account sign out', async () => {
+  it('offers sign out from the Admin workspace menu', async () => {
     mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Logout' }));
     expect(useAuth().logout).toHaveBeenCalledOnce();
   });
   it('groups inventory tools under one navigation entry and highlights legacy stock links', () => {
@@ -65,5 +99,19 @@ describe('Shared workspace navigation', { timeout: 30000 }, () => {
     expect(inventory).toHaveClass('ant-menu-item-selected');
     fireEvent.click(inventory);
     expect(screen.getByTestId('location')).toHaveTextContent('/inventory?workspace=mess');
+  });
+
+  it.each([
+    ['admin', ['Mess Reductions', 'Gate Pass Logs'], 'Gate Pass Logs', '/outpass-logs?workspace=admin'],
+    ['warden', ['Leave Requests', 'Mess Reductions', 'Gate Pass Requests', 'Room Requests', 'Complaints'], 'Gate Pass Requests', '/outpass-approval?workspace=warden'],
+    ['student', ['My Leaves', 'Mess Reductions', 'Gate Pass', 'Rooms & Requests', 'My Complaints'], 'Gate Pass', '/outpass'],
+  ])('groups %s requests together and opens the existing gate pass page', (workspace, labels, gateLabel, destination) => {
+    if (workspace === 'student') useAuth.mockReturnValue({ user: { role: 'student' }, logout: vi.fn() });
+    mount({ workspace });
+    const navigation = screen.getByRole('navigation', { name: 'Workspace navigation' });
+    const group = within(navigation).getByText('Requests', { exact: true }).closest('.ant-menu-item-group');
+    expect(within(group).getAllByRole('menuitem').map(item => item.textContent)).toEqual(labels);
+    fireEvent.click(within(group).getByRole('menuitem', { name: gateLabel }));
+    expect(screen.getByTestId('location')).toHaveTextContent(destination);
   });
 });

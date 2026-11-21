@@ -1,7 +1,7 @@
 import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Table, Tag, Input, Form, message, Tabs, Space, Typography, ConfigProvider, theme, Empty, Descriptions, QRCode } from 'antd';
+import { Card, Table, Tag, Input, Form, message, Tabs, Space, Typography, ConfigProvider, Empty, Descriptions, QRCode } from 'antd';
 import { 
   Send, Clock, CheckCircle, XCircle, AlertTriangle, 
   QrCode, ClipboardList, MapPin, Calendar, RefreshCw
@@ -119,13 +119,13 @@ const StudentOutpass = () => {
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#3b82f6', borderRadius: 16 } }}>
+    <ConfigProvider>
       <div className="module-page bg-slate-50 min-h-screen p-8">
         
         {/* Header */}
         <div className="module-page-header flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100 text-white">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100 text-white">
               <QrCode size={24} />
             </div>
             <div>
@@ -133,12 +133,12 @@ const StudentOutpass = () => {
               <Text type="secondary">Submit outpass permit requests and retrieve secure gate pass QR codes</Text>
             </div>
           </div>
-          <Button icon={<RefreshCw size={16} />} onClick={fetchOutpasses} loading={loading} className="h-11 rounded-xl flex items-center gap-2 border-slate-200">
+          <Button icon={<RefreshCw size={16} />} onClick={fetchOutpasses} loading={loading} className="h-11 rounded-control flex items-center gap-2 border-slate-200">
             Sync Logs
           </Button>
         </div>
 
-        <Card className="border-none shadow-sm rounded-3xl p-6 bg-white">
+        <Card className="border-none shadow-sm rounded-surface p-6 bg-white">
           <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
             {
               key: 'status',
@@ -150,7 +150,7 @@ const StudentOutpass = () => {
                       
                       {/* Left: Outpass Info */}
                       <div className="space-y-6">
-                        <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-4">
+                        <div className="p-6 bg-slate-50 rounded-surface border border-slate-100 space-y-4">
                           <div className="flex justify-between items-center pb-3 border-b border-slate-200/60">
                             <Text className="text-slate-500 font-semibold uppercase text-xs tracking-wider">Outpass Details</Text>
                             {getStatusTag(currentOutpass.status)}
@@ -173,17 +173,17 @@ const StudentOutpass = () => {
                         </div>
 
                         {currentOutpass.status === 'pending' && (
-                          <Button permissionAction="delete" danger type="primary" onClick={handleCancel} loading={cancelLoading} className="h-12 w-full rounded-xl font-bold flex items-center justify-center gap-2">
+                          <Button permissionAction="delete" danger type="primary" onClick={handleCancel} loading={cancelLoading} className="h-12 w-full rounded-control font-bold flex items-center justify-center gap-2">
                             <XCircle size={16} /> Cancel Outpass Request
                           </Button>
                         )}
                       </div>
 
                       {/* Right: QR Code Visualizer */}
-                      <div className="flex flex-col items-center justify-center p-8 bg-slate-50 border border-slate-100 rounded-3xl">
+                      <div className="flex flex-col items-center justify-center p-8 bg-slate-50 border border-slate-100 rounded-surface">
                         {(currentOutpass.status === 'approved' || currentOutpass.status === 'outside') && currentOutpass.qr_token ? (
                           <div className="text-center space-y-4">
-                            <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-200 w-fit mx-auto">
+                            <div className="p-4 bg-white rounded-surface shadow-sm border border-slate-200 w-fit mx-auto">
                               <QRCode value={currentOutpass.qr_token} size={180} />
                             </div>
                             <Text strong className="text-blue-600 block">Outpass Token Ready</Text>
@@ -208,7 +208,7 @@ const StudentOutpass = () => {
                     <Empty description={
                       <div className="text-center space-y-2">
                         <Text type="secondary">No active outpass permits found.</Text>
-                        <Button permissionAction="create" type="primary" onClick={() => setActiveTab('request')} className="bg-blue-600 hover:bg-blue-700 h-10 rounded-xl block mx-auto mt-4">
+                        <Button permissionAction="create" type="primary" onClick={() => setActiveTab('request')} className="bg-blue-600 hover:bg-blue-700 h-10 rounded-control block mx-auto mt-4">
                           Create Outpass Request
                         </Button>
                       </div>
@@ -223,7 +223,7 @@ const StudentOutpass = () => {
               children: (
                 <div className="max-w-2xl mx-auto py-6">
                   {currentOutpass ? (
-                    <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3 text-amber-800">
+                    <div className="p-4 bg-amber-50 rounded-surface border border-amber-100 flex gap-3 text-amber-800">
                       <AlertTriangle size={20} className="shrink-0 mt-0.5" />
                       <div>
                         <Text strong className="text-amber-900 block">Active Request Limit Exceeded</Text>
@@ -236,18 +236,18 @@ const StudentOutpass = () => {
                   ) : (
                     <Form form={form} layout="vertical" onFinish={handleSubmit} requiredMark={false}>
                       <Form.Item name="purpose" label={<Text strong>Purpose of Leaving</Text>} rules={[{ required: true, message: 'Please specify leaving purpose' }]}>
-                        <Input placeholder="e.g. Weekend home visit, medical checkout" className="h-11 rounded-xl" />
+                        <Input placeholder="e.g. Weekend home visit, medical checkout" className="h-11 rounded-control" />
                       </Form.Item>
                       
                       <Form.Item name="destination" label={<Text strong>Destination Place</Text>} rules={[{ required: true, message: 'Please specify destination' }]}>
-                        <Input placeholder="e.g. Madurai, Salem" className="h-11 rounded-xl" />
+                        <Input placeholder="e.g. Madurai, Salem" className="h-11 rounded-control" />
                       </Form.Item>
 
                       <Form.Item name="duration" label={<Text strong>Outpass Date & Time Range</Text>} rules={[{ required: true, message: 'Select permit range' }]}>
-                        <DatePicker.RangePicker showTime format="YYYY-MM-DD HH:mm" className="h-11 w-full rounded-xl" />
+                        <DatePicker.RangePicker showTime format="YYYY-MM-DD HH:mm" className="h-11 w-full rounded-control" />
                       </Form.Item>
 
-                      <Button permissionAction="create" type="primary" htmlType="submit" loading={submitLoading} className="bg-blue-600 hover:bg-blue-700 h-12 w-full rounded-xl font-bold mt-4">
+                      <Button permissionAction="create" type="primary" htmlType="submit" loading={submitLoading} className="bg-blue-600 hover:bg-blue-700 h-12 w-full rounded-control font-bold mt-4">
                         Submit Permit Request
                       </Button>
                     </Form>

@@ -1,3 +1,5 @@
+import { cornerRadius } from '../../theme/cornerRadius';
+import { useStaffWorkspace } from '../../context/StaffWorkspaceContext';
 import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect, useRef } from 'react';
@@ -14,16 +16,16 @@ const { Title, Text } = Typography;
 /* ─── Skeleton ─── */
 const FormSkeleton = () => (
   <div className="module-page ssm-shell">
-    <div className="ssm-skeleton-pulse" style={{ height: 56, borderRadius: 16, marginBottom: 32 }} />
+    <div className="ssm-skeleton-pulse" style={{ height: 56, borderRadius: cornerRadius.surface, marginBottom: 32 }} />
     <div style={{ display: 'flex', gap: 24 }}>
       <div style={{ flex: 2 }}>
         {[80, 80, 120, 60].map((h, i) => (
-          <div key={i} className="ssm-skeleton-pulse" style={{ height: h, borderRadius: 12, marginBottom: 16 }} />
+          <div key={i} className="ssm-skeleton-pulse" style={{ height: h, borderRadius: cornerRadius.surface, marginBottom: 16 }} />
         ))}
       </div>
       <div style={{ flex: 3 }}>
         {[80, 80, 80].map((h, i) => (
-          <div key={i} className="ssm-skeleton-pulse" style={{ height: h, borderRadius: 12, marginBottom: 16 }} />
+          <div key={i} className="ssm-skeleton-pulse" style={{ height: h, borderRadius: cornerRadius.surface, marginBottom: 16 }} />
         ))}
       </div>
     </div>
@@ -53,6 +55,7 @@ const TotalAmount = ({ items, foodMap }) => {
 const RecordStudentSpecialMeal = ({ onSuccess }) => {
   const { message } = AntdApp.useApp();
   const { user } = useAuth();
+  const staff = useStaffWorkspace();
   const isAdmin = user?.role === 'admin';
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
@@ -61,7 +64,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
   const [specialFoodItems, setSpecialFoodItems] = useState([]);
   const [watchItems, setWatchItems] = useState([{ quantity: 1 }]);
   const [hostels, setHostels] = useState([]);
-  const [hostelId, setHostelId] = useState(isAdmin ? undefined : user?.hostel_id);
+  const [hostelId, setHostelId] = useState(staff?.hostel.id ?? (isAdmin ? undefined : user?.hostel_id));
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const saving = useRef(false);
@@ -86,7 +89,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
     setLoading(true);
     try {
       const [hostelsRes, foodRes] = await Promise.all([
-        isAdmin ? adminAPI.getHostels() : Promise.resolve(null),
+        isAdmin && !staff ? adminAPI.getHostels() : Promise.resolve(null),
         messAPI.getSpecialFoodItems({ is_available: true })
       ]);
       if (hostelsRes) setHostels((hostelsRes.data.data || []).filter(h => h.is_active));
@@ -141,7 +144,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
     <>
       <style>{CSS}</style>
 
-      <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#1a56db', borderRadius: 12, fontFamily: 'DM Sans, sans-serif' } }}>
+      <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#1a56db', fontFamily: 'DM Sans, sans-serif' } }}>
         <div className="module-page ssm-shell">
           <Form
             form={form}
@@ -183,7 +186,7 @@ const RecordStudentSpecialMeal = ({ onSuccess }) => {
                     <span>Basic Information</span>
                   </div>
 
-                  {isAdmin && <div style={{ marginBottom: 24 }}><label>Hostel</label>
+                  {isAdmin && !staff && <div style={{ marginBottom: 24 }}><label>Hostel</label>
                     <Select aria-label="Hostel" placeholder="Select a hostel" value={hostelId} style={{ width: '100%' }}
                       disabled={submitting} onChange={id => { setHostelId(id); setSelectedIds([]); }}
                       options={hostels.map(h => ({ label: h.name, value: h.id }))} />
@@ -348,7 +351,7 @@ const CSS = `
 .ssm-topbar-left { display: flex; align-items: center; gap: 16px; }
 .ssm-icon-badge {
   width: 48px; height: 48px;
-  border-radius: 14px;
+  border-radius: var(--ui-radius-control);
   background: linear-gradient(135deg, #1a56db 0%, #3b82f6 100%);
   display: flex; align-items: center; justify-content: center;
   color: #fff;
@@ -366,7 +369,7 @@ const CSS = `
 .ssm-save-btn.ant-btn {
   height: 44px !important;
   padding: 0 24px !important;
-  border-radius: 12px !important;
+  border-radius: var(--ui-radius-control) !important;
   font-weight: 600 !important;
   font-size: 14px !important;
   background: linear-gradient(135deg, #1a56db 0%, #3b82f6 100%) !important;
@@ -383,7 +386,7 @@ const CSS = `
 /* Panel */
 .ssm-panel {
   background: #ffffff;
-  border-radius: 20px;
+  border-radius: var(--ui-radius-surface);
   padding: 24px;
   border: 1px solid #edf0f7;
   box-shadow: 0 2px 12px rgba(15,23,42,.05);
@@ -406,10 +409,10 @@ const CSS = `
 }
 .ssm-shell .ant-form-item { margin-bottom: 18px; }
 .ssm-select, .ssm-datepicker {
-  border-radius: 10px !important;
+  border-radius: var(--ui-radius-control) !important;
 }
 .ssm-shell .ant-select-selector {
-  border-radius: 10px !important;
+  border-radius: var(--ui-radius-control) !important;
   border-color: #e2e8f0 !important;
   height: 42px !important;
   align-items: center;
@@ -421,7 +424,7 @@ const CSS = `
   box-shadow: 0 0 0 2px rgba(26,86,219,.10) !important;
 }
 .ssm-shell .ant-picker {
-  border-radius: 10px !important;
+  border-radius: var(--ui-radius-control) !important;
   border-color: #e2e8f0 !important;
   height: 42px !important;
 }
@@ -430,7 +433,7 @@ const CSS = `
   box-shadow: 0 0 0 2px rgba(26,86,219,.10) !important;
 }
 .ssm-textarea {
-  border-radius: 10px !important;
+  border-radius: var(--ui-radius-control) !important;
   border-color: #e2e8f0 !important;
   font-size: 13px !important;
   resize: none !important;
@@ -444,7 +447,7 @@ const CSS = `
 .ssm-info-card {
   display: flex; gap: 10px; align-items: flex-start;
   background: #eff6ff; border: 1px solid #bfdbfe;
-  border-radius: 12px; padding: 12px 14px; margin-top: 6px;
+  border-radius: var(--ui-radius-surface); padding: 12px 14px; margin-top: 6px;
 }
 .ssm-info-icon { color: #1a56db; flex-shrink: 0; margin-top: 2px; }
 .ssm-info-card p {
@@ -465,7 +468,7 @@ const CSS = `
 .ssm-item-row {
   display: flex; align-items: center; gap: 10px;
   background: #f8fafc; border: 1px solid #e8edf4;
-  border-radius: 12px; padding: 10px 12px;
+  border-radius: var(--ui-radius-control); padding: 10px 12px;
   transition: border-color .2s, box-shadow .2s;
   position: relative;
 }
@@ -483,7 +486,7 @@ const CSS = `
 .ssm-option-price { font-size: 11px; color: #94a3b8; margin-left: 4px; }
 
 .ssm-qty.ant-input-number {
-  border-radius: 8px !important; width: 100% !important;
+  border-radius: var(--ui-radius-control) !important; width: 100% !important;
   border-color: #e2e8f0 !important;
 }
 .ssm-qty.ant-input-number:hover, .ssm-qty.ant-input-number-focused {
@@ -503,7 +506,7 @@ const CSS = `
   width: 32px; height: 32px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   border: none; background: transparent; cursor: pointer;
-  border-radius: 8px; color: #cbd5e1;
+  border-radius: var(--ui-radius-control); color: #cbd5e1;
   transition: background .15s, color .15s;
 }
 .ssm-delete-btn:hover { background: #fef2f2; color: #ef4444; }
@@ -512,7 +515,7 @@ const CSS = `
 .ssm-add-btn {
   width: 100%; padding: 12px;
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  border: 1.5px dashed #cbd5e1; border-radius: 12px;
+  border: 1.5px dashed #cbd5e1; border-radius: var(--ui-radius-control);
   background: transparent; cursor: pointer;
   font-size: 13px; font-weight: 600; color: #64748b;
   font-family: 'DM Sans', sans-serif;
@@ -528,7 +531,7 @@ const CSS = `
 .ssm-total-banner {
   display: flex; align-items: center; justify-content: space-between;
   background: linear-gradient(135deg, #1e3a8a 0%, #1a56db 60%, #3b82f6 100%);
-  border-radius: 14px; padding: 16px 20px;
+  border-radius: var(--ui-radius-surface); padding: 16px 20px;
   box-shadow: 0 8px 24px rgba(26,86,219,.25);
   color: #fff;
 }

@@ -33,7 +33,7 @@ const StudentFeeTabs = () => {
     <ConfigProvider 
       theme={{ 
         algorithm: theme.defaultAlgorithm, 
-        token: { colorPrimary: '#2563eb', borderRadius: 12 } 
+        token: { colorPrimary: '#2563eb' }
       }}
     >
       <AntdApp>

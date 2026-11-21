@@ -1,0 +1,46 @@
+.request-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.request-actions > .ant-btn {
+  height: 36px;
+  padding-inline: 12px;
+  border-radius: var(--ui-radius-control);
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.request-actions > .request-action-review {
+  --request-action-color: #fff;
+  --request-action-surface: #2c59d4;
+  --request-action-border: #2c59d4;
+  --request-action-hover: #244bbb;
+}
+
+.request-actions > .request-action-accept {
+  --request-action-color: #1c7153;
+  --request-action-surface: #eff8f4;
+  --request-action-border: #c8e5d7;
+  --request-action-hover: #e2f2eb;
+}
+
+.request-actions > .request-action-reject {
+  --request-action-color: #b62e3e;
+  --request-action-surface: #fff;
+  --request-action-border: #efd4d8;
+  --request-action-hover: #fff2f3;
+}
+
+.request-actions > .ant-btn.ant-btn:not(:disabled) {
+  color: var(--request-action-color);
+  background: var(--request-action-surface);
+  border-color: var(--request-action-border);
+}
+
+.request-actions > .ant-btn.ant-btn:not(:disabled):is(:hover, :active) {
+  background: var(--request-action-hover);
+}

@@ -1,9 +1,16 @@
+import RequestQueue, { filterRequests, requestPagination, RequestSearch } from '../common/RequestQueue';
+import RequestActions, { requestActionsColumnWidth } from '../common/RequestActions';
+import RequestReviewDialog from '../common/RequestReviewDialog';
+import { usePermissions } from '../../context/PermissionContext';
 import { PermissionButton as Button } from '../common/PermissionControls';
-import React, { useEffect, useMemo, useState } from "react";
-import { Card, Table, Tag, Select, Space, Typography, Modal, Input, Badge, Descriptions, Empty, ConfigProvider, theme, Tooltip, Skeleton, Row, Col, Statistic, App as AntdApp } from 'antd';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import WorkspaceAlert from '../common/WorkspaceAlert';
+import { useWorkspaceScope } from '../common/WorkspaceScope';
+import { useAuth } from '../../context/AuthContext';
+import { Table, Tag, Select, Space, Typography, Input, ConfigProvider, App as AntdApp } from 'antd';
 import { 
   Home, User, Clock, CheckCircle2, XCircle, 
-  RefreshCw, ClipboardList, Filter, Search, MessageSquare, Inbox, Info
+  RefreshCw, ClipboardList
 } from "lucide-react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -11,79 +18,65 @@ import { wardenAPI } from "../../services/api";
 
 dayjs.extend(relativeTime);
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { TextArea } = Input;
 
-// --- 1. Specialized Skeletons ---
-
-const StatsSkeleton = () => (
-  <Row gutter={[24, 24]} className="mb-8">
-    {[...Array(3)].map((_, i) => (
-      <Col xs={24} md={8} key={i}>
-        <Card className="border-none shadow-sm rounded-2xl p-4">
-          <Skeleton loading active avatar={{ size: 'small', shape: 'square' }} paragraph={{ rows: 1 }} />
-        </Card>
-      </Col>
-    ))}
-  </Row>
-);
-
-const FilterSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-2xl mb-6">
-    <div className="flex gap-4 items-center">
-      <div className="flex-1 md:max-w-md">
-        <Skeleton.Input active block style={{ height: 48, borderRadius: 12 }} />
-      </div>
-      <Skeleton.Button active style={{ width: 48, height: 48, borderRadius: 12 }} />
-    </div>
-  </Card>
-);
-
-const TableSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] overflow-hidden bg-white">
-    {[...Array(6)].map((_, i) => (
-      <div key={i} className="flex items-center gap-6 p-6 border-b border-slate-50 last:border-0">
-        <Skeleton.Avatar active shape="circle" size="large" />
-        <div className="flex-1"><Skeleton active title={false} paragraph={{ rows: 1, width: '100%' }} /></div>
-        <Skeleton.Input active style={{ width: 100 }} />
-        <Skeleton.Button active style={{ width: 80 }} />
-      </div>
-    ))}
-  </Card>
-);
-
 const RoomRequests = () => {
-  const { message, modal } = AntdApp.useApp();
+  const scope = useWorkspaceScope();
+  const { user } = useAuth();
+  const { message } = AntdApp.useApp();
+  const { can } = usePermissions();
+  const canDecide = can('room-requests', 'approve');
   const [requests, setRequests] = useState([]);
+  const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState("pending");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const request = useRef(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [decision, setDecision] = useState("approved");
+  const [intent, setIntent] = useState();
   const [remarks, setRemarks] = useState("");
+  const [saveError, setSaveError] = useState('');
 
   const fetchRequests = async () => {
+    const revision = ++request.current;
+    setLoading(true);
+    setLoadError('');
     try {
-      setLoading(true);
       const res = await wardenAPI.getRoomRequests(
         statusFilter === "all" ? {} : { status: statusFilter }
       );
-      setRequests(res.data?.data || []);
+      if (revision === request.current) setRequests(res.data?.data || []);
     } catch (err) {
-      message.error("Institutional sync failed: " + err.message);
+      if (revision === request.current) {
+        setRequests([]);
+        setLoadError(err.message || 'Unable to load room requests.');
+      }
     } finally {
-      // Intentional delay for smooth shimmer effect
-      setTimeout(() => setLoading(false), 600);
+      if (revision === request.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchRequests();
+    return () => { request.current++; };
   }, [statusFilter]);
 
+  const openReview = (record, action) => {
+    setSelectedRequest(record);
+    setIntent(action);
+    setDecision(action || 'approved');
+    setRemarks('');
+    setSaveError('');
+    setDialogOpen(true);
+  };
+
   const handleDecisionSubmit = async () => {
-    if (!selectedRequest) return;
+    if (selectedRequest?.status !== 'pending' || !canDecide || processing) return;
+    setSaveError('');
     setProcessing(true);
     try {
       await wardenAPI.updateRoomRequest(selectedRequest.id, { decision, remarks });
@@ -92,12 +85,13 @@ const RoomRequests = () => {
       setRemarks("");
       fetchRequests();
     } catch (err) {
-      message.error("Protocol error: " + err.message);
+      setSaveError(err.message || 'Could not save the room decision.');
     } finally {
       setProcessing(false);
     }
   };
 
+  const visible = filterRequests(requests, search, row => [row.Room?.room_number]);
   const statusConfig = {
     pending: { color: "warning", icon: <Clock size={12} />, label: "Pending" },
     approved: { color: "success", icon: <CheckCircle2 size={12} />, label: "Approved" },
@@ -111,7 +105,7 @@ const RoomRequests = () => {
       key: "student",
       render: (_, record) => (
         <Space gap={3}>
-           <div className="p-2 bg-blue-50 rounded-xl text-blue-600"><User size={18} /></div>
+           <div className="p-2 bg-blue-50 rounded-control text-blue-600"><User size={18} /></div>
            <Space direction="vertical" size={0}>
               <Text strong className="text-slate-700">{record.Student?.userName}</Text>
               <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
@@ -155,191 +149,94 @@ const RoomRequests = () => {
       ),
     },
     {
-      title: "Action",
+      title: "Actions",
       key: "action",
       align: "right",
-      render: (_, record) => (
-        <Space>
-          {record.status === "pending" ? (
-            <Button 
-              type="primary" 
-              size="small" 
-              className="rounded-lg font-bold text-[11px] h-8 shadow-sm"
-              onClick={() => {
-                setSelectedRequest(record);
-                setDialogOpen(true);
-              }}
-            >
-              REVIEW
-            </Button>
-          ) : record.remarks ? (
-            <Tooltip title="View Warden Remarks">
-              <Button 
-                icon={<MessageSquare size={14} />} 
-                className="rounded-lg border-none bg-slate-50"
-                onClick={() => modal.info({
-                  title: 'Warden Remarks',
-                  content: record.remarks,
-                  className: 'rounded-3xl'
-                })}
-              />
-            </Tooltip>
-          ) : null}
-        </Space>
-      ),
+      width: requestActionsColumnWidth,
+      render: (_, record) => {
+        const pending = canDecide && record.status === 'pending';
+        return <RequestActions reviewLabel={`Review room request for ${record.Student?.userName || 'resident'}`}
+          onReview={() => openReview(record)}
+          onAccept={pending ? () => openReview(record, 'approved') : undefined}
+          onReject={pending ? () => openReview(record, 'rejected') : undefined} />;
+      },
     },
   ];
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 16 } }}>
-      <div className="module-page p-8 bg-slate-50 min-h-screen">
+    <ConfigProvider>
+      <div className="module-page">
         
         {/* Header Section */}
-        <div className="module-page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
-              <ClipboardList className="text-white" size={24} />
-            </div>
-            <div>
-              <Title level={2} style={{ margin: 0 }}>Room Requests List</Title>
-              <Text type="secondary">Review and approve student room applications</Text>
-            </div>
-          </div>
-          {!loading && (
-            <div className="bg-white p-3 px-5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3">
-              <Badge status="processing" color="#2563eb" />
-              <Text strong className="text-[11px] uppercase tracking-wider text-slate-500">
-                {requests.length} Requests Found
-              </Text>
-            </div>
-          )}
-        </div>
+        <RequestQueue title="Room Requests" description="Review and approve student room applications." scope={scope?.name || user?.hostel?.name}
+          pending={!loading && !loadError ? visible.filter(row => row.status === 'pending').length : 0}
+          count={!loading && !loadError ? visible.length : undefined}
+          listTitle={statusFilter === 'all' ? 'All requests' : statusConfig[statusFilter]?.label}
+          filters={<>
+            <RequestSearch label="Search room requests" placeholder="Name, roll number, or room" value={search} onChange={setSearch} />
+            <Select aria-label="Room request status" value={statusFilter} onChange={setStatusFilter}
+              options={[
+                { value: 'all', label: 'All requests' },
+                { value: 'pending', label: 'Awaiting review' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'rejected', label: 'Rejected' }
+              ]} />
+            <Button icon={<RefreshCw size={16} />} onClick={fetchRequests} loading={loading}>Refresh</Button>
+          </>}>
+          {loadError && <div className="request-queue-message"><WorkspaceAlert type="error" title={loadError} showIcon /></div>}
+          <Table rowKey="id" columns={columns} dataSource={loading || loadError ? [] : visible} loading={loading} scroll={{ x: 900 }}
+            pagination={requestPagination}
+            locale={{ emptyText: loadError ? 'Room requests could not be loaded' : 'No room requests match these filters.' }} />
+        </RequestQueue>
 
-        {loading ? (
-          <>
-            <StatsSkeleton />
-            <FilterSkeleton />
-            <TableSkeleton />
-          </>
-        ) : (
-          <>
-            {/* Quick Metrics */}
-            <Row gutter={[24, 24]} className="mb-8">
-              {[
-                { label: 'New Requests', val: requests.filter(r => r.status === 'pending').length, icon: Clock, color: 'text-amber-500' },
-                { label: 'Approved', val: requests.filter(r => r.status === 'approved').length, icon: CheckCircle2, color: 'text-emerald-500' },
-                { label: 'Rejected', val: requests.filter(r => r.status === 'rejected').length, icon: XCircle, color: 'text-rose-500' },
-              ].map((stat, i) => (
-                <Col xs={24} md={8} key={i}>
-                  <Card className="border-none shadow-sm rounded-2xl">
-                    <Statistic 
-                      title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{stat.label}</span>} 
-                      value={stat.val} 
-                      prefix={<stat.icon size={18} className={`${stat.color} mr-2`} />}
-                      valueStyle={{ fontWeight: 800 }}
-                    />
-                  </Card>
-                </Col>
-              ))}
-            </Row>
-
-            {/* Filter Toolbar */}
-            <Card className="border-none shadow-sm rounded-2xl mb-6">
-              <div className="flex flex-wrap gap-4 items-center">
-                <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 md:max-w-md focus-within:border-blue-300 transition-all">
-                  <Filter size={18} className="text-slate-300" />
-                  <Select 
-                    value={statusFilter} 
-                    onChange={setStatusFilter} 
-                    variant="borderless" 
-                    className="w-full font-medium"
-                  >
-                    <Select.Option value="all">Display All Requests</Select.Option>
-                    <Select.Option value="pending">Awaiting Review</Select.Option>
-                    <Select.Option value="approved">Approved Requests</Select.Option>
-                    <Select.Option value="rejected">Rejected Ledger</Select.Option>
-                  </Select>
-                </div>
-                <Button 
-                  icon={<RefreshCw size={16}/>} 
-                  onClick={fetchRequests} 
-                  className="rounded-xl h-12 w-12 flex items-center justify-center border-slate-200" 
-                />
-              </div>
-            </Card>
-
-            {/* Main Table */}
-            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" styles={{ body: { padding: 0 } }}>
-              {requests.length > 0 ? (
-                <Table 
-                  dataSource={requests} 
-                  columns={columns} 
-                  rowKey="id" 
-                  pagination={{ pageSize: 8, position: ['bottomCenter'], showSizeChanger: false }}
-                />
-              ) : (
-                <div className="py-24">
-                  <Empty 
-                    image={<div className="bg-slate-50 p-8 rounded-full inline-block mb-4"><Inbox size={64} className="text-slate-200" /></div>}
-                    description={<Text className="text-slate-400 block">No requests matching these criteria found.</Text>}
-                  />
-                </div>
-              )}
-            </Card>
-          </>
-        )}
-
-        {/* Authorization Modal */}
-        <Modal
-          title={<div className="flex items-center gap-2 text-blue-600"><ClipboardList size={20}/> Review Request</div>}
-          open={dialogOpen}
-          onCancel={() => setDialogOpen(false)}
-          footer={[
-            <Button key="back" onClick={() => setDialogOpen(false)} className="rounded-xl h-11 px-6">Cancel</Button>,
-            <Button permissionAction="approve" 
-              key="submit" 
-              type="primary" 
+        <RequestReviewDialog
+          title={intent === 'approved' ? 'Accept room request' : intent === 'rejected' ? 'Reject room request' : 'Review room request'}
+          open={dialogOpen} busy={processing} onClose={() => setDialogOpen(false)}
+          resident={selectedRequest?.Student?.userName} hostel={scope?.name || user?.hostel?.name}
+          status={selectedRequest && <Tag color={statusConfig[selectedRequest.status]?.color}
+            className={selectedRequest.status === 'pending' ? 'request-pending-tag' : undefined}>
+            {statusConfig[selectedRequest.status]?.label || selectedRequest.status}
+          </Tag>}
+          details={selectedRequest ? [['Room requested', selectedRequest.Room?.room_number], ['Room type', selectedRequest.Room?.RoomType?.name]] : []}
+          actions={canDecide && selectedRequest?.status === 'pending' && <Button
+              type={decision === 'rejected' ? 'default' : 'primary'}
+              danger={decision === 'rejected'}
               loading={processing} 
               onClick={handleDecisionSubmit}
-              className="rounded-xl h-11 px-8 font-bold shadow-lg shadow-blue-100"
             >
-              Confirm Decision
-            </Button>
-          ]}
-          width={600}
-          className="rounded-[32px]"
-        >
+              {intent === 'approved' ? 'Confirm acceptance' : intent === 'rejected' ? 'Confirm rejection' : 'Confirm decision'}
+            </Button>}>
           {selectedRequest && (
-            <div className="mt-6 space-y-6">
-              <Descriptions bordered column={1} className="bg-slate-50/50 rounded-2xl overflow-hidden">
-                <Descriptions.Item label="Student Name">{selectedRequest.Student?.userName}</Descriptions.Item>
-                <Descriptions.Item label="Room Requested">Room {selectedRequest.Room?.room_number} ({selectedRequest.Room?.RoomType?.name})</Descriptions.Item>
-              </Descriptions>
-
-              <div className="space-y-4">
-                <div>
-                  <Text strong className="text-[11px] uppercase text-slate-400 block mb-2 tracking-widest">Warden Decision</Text>
-                  <Select className="w-full h-12" value={decision} onChange={setDecision}>
+            <>
+              {selectedRequest.status !== 'pending' && <div><strong className="request-review-label">Warden remarks</strong>
+                <p className="request-review-note">{selectedRequest.remarks || 'No remarks recorded.'}</p>
+              </div>}
+              {canDecide && selectedRequest.status === 'pending' && <div className="space-y-4">
+                {!intent && <div>
+                  <label htmlFor="room-request-decision">Warden decision</label>
+                  <Select id="room-request-decision" className="w-full" value={decision} onChange={setDecision} disabled={processing}>
                     <Select.Option value="approved">Approve & Allot Room</Select.Option>
                     <Select.Option value="rejected">Reject Request</Select.Option>
                     <Select.Option value="cancelled">Cancel Request</Select.Option>
                   </Select>
-                </div>
+                </div>}
+                {intent === 'approved' && <p>Acceptance assigns the student to the requested room.</p>}
 
                 <div>
-                  <Text strong className="text-[11px] uppercase text-slate-400 block mb-2 tracking-widest">Comments / Remarks</Text>
-                  <TextArea 
-                    rows={4} 
-                    className="rounded-2xl p-4 border-slate-200" 
-                    placeholder="Add your comments here..." 
+                  <label htmlFor="room-request-remarks">Warden remarks</label>
+                  <TextArea id="room-request-remarks"
+                    rows={3}
+                    placeholder="Enter your remarks..."
+                    aria-label="Room request remarks" disabled={processing}
                     value={remarks}
                     onChange={(e) => setRemarks(e.target.value)}
                   />
                 </div>
-              </div>
-            </div>
+                {saveError && <WorkspaceAlert type="error" showIcon title={saveError} />}
+              </div>}
+            </>
           )}
-        </Modal>
+        </RequestReviewDialog>
       </div>
     </ConfigProvider>
   );

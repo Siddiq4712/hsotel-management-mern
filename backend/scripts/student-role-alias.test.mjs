@@ -7,10 +7,10 @@ import { normalizeRole } from '../../shared/roles.js';
 import { defaultPermissions } from '../../shared/permissions.js';
 import { auth, authorize } from '../middleware/auth.js';
 import { canAccessRole } from '../utils/workspacePermissions.js';
-import { User, Role, Fee, AdditionalIncome, MessDailyExpense, OtherExpense, HostelMaintenance } from '../models/index.js';
+import { User, Role, Hostel, Fee, AdditionalIncome, MessDailyExpense, OtherExpense, HostelMaintenance } from '../models/index.js';
 import { PermissionPolicy } from '../models/permissions.js';
 import { login } from '../controllers/authController.js';
-import { getRoles, createRole, getUsers, getAdminChartData } from '../controllers/adminController.js';
+import { getRoles, createRole, getUsers, updateUser, deleteUser, getAdminChartData } from '../controllers/adminController.js';
 
 const secret = 'student-role-alias-test-only';
 const response = () => ({ code: 200, status(code) { this.code = code; return this; }, json(value) { this.body = value; return this; } });
@@ -92,6 +92,71 @@ test('Student user filters include legacy role IDs and return the Student label'
     const res = response(); await getUsers({ query: { role } }, res);
     assert.equal(res.code, 200); assert.deepEqual(res.body.data.map(user => user.role.roleName), ['Student', 'Student']);
   }
+});
+test('the active users directory includes the latest active room number', async context => {
+  patch(context, User, 'findAll', async options => {
+    assert.equal(options.where.status, true);
+    const roomInclude = options.include.find(item => item.as === 'tbl_RoomAllotments');
+    assert.deepEqual(roomInclude.where, { is_active: true });
+    assert.equal(roomInclude.required, false);
+    return [
+      { toJSON: () => ({ userId: 17, tbl_RoomAllotments: [
+        { id: 4, HostelRoom: { room_number: 'B202' } },
+        { id: 9, HostelRoom: { room_number: 'B205' } }
+      ] }) },
+      account('Warden')
+    ];
+  });
+  const res = response();
+  await getUsers({ query: {} }, res);
+  assert.equal(res.code, 200);
+  assert.deepEqual(res.body.data.map(user => user.room_number), ['B205', null]);
+  assert.equal('tbl_RoomAllotments' in res.body.data[0], false);
+});
+test('deactivating an account preserves the record and blocks existing sessions', async context => {
+  const previous = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = secret;
+  context.after(() => { if (previous === undefined) delete process.env.JWT_SECRET; else process.env.JWT_SECRET = previous; });
+  const user = account('Student');
+  user.status = true;
+  user.update = async (values) => Object.assign(user, values);
+  const lookup = patch(context, User, 'findByPk', async () => user);
+
+  const ownAccount = response();
+  await deleteUser({ params: { id: 17 }, user: { userId: 17 } }, ownAccount);
+  assert.equal(ownAccount.code, 400);
+  assert.equal(lookup.mock.callCount(), 0);
+
+  const result = response();
+  await deleteUser({ params: { id: 17 }, user: { userId: 1 } }, result);
+  assert.equal(result.code, 200);
+  assert.equal(user.status, false);
+
+  const token = jwt.sign({ userId: 17, role: 'student' }, secret);
+  const request = response();
+  await auth({ header: () => `Bearer ${token}` }, request, () => assert.fail('Inactive accounts must be denied'));
+  assert.equal(request.code, 401);
+  assert.equal(request.body.code, 'ACCOUNT_INACTIVE');
+});
+test('user management only reassigns wardens and mess staff to active hostels', async context => {
+  const user = account('Warden');
+  user.update = async (values) => Object.assign(user, values);
+  patch(context, User, 'findByPk', async () => user);
+  patch(context, User, 'findOne', async () => null);
+  patch(context, Role, 'findByPk', async (roleId) => ({ roleId, roleName: roleId === 40 ? 'Warden' : 'Mess' }));
+  patch(context, Hostel, 'findByPk', async (id) => ({ is_active: id === 9 }));
+  const req = { params: { id: 17 }, user: { userId: 1 }, body: {
+    username: user.userName, email: user.userMail, roleId: 41, hostel_id: 3
+  } };
+  const invalid = response();
+  await updateUser(req, invalid);
+  assert.equal(invalid.code, 400);
+  assert.equal(user.hostel_id, 8);
+  const valid = response();
+  await updateUser({ ...req, body: { ...req.body, hostel_id: 9 } }, valid);
+  assert.equal(valid.code, 200);
+  assert.equal(user.hostel_id, 9);
+  assert.equal(user.roleId, 41);
 });
 test('admin role charts combine Student and legacy LAPC counts', async context => {
   patch(context, Role, 'findAll', async () => [{ roleId: 3, roleName: 'Student' }, { roleId: 40, roleName: 'LAPC' }, { roleId: 2, roleName: 'Warden' }]);

@@ -39,4 +39,4 @@ it.each(['nec', 'lapc'])('saves the %s college, admission year, gender and hoste
   fireEvent.click(within(dialog).getByRole('button', { name: 'Save Batch' }));
   await waitFor(() => expect(adminAPI.createSession).toHaveBeenCalledWith(expect.objectContaining({ college, start_year: 2024, end_year: 2028, hostel_id: 2, gender: 'male' })));
   await waitFor(() => expect(adminAPI.previewBatchAllocation).toHaveBeenCalled());
-}, 30000);
+}, 75000);

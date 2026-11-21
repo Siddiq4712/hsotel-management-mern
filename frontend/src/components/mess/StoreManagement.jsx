@@ -1,3 +1,4 @@
+import { cornerRadius } from '../../theme/cornerRadius';
 import { PermissionButton as AntButton, PermissionPopconfirm as AntPopconfirm } from '../common/PermissionControls';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { message } from 'antd';
@@ -15,8 +16,8 @@ const { Text } = AntTypography;
 /* ─── Skeleton ─── */
 const StoreSkeleton = () => (
   <div className="module-page store-shell">
-    <div className="store-skeleton-pulse" style={{ height: 60, borderRadius: 16, marginBottom: 32 }} />
-    <div className="store-skeleton-pulse" style={{ height: 500, borderRadius: 24 }} />
+    <div className="store-skeleton-pulse" style={{ height: 60, borderRadius: cornerRadius.surface, marginBottom: 32 }} />
+    <div className="store-skeleton-pulse" style={{ height: 500, borderRadius: cornerRadius.surface }} />
   </div>
 );
 
@@ -175,7 +176,7 @@ const StoreManagement = () => {
       key: 'name',
       render: (_, r) => (
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200">
+          <div className="w-10 h-10 rounded-control bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200">
             <Building2 size={18} />
           </div>
           <div className="flex flex-col">
@@ -193,7 +194,7 @@ const StoreManagement = () => {
       key: 'contact',
       render: (text) => (
         <div className="flex items-center gap-2 text-slate-600 font-medium">
-          <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600"><Phone size={12}/></div>
+          <div className="p-1.5 bg-blue-50 rounded-control text-blue-600"><Phone size={12}/></div>
           <Text className="text-sm font-mono">{text || '—'}</Text>
         </div>
       )
@@ -219,7 +220,7 @@ const StoreManagement = () => {
           <AntTooltip title="Map Inventory Items">
             <AntButton 
               type="text"
-              className="hover:bg-indigo-50 text-indigo-500 rounded-lg"
+              className="hover:bg-indigo-50 text-indigo-500 rounded-control"
               icon={<Link size={16} />}
               onClick={() => window.location.href = `/mess/item-store-mapping?store=${record.id}`}
             />
@@ -227,7 +228,7 @@ const StoreManagement = () => {
           */}
           <AntButton permissionAction="edit" 
             type="text"
-            className="hover:bg-slate-100 text-slate-500 rounded-lg"
+            className="hover:bg-slate-100 text-slate-500 rounded-control"
             icon={<Edit3 size={16}/>}
             onClick={() => handleEdit(record)}
           />
@@ -236,7 +237,7 @@ const StoreManagement = () => {
             description="Linked inventory data may be affected."
             onConfirm={() => messAPI.deleteStore(record.id).then(fetchStores)}
           >
-            <AntButton type="text" className="hover:bg-rose-50 text-rose-400 rounded-lg" icon={<Trash2 size={16}/>} />
+            <AntButton type="text" className="hover:bg-rose-50 text-rose-400 rounded-control" icon={<Trash2 size={16}/>} />
           </AntPopconfirm>
         </AntSpace>
       )
@@ -248,7 +249,7 @@ const StoreManagement = () => {
   return (
     <>
       <style>{CSS}</style>
-      <AntConfig theme={{ token: { colorPrimary: '#1a56db', borderRadius: 12 } }}>
+      <AntConfig theme={{ token: { colorPrimary: '#1a56db' } }}>
         <div className="module-page store-shell">
           
           <div className="module-page-header store-topbar">
@@ -326,7 +327,7 @@ const StoreManagement = () => {
         <AntModal
           title={
             <div className="flex items-center gap-3 p-2">
-              <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600"><Store size={20}/></div>
+              <div className="p-2 bg-indigo-50 rounded-control text-indigo-600"><Store size={20}/></div>
               <span className="text-lg font-bold">{editingStore ? 'Update Store' : 'Add Store'}</span>
             </div>
           }
@@ -358,7 +359,7 @@ const StoreManagement = () => {
             </div>
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <AntButton onClick={() => setModalVisible(false)} className="h-12 px-6 rounded-xl font-bold">Discard</AntButton>
+              <AntButton onClick={() => setModalVisible(false)} className="h-12 px-6 rounded-control font-bold">Discard</AntButton>
               <AntButton type="primary" htmlType="submit" loading={confirmLoading} className="store-save-btn">
                 {editingStore ? 'Save Changes' : 'Add Store'}
               </AntButton>
@@ -377,18 +378,18 @@ const CSS = `
 @keyframes store-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
 .store-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
 .store-topbar-left { display: flex; align-items: center; gap: 16px; }
-.store-icon-badge { width: 52px; height: 52px; border-radius: 16px; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 10px 20px rgba(30,64,175,.2); }
+.store-icon-badge { width: 52px; height: 52px; border-radius: var(--ui-radius-control); background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: 0 10px 20px rgba(30,64,175,.2); }
 .store-heading { font-size: 24px; font-weight: 800; color: #0f172a; margin: 0; }
 .store-subheading { font-size: 14px; color: #64748b; margin: 2px 0 0; }
-.store-save-btn.ant-btn { height: 48px !important; padding: 0 28px !important; border-radius: 14px !important; font-weight: 700 !important; background: #1a56db !important; border: none !important; box-shadow: 0 8px 20px rgba(26,86,219,.25) !important; }
-.store-panel { background: #ffffff; border-radius: 24px; padding: 20px 28px; border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,.02); }
-.store-search-box { display: flex; align-items: center; gap: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 0 16px; height: 48px; }
+.store-save-btn.ant-btn { height: 48px !important; padding: 0 28px !important; border-radius: var(--ui-radius-control) !important; font-weight: 700 !important; background: #1a56db !important; border: none !important; box-shadow: 0 8px 20px rgba(26,86,219,.25) !important; }
+.store-panel { background: #ffffff; border-radius: var(--ui-radius-surface); padding: 20px 28px; border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(0,0,0,.02); }
+.store-search-box { display: flex; align-items: center; gap: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--ui-radius-control); padding: 0 16px; height: 48px; }
 .store-table .ant-table-thead > tr > th { background: #f8fafc !important; color: #64748b !important; font-size: 10px !important; text-transform: uppercase !important; font-weight: 700 !important; letter-spacing: .1em; padding: 20px 24px !important; }
 .store-table .ant-table-tbody > tr > td { padding: 20px 24px !important; border-bottom: 1px solid #f1f5f9 !important; }
-.store-input, .store-textarea { border-radius: 12px !important; border-color: #e2e8f0 !important; font-size: 14px !important; }
+.store-input, .store-textarea { border-radius: var(--ui-radius-control) !important; border-color: #e2e8f0 !important; font-size: 14px !important; }
 .store-input { height: 44px !important; }
 .store-textarea { padding: 12px !important; }
-.store-info-card { display: flex; gap: 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 16px; padding: 16px; }
+.store-info-card { display: flex; gap: 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--ui-radius-surface); padding: 16px; }
 .ant-form-item-label > label { font-size: 11px !important; font-weight: 700 !important; text-transform: uppercase; color: #64748b !important; letter-spacing: .05em; }
 `;
 

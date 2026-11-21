@@ -1,6 +1,7 @@
 import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, App, Card, Input, Space, Table, Tag, Typography } from 'antd';
+import { App, Card, Input, Space, Table, Tag, Typography } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import { reductionAPI } from '../../services/api';
 import { approvedReduction, categoryInfo, reductionCategories, reductionStatus } from '../../utils/reductionOptions';
 import ReductionEvidence from '../common/ReductionEvidence';
@@ -56,7 +57,7 @@ export default function MessReductionApplication() {
       <form onSubmit={submit} className="space-y-4">
         <div className="grid md:grid-cols-2 gap-4">
           <label className="flex flex-col gap-2">Reduction category
-            <select aria-label="Reduction category" required name="category" value={values.category} onChange={change} disabled={saving} className="border rounded-lg p-2 bg-white">
+            <select aria-label="Reduction category" required name="category" value={values.category} onChange={change} disabled={saving} className="border rounded-control p-2 bg-white">
               <option value="">Select a category</option>{reductionCategories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </label>
@@ -64,10 +65,10 @@ export default function MessReductionApplication() {
             <Input name="activity" aria-label="Activity or organization" maxLength={150} value={values.activity} onChange={change} disabled={saving} placeholder="NSS camp, NCC camp, college event, company…" />
           </label>
           <label className="flex flex-col gap-2">Start date
-            <input aria-label="Start date" type="date" required name="from_date" value={values.from_date} onChange={change} disabled={saving} className="border rounded-lg p-2" />
+            <input aria-label="Start date" type="date" required name="from_date" value={values.from_date} onChange={change} disabled={saving} className="border rounded-control p-2" />
           </label>
           <label className="flex flex-col gap-2">End date
-            <input aria-label="End date" type="date" required name="to_date" min={values.from_date || undefined} value={values.to_date} onChange={change} disabled={saving} className="border rounded-lg p-2" />
+            <input aria-label="End date" type="date" required name="to_date" min={values.from_date || undefined} value={values.to_date} onChange={change} disabled={saving} className="border rounded-control p-2" />
           </label>
         </div>
         <div>{count > 0 ? `${count} requested days (both dates included). Billing counts only eligible mess operational days.` : 'Choose both dates to see the requested duration.'}</div>

@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, Checkbox, Input, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from 'antd';
+import { Button, Card, Checkbox, Input, Modal, Select, Table, Tabs, Tag, Typography, message } from 'antd';
+import { RefreshCw, Search, Shield } from 'lucide-react';
+import Alert from '../common/WorkspaceAlert';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
+import WorkspaceToolbar from '../common/WorkspaceToolbar';
 import api from '../../services/api';
 import { usePermissions } from '../../context/PermissionContext';
 import { ACTION_LABELS, ROLE_LABELS, SCREENS, defaultPermissions, normalizeActions, permissionChanges, permissionLevel, screenById } from '../../../../shared/permissions.js';
@@ -89,19 +93,23 @@ export default function ScreenPermissions() {
     { title: 'Before', dataIndex: 'before', render: format },
     { title: 'After', dataIndex: 'after', render: format },
   ];
-  return <div className="module-page permission-page">
-    <Typography.Title level={2}>Screen Permissions</Typography.Title>
-    <Typography.Paragraph>Set access for each role. Changes affect every account in that role, including future accounts.</Typography.Paragraph>
+  return <section className="module-page permission-page" aria-labelledby="screen-permissions-title">
+    <WorkspacePageHeader id="screen-permissions-title" title="Screen Permissions" icon={Shield}
+      description="Set access for each role. Changes affect current and future accounts in that role." />
     <Alert type="info" showIcon title="Roles across columns · screens down rows" description="Expand a row to set individual actions. Hostel assignments and personal-record restrictions still apply. Shared screen tabs are grouped because they use the same records. Existing workflow rules may further restrict actions." />
     {error && <Alert type="error" showIcon title={error} action={<Button disabled={saving} onClick={load}>Reload settings</Button>} />}
     <Tabs onChange={key => { if (key === 'history') loadHistory(historyPage); }} items={[
       { key: 'permissions', label: 'Role permissions', children: <Card>
-        <Space wrap className="permission-toolbar">
-          <Input aria-label="Search screens" placeholder="Search screens" value={search} onChange={e => setSearch(e.target.value)} allowClear />
-          <Select aria-label="Filter module" placeholder="All modules" allowClear value={group} onChange={setGroup} style={{ minWidth: 200 }} options={[...new Set(SCREENS.map(s => s.group))].map(value => ({ value, label: value }))} />
-          <Button onClick={load} disabled={changes.length > 0 || saving} loading={loading}>Refresh</Button>
-        </Space>
-        <Space wrap className="permission-toolbar">
+        <WorkspaceToolbar className="mb-4">
+          <Input className="workspace-search" aria-label="Search screens" placeholder="Search screens"
+            prefix={<Search size={16} aria-hidden="true" />} value={search} onChange={e => setSearch(e.target.value)} allowClear />
+          <Select className="workspace-toolbar-filter" aria-label="Filter module" placeholder="All modules" allowClear value={group} onChange={setGroup} options={[...new Set(SCREENS.map(s => s.group))].map(value => ({ value, label: value }))} />
+          <div className="workspace-toolbar-actions">
+            <Button icon={<RefreshCw size={16} />} onClick={load} disabled={changes.length > 0 || saving} loading={loading}>Refresh</Button>
+            <Button type="primary" disabled={!changes.length || saving} onClick={() => setReview(true)}>Review & Save</Button>
+          </div>
+        </WorkspaceToolbar>
+        <WorkspaceToolbar className="mb-4">
           <Typography.Text>Apply to {rows.filter(s => s.roles.includes(bulkRole)).length} matching screens:</Typography.Text>
           <Select aria-label="Bulk role" value={bulkRole} onChange={setBulkRole} style={{ width: 135 }} options={Object.entries(ROLE_LABELS).filter(([role]) => role !== 'admin').map(([value, label]) => ({ value, label }))} />
           <Select aria-label="Bulk access" value={bulkLevel} onChange={setBulkLevel} style={{ width: 120 }} options={['hidden', 'view', 'manage'].map(value => ({ value, label: labels[value] }))} />
@@ -110,28 +118,27 @@ export default function ScreenPermissions() {
             const defaults = defaultPermissions();
             setDraft(previous => ({ ...previous, [bulkRole]: defaults[bulkRole] }));
           }}>Reset {ROLE_LABELS[bulkRole]} to defaults</Button>
-        </Space>
+        </WorkspaceToolbar>
         <Table rowKey="id" loading={loading} dataSource={rows} pagination={{ defaultPageSize: 15, showSizeChanger: true, pageSizeOptions: [15, 30, 60], showTotal: total => `${total} screen groups` }} scroll={{ x: 1450, y: 550 }}
           columns={[{ title: 'Screen', key: 'screen', width: 300, fixed: 'left', render: (_, s) => <span><strong>{s.label}</strong><small className="permission-user-count">{s.group}</small></span> }, ...roleColumns]}
           expandable={{ expandedRowKeys: expanded, onExpandedRowsChange: setExpanded, expandedRowRender: expandedRow }} />
         <div className="permission-save-bar"><Typography.Text>{changes.length} role/screen changes · Revision {saved?.revision ?? '—'}</Typography.Text>
-          <Space><Button disabled={!changes.length || saving} onClick={() => { setDraft(clone(saved.grants)); setReason(''); }}>Discard Changes</Button>
-            <Button type="primary" disabled={!changes.length || saving} onClick={() => setReview(true)}>Review & Save</Button></Space>
+          <Button disabled={!changes.length || saving} onClick={() => { setDraft(clone(saved.grants)); setReason(''); }}>Discard Changes</Button>
         </div>
       </Card> },
-      { key: 'history', label: 'Change history', children: <Table rowKey="id" loading={historyLoading} dataSource={history.rows}
+      { key: 'history', label: 'Change history', children: <Card><Table rowKey="id" loading={historyLoading} dataSource={history.rows} scroll={{ x: 700 }}
         pagination={{ current: historyPage, pageSize: 20, total: history.count, showSizeChanger: false, onChange: loadHistory }}
         columns={[{ title: 'Revision', dataIndex: 'revision' }, { title: 'Changed by', dataIndex: 'actor_name' },
           { title: 'When', dataIndex: 'createdAt', render: value => new Date(value).toLocaleString() }, { title: 'Reason', dataIndex: 'reason' },
           { title: 'Changes', render: (_, row) => row.changes.length }]}
-        expandable={{ expandedRowRender: row => <Table rowKey={entry => `${entry.role}:${entry.screen}`} dataSource={row.changes} columns={changeColumns} pagination={false} /> }} /> },
+        expandable={{ expandedRowRender: row => <Table rowKey={entry => `${entry.role}:${entry.screen}`} dataSource={row.changes} columns={changeColumns} pagination={false} /> }} /></Card> },
     ]} />
     <Modal title="Review permission changes" open={review} width={1000} onCancel={() => { if (!saving) setReview(false); }} onOk={save}
-      okText="Save Changes" confirmLoading={saving} okButtonProps={{ disabled: !reason.trim() || !changes.length }} cancelButtonProps={{ disabled: saving }} closable={!saving} maskClosable={!saving}>
+      okText="Save Changes" confirmLoading={saving} okButtonProps={{ disabled: !reason.trim() || !changes.length }} cancelButtonProps={{ disabled: saving }} closable={!saving} mask={{ closable: !saving }}>
       <Typography.Paragraph>These changes apply to {Object.keys(ROLE_LABELS).filter(role => changes.some(c => c.role === role)).reduce((sum, role) => sum + (counts[role] || 0), 0)} active accounts. Revoked actions will be blocked on their next request.</Typography.Paragraph>
       <Table size="small" rowKey={entry => `${entry.role}:${entry.screen}`} dataSource={changes} columns={changeColumns} pagination={{ pageSize: 8 }} />
       <label htmlFor="permission-reason">Reason for change</label>
       <Input.TextArea id="permission-reason" value={reason} onChange={e => setReason(e.target.value)} maxLength={500} showCount rows={2} disabled={saving} />
     </Modal>
-  </div>;
+  </section>;
 }

@@ -128,13 +128,13 @@ const LoginScreen = ({ navigation }) => {
                 ) : null}
 
                 <View className="mb-4">
-                  <Text className="text-sm font-semibold text-gray-700 mb-2">Username or roll number</Text>
+                  <Text className="text-sm font-semibold text-gray-700 mb-2">Username or Rollnumber</Text>
                   <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-xl px-4 min-h-[56px]">
                     <User size={20} color={colors.text} />
                     <Input
                       className="flex-1 ml-3 text-base"
-                      accessibilityLabel="Username or roll number"
-                      placeholder="Enter username or roll number"
+                      accessibilityLabel="Username or Rollnumber"
+                      placeholder="Enter Username or Rollnumber"
                       value={credentials.userName}
                       onChangeText={(v) => handleInputChange('userName', v)}
                       autoCapitalize="none"

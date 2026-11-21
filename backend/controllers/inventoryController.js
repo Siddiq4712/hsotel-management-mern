@@ -8,7 +8,7 @@ import { inventoryPolicy, datePeriod, schoolToday, hasPeriodActivity } from '../
 export async function listInventories(req, res) {
   try {
     const assignments = await InventoryHostel.findAll({ raw: true });
-    const allowed = req.user.role === 'admin' ? null : assignments.find(row => row.hostel_id === req.user.hostel_id)?.inventory_id;
+    const allowed = req.staffWorkspace ? (req.staffWorkspace.inventory?.id ?? 0) : req.user.role === 'admin' ? null : assignments.find(row => row.hostel_id === req.user.hostel_id)?.inventory_id;
     const [inventories, hostels] = await Promise.all([
       Inventory.findAll({ ...(allowed === null ? {} : { where: { id: allowed || 0 } }), order: [['name', 'ASC']], raw: true }),
       Hostel.findAll({ attributes: ['id', 'name'], order: [['name', 'ASC']], raw: true }),

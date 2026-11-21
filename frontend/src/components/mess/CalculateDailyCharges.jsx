@@ -1,7 +1,8 @@
 import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState } from 'react';
-import { Card, message, Spin, Alert, Typography, Statistic, Descriptions, Divider } from 'antd';
+import { Card, message, Spin, Typography, Statistic, Descriptions, Divider } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import moment from 'moment';
 import { CalculatorOutlined } from '@ant-design/icons';
 import { messAPI } from '../../services/api';

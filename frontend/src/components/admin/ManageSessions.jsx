@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Calendar, Plus, RefreshCw, Search } from 'lucide-react';
+import Alert from '../common/WorkspaceAlert';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
+import WorkspaceToolbar from '../common/WorkspaceToolbar';
 import { adminAPI } from '../../services/api';
 import BatchAllocationReview from './BatchAllocationReview';
 import { COLLEGES } from '../../../../shared/colleges.js';
-const { Title, Text } = Typography;
+const { Text } = Typography;
 export default function ManageSessions() {
   const [form] = Form.useForm();
   const [batches, setBatches] = useState([]), [hostels, setHostels] = useState([]);
@@ -47,14 +51,22 @@ export default function ManageSessions() {
   } });
   const query = search.trim().toLowerCase();
   const filtered = batches.filter(batch => (!hostelFilter || batch.hostel_id === hostelFilter) && [batch.name, batch.college ?? 'nec', batch.erp_batch_year, batch.gender, batch.hostel_name].some(value => String(value || '').toLowerCase().includes(query)));
-  return <div className="module-page p-8 bg-slate-50 min-h-screen">
-    <div className="module-page-header flex flex-wrap justify-between gap-4 mb-6">
-      <div><Title level={2}>Manage Batches</Title><Text type="secondary">College + Admission year + Gender → Batch → Hostel</Text></div>
-      <Space wrap><Button onClick={() => setReview(true)}>Review Batch Allocation</Button><Button onClick={load}>Refresh</Button><Button type="primary" onClick={() => edit(null)}>Add Batch</Button></Space>
-    </div>
+  return <section className="module-page" aria-labelledby="manage-batches-title">
+    <WorkspacePageHeader id="manage-batches-title" title="Manage Batches" icon={Calendar}
+      description="Set up batches by college, admission year, and gender, then assign them to hostels." />
     <Alert type="info" showIcon title="One batch belongs to one hostel. A hostel can contain multiple batches." description="Configure each college, admission year and gender. Create LAPC batches for the LAPC hostel and import its students through Excel. In Manage Inventories, assign the boys’ and LAPC hostels to one inventory with Shared inventory billing for a common daily rate. Historical bills keep their original hostel and amounts." className="mb-4" />
     <Card>
-      <Space wrap className="mb-4"><Input aria-label="Search batches" allowClear placeholder="Search batch, admission year or hostel" value={search} onChange={event => setSearch(event.target.value)} style={{ width: 280 }} /><Select aria-label="Filter batches by hostel" allowClear placeholder="All hostels" value={hostelFilter} onChange={setHostelFilter} style={{ width: 220 }} options={hostels.map(hostel => ({ value: hostel.id, label: hostel.name }))} /></Space>
+      <WorkspaceToolbar className="mb-4">
+        <Input aria-label="Search batches" className="workspace-search" prefix={<Search size={16} aria-hidden="true" />}
+          allowClear placeholder="Search batches" value={search} onChange={event => setSearch(event.target.value)} />
+        <Select aria-label="Filter batches by hostel" allowClear placeholder="All hostels" value={hostelFilter}
+          onChange={setHostelFilter} className="workspace-toolbar-filter" options={hostels.map(hostel => ({ value: hostel.id, label: hostel.name }))} />
+        <div className="workspace-toolbar-actions">
+          <Button onClick={() => setReview(true)}>Review Batch Allocation</Button>
+          <Button onClick={load} loading={loading} icon={<RefreshCw size={16} />}>Refresh</Button>
+          <Button type="primary" onClick={() => edit(null)} icon={<Plus size={16} />}>Add Batch</Button>
+        </div>
+      </WorkspaceToolbar>
       <Table loading={loading} rowKey="id" dataSource={filtered} scroll={{ x: 900 }} columns={[
         { title: 'Batch', dataIndex: 'name', sorter: (a, b) => a.name.localeCompare(b.name) },
         { title: 'College', dataIndex: 'college', render: value => (value ?? 'nec').toUpperCase() },
@@ -64,8 +76,8 @@ export default function ManageSessions() {
         { title: 'Inventory / Current Rate', key: 'inventory', render: (_, batch) => batch.inventory_name ? <>{batch.inventory_name}<br /><Tag color={batch.billing_mode === 'shared' ? 'blue' : 'default'}>{batch.billing_mode === 'shared' ? 'Shared daily rate' : 'Hostel daily rate'}</Tag></> : 'No inventory assigned' },
         { title: 'Students', dataIndex: 'student_count' },
         { title: 'Status', dataIndex: 'is_active', render: value => <Tag color={value ? 'green' : 'default'}>{value ? 'Active' : 'Archived'}</Tag> },
-        { title: 'Actions', key: 'actions', render: (_, batch) => <Space><Button onClick={() => edit(batch)}>Edit</Button><Button danger disabled={!batch.is_active} onClick={() => archive(batch)}>Archive</Button></Space> }
-      ]} />
+        { title: 'Actions', key: 'actions', align: 'center', width: 174, render: (_, batch) => <Space><Button onClick={() => edit(batch)}>Edit</Button><Button danger disabled={!batch.is_active} onClick={() => archive(batch)}>Archive</Button></Space> }
+      ]} locale={{ emptyText: query || hostelFilter ? 'No batches match your filters' : 'No batches yet' }} />
     </Card>
     <Modal title={editing ? 'Edit Batch' : 'Add Batch'} open={open} onCancel={() => !saving && setOpen(false)} onOk={() => form.submit()} confirmLoading={saving} okText="Save Batch">
       <Form form={form} layout="vertical" initialValues={{ college: 'nec' }} onFinish={submit} disabled={saving}>
@@ -79,5 +91,5 @@ export default function ManageSessions() {
       </Form>
     </Modal>
     <BatchAllocationReview open={review} onClose={() => setReview(false)} onApplied={load} />
-  </div>;
+  </section>;
 }

@@ -1,3 +1,4 @@
+import { cornerRadius } from '../../theme/cornerRadius';
 import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Table, Space, Tag, Modal, Form, Input, Select, Row, Col, ConfigProvider, message, Segmented } from 'antd';
@@ -22,7 +23,6 @@ const T = {
   dangerBg:  '#FEF2F2',
   success:   '#16A34A',
   successBg: '#F0FDF4',
-  radius:    '24px',
   shadow:    '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)',
 };
 
@@ -32,7 +32,7 @@ const StatCard = ({ label, value, icon: Icon, accent, variant }) => {
   return (
     <div className="inventory-stat">
       <div style={{
-        width: 44, height: 44, borderRadius: 10,
+        width: 44, height: 44, borderRadius: cornerRadius.control,
         background: isDanger ? T.dangerBg : (accent ? T.accentBg : T.bg),
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
@@ -206,7 +206,7 @@ const ItemManagement = () => {
     { 
       title: <span style={{ fontSize: 11, fontWeight: 700, color: T.inkSoft }}>Category</span>,
       dataIndex: ['tbl_ItemCategory', 'name'], 
-      render: t => <Tag bordered={false} style={{ background: T.accentBg, color: T.accent, fontWeight: 600, borderRadius: 6 }}>{t || 'General'}</Tag> 
+      render: t => <Tag bordered={false} style={{ background: T.accentBg, color: T.accent, fontWeight: 600, borderRadius: cornerRadius.tag }}>{t || 'General'}</Tag>
     },
     {
       title: 'Unit',
@@ -299,7 +299,7 @@ const ItemManagement = () => {
           className="pm-modal"
           title={
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 32, height: 32, borderRadius: cornerRadius.control, background: T.accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Plus size={15} color={T.accent} />
               </div>
               <span style={{ fontSize: 15, fontWeight: 700 }}>{editingItem ? 'Edit Item' : 'Add Item'}</span>

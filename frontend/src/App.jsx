@@ -1,13 +1,18 @@
 import ScreenPermissions from './components/admin/ScreenPermissions';
 import { PermissionProvider, ScreenPermission } from './context/PermissionContext';
 import { screenForView } from '../../shared/permissions.js';
-import React, { useState, Suspense, useEffect } from 'react';
+import SecurityDashboard from './components/security/SecurityDashboard';
+import React, { useState, Suspense, useEffect, useLayoutEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { adminAPI } from './services/api';
 import { resolveWorkspace } from './utils/adminWorkspace';
+import { StaffWorkspaceContext, StaffWorkspaceGuardContext } from './context/StaffWorkspaceContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { StockProvider } from './context/StockContext';
-import { App as AntdApp } from 'antd';
+import { App as AntdApp, Button, Skeleton } from 'antd';
+import Alert from './components/common/WorkspaceAlert';
 import Layout from './components/common/Layout';
+import ButtonWave from './components/common/ButtonWave';
 import WeeklyMenuWorkspace from './components/mess/WeeklyMenuWorkspace';
 import EntryHostelDialog from './components/common/EntryHostelDialog';
 import ManageInventories from './components/admin/ManageInventories';
@@ -24,7 +29,6 @@ import OAuthCallback from './components/auth/OAuthCallback';
 import AdminDashboard from './components/admin/AdminDashboard';
 import CreateHostel from './components/admin/CreateHostel';
 import CreateUser from './components/admin/CreateUser';
-import StaffAccessSettings from './components/admin/StaffAccessSettings';
 import ManageHostels from './components/admin/ManageHostels';
 import ManageSessions from './components/admin/ManageSessions';
 import ManageFacilityTypes from './components/admin/ManageFacilityTypes';
@@ -114,6 +118,10 @@ import StudentOutpass from './components/student/StudentOutpass';
 
 // Lazy load CreateRoom
 const LazyCreateRoom = React.lazy(() => import('./components/warden/CreateRoom'));
+const wardenViewsWithoutScopeCard = new Set([
+  'dashboard', 'students', 'enroll-student', 'attendance', 'suspensions', 'create-room', 'room-allotment',
+  'leave-requests', 'warden-day-red', 'outpass-approval', 'approve-room-requests', 'complaints',
+]);
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
@@ -139,15 +147,62 @@ const DashboardRouter = () => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const workspace = resolveWorkspace(user?.role, new URLSearchParams(location.search).get('workspace'), localStorage.getItem('adminWorkspace'));
+  const isAdmin = user?.role === 'admin';
+  const [staffChoices, setStaffChoices] = useState([]);
+  const [staffId, setStaffId] = useState(() => sessionStorage.getItem('rememberedAdminStaffId'));
+  const [staffLoading, setStaffLoading] = useState(isAdmin);
+  const [staffError, setStaffError] = useState(false);
+  const [staffRevision, setStaffRevision] = useState(0);
+  const retryStaff = () => setStaffRevision(value => value + 1);
   useEffect(() => {
-    if (user?.role === 'admin') localStorage.setItem('adminWorkspace', workspace);
-  }, [user?.role, workspace]);
-  const changeWorkspace = next => {
-    if (user?.role !== 'admin') return;
-    const selected = resolveWorkspace('admin', next);
-    localStorage.setItem('adminWorkspace', selected);
-    navigate(`/dashboard?workspace=${selected}`);
+    if (!isAdmin) return;
+    let active = true;
+    setStaffLoading(true);
+    setStaffError(false);
+    adminAPI.getStaffWorkspaces().then(({ data }) => {
+      if (active) setStaffChoices(data.data || []);
+    }).catch(() => {
+      if (active) { setStaffChoices([]); setStaffError(true); }
+    }).finally(() => { if (active) setStaffLoading(false); });
+    return () => { active = false; };
+  }, [isAdmin, user?.userId, staffRevision]);
+  useEffect(() => {
+    window.addEventListener('staff-workspaces-changed', retryStaff);
+    return () => window.removeEventListener('staff-workspaces-changed', retryStaff);
+  }, []);
+
+  const requested = new URLSearchParams(location.search).get('workspace');
+  const selectedStaff = staffChoices.find(staff => String(staff.id) === staffId);
+  const workspace = resolveWorkspace(user?.role, requested, selectedStaff?.role);
+  const needsStaff = isAdmin && ['warden', 'mess'].includes(workspace);
+  const staff = needsStaff && !staffLoading && selectedStaff?.role === workspace ? selectedStaff : null;
+  useLayoutEffect(() => {
+    if (isAdmin) sessionStorage.setItem('adminWorkspace', workspace);
+    else sessionStorage.removeItem('adminWorkspace');
+    if (staff) {
+      sessionStorage.setItem('activeAdminStaffId', String(staff.id));
+      sessionStorage.setItem('activeAdminStaffScope', `${staff.hostel.id}:${staff.inventory?.id ?? ''}`);
+    } else {
+      sessionStorage.removeItem('activeAdminStaffId');
+      sessionStorage.removeItem('activeAdminStaffScope');
+    }
+  }, [isAdmin, workspace, staff]);
+
+  const workspaceGuard = useRef(null);
+  const changeWorkspace = key => {
+    const switchTo = () => applyWorkspace(key);
+    if (workspaceGuard.current) workspaceGuard.current(switchTo);
+    else switchTo();
+  };
+  const applyWorkspace = key => {
+    const next = staffChoices.find(choice => String(choice.id) === key);
+    if (next) sessionStorage.setItem('rememberedAdminStaffId', key);
+    else sessionStorage.removeItem('rememberedAdminStaffId');
+    setStaffId(next ? key : null);
+    const role = next?.role || 'admin';
+    const target = needsStaff && !staff && role === workspace ? location.pathname : '/dashboard';
+    setCurrentView(target.replace(/^\/+/, '') || 'dashboard');
+    navigate(`${target}?workspace=${role}`);
   };
   const [currentView, setCurrentView] = useState(() => {
     const path = location.pathname.replace(/^\/+/, '');
@@ -182,7 +237,7 @@ const DashboardRouter = () => {
           case 'screen-permissions':
             return <ScreenPermissions />;
           case 'staff-access':
-            return <StaffAccessSettings />;
+            return <Navigate to="/create-user?workspace=admin" replace />;
           case 'sessions':
             return <ManageSessions />;
           case 'monthly-attendance-import':
@@ -190,7 +245,7 @@ const DashboardRouter = () => {
           case 'activity-logs':
             return <ActivityLogs />;
           case 'consumption':
-            return <RecordStudentSpecialMeal />;
+            return <Navigate to="/consumption?workspace=mess" replace />;
           case 'facility-types':
             return <ManageFacilityTypes />;
           case 'facilities':
@@ -221,7 +276,7 @@ const DashboardRouter = () => {
           case 'menu-settings':
             return <WeeklyMenuWorkspace initialTab="settings" />;
           case 'dashboard':
-            return <WardenDashboard setCurrentView={setCurrentView} />;
+            return <WardenDashboard />;
           case 'students':
             return <ManageStudents />;
           case 'enroll-student':
@@ -229,7 +284,7 @@ const DashboardRouter = () => {
           case 'create-room':
             return (
               <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading Manage Rooms...</div>}>
-                <LazyCreateRoom hostelId={user?.hostel_id} />
+                <LazyCreateRoom hostelId={staff?.hostel.id ?? user?.hostel_id} />
               </Suspense>
             );
           case 'room-allotment':
@@ -251,9 +306,9 @@ const DashboardRouter = () => {
           case 'mess-bills':
             return <MessBillManagement />;
           case 'approve-room-requests':
-            return <RoomRequests hostelId={user?.hostel_id} />;
+            return <RoomRequests hostelId={staff?.hostel.id ?? user?.hostel_id} />;
           case 'view-layout':
-            return <ViewLayout hostelId={user?.hostel_id} />;
+            return <ViewLayout hostelId={staff?.hostel.id ?? user?.hostel_id} />;
           case 'outpass-approval':
             return <OutpassApproval />;
           default:
@@ -385,6 +440,9 @@ const DashboardRouter = () => {
             return <MessDashboard setCurrentView={setCurrentView} />;
         }
 
+      case 'security':
+        return <SecurityDashboard />;
+
       // ================= PARENT =================
       case 'parent':
         return <ParentDashboard />;
@@ -394,16 +452,42 @@ const DashboardRouter = () => {
     }
   };
 
-  return (
-    <Layout currentView={currentView} setCurrentView={setCurrentView} workspace={workspace} onWorkspaceChange={changeWorkspace}>
-      <ScreenPermission screen={screenForView(currentView, workspace)}>
-      {workspace === 'mess' && ['stock', 'inventory', 'inventory-transactions', 'items', 'purchase-by-store', 'purchase-orders', 'inventory-reports', 'consumption-report', 'daily-rate-report', 'Daily-expenses',
-        'single-page-daily-entry', 'record-consumption', 'daily-consumption'].includes(currentView)
-        ? <InventoryWorkspace pageName={currentView === 'Daily-expenses' ? 'daily expenses' : currentView.includes('report') ? 'this report' : 'inventory records'} allowUnassigned={['inventory-reports', 'consumption-report', 'daily-rate-report'].includes(currentView)}>{renderComponent()}</InventoryWorkspace>
-        : workspace === 'warden' && user?.role === 'admin' && !['menus', 'weekly-menu', 'menu-settings'].includes(currentView)
-          ? <WardenWorkspace requireHostel={['create-room', 'view-layout'].includes(currentView)} batchRouted={currentView === 'enroll-student'}>{renderComponent()}</WardenWorkspace>
-          : renderComponent()}
+  const inventoryPage = workspace === 'mess' && ['stock', 'inventory', 'inventory-transactions', 'items',
+    'purchase-by-store', 'purchase-orders', 'inventory-reports', 'consumption-report', 'daily-rate-report',
+    'Daily-expenses', 'single-page-daily-entry', 'record-consumption', 'daily-consumption'].includes(currentView);
+  let page;
+  if (needsStaff && !staff) {
+    page = staffLoading ? <Skeleton active /> : <Alert
+      type={staffError ? 'error' : 'info'} showIcon
+      title={staffError ? 'Could not load staff workspaces' : `Choose a ${workspace === 'warden' ? 'Warden' : 'Mess'} account from Workspace`}
+      action={staffError ? <Button onClick={retryStaff}>Retry</Button> : undefined}
+    />;
+  } else {
+    const content = renderComponent();
+    page = (
+      <ScreenPermission key={staff?.id ?? workspace} screen={screenForView(workspace === 'security' ? 'dashboard' : currentView, workspace)}>
+        {inventoryPage ? (
+          <InventoryWorkspace pageName={currentView === 'Daily-expenses' ? 'daily expenses' : currentView.includes('report') ? 'this report' : 'inventory records'}>
+            {content}
+          </InventoryWorkspace>
+        ) : staff ? (
+          <WardenWorkspace batchRouted={workspace === 'warden' && currentView === 'enroll-student'}
+            showHostelCard={workspace !== 'warden' || !wardenViewsWithoutScopeCard.has(currentView)}>
+            {content}
+          </WardenWorkspace>
+        ) : content}
       </ScreenPermission>
+    );
+  }
+
+  return (
+    <Layout currentView={currentView} setCurrentView={setCurrentView} workspace={workspace} onWorkspaceChange={changeWorkspace}
+      workspaceChoices={staffChoices} workspaceSelection={staff ? String(staff.id) : 'admin'} workspaceError={staffError} onWorkspaceRetry={retryStaff}>
+      <StaffWorkspaceContext.Provider value={staff}>
+        <StaffWorkspaceGuardContext.Provider value={staff ? workspaceGuard : null}>
+          {page}
+        </StaffWorkspaceGuardContext.Provider>
+      </StaffWorkspaceContext.Provider>
     </Layout>
   );
 };
@@ -414,6 +498,7 @@ function App() {
       <PermissionProvider>
       <StockProvider>
         <AntdApp>
+          <ButtonWave />
           <Router>
             <ChatbotProvider>
               <div className="App">

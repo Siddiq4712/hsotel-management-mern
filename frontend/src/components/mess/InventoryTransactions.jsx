@@ -152,8 +152,8 @@ const InventoryTransactions = () => {
       dataIndex: 'transaction_type',
       key: 'transaction_type',
       render: text => (
-        <Tag color={text === 'purchase' ? 'green' : 'red'}>
-          {text === 'purchase' ? 'Purchase' : 'Consumption'}
+        <Tag color={{ purchase: 'green', consumption: 'red', opening_balance: 'blue' }[text]}>
+          {{ purchase: 'Purchase', consumption: 'Consumption', opening_balance: 'Opening balance' }[text] || text}
         </Tag>
       )
     },
@@ -188,6 +188,7 @@ const InventoryTransactions = () => {
           >
             <Option value="purchase">Purchases</Option>
             <Option value="consumption">Consumption</Option>
+            <Option value="opening_balance">Opening balances</Option>
           </Select>
           
           <Select

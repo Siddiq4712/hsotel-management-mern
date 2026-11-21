@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
+import React, { useState, useEffect } from 'react';
 import {
-  Card, Avatar, Typography, Row, Col, Select, List, Table,
+  Skeleton, Card, Avatar, Typography, Row, Col, Select, List, Table,
   Tag, Progress, Badge, Tabs, Button, Input, Form, message,
   ConfigProvider, theme, Space, Statistic, Divider
 } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import {
   User, Building, Calendar, IndianRupee, Mail,
   Bell, FileText, Lock, Clock, LogOut, CheckCircle
@@ -19,8 +21,12 @@ const ParentDashboard = () => {
   const { logout } = useAuth();
   const [students, setStudents] = useState([]);
   const [selectedStudentId, setSelectedStudentId] = useState(null);
-  const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [record, setRecord] = useState(null);
+  const [studentError, setStudentError] = useState('');
+  const [studentsLoading, setStudentsLoading] = useState(true);
+  const [revision, setRevision] = useState(0);
+  const currentRecord = record?.id === selectedStudentId ? record : null;
+  const dashboardData = currentRecord?.data;
 
   // Notifications
   const [notifications, setNotifications] = useState([]);
@@ -32,6 +38,8 @@ const ParentDashboard = () => {
   const [passwordLoading, setPasswordLoading] = useState(false);
 
   const fetchStudents = async () => {
+    setStudentsLoading(true);
+    setStudentError('');
     try {
       const res = await parentAPI.getStudents();
       setStudents(res.data.data || []);
@@ -39,22 +47,9 @@ const ParentDashboard = () => {
         setSelectedStudentId(res.data.data[0].userId);
       }
     } catch (err) {
-      message.error('Failed to load linked students');
-    }
+      setStudentError(err.message || 'Could not load linked residents.');
+    } finally { setStudentsLoading(false); }
   };
-
-  const fetchDashboard = useCallback(async () => {
-    if (!selectedStudentId) return;
-    setLoading(true);
-    try {
-      const res = await parentAPI.getStudentDashboard(selectedStudentId);
-      setDashboardData(res.data.data);
-    } catch (err) {
-      message.error('Failed to sync student data');
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedStudentId]);
 
   const fetchNotifications = async () => {
     try {
@@ -71,8 +66,16 @@ const ParentDashboard = () => {
   }, []);
 
   useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+    if (!selectedStudentId) return;
+    let active = true;
+    setRecord(null);
+    parentAPI.getStudentDashboard(selectedStudentId).then(response => {
+      if (active) setRecord({ id: selectedStudentId, data: response.data.data });
+    }).catch(error => {
+      if (active) setRecord({ id: selectedStudentId, error: error.message || 'Could not load resident records.' });
+    });
+    return () => { active = false; };
+  }, [selectedStudentId, revision]);
 
   const handleUpdateProfile = async (values) => {
     setProfileLoading(true);
@@ -146,21 +149,11 @@ const ParentDashboard = () => {
     <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen">
 
-        {/* Top Header Card */}
-        <Card className="border-none shadow-sm rounded-3xl p-6 bg-white mb-8">
-          <div className="module-page-header flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100 text-white">
-                <User size={24} />
-              </div>
-              <div>
-                <Title level={2} style={{ margin: 0, fontWeight: 700, letterSpacing: '-0.5px' }}>Parent Dashboard</Title>
-                <Text type="secondary" className="text-sm">Real-time status updates and monitor hostel records</Text>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center min-w-[320px]">
+        <WorkspacePageHeader title="Parent Dashboard" description="View records for your linked residents." icon={User}>
               <Select
-                value={selectedStudentId}
+                aria-label="Linked resident"
+                loading={studentsLoading}
+                value={selectedStudentId ?? undefined}
                 onChange={setSelectedStudentId}
                 className="flex-1 h-11"
                 placeholder="Select Student"
@@ -169,20 +162,22 @@ const ParentDashboard = () => {
                   <Option key={s.userId} value={s.userId}>{s.userName} ({s.roll_number})</Option>
                 ))}
               </Select>
-              <Button icon={<LogOut size={16} />} onClick={logout} danger className="h-11 rounded-xl flex items-center justify-center gap-2 font-semibold">
+              <Button icon={<LogOut size={16} />} onClick={logout} danger className="h-11 rounded-control flex items-center justify-center gap-2 font-semibold">
                 Sign Out
               </Button>
-            </div>
-          </div>
-        </Card>
+        </WorkspacePageHeader>
 
         <Row gutter={[24, 24]}>
           {/* LEFT SIDE COLUMN */}
           <Col lg={17} md={24} xs={24} className="space-y-6">
 
+            {studentError && <Alert type="error" showIcon title={studentError} action={<Button onClick={fetchStudents}>Retry</Button>} />}
+            {!studentsLoading && !studentError && !students.length && <Alert type="info" title="No residents are linked to this account." />}
+            {selectedStudentId && !currentRecord && <Card aria-label="Loading resident records"><Skeleton active /></Card>}
+            {currentRecord?.error && <Alert type="error" showIcon title={currentRecord.error} action={<Button onClick={() => setRevision(value => value + 1)}>Retry</Button>} />}
             {/* Student profile Summary Card */}
             {dashboardData && (
-              <Card className="border-none shadow-sm rounded-3xl p-6 bg-white overflow-hidden relative">
+              <Card className="border-none shadow-sm rounded-surface p-6 bg-white overflow-hidden relative">
                 <div className="absolute top-0 left-0 w-2 h-full bg-blue-600" />
                 <div className="flex flex-col sm:flex-row sm:items-center gap-6">
                   <Avatar
@@ -217,7 +212,7 @@ const ParentDashboard = () => {
             {dashboardData && (
               <Row gutter={[24, 24]}>
                 <Col md={12} xs={24}>
-                  <Card className="border-none shadow-sm rounded-3xl p-6 bg-white h-full flex flex-col justify-between">
+                  <Card className="border-none shadow-sm rounded-surface p-6 bg-white h-full flex flex-col justify-between">
                     <Title level={5} className="mb-4 flex items-center gap-2">
                       <Calendar size={18} className="text-blue-600" />
                       Attendance Summary
@@ -248,19 +243,19 @@ const ParentDashboard = () => {
                 </Col>
 
                 <Col md={12} xs={24}>
-                  <Card className="border-none shadow-sm rounded-3xl p-6 bg-white h-full flex flex-col justify-between">
+                  <Card className="border-none shadow-sm rounded-surface p-6 bg-white h-full flex flex-col justify-between">
                     <Title level={5} className="mb-4 flex items-center gap-2">
                       <IndianRupee size={18} className="text-blue-600" />
                       Financial Standing
                     </Title>
                     <div className="space-y-3 mt-2">
-                      <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div className="flex justify-between items-center p-3 bg-slate-50 rounded-surface border border-slate-100">
                         <Text className="text-slate-500 font-medium">Pending Hostel Fees:</Text>
                         <Text className="text-rose-600 font-bold text-lg">
                           ₹{dashboardData.fees.filter(f => f.status !== 'paid').reduce((sum, f) => sum + parseFloat(f.amount), 0).toFixed(2)}
                         </Text>
                       </div>
-                      <div className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div className="flex justify-between items-center p-3 bg-slate-50 rounded-surface border border-slate-100">
                         <Text className="text-slate-500 font-medium">Pending Mess Bills:</Text>
                         <Text className="text-rose-600 font-bold text-lg">
                           ₹{dashboardData.messBills.filter(b => b.status !== 'paid').reduce((sum, b) => sum + parseFloat(b.total_amount), 0).toFixed(2)}
@@ -274,13 +269,14 @@ const ParentDashboard = () => {
 
             {/* Main Tabs Data Section */}
             {dashboardData && (
-              <Card className="border-none shadow-sm rounded-3xl p-6 bg-white">
+              <Card className="border-none shadow-sm rounded-surface p-6 bg-white">
                 <Tabs defaultActiveKey="outpass" items={[
                   {
                     key: 'outpass',
                     label: 'Outpass Log',
                     children: (
                       <Table
+                        scroll={{ x: 640 }}
                         dataSource={dashboardData.outpasses}
                         columns={[
                           { title: 'Outpass Scope', key: 'dest', render: (_, r) => <Space direction="vertical" size={0}><Text strong className="text-slate-700">{r.purpose}</Text><Text type="secondary" className="text-xs">To: {r.destination}</Text></Space> },
@@ -297,6 +293,7 @@ const ParentDashboard = () => {
                     label: 'Leave Requests',
                     children: (
                       <Table
+                        scroll={{ x: 560 }}
                         dataSource={dashboardData.leaves}
                         columns={[
                           { title: 'Leave Reason', key: 'scope', render: (_, r) => <Space direction="vertical" size={0}><Text strong className="text-slate-700 capitalize">{r.leave_type}</Text><Text type="secondary" className="text-xs">{r.reason}</Text></Space> },
@@ -311,12 +308,12 @@ const ParentDashboard = () => {
                   {
                     key: 'fees',
                     label: 'Hostel Fees',
-                    children: <Table dataSource={dashboardData.fees} columns={feeColumns} rowKey="id" pagination={{ pageSize: 5 }} />
+                    children: <Table scroll={{ x: 560 }} dataSource={dashboardData.fees} columns={feeColumns} rowKey="id" pagination={{ pageSize: 5 }} />
                   },
                   {
                     key: 'mess',
                     label: 'Mess Bills',
-                    children: <Table dataSource={dashboardData.messBills} columns={billColumns} rowKey="id" pagination={{ pageSize: 5 }} />
+                    children: <Table scroll={{ x: 540 }} dataSource={dashboardData.messBills} columns={billColumns} rowKey="id" pagination={{ pageSize: 5 }} />
                   }
                 ]} />
               </Card>
@@ -328,7 +325,7 @@ const ParentDashboard = () => {
           <Col lg={7} md={24} xs={24} className="space-y-6">
 
             {/* Notices Panel */}
-            <Card className="border-none shadow-sm rounded-3xl p-6 bg-white">
+            <Card className="border-none shadow-sm rounded-surface p-6 bg-white">
               <Title level={5} className="mb-4 flex items-center gap-2">
                 <FileText size={18} className="text-blue-600" />
                 Hostel Announcements
@@ -347,7 +344,7 @@ const ParentDashboard = () => {
             </Card>
 
             {/* In-app Notifications Panel */}
-            <Card className="border-none shadow-sm rounded-3xl p-6 bg-white">
+            <Card className="border-none shadow-sm rounded-surface p-6 bg-white">
               <Title level={5} className="mb-4 flex items-center gap-2">
                 <Bell size={18} className="text-blue-600" />
                 Live Notification Feed
@@ -381,7 +378,7 @@ const ParentDashboard = () => {
             </Card>
 
             {/* Profile & Settings Self-Service */}
-            <Card className="border-none shadow-sm rounded-3xl p-6 bg-white">
+            <Card className="border-none shadow-sm rounded-surface p-6 bg-white">
               <Tabs defaultActiveKey="profile" size="small" items={[
                 {
                   key: 'profile',
@@ -389,12 +386,12 @@ const ParentDashboard = () => {
                   children: (
                     <Form form={profileForm} layout="vertical" onFinish={handleUpdateProfile} initialValues={{ username: JSON.parse(localStorage.getItem('user') || '{}').username, email: JSON.parse(localStorage.getItem('user') || '{}').email }}>
                       <Form.Item name="username" label="Username" rules={[{ required: true }]}>
-                        <Input className="h-10 rounded-xl" />
+                        <Input className="h-10 rounded-control" />
                       </Form.Item>
                       <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
-                        <Input className="h-10 rounded-xl" />
+                        <Input className="h-10 rounded-control" />
                       </Form.Item>
-                      <Button type="primary" htmlType="submit" loading={profileLoading} className="w-full h-10 rounded-xl font-semibold">
+                      <Button type="primary" htmlType="submit" loading={profileLoading} className="w-full h-10 rounded-control font-semibold">
                         Update Details
                       </Button>
                     </Form>
@@ -406,15 +403,15 @@ const ParentDashboard = () => {
                   children: (
                     <Form form={passwordForm} layout="vertical" onFinish={handleChangePassword}>
                       <Form.Item name="oldPassword" label="Current Password" rules={[{ required: true }]}>
-                        <Input.Password className="h-10 rounded-xl" />
+                        <Input.Password className="h-10 rounded-control" />
                       </Form.Item>
                       <Form.Item name="newPassword" label="New Password" rules={[{ required: true, min: 8 }]}>
-                        <Input.Password className="h-10 rounded-xl" />
+                        <Input.Password className="h-10 rounded-control" />
                       </Form.Item>
                       <Form.Item name="confirmPassword" label="Confirm New Password" dependencies={['newPassword']} rules={[{ required: true }, ({ getFieldValue }) => ({ validator: (_, value) => !value || value === getFieldValue('newPassword') ? Promise.resolve() : Promise.reject(new Error('Passwords do not match.')) })]}>
-                        <Input.Password autoComplete="new-password" className="h-10 rounded-xl" />
+                        <Input.Password autoComplete="new-password" className="h-10 rounded-control" />
                       </Form.Item>
-                      <Button type="primary" htmlType="submit" loading={passwordLoading} className="w-full h-10 rounded-xl font-semibold">
+                      <Button type="primary" htmlType="submit" loading={passwordLoading} className="w-full h-10 rounded-control font-semibold">
                         Change Password
                       </Button>
                     </Form>

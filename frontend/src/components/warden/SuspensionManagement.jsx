@@ -1,11 +1,13 @@
 import { PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
+import WorkspaceContextHeader from '../common/WorkspaceContextHeader';
+import WorkspaceToolbar from '../common/WorkspaceToolbar';
+import WorkspaceAlert from '../common/WorkspaceAlert';
+import { useWardenHostelName, wardenListPagination } from './WardenWorkspace';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, Table, Tag, Input, Select, Typography, Row, Col, Statistic, Space, Skeleton, Modal, Badge, Divider, Empty, ConfigProvider, theme, Form, App as AntdApp } from 'antd';
+import { Table, Tag, Input, Select, Typography, Row, Col, Space, Modal, Divider, Descriptions, ConfigProvider, Form, App as AntdApp } from 'antd';
 import { 
-  UserX, Plus, User, Calendar, CheckCircle2, AlertCircle, 
-  Clock, XCircle, Search, RefreshCw, ShieldAlert,
-  Gavel, Info, Inbox
+  Plus, User, CheckCircle2, AlertCircle, XCircle, Search, RefreshCw, ShieldCheck
 } from 'lucide-react';
 import { wardenAPI } from '../../services/api';
 import moment from 'moment';
@@ -14,66 +16,22 @@ const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 // --- 1. Specialized Stat Cards Skeleton ---
-const StatsSkeleton = () => (
-  <Row gutter={[24, 24]} className="mb-8">
-    {[...Array(4)].map((_, i) => (
-      <Col xs={24} sm={12} lg={6} key={i}>
-        <Card className="border-none shadow-sm rounded-[32px] p-6 bg-white">
-          <div className="flex justify-between items-start mb-4">
-            <Skeleton.Button active style={{ width: 48, height: 48, borderRadius: 16 }} />
-            <Skeleton.Button active size="small" style={{ width: 60, borderRadius: 20 }} />
-          </div>
-          <div className="space-y-2">
-            <Skeleton.Input active size="small" style={{ width: 100, height: 14 }} />
-            <Skeleton.Input active block style={{ height: 38, marginTop: 8 }} />
-          </div>
-        </Card>
-      </Col>
-    ))}
-  </Row>
-);
-
-// --- 2. Specialized Filter Hub Skeleton ---
-const FilterSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-2xl mb-6 bg-white">
-    <div className="flex flex-wrap gap-4 items-center">
-      <div className="flex-1 md:max-w-md">
-        <Skeleton.Input active block style={{ height: 48, borderRadius: 12 }} />
-      </div>
-      <Skeleton.Input active style={{ width: 200, height: 48, borderRadius: 12 }} />
-      <div className="ml-auto">
-        <Skeleton.Button active style={{ width: 48, height: 48, borderRadius: 12 }} />
-      </div>
-    </div>
-  </Card>
-);
-
-// --- 3. Table Ledger Skeleton ---
-const LedgerSkeleton = () => (
-  <Card className="border-none shadow-sm rounded-[32px] overflow-hidden bg-white">
-    {[...Array(6)].map((_, i) => (
-      <div key={i} className="flex items-center gap-6 p-6 border-b border-slate-50 last:border-0">
-        <Skeleton.Avatar active shape="circle" size="large" />
-        <div className="flex-1"><Skeleton active title={false} paragraph={{ rows: 1, width: '100%' }} /></div>
-        <Skeleton.Input active style={{ width: 150 }} />
-        <Skeleton.Button active style={{ width: 80 }} />
-      </div>
-    ))}
-  </Card>
-);
-
 const SuspensionManagement = () => {
+  const hostelName = useWardenHostelName();
   const { message } = AntdApp.useApp();
   const [form] = Form.useForm();
   const [suspensions, setSuspensions] = useState([]);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [selected, setSelected] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const [suspRes, stuRes] = await Promise.all([
         wardenAPI.getSuspensions(),
@@ -82,20 +40,20 @@ const SuspensionManagement = () => {
       setSuspensions(suspRes.data.data || []);
       setStudents(stuRes.data.data || []);
     } catch (error) {
-      message.error('Failed to load discipline records.');
+      setSuspensions([]);
+      setStudents([]);
+      setLoadError(error.message || 'Failed to load suspension records.');
     } finally {
-      // Intentional delay to ensure smooth shimmer effect
-      setTimeout(() => setLoading(false), 800);
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
   const filteredSuspensions = useMemo(() => {
-    return suspensions.filter(s => 
-      s.Student?.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.reason.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const query = searchTerm.trim().toLowerCase();
+    return suspensions.filter(record => [record.Student?.userName, record.Student?.roll_number, record.reason]
+      .some(value => String(value ?? '').toLowerCase().includes(query)));
   }, [suspensions, searchTerm]);
 
   const statusConfig = {
@@ -110,7 +68,7 @@ const SuspensionManagement = () => {
       key: 'identity',
       render: (_, r) => (
         <Space gap={3}>
-          <div className="p-2 bg-rose-50 rounded-xl text-rose-600"><User size={18} /></div>
+          <div className="p-2 bg-rose-50 rounded-control text-rose-600"><User size={18} /></div>
           <Space direction="vertical" size={0}>
             <Text strong className="text-slate-700">{r.Student?.userName}</Text>
             <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
@@ -130,18 +88,16 @@ const SuspensionManagement = () => {
       )
     },
     {
-      title: 'Duration',
+      title: 'Suspension period',
       key: 'period',
-      render: (_, r) => {
-        const diff = r.end_date ? moment(r.end_date).diff(moment(r.start_date), 'days') : 'TBD';
-        return <Text strong className="text-slate-500">{diff} Days</Text>;
-      }
+      render: (_, record) => `${moment(record.start_date).format('DD MMM YYYY')} – ${record.end_date ? moment(record.end_date).format('DD MMM YYYY') : 'Open-ended'}`
     },
     {
-      title: 'Action',
+      title: 'Actions',
       key: 'action',
       align: 'right',
-      render: () => <Button type="text" icon={<RefreshCw size={14}/>} className="text-slate-300" />
+      width: 105,
+      render: (_, record) => <Button onClick={() => setSelected(record)}>Review</Button>
     }
   ];
 
@@ -161,86 +117,62 @@ const SuspensionManagement = () => {
   };
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#f43f5e', borderRadius: 16 } }}>
-      <div className="module-page p-8 bg-slate-50 min-h-screen">
-        
-        {/* Header */}
-        <div className="module-page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-rose-600 rounded-2xl shadow-lg shadow-rose-100">
-              <ShieldAlert className="text-white" size={24} />
-            </div>
-            <div>
-              <Title level={2} style={{ margin: 0 }}>Suspension Records</Title>
-              <Text type="secondary">Manage student disciplinary actions and suspension periods</Text>
-            </div>
-          </div>
-          <Button permissionAction="create" type="primary" icon={<Plus size={18}/>} onClick={() => setShowCreateModal(true)} className="h-12 rounded-xl px-6 font-bold bg-rose-600 border-none shadow-lg">Add Suspension</Button>
+    <ConfigProvider>
+      <div className="module-page warden-page">
+        <WorkspaceContextHeader title="Suspensions" headingAs="h1"
+          description={hostelName ? `Manage resident suspension records for ${hostelName}.` : 'Manage resident suspension records.'}
+          actions={<>
+            <Button icon={<RefreshCw size={16} />} onClick={fetchData} loading={loading}>Refresh</Button>
+            <Button permissionAction="create" type="primary" icon={<Plus size={16} />}
+              disabled={loading || Boolean(loadError)} onClick={() => setShowCreateModal(true)}>Add Suspension</Button>
+          </>} />
+        <div className="warden-page-stack">
+        <div className="warden-stat-grid">
+          {[
+            { label: 'Total suspensions', value: suspensions.length, caption: 'All suspension records' },
+            { label: 'Active', value: suspensions.filter(record => record.status === 'active').length, caption: 'Currently active suspensions' },
+            { label: 'Completed', value: suspensions.filter(record => record.status === 'completed').length, caption: 'Completed suspension periods' },
+          ].map(stat => <div key={stat.label} className="warden-panel warden-stat">
+            <span>{stat.label}</span><strong>{loading || loadError ? '—' : stat.value}</strong><small>{stat.caption}</small>
+          </div>)}
+        </div>
+        <section className="warden-panel warden-table-panel" aria-label="Suspension records">
+          <WorkspaceToolbar className="warden-table-toolbar">
+            <Input aria-label="Search suspensions" placeholder="Search by student, roll number, or reason" className="workspace-search"
+              prefix={<Search size={16} aria-hidden="true" />} value={searchTerm} onChange={event => setSearchTerm(event.target.value)} allowClear />
+          </WorkspaceToolbar>
+          {loadError && <WorkspaceAlert type="error" showIcon title={loadError} className="mb-4" />}
+          <Table rowKey="id" columns={columns} dataSource={loadError ? [] : filteredSuspensions} loading={loading} scroll={{ x: 660 }}
+            pagination={wardenListPagination(8, 'suspensions')}
+            locale={{ emptyText: loadError ? 'Suspensions could not be loaded' : searchTerm.trim() ? 'No suspensions match your search'
+              : <div className="warden-empty"><ShieldCheck size={30} aria-hidden="true" /><strong>No suspensions recorded</strong><p>This hostel has no suspension records.</p></div> }} />
+        </section>
         </div>
 
-        {loading ? (
-          <>
-            <StatsSkeleton />
-            <FilterSkeleton />
-            <LedgerSkeleton />
-          </>
-        ) : (
-          <>
-            {/* Real Stat Cards */}
-            <Row gutter={[24, 24]} className="mb-8">
-              {[
-                { label: 'Total Cases', val: suspensions.length, icon: Gavel, color: 'text-slate-400' },
-                { label: 'Currently Suspended', val: suspensions.filter(s => s.status === 'active').length, icon: UserX, color: 'text-rose-500' },
-                { label: 'Suspensions Finished', val: suspensions.filter(s => s.status === 'completed').length, icon: CheckCircle2, color: 'text-emerald-500' },
-                { label: 'Pending Review', val: 0, icon: Clock, color: 'text-amber-500' },
-              ].map((stat, i) => (
-                <Col xs={24} sm={12} lg={6} key={i}>
-                  <Card className="border-none shadow-sm rounded-[32px]">
-                    <Statistic title={<span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{stat.label}</span>} value={stat.val} prefix={<stat.icon size={18} className={`${stat.color} mr-2`} />} valueStyle={{ fontWeight: 800 }} />
-                  </Card>
-                </Col>
-              ))}
-            </Row>
-
-            {/* Real Filter Hub */}
-            <Card className="border-none shadow-sm rounded-2xl mb-6">
-              <div className="flex flex-wrap gap-4 items-center">
-                <div className="flex items-center gap-3 bg-slate-50 p-2 px-4 rounded-xl border border-slate-100 flex-1 md:max-w-md focus-within:border-rose-300 transition-all">
-                  <Search size={18} className="text-slate-300" />
-                  <Input placeholder="Search Roll or Incident..." variant="borderless" className="w-full" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                </div>
-                <Button icon={<RefreshCw size={16}/>} onClick={fetchData} className="rounded-xl h-12 w-12 flex items-center justify-center border-slate-200" />
-              </div>
-            </Card>
-
-            {/* Real Table */}
-            <Card className="border-none shadow-sm rounded-[32px] overflow-hidden" styles={{ body: { padding: 0 } }}>
-              {filteredSuspensions.length > 0 ? (
-                <Table 
-                  dataSource={filteredSuspensions} 
-                  columns={columns} 
-                  rowKey="id" 
-                  pagination={{ pageSize: 8, position: ['bottomCenter'] }} 
-                />
-              ) : (
-                <div className="py-24 flex flex-col items-center justify-center bg-white">
-                  <Empty image={<div className="bg-slate-50 p-8 rounded-full mb-4"><Inbox size={64} className="text-slate-200" /></div>} description={<Text className="text-slate-400 block">No disciplinary records found.</Text>} />
-                </div>
-              )}
-            </Card>
-          </>
-        )}
+        <Modal title="Review suspension" open={Boolean(selected)} width={880} footer={null} onCancel={() => setSelected(null)}>
+          {selected && <Descriptions column={1} items={[
+            { key: 'student', label: 'Student', children: selected.Student?.userName || `Student #${selected.student_id}` },
+            { key: 'roll', label: 'Roll number', children: selected.Student?.roll_number || '—' },
+            { key: 'start', label: 'Start date', children: moment(selected.start_date).format('DD MMM YYYY') },
+            { key: 'end', label: 'End date', children: selected.end_date ? moment(selected.end_date).format('DD MMM YYYY') : 'Open-ended' },
+            { key: 'status', label: 'Status', children: statusConfig[selected.status]?.label || selected.status },
+            { key: 'reason', label: 'Reason', children: selected.reason || '—' },
+            { key: 'remarks', label: 'Remarks', children: selected.remarks || '—' },
+          ]} />}
+        </Modal>
 
         {/* Create Suspension Modal */}
         <Modal
           title={<Title level={5} className="mb-0">Add Student Suspension</Title>}
           open={showCreateModal}
           onCancel={() => {
+            if (createLoading) return;
             setShowCreateModal(false);
             form.resetFields();
           }}
           footer={null}
-          width={600}
+          width={880}
+          closable={!createLoading} keyboard={!createLoading} mask={{ closable: !createLoading }}
           destroyOnHidden
         >
           <Form form={form} layout="vertical" onFinish={handleCreateSuspension}>
@@ -267,7 +199,7 @@ const SuspensionManagement = () => {
             </Form.Item>
 
             <Row gutter={16}>
-              <Col span={12}>
+              <Col xs={24} sm={12}>
                 <Form.Item
                   name="start_date"
                   label="Suspension From"
@@ -276,7 +208,7 @@ const SuspensionManagement = () => {
                   <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" placeholder="Select date" />
                 </Form.Item>
               </Col>
-              <Col span={12}>
+              <Col xs={24} sm={12}>
                 <Form.Item
                   name="end_date"
                   label="Suspension To (Optional)"
@@ -293,13 +225,13 @@ const SuspensionManagement = () => {
             <Divider />
 
             <div className="flex justify-end gap-3 pt-4">
-              <Button onClick={() => {
+              <Button disabled={createLoading} onClick={() => {
                 setShowCreateModal(false);
                 form.resetFields();
               }}>
                 Cancel
               </Button>
-              <Button permissionAction="create" type="primary" htmlType="submit" loading={createLoading} className="bg-rose-600">
+              <Button permissionAction="create" type="primary" htmlType="submit" loading={createLoading}>
                 Save Suspension
               </Button>
             </div>

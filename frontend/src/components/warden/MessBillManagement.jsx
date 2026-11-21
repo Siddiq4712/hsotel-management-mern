@@ -1,19 +1,22 @@
 import { PermissionNativeButton, PermissionPopconfirm as Popconfirm, PermissionButton as Button } from '../common/PermissionControls';
 import { DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { Card, message, Table, Row, Col, Typography, Tooltip, Spin, Collapse, Badge, Empty, Alert } from 'antd';
+import { Card, message, Table, Row, Col, Typography, Tooltip, Spin, Collapse, Badge, Empty } from 'antd';
+import Alert from '../common/WorkspaceAlert';
+import WorkspacePageHeader from '../common/WorkspacePageHeader';
+import { useWardenHostelName } from './WardenWorkspace';
 import {
   DollarSign, Calendar, CheckCircle, XCircle, AlertTriangle,
   RefreshCw, FileText, Coffee, Calculator, Clock, ChevronDown
 } from 'lucide-react';
-import { wardenAPI, messAPI, adminAPI } from '../../services/api';
-import { requestEntryHostel } from '../../services/entryHostel';
-import { useAuth } from '../../context/AuthContext';
+import { wardenAPI, messAPI } from '../../services/api';
+import { useStaffWorkspace } from '../../context/StaffWorkspaceContext';
 import moment from 'moment';
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
 const MessBillManagement = () => {
-  const { user } = useAuth();
+  const hostelName = useWardenHostelName();
+  const staff = useStaffWorkspace();
   const [loading, setLoading] = useState(false);
   const [billsLoading, setBillsLoading] = useState(false);
   const [messBills, setMessBills] = useState([]);
@@ -162,11 +165,9 @@ const MessBillManagement = () => {
     try {
       const month = selectedMonth.month() + 1;
       const year = selectedMonth.year();
-      let hostelId;
+      const hostelId = staff?.hostel.id;
       let amountPerDay = summary.averageDailyCost;
-      if (user?.role === 'admin') {
-        const response = await adminAPI.getHostels();
-        hostelId = await requestEntryHostel(response.data.data || []);
+      if (hostelId) {
         const schedules = await messAPI.getMenuSchedule({hostel_id:hostelId,
           start_date:selectedMonth.clone().startOf('month').format('YYYY-MM-DD'),
           end_date:selectedMonth.clone().endOf('month').format('YYYY-MM-DD')});
@@ -265,7 +266,7 @@ const MessBillManagement = () => {
           {record.status !== 'paid' && (
             <Tooltip title="Mark as Paid">
               <PermissionNativeButton permissionAction="edit"
-                className="p-2 bg-green-500 text-white rounded hover:bg-green-600 transition"
+                className="p-2 bg-green-500 text-white rounded-control hover:bg-green-600 transition"
                 onClick={() => handleStatusChange(record.id, 'paid')}
               >
                 <CheckCircle size={16} />
@@ -275,7 +276,7 @@ const MessBillManagement = () => {
           {record.status === 'pending' && (
             <Tooltip title="Mark as Lapsed">
               <PermissionNativeButton permissionAction="edit"
-                className="p-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
+                className="p-2 bg-red-500 text-white rounded-control hover:bg-red-600 transition"
                 onClick={() => handleStatusChange(record.id, 'overdue')}
               >
                 <XCircle size={16} />
@@ -291,7 +292,7 @@ const MessBillManagement = () => {
                 okText="Yes"
                 cancelText="No"
               >
-                <button className="p-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition">
+                <button className="p-2 bg-gray-500 text-white rounded-control hover:bg-gray-600 transition">
                   <RefreshCw size={16} />
                 </button>
               </Popconfirm>
@@ -365,10 +366,8 @@ const MessBillManagement = () => {
     setSelectedMonth(value || moment());
   };
   return (
-    <div className="space-y-6">
-      <div className="module-page-header flex justify-between items-center">
-        <Title level={2}>Mess Bill Register</Title>
-      </div>
+    <div className="module-page space-y-6">
+      <WorkspacePageHeader title="Mess Bill Register" description={hostelName || 'Review hostel bills by month.'} icon={Calculator} />
      
       {debugInfo && debugInfo.error && (
         <Alert
@@ -413,7 +412,7 @@ const MessBillManagement = () => {
               />
             </div>
            
-            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+            <div className="mb-6 p-4 bg-blue-50 rounded-control">
               <div className="flex justify-between items-center mb-1">
                 <span className="text-sm text-blue-700">Average Daily Rate</span>
                 {calculatingCosts && <Spin size="small" />}
@@ -450,7 +449,7 @@ const MessBillManagement = () => {
             </Button>
            
             {debugInfo && debugInfo.sampleMenus && (
-              <div className="mt-4 border rounded p-3 text-xs">
+              <div className="mt-4 border rounded-surface p-3 text-xs">
                 <div className="font-medium mb-2">Meal Data Status</div>
                 <p>Found {debugInfo.totalMenusFound} total menus, {debugInfo.servedMenusFound} served.</p>
                 {debugInfo.sampleMenus.length > 0 && (
@@ -474,21 +473,21 @@ const MessBillManagement = () => {
           <Card title={<div className="flex items-center"><FileText className="mr-2" size={18} /> Payment Collection Status</div>} className="h-full">
             <Row gutter={16} className="mb-4">
               <Col span={8}>
-                <div className="p-4 bg-blue-50 rounded-lg">
+                <div className="p-4 bg-blue-50 rounded-control">
                   <div className="text-sm text-blue-700 mb-1">Total Registered</div>
                   <div className="text-2xl font-semibold text-blue-900">{summary.totalBills}</div>
                   <div className="text-lg font-medium text-blue-800">₹{summary.totalAmount.toFixed(2)}</div>
                 </div>
               </Col>
               <Col span={8}>
-                <div className="p-4 bg-yellow-50 rounded-lg">
+                <div className="p-4 bg-yellow-50 rounded-control">
                   <div className="text-sm text-yellow-700 mb-1">Unpaid Bills</div>
                   <div className="text-2xl font-semibold text-yellow-900">{summary.pendingBills}</div>
                   <div className="text-lg font-medium text-yellow-800">₹{summary.pendingAmount.toFixed(2)}</div>
                 </div>
               </Col>
               <Col span={8}>
-                <div className="p-4 bg-green-50 rounded-lg">
+                <div className="p-4 bg-green-50 rounded-control">
                   <div className="text-sm text-green-700 mb-1">Collected</div>
                   <div className="text-2xl font-semibold text-green-900">{summary.paidBills}</div>
                   <div className="text-lg font-medium text-green-800">₹{summary.paidAmount.toFixed(2)}</div>

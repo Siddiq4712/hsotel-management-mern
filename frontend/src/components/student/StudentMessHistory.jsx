@@ -154,7 +154,7 @@ const StudentMessHistory = () => {
             <Spin size="small" />
           </div>
         ) : (
-          <div className={`flex flex-col items-center p-6 border rounded-lg ${statusInfo.color}`}>
+          <div className={`flex flex-col items-center p-6 border rounded-control ${statusInfo.color}`}>
             {statusInfo.icon}
             <Title level={4} className="mt-2 mb-1">{statusInfo.text}</Title>
             {attendance && (

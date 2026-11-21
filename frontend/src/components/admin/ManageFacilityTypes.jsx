@@ -73,7 +73,7 @@ const ManageFacilityTypes = () => {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+          className="bg-blue-600 text-white px-4 py-2 rounded-control hover:bg-blue-700 transition-colors flex items-center"
         >
           <Plus size={20} className="mr-2" />
           Create Facility Type
@@ -81,7 +81,7 @@ const ManageFacilityTypes = () => {
       </div>
 
       {message.text && (
-        <div className={`mb-4 p-3 rounded-lg flex items-center ${
+        <div className={`mb-4 p-3 rounded-control flex items-center ${
           message.type === 'success' 
             ? 'bg-green-100 border border-green-400 text-green-700' 
             : 'bg-red-100 border border-red-400 text-red-700'
@@ -97,10 +97,10 @@ const ManageFacilityTypes = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {facilityTypes.map((facilityType) => (
-          <div key={facilityType.id} className="bg-white rounded-lg shadow-md p-6">
+          <div key={facilityType.id} className="bg-white rounded-control shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center">
-                <div className="bg-blue-100 p-3 rounded-lg">
+                <div className="bg-blue-100 p-3 rounded-control">
                   <Wifi className="text-blue-600" size={24} />
                 </div>
                 <div className="ml-3">
@@ -143,7 +143,7 @@ const ManageFacilityTypes = () => {
       {/* Create Facility Type Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-control bg-white">
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Create Facility Type</h3>
               
@@ -157,7 +157,7 @@ const ManageFacilityTypes = () => {
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="e.g., Wi-Fi, Laundry, Gym"
                     required
                   />
@@ -172,7 +172,7 @@ const ManageFacilityTypes = () => {
                     value={formData.description}
                     onChange={handleChange}
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-control focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Optional description..."
                   />
                 </div>
@@ -181,7 +181,7 @@ const ManageFacilityTypes = () => {
                   <button
                     type="submit"
                     disabled={createLoading}
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-control hover:bg-blue-700 transition-colors disabled:opacity-50"
                   >
                     {createLoading ? 'Creating...' : 'Create'}
                   </button>
@@ -192,7 +192,7 @@ const ManageFacilityTypes = () => {
                       setFormData({ name: '', description: '' });
                       setMessage({ type: '', text: '' });
                     }}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
+                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-control hover:bg-gray-400 transition-colors"
                   >
                     Cancel
                   </button>

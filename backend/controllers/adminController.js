@@ -4,7 +4,7 @@ import { Op, fn, col, literal } from 'sequelize';
 import sequelize from '../config/database.js';
 import { archiveRoomTemplate } from '../services/roomTemplates.js';
 import {
-  User, Role, Hostel, RoomType, HostelRoom, Session, Attendance,
+  User, Role, Hostel, RoomType, HostelRoom, RoomAllotment, Session, Attendance,
   HostelFacilityType, HostelFacility, HostelFacilityRegister, HostelMaintenance,
   IncomeType, ExpenseType, UOM, Supplier, PurchaseOrder, SupplierBill, DayReductionRequest,
   Fee,
@@ -34,6 +34,12 @@ const resolveRoleRecord = async ({ roleId, role }) => {
 };
 
 const normalizeRoleName = (name) => normalizeRole(name) === 'student' ? 'Student' : String(name || '').trim();
+
+const activeStaffHostel = async (id) => {
+  if (!/^\d+$/.test(String(id)) || !Number.isSafeInteger(Number(id)) || Number(id) <= 0) return false;
+  const hostel = await Hostel.findByPk(id);
+  return Boolean(hostel?.is_active);
+};
 
 // HOSTEL MANAGEMENT
 const hostelFields = (body, partial = false) => {
@@ -240,12 +246,15 @@ export const createUser = async (req, res) => {
 
     const roleNameLower = normalizeRole(roleData.roleName) || '';
     if (roleNameLower === 'student') return res.status(400).json({ success: false, message: 'Use Student Admission to create students with automatic batch and hostel allocation.' });
-    const isHostelRequired = ['warden', 'student', 'mess'].includes(roleNameLower);
+    const isHostelRequired = ['warden', 'mess'].includes(roleNameLower);
     if (isHostelRequired && !hostel_id) {
       return res.status(400).json({
         success: false,
         message: 'Hostel selection is required for this role'
       });
+    }
+    if (isHostelRequired && !(await activeStaffHostel(hostel_id))) {
+      return res.status(400).json({ success: false, message: 'Choose an active hostel.' });
     }
 
     const user = await User.create({
@@ -293,7 +302,7 @@ export const getUsers = async (req, res) => {
   try {
     const { role, hostel_id, search } = req.query;
 
-    let whereClause = { status: 'Active' };
+    const whereClause = { status: true };
 
     if (hostel_id && hostel_id !== 'all') {
       whereClause.hostel_id = hostel_id;
@@ -323,6 +332,14 @@ export const getUsers = async (req, res) => {
           required: false
         },
         {
+          model: RoomAllotment,
+          as: 'tbl_RoomAllotments',
+          attributes: ['id', 'room_id'],
+          where: { is_active: true },
+          required: false,
+          include: [{ model: HostelRoom, attributes: ['room_number'], required: true }]
+        },
+        {
           model: ParentStudent,
           as: 'ParentLinks',
           required: false,
@@ -333,7 +350,8 @@ export const getUsers = async (req, res) => {
     });
 
     res.json({ success: true, data: users.map(user => {
-      const value = user.toJSON();
+      const { tbl_RoomAllotments = [], ...value } = user.toJSON();
+      value.room_number = tbl_RoomAllotments.sort((a, b) => b.id - a.id)[0]?.HostelRoom?.room_number ?? null;
       if (normalizeRole(value.role?.roleName) === 'student') value.role = { ...value.role, roleName: 'Student' };
       return value;
     }) });
@@ -357,7 +375,12 @@ export const updateUser = async (req, res) => {
       });
     }
 
-    const roleData = await resolveRoleRecord({ roleId, role });
+    if (!username || !email) {
+      return res.status(400).json({ success: false, message: 'Username and email are required' });
+    }
+
+    const currentRole = await Role.findByPk(user.roleId);
+    const roleData = Number(roleId) === Number(user.roleId) ? currentRole : await resolveRoleRecord({ roleId, role });
     if (!roleData) {
       return res.status(400).json({
         success: false,
@@ -366,24 +389,36 @@ export const updateUser = async (req, res) => {
     }
 
     const roleNameLower = normalizeRole(roleData.roleName) || '';
-    const currentRole = await Role.findByPk(user.roleId);
     const currentIsStudent = normalizeRole(currentRole?.roleName) === 'student';
     const targetIsStudent = roleNameLower === 'student';
+    if (Number(req.user?.userId) === Number(user.userId) && Number(roleData.roleId) !== Number(user.roleId)) {
+      return res.status(400).json({ success: false, message: 'You cannot change the role of your own account' });
+    }
     if (currentIsStudent !== targetIsStudent) return res.status(400).json({ success: false, message: 'Use Student Admission to change student enrollment. Student roles cannot be changed in user management.' });
     if (targetIsStudent && Number(hostel_id) !== Number(user.hostel_id)) return res.status(400).json({ success: false, message: 'Student hostel follows their batch. Change it in Manage Batches and review allocation.' });
-    const isHostelRequired = ['warden', 'student', 'mess'].includes(roleNameLower);
+    const isHostelRequired = ['warden', 'mess'].includes(roleNameLower);
     if (isHostelRequired && !hostel_id) {
       return res.status(400).json({
         success: false,
         message: 'Hostel selection is required for this role'
       });
     }
+    if (isHostelRequired && !(await activeStaffHostel(hostel_id))) {
+      return res.status(400).json({ success: false, message: 'Choose an active hostel.' });
+    }
+
+    const duplicate = await User.findOne({
+      where: { userId: { [Op.ne]: user.userId }, [Op.or]: [{ userName: username }, { userMail: email }] }
+    });
+    if (duplicate) {
+      return res.status(409).json({ success: false, message: 'User with this username or email already exists' });
+    }
 
     const updateData = {
       userName: username,
       userMail: email,
       roleId: roleData.roleId,
-      hostel_id: isHostelRequired ? parseInt(hostel_id, 10) : null
+      hostel_id: targetIsStudent ? user.hostel_id : (isHostelRequired ? parseInt(hostel_id, 10) : null)
     };
 
     if (password && password.trim()) {
@@ -391,27 +426,30 @@ export const updateUser = async (req, res) => {
       updateData.password = await bcrypt.hash(password, salt);
     }
 
-    await user.update(updateData);
-
     if (roleNameLower === 'parent' && studentRollNumbers !== undefined) {
-      // Clear existing links
-      await ParentStudent.destroy({ where: { parent_id: user.userId } });
-
-      const rollNumbers = String(studentRollNumbers)
+      const rollNumbers = [...new Set(String(studentRollNumbers)
         .split(',')
         .map(r => r.trim())
-        .filter(Boolean);
-
-      const students = await User.findAll({
-        where: { roll_number: { [Op.in]: rollNumbers } }
-      });
-
-      for (const student of students) {
-        await ParentStudent.create({
+        .filter(Boolean))];
+      const students = rollNumbers.length ? await User.findAll({
+        where: { roll_number: { [Op.in]: rollNumbers } },
+        include: [{ model: Role, as: 'role', attributes: [], where: sequelize.where(fn('LOWER', col('role.roleName')), { [Op.in]: ['student', 'lapc'] }) }]
+      }) : [];
+      const foundRollNumbers = new Set(students.map((student) => String(student.roll_number).toLowerCase()));
+      const missingRollNumbers = rollNumbers.filter((number) => !foundRollNumbers.has(number.toLowerCase()));
+      if (missingRollNumbers.length) {
+        return res.status(400).json({ success: false, message: `Student roll numbers not found: ${missingRollNumbers.join(', ')}` });
+      }
+      await sequelize.transaction(async (transaction) => {
+        await user.update(updateData, { transaction });
+        await ParentStudent.destroy({ where: { parent_id: user.userId }, transaction });
+        await ParentStudent.bulkCreate(students.map((student) => ({
           parent_id: user.userId,
           student_id: student.userId
-        });
-      }
+        })), { transaction });
+      });
+    } else {
+      await user.update(updateData);
     }
 
     const userResponse = { ...user.toJSON() };
@@ -431,13 +469,16 @@ export const updateUser = async (req, res) => {
 export const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
+    if (Number(req.user?.userId) === Number(id)) {
+      return res.status(400).json({ success: false, message: 'You cannot delete the account you are signed in with' });
+    }
     const user = await User.findByPk(id);
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    await user.update({ status: 'Inactive' });
+    await user.update({ status: false });
 
     res.json({ success: true, message: 'User deactivated successfully' });
   } catch (error) {
@@ -1140,6 +1181,17 @@ export const getDashboardStats = async (req, res) => {
 
     const totalRooms = await HostelRoom.count({ where: { is_active: true } });
     const occupiedRooms = await HostelRoom.count({ where: { is_occupied: true, is_active: true } });
+    const bedCounts = await HostelRoom.findOne({
+      attributes: [
+        [fn('SUM', col('RoomType.capacity')), 'totalBeds'],
+        [fn('SUM', col('HostelRoom.occupancy_count')), 'occupiedBeds'],
+      ],
+      include: [{ model: RoomType, attributes: [], required: true }],
+      where: { is_active: true },
+      raw: true,
+    });
+    const totalBeds = Number(bedCounts?.totalBeds ?? 0);
+    const occupiedBeds = Number(bedCounts?.occupiedBeds ?? 0);
     const totalSuppliers = await Supplier.count({ where: { is_active: true } });
     const totalFacilities = await HostelFacility.count();
     const pendingMaintenance = await HostelMaintenance.count({ where: { status: 'reported' } });
@@ -1157,6 +1209,7 @@ export const getDashboardStats = async (req, res) => {
       data: {
         totalHostels, totalWardens, totalStudents, totalRooms,
         occupiedRooms, availableRooms: totalRooms - occupiedRooms,
+        totalBeds, occupiedBeds, availableBeds: Math.max(0, totalBeds - occupiedBeds),
         totalSuppliers, totalFacilities, pendingMaintenance,
         outpasses: {
           total: totalOutpasses,

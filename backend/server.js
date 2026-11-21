@@ -18,6 +18,7 @@ import { ensureMenuPlanningSchema } from './services/menuPlanningSchema.js';
 import { ensureInventorySchema } from './services/inventorySchema.js';
 import { ensureAdditionalFoodSchema } from './services/additionalFoodSchema.js';
 import { ensureBatchSchema } from './services/batchSchema.js';
+import { ensureResidentSchema } from './services/residentSchema.js';
 import { ensureRoomTemplateSchema } from './services/roomTemplateSchema.js';
 
 import authRoutes from './routes/auth.js';
@@ -131,6 +132,7 @@ installActivityRecorder(models);
 
 ensureReductionSchema(sequelize)
   .then(() => ensureMenuPlanningSchema())
+  .then(() => ensureResidentSchema(sequelize))
   .then(() => sequelize.sync())
   .then(() => ensurePermissionPolicy())
   .then(() => ensureRoomTemplateSchema(sequelize))

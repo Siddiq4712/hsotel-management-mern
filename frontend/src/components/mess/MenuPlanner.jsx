@@ -1,7 +1,7 @@
 import { PermissionPopconfirm as Popconfirm } from '../common/PermissionControls';
 import { Calendar, DatePicker } from '../common/MomentPickers';
 import React, { useState, useEffect } from 'react';
-import { Card, Badge, Button, Modal, Form, Select, InputNumber, Typography, Space, List, Tag, Row, Col, Tooltip, Spin, Divider, ConfigProvider, theme, Skeleton, App as AntdApp } from 'antd';
+import { Card, Badge, Button, Modal, Form, Select, InputNumber, Typography, Space, List, Tag, Row, Col, Tooltip, Spin, Divider, ConfigProvider, Skeleton, App as AntdApp } from 'antd';
 // Lucide icons for consistency
 import {
   CalendarDays, Plus, Eye, Trash2, CheckCircle2, 
@@ -157,12 +157,12 @@ const MenuPlanner = () => {
   };
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm, token: { colorPrimary: '#2563eb', borderRadius: 12 } }}>
+    <ConfigProvider>
       <div className="module-page p-8 bg-slate-50 min-h-screen">
         {/* Header */}
         <div className="module-page-header flex justify-between items-center mb-8">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+            <div className="p-3 bg-blue-600 rounded-control shadow-lg shadow-blue-100">
               <CalendarDays className="text-white" size={24} />
             </div>
             <div>
@@ -185,7 +185,7 @@ const MenuPlanner = () => {
         </div>
 
         {/* Calendar Card */}
-        <Card className="border-none shadow-sm rounded-2xl overflow-hidden" styles={{ body: { padding: '24px' } }}>
+        <Card className="border-none shadow-sm rounded-surface overflow-hidden" styles={{ body: { padding: '24px' } }}>
           {loading ? (
             <div className="p-20 text-center"><Skeleton active paragraph={{ rows: 10 }} /></div>
           ) : (
@@ -212,7 +212,7 @@ const MenuPlanner = () => {
           onCancel={() => setModalVisible(false)}
           onOk={() => form.submit()}
           confirmLoading={confirmLoading}
-          className="rounded-2xl"
+          className="rounded-surface"
         >
           <Form form={form} layout="vertical" onFinish={handleSubmit} className="mt-4">
             <Form.Item name="scheduled_date" label="Selected Date"><DatePicker className="w-full" disabled /></Form.Item>
@@ -247,7 +247,7 @@ const MenuPlanner = () => {
             dataSource={schedulesForDate}
             renderItem={s => (
               <List.Item
-                className="bg-slate-50 mb-3 p-4 rounded-xl border border-slate-100 flex flex-col items-start gap-3"
+                className="bg-slate-50 mb-3 p-4 rounded-control border border-slate-100 flex flex-col items-start gap-3"
                 actions={[
                   <Button icon={<Eye size={14}/>} onClick={() => { setSelectedSchedule(s); setMenuScheduleDetailsVisible(true); }}>Details</Button>,
                   <Popconfirm permissionAction="delete" title="Remove schedule?" onConfirm={() => messAPI.deleteMenuSchedule(s.id).then(fetchInitialData)}>
@@ -282,13 +282,13 @@ const MenuPlanner = () => {
             <div className="space-y-6">
               <Row gutter={16}>
                 <Col span={12}>
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <div className="bg-slate-50 p-4 rounded-control border border-slate-100">
                     <Text className="text-slate-400 text-[10px] uppercase font-bold block mb-1">Total Budget</Text>
                     <Text className="text-xl font-bold text-slate-800">₹{parseFloat(selectedSchedule.total_cost || 0).toFixed(2)}</Text>
                   </div>
                 </Col>
                 <Col span={12}>
-                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                  <div className="bg-blue-50 p-4 rounded-control border border-blue-100">
                     <Text className="text-blue-400 text-[10px] uppercase font-bold block mb-1">Cost Per Plate</Text>
                     <Text className="text-xl font-bold text-blue-700">₹{parseFloat(selectedSchedule.cost_per_serving || 0).toFixed(2)}</Text>
                   </div>
@@ -300,7 +300,7 @@ const MenuPlanner = () => {
                 <List
                   dataSource={selectedSchedule.Menu?.tbl_Menu_Items}
                   renderItem={item => (
-                    <div className="flex justify-between items-center p-3 mb-2 bg-white border border-slate-100 rounded-xl">
+                    <div className="flex justify-between items-center p-3 mb-2 bg-white border border-slate-100 rounded-control">
                       <Text strong>{item.tbl_Item?.name}</Text>
                       <Text className="text-slate-500">{item.quantity} {item.unit}</Text>
                     </div>

@@ -1,6 +1,7 @@
 import { PermissionButton as Button } from '../common/PermissionControls';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Checkbox, Modal, Select, Space, Table, Typography, message } from 'antd';
+import { Checkbox, Modal, Select, Space, Table, Typography, message } from 'antd';
+import Alert from '../common/WorkspaceAlert';
 import { DatePicker } from '../common/MomentPickers';
 import moment from 'moment';
 import * as XLSX from 'xlsx';
